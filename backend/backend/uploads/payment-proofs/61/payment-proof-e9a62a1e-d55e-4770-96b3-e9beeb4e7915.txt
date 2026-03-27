@@ -1,0 +1,25 @@
+SVL Printing and Packaging
+GSTIN: 07AABCS1234H1Z0
+103-A, Industrial Complex, SVL Business Park, Bangalore, Karnataka - 560001
+Phone: +91-080-41234567
+Email: billing@svlprinting.com
+
+INVOICE
+Invoice #: INV-1773400749696
+Date: 13/3/2026
+Payment Amount: ₹102.00
+
+BILL TO:
+Name: Dharanish r
+Email: dharanishr2003@gamil.com
+INVOICE ITEMS:
+Description                    HSN        Qty      Unit Price   Total       
+----------------------------------------------------------------------------------------------------
+tyu                            sdgfasfawefawegfawefg 1        ₹10.00       ₹10.01
+----------------------------------------------------------------------------------------------------
+Subtotal: ₹10.00
+Total CGST: ₹0.00
+Total SGST: ₹0.00
+Grand Total: ₹10.01
+Amount Paid: ₹102.00
+Remaining Amount: ₹-92.00

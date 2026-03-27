@@ -1,0 +1,174 @@
+/* Formatting search box */
+
+.lown_result {
+  position: absolute;
+  z-index: 1000001;
+  background: #e7ebef;
+  width: 100%;
+  top: 100%;
+  left: 0;
+}
+
+.lown-search-box input[type="text"],
+.result {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Formatting result items */
+.lown_result p {
+  margin: 0;
+  padding: 7px 10px;
+  border: 1px solid #cccccc;
+  border-top: none;
+  cursor: pointer;
+}
+
+.lown_result p:hover {
+  background: #f2f2f2;
+}
+
+/* search box for lead owner name end */
+
+/* Formatting cp_result items */
+.cp_result {
+  position: absolute;
+  z-index: 1000001;
+  background: #e7ebef;
+  width: 100%;
+  top: 100%;
+  left: 0;
+}
+
+.cp-search-box input[type="text"],
+.result {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.cp_result p {
+  margin: 0;
+  padding: 7px 10px;
+  border: 1px solid #cccccc;
+  border-top: none;
+  cursor: pointer;
+}
+
+.cp_result p:hover {
+  background: #e1dede;
+}
+
+/* search box for channel partner name end */
+
+.p-30 {
+  padding: 0 30px !important;
+}
+
+.nexor-icon {
+  color: #637381;
+}
+.nexor-span {
+  margin-left: 15px;
+}
+
+.table-status-cell {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 35px !important;
+}
+
+.status-text {
+margin-right: 10px;
+  color: #333;
+}
+
+.phone-text {
+   margin-right: 10px;
+   width: 125px;
+}
+
+.btn-edit {
+  padding: 2px 6px;
+  font-size: 15px;
+  background-color: #f26522;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+  color: #ffffff;
+  transition: background-color 0.3s;
+}
+
+.btn-edit:hover {
+  background-color: #de5010;
+  color: #fff;
+}
+.sv-status{
+  padding: 2px 6px;
+  font-size: 15px;
+  background-color: #ffffff; 
+  border: 1px solid #52b584;
+  border-radius: 3px;
+  color: #52b584;
+  transition: background-color 0.3s;
+}
+/*/Ringing Call*/
+
+/*.btn-phone {*/
+/*     background: #58ea00;*/
+/*    border-radius: 50%;*/
+/*}*/
+
+.pulse {
+    position: relative;
+    width: 40px;
+    height: 40px;
+    background: #58ea00;
+    border-radius: 50%;
+    animation: pulseAnim 2s infinite;
+    opacity: 0.7;
+}
+
+.pulse .fa {
+    color: white;
+    position: absolute;
+    top: 52%;
+    left: 52%;
+    transform: translate(-50%, -50%) rotate(90deg);
+    font-size: 2em;
+    z-index: 1000;
+}
+
+
+.pulse:before,
+.pulse:after{
+  content:'';
+  display:block;
+  position:absolute;
+  border:50%;
+  border:1px solid #58ea00;
+  top:-15px;
+  left:-15px;
+  right:-15px;
+  bottom:-15px;
+  border-radius:50%;
+  animation:animtephone 1.5s linear infinite;
+  opacity:0;
+}
+
+.pulse:after{
+  animation-delay:0.5s;
+}
+
+@keyframes animtephone{
+  0%{
+    transform:scale(0.5);
+    opacity:0;
+  }
+  50%{
+    opacity:1;
+  }
+  100%{
+    transform:scale(1.2);
+    opacity:0;
+  }
+}

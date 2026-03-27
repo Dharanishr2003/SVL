@@ -1,0 +1,257 @@
+
+
+Fix submit button and leave type
+No tasks in progress
+
+
+ dropdown list of notification
+
+
+Worked for 1m 16s
+Added notification dropdown lists for both admin/employee/manager and customer.
+
+Behavior:
+
+Bell icon shows unread count.
+Click bell → dropdown list of latest notifications.
+Click a notification → opens chat (lead chat for staff, /customer/chat for customer).
+Badge clears on bell click.
+Works from any page.
+Updated files:
+
+src/layouts/AdminLayout.jsx
+src/layouts/CustomerLayout.jsx
+public/assets/css/custom.css
+If you want the dropdown to show sender name or lead title, I can add it next.
+
+
+3 files changed
++201
+-4
+Undo
+
+Review
+public/assets/css/custom.css
+src/layouts/AdminLayout.jsx
+src/layouts/CustomerLayout.jsx
+THERE IS A ALREADY CHAT OPTION WIRED TO chat icon remoevt  that wire our lead chat who ever has the visibility of that page
+
+
+Worked for 15s
+Done.
+
+Changes:
+
+Topbar chat icon now goes to /lead-chats.
+Sidebar “Chats” tab and quick icon now go to /lead-chats.
+Applications → Chat is removed unless the user has visibility (Manager/Admin/Super Admin), then it shows Lead Chats.
+Updated:
+
+src/components/layout/Topbar.jsx
+src/components/layout/Sidebar.jsx
+If you want to fully hide any remaining /chat routes or delete the old ChatPage, tell me and I’ll remove them.
+
+
+2 files changed
++10
+-8
+Undo
+
+Review
+src/components/layout/Sidebar.jsx
+src/components/layout/Topbar.jsx
+thi is con is also visible to employee aslo
+
+
+Worked for 32s
+Fixed. The chat icon and chat tab are now hidden for EMPLOYEE.
+
+Updated:
+
+src/components/layout/Sidebar.jsx (tabs + quick icon)
+src/components/layout/Topbar.jsx (removes /lead-chats for employee)
+Refresh and confirm the chat icon is gone for employee but still visible for manager/admin/super admin.
+
+
+2 files changed
++27
+-13
+Undo
+
+Review
+src/components/layout/Sidebar.jsx
+src/components/layout/Topbar.jsx
+notification icons is wired with activity page
+
+
+Worked for 11s
+Done. The bell icon no longer links to /activity; it now uses href="#" so it only opens the notification dropdown.
+
+Updated:
+
+src/components/layout/Topbar.jsx
+
+1 file changed
+Undo
+
+Review
+src/components/layout/Topbar.jsx
+no drop down whe i press notofication icon
+
+
+Worked for 54s
+Fixed the dropdown not opening. The outside-click handler was closing it immediately.
+
+Changes:
+
+src/layouts/AdminLayout.jsx → event.stopPropagation() on bell click
+src/layouts/CustomerLayout.jsx → event.stopPropagation() on bell click
+Refresh and click the bell — the dropdown should stay open now.
+
+
+2 files changed
++2
+-0
+Undo
+
+Review
+src/layouts/AdminLayout.jsx
+src/layouts/CustomerLayout.jsx
+when i clic forst time inly the drop sown is coiming but ;ater if i clic it is not coming
+
+
+Worked for 28s
+Fixed the bell dropdown toggle so it works every time.
+
+Root cause: the Topbar HTML is re‑rendered and the direct click listener got detached after the first click.
+
+Fix:
+
+Switched to a global delegated click handler in src/layouts/AdminLayout.jsx, so the bell always works even after re‑renders.
+Refresh and try again; the dropdown should open/close on every click now.
+
+
+1 file changed
+Undo
+
+Review
+src/layouts/AdminLayout.jsx
+drop down coimg but notification not coming when i sedn a message from cutomer to employee if was not in chat page the notficatyion should come
+
+Ran rg -n "List<LeadResponse> list\(" C:\Users\rambo\Music\Nexorcrm\backend\src\main\java\com\nexorcrm\backend\service\LeadService.java -S
+
+
+Ran Get-Content -Path C:\Users\rambo\Music\Nexorcrm\backend\src\main\java\com\nexorcrm\backend\service\LeadService.java -TotalCount 220
+
+
+Ran rg -n "canViewLead" C:\Users\rambo\Music\Nexorcrm\backend\src\main\java\com\nexorcrm\backend\service\LeadService.java -S
+
+
+Ran Get-Content -Path C:\Users\rambo\Music\Nexorcrm\backend\src\main\java\com\nexorcrm\backend\service\LeadService.java -TotalCount 980 for 1s
+
+
+Edited file
+LeadRepository.java
++1
+-0
+
+    List<Lead> findByDeletedFalseAndAssignedGroupIdOrderByCreatedAtDesc(Long assignedGroupId);
+    List<Lead> findByDeletedFalseAndOwnerUserIdOrderByCreatedAtDesc(Long ownerUserId);
+    Optional<Lead> findByIdAndDeletedFalse(Long id);
+Edited file
+LeadController.java
++31
+-7
+
+import com.nexorcrm.backend.service.LeadService;
+import com.nexorcrm.backend.repo.UserRepository;
+import com.nexorcrm.backend.repo.LeadRepository;
+import com.nexorcrm.backend.entity.Role;
+import jakarta.validation.Valid;
+    private final LeadChatService leadChatService;
+    private final UserRepository userRepository;
+    private final LeadRepository leadRepository;
+
+    public LeadController(LeadService leadService, LeadChatService leadChatService) {
+    public LeadController(LeadService leadService,
+                          LeadChatService leadChatService,
+                          UserRepository userRepository,
+                          LeadRepository leadRepository) {
+        this.leadService = leadService;
+        this.leadChatService = leadChatService;
+        this.userRepository = userRepository;
+        this.leadRepository = leadRepository;
+    }
+            Authentication authentication) {
+        List<LeadResponse> leads = leadService.list(authentication.getName(),
+                null, null, null, null, null, null, null);
+        List<Long> leadIds = leads.stream()
+                .map(LeadResponse::getId)
+                .filter(Objects::nonNull)
+                .toList();
+        String principal = authentication.getName();
+        var actor = principal.contains("@")
+                ? userRepository.findByEmailAndIsDeletedFalse(principal.trim().toLowerCase())
+                .orElse(null)
+                : userRepository.findByUsernameAndIsDeletedFalse(principal.trim())
+                .orElse(null);
+        List<Long> leadIds;
+        if (actor != null && actor.getRole() == Role.EMPLOYEE) {
+            leadIds = leadRepository.findByDeletedFalseAndOwnerUserIdOrderByCreatedAtDesc(actor.getId()).stream()
+                    .map(LeadResponse::getId)
+                    .filter(Objects::nonNull)
+                    .toList();
+        } else {
+            List<LeadResponse> leads = leadService.list(authentication.getName(),
+                    null, null, null, null, null, null, null);
+            leadIds = leads.stream()
+                    .map(LeadResponse::getId)
+                    .filter(Objects::nonNull)
+                    .toList();
+        }
+        return leadChatService.listNotifications(leadIds, authentication.getName(), since);
+Edited file
+LeadController.java
++1
+-1
+
+            leadIds = leadRepository.findByDeletedFalseAndOwnerUserIdOrderByCreatedAtDesc(actor.getId()).stream()
+                    .map(LeadResponse::getId)
+                    .map(com.nexorcrm.backend.entity.Lead::getId)
+                    .filter(Objects::nonNull)
+Worked for 1m 52s
+Fixed why employee wasn’t getting notifications.
+
+Cause: the notifications endpoint was using leadService.list, which can block EMPLOYEE if they don’t have lead‑visible groups. That returned no leads → no notifications.
+
+Fix:
+
+For EMPLOYEE, we now fetch leads directly by ownerUserId and use those IDs for notifications.
+Admin/Manager/Super Admin still use leadService.list.
+Backend updates:
+
+C:\Users\rambo\Music\Nexorcrm\backend\src\main\java\com\nexorcrm\backend\repo\LeadRepository.java
+C:\Users\rambo\Music\Nexorcrm\backend\src\main\java\com\nexorcrm\backend\controller\LeadController.java
+Restart backend and retry. Notifications should appear even when not on chat page.
+
+
+2 files changed
++32
+-7
+Undo
+
+Review
+backend/src/main/java/com/nexorcrm/backend/controller/LeadController.java
+backend/src/main/java/com/nexorcrm/backend/repo/LeadRepository.java
+
+
+
+
+GPT-5.2-Codex
+
+Medium
+
+
+Local
+
+Full access

@@ -1,0 +1,68 @@
+Here’s a clear text‑only implementation plan for the BOQ + chat workflow (no code yet):
+
+1. Core Concept
+Create Lead‑scoped chat threads with two channels:
+
+Internal thread: Employee ↔ Manager (private).
+Customer thread: Employee ↔ Customer (visible to customer).
+Both threads attach to the same Lead so the BOQ lifecycle stays in one place.
+
+2. Data Model (high level)
+
+LeadChatThread
+
+id, leadId, threadType (INTERNAL / CUSTOMER), createdBy, createdAt
+LeadChatMessage
+
+id, threadId, senderId, senderRole, message, createdAt
+attachments[] (boq files, images, etc)
+messageType (TEXT, BOQ, STATUS, SYSTEM)
+BoqRevision
+
+id, leadId, createdBy, amount, notes, file, status (DRAFT, SUBMITTED, APPROVED)
+createdAt, updatedAt
+assignedTo (employee/manager)
+3. Workflow
+Step A: Employee submits BOQ
+
+BOQ saved as a BoqRevision (DRAFT) + message in internal thread.
+Option: “Forward to Manager” → assign to manager.
+Step B: Manager edits BOQ
+
+Manager updates BOQ (new revision).
+Manager marks “APPROVED”.
+System sends internal message: “BOQ Approved”.
+Step C: Employee sends to Customer
+
+Employee shares approved BOQ in customer thread.
+Message type = BOQ + attachment.
+Step D: Customer replies
+
+Customer can:
+Accept
+Reject
+Ask Query
+System logs status in lead + creates chat message.
+Step E: Escalation
+
+If customer asks query → employee responds.
+If employee can’t answer → forward query to manager (internal thread), then send reply back to customer.
+4. Permissions
+
+Employee sees both internal + customer threads for their leads.
+Manager sees internal threads for all leads in team.
+Customer sees only customer thread.
+Super admin sees everything.
+5. UI Flow
+
+Lead page gets Chat tab with two tabs:
+Internal
+Customer
+BOQ popup should post into internal chat automatically.
+“Send to Customer” button appears only if BOQ is approved.
+6. Status Integration
+Customer actions update lead status:
+
+Accept → Boq Accepted
+Reject → Rejected
+Query → Need Info

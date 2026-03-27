@@ -1,0 +1,879 @@
+Role Visibility Rules
+
+Hierarchy: SUPER_ADMIN > ADMIN > MANAGER > EMPLOYEE.
+A role can manage only users below it, not equal/higher.
+SUPER_ADMIN can see/manage all.
+ADMIN can manage only inside same org scope (institution/category/type/department).
+MANAGER can manage only inside same team (typically employees under that team).
+EMPLOYEE cannot access User Admin/User Groups pages.
+User Admin Rules
+
+Page visible to: SUPER_ADMIN, ADMIN, MANAGER.
+User table visibility:
+SUPER_ADMIN: all users.
+ADMIN: only users in admin’s allowed org scope.
+MANAGER: only users in manager’s team scope (mostly employees).
+Create user scope:
+SUPER_ADMIN: selects full org chain.
+ADMIN: org fields prefilled/locked to own department scope; can pick team under that department.
+MANAGER: org fields prefilled/locked to own team.
+Pending users:
+Created users go to /api/users/pending.
+Role assignment from pending follows hierarchy (assign only lower roles).
+Edit user:
+Separate page exists.
+Edit profile fields: first name, last name, password.
+Higher roles can change role (per hierarchy).
+Delete supported (with hierarchy/scope checks).
+User Groups Rules
+
+Group create/edit scope:
+SUPER_ADMIN: can set full org scope.
+ADMIN: only own department scope.
+MANAGER: only own team scope.
+Add/remove members respects backend visibility/scope.
+In group edit, Add User list must show only assignable users for selected group scope.
+User role should be shown in group member/add-user UI.
+Group edit is now separate page route: /usergroups/edit/:id.
+Leads Rules
+
+Leads page is API wired with:
+list/search/filter: GET /api/v1/leads
+filters payload: GET /api/v1/leads/filters
+assignable groups: GET /api/v1/leads/assignable-groups
+create: POST /api/v1/leads
+status update: PATCH /api/v1/leads/{id}/status
+assignable allocators: GET /api/v1/leads/{id}/assignable-allocators
+allocator update: PATCH /api/v1/leads/{id}/allocator
+Create Lead modal includes Lead Group.
+Backend does round-robin owner assignment within selected group employees.
+Group members preview shown in create modal (with role).
+Edit lead allocator dropdown must show only users valid for that lead’s selected group; role shown in option label.
+Auth / Navigation Rules
+
+Logout must redirect to /login.
+EMPLOYEE login should redirect to employee dashboard, not admin page.
+Admin-only route checks should apply only to admin settings pages, not every authenticated page.
+Known Current Gaps / Risks To Tell Next Agent
+
+UsergroupsPage.jsx still has old modal-edit code that should be cleaned (new separate edit page already exists).
+Full frontend build is currently blocked by unrelated existing JSX error in InvoiceSettingsPage.jsx (tag mismatch), not by user-admin/leads logic.
+If needed, next agent should run end-to-end role tests with real accounts for:
+create user scope lock
+pending activation role assignment
+leads group round-robin allocation
+group member visibility in edit/create flows.
+
+
+i want the edit icon for status header values also and it is stiill not visibler yet
+1 task in progress
+
+
+User attachment
+in lead page the edit icon should look like this
+
+Edit icon now matches the purple square style in your screenshot.
+
+Updated file:
+
+C:\Users\rambo\Music\erp.svlprinters.in\frontend\src\pages\admin\LeadsPage.jsx
+If you want the same purple style for the remarks icon too, say the word and I’ll apply it.
+
+
+User attachment
+i need edit icom in status heaser also and the edit icon is not looking good only the pupplrbox is vivible
+
+Updated.
+
+Status header now shows an edit icon.
+Edit button icon is forced white and visible; box keeps the purple style.
+File updated: C:\Users\rambo\Music\erp.svlprinters.in\frontend\src\pages\admin\LeadsPage.jsx
+
+
+i want the edit icon for status header values also and not visibler yet
+
+User attachment
+look the edit icon 
+
+
+Worked for 29s
+Fixed.
+
+I replaced icon-font based edit icons with inline SVG in LeadsPage, so they render reliably.
+
+What changed in C:\Users\rambo\Music\erp.svlprinters.in\frontend\src\pages\admin\LeadsPage.jsx:
+
+Added inline EditGlyph SVG component.
+# header now uses SVG edit icon.
+Status header now uses SVG edit icon.
+Row edit button now uses SVG edit icon (no empty purple box).
+Added edit icon button next to each Status value (opens same edit modal).
+This should now match what you want and be visible even if icon fonts fail.
+
+
+1 file changed
+Undo
+
+Review
+src/pages/admin/LeadsPage.jsx
+User attachment
+remove the edit icon from remark and put it in status and this popup sgould come when the status edit option is pressed 
+
+
+Worked for 1m 30s
+Done. I changed the Leads table exactly as requested:
+
+Removed edit icon/action from Remarks.
+Moved status edit action into the Status cell values.
+Clicking status edit now opens a dedicated popup:
+Title: Update Lead Status
+Field: Enquiry Status dropdown
+Action: Update Status
+Updated file:
+
+C:\Users\rambo\Music\erp.svlprinters.in\frontend\src\pages\admin\LeadsPage.jsx
+This now follows your screenshot flow for status editing.
+
+
+1 file changed
+Undo
+
+Review
+src/pages/admin/LeadsPage.jsx
+add edit option in # header valuse and remove the removed action column
+
+
+Worked for 1m 24s
+Done.
+
+I updated src/pages/admin/LeadsPage.jsx:
+
+Added an edit icon button inside each # row value cell (next to the serial number).
+Removed dependency on any separate Action column (there is no Action header/column now).
+Current behavior:
+
+Clicking the new edit button in # opens the existing edit flow (Update Lead Status modal), same as status edit.
+
+1 file changed
+Undo
+
+Review
+src/pages/admin/LeadsPage.jsx
+in lead source create two pages lead source and lead type similar to primary source and already existing backend is available wire with it
+
+I’ll mirror the existing Primary Source implementation to create Lead Source and Lead Type pages, then wire both to backend APIs and routes. I’m checking the current source pages/API patterns first.
+
+Ran rg --files src | rg "primary|source|type|lead|routes|App\.jsx|api"
+
+
+Ran rg --files src/pages | sort
+
+
+Ran Get-Content src/pages/admin/PrimarySourcePage.jsx
+
+
+Ran Get-Content src/api/leadTypeApi.js
+
+
+Ran Get-Content src/pages/admin/LeadTypePage.jsx
+
+
+Ran rg -n "Lead Source|lead source|lead-source|leadSource|lead_sources|/api/lead" src
+
+
+Ran Get-Content src/components/layout/Sidebar.jsx
+
+
+Ran rg -n "PrimarySourcePage|SecondarySourcePage|TertiarySourcePage|LeadTypePage|LeadStatusPage|primary-source|secondary-source|tertiary-source|lead-type|lead-source" src/App.jsx
+
+
+Ran rg -n "primary-source|secondary-source|tertiary-source|lead-type|LeadTypePage|PrimarySourcePage|Route" src | select -First 200
+
+
+Ran Get-Content src/adminPhpRoutes.js -TotalCount 1220
+
+
+
+
+
+
+GPT-5.3-Codex
+
+Medium
+
+
+Local
+
+Full access
+
+
+C:\Users\rambo\Music\Nexorcrm\backend\src\main\java\com\nexorcrm\backend based on this backdn code create the front for our existing pages and make the api work if any doubt ask me
+No tasks in progress
+
+
+dont wire the employees from the uaer admin , these is seperate , bring the old employee table back , for that we nned to create backned and next we will do department s page so wire the add model with departments tables
+
+Understood. I’ll do two changes now:
+
+Restore the original EmployeesPage UI/table (no User Admin API wiring).
+Update DepartmentsPage Add modal so it saves/loads from backend department tables.
+I’m checking your current DepartmentsPage and git history for the old employee page.
+
+this depart also different dont wire it with user admin department
+
+
+1 previous message
+Done — I decoupled it from User Admin departments.
+
+What I changed
+Restored EmployeesPage to static/mock style (no User Admin API)
+src/pages/admin/EmployeesPage.jsx
+Uses local mock list/grid data again.
+Reworked DepartmentsPage as separate master page
+src/pages/admin/DepartmentsPage.jsx
+Uses separate API:
+GET /api/departments for table
+POST /api/departments from Add Department modal
+Not using orgHierarchyApi for this page anymore.
+Added dedicated departments API file
+src/api/departmentsApi.js
+Backend you need to paste (for this frontend)
+@RestController
+@RequestMapping("/api/departments")
+public class DepartmentMasterController {
+
+    private final DepartmentMasterService departmentMasterService;
+
+    public DepartmentMasterController(DepartmentMasterService departmentMasterService) {
+        this.departmentMasterService = departmentMasterService;
+    }
+
+    @GetMapping
+    public List<DepartmentMasterResponse> list(Authentication authentication) {
+        return departmentMasterService.list(authentication.getName());
+    }
+
+    @PostMapping
+    public DepartmentMasterResponse create(
+            @Valid @RequestBody DepartmentMasterRequest request,
+            Authentication authentication
+    ) {
+        return departmentMasterService.create(request, authentication.getName());
+    }
+}
+public class DepartmentMasterRequest {
+    @NotBlank
+    private String name;
+    private String status; // ACTIVE / INACTIVE
+    // getters/setters
+}
+public class DepartmentMasterResponse {
+    private Long id;
+    private String name;
+    private String status;
+    private Long employeeCount; // optional
+    // getters/setters
+}
+If you want, next I’ll also wire Edit/Delete department modals to backend endpoints.
+
+
+add add and edit model employee
+
+Done.
+
+I added both Add Employee and Edit Employee modals in src/pages/admin/EmployeesPage.jsx:
+
+Add Employee button in list and grid views.
+Edit button in table row action column.
+Modal form fields:
+Name, Email, Phone, Department, Designation, Join Date, Status.
+Add updates local employee list instantly.
+Edit updates selected row instantly.
+This is UI/local-data only (not backend yet), as requested.
+
+
+now tell other agent where we should continue and what it must remeber
+
+Continue from this state:
+
+EmployeesPage is currently mock/local only
+File: src/pages/admin/EmployeesPage.jsx
+Add/Edit modals are done with local state.
+No backend wired yet (intentionally).
+DepartmentsPage is now separate from User Admin/Org hierarchy
+File: src/pages/admin/DepartmentsPage.jsx
+API file: src/api/departmentsApi.js
+Uses:
+GET /api/departments
+POST /api/departments
+Do not connect this page to orgHierarchyApi or user-admin department fields.
+Lead page current behavior to preserve
+File: src/pages/admin/LeadsPage.jsx
+# header has edit icon.
+# row values also have edit icon.
+Status edit is wired via popup and lead-status master options.
+Call icon is inline SVG (not font icon).
+Remarks column has note icon + local remark popup.
+Lead master pages/routing
+Lead Status route/menu exists and uses /api/lead-statuses.
+Lead Type route/menu exists and uses /api/lead-types.
+Lead Source custom page was removed.
+App entry behavior
+File: src/App.jsx
+Root / redirects to /login.
+What next agent must remember:
+
+User wants employee module backend separate from user-admin.
+User wants department master separate from user-admin/org hierarchy.
+Keep existing UI theme and current route names.
+Avoid reintroducing icon-font-only icons where visibility failed; prefer inline SVG for critical actions.
+There is an unrelated existing build error in src/pages/admin/InvoiceSettingsPage.jsx (not part of this task).
+
+now provide the backdend code for employee
+
+Perfect. Use this separate employee backend (independent of User Admin).
+
+Create these files in your Spring Boot backend (com.nexorcrm.backend).
+
+1) entity/Employee.java
+package com.nexorcrm.backend.entity;
+
+import jakarta.persistence.*;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+
+@Entity
+@Table(name = "employees")
+public class Employee {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(name = "employee_code", unique = true, length = 20)
+    private String employeeCode; // EMP-001
+
+    @Column(nullable = false, length = 120)
+    private String name;
+
+    @Column(length = 120)
+    private String email;
+
+    @Column(length = 30)
+    private String phone;
+
+    @Column(length = 100)
+    private String dept;
+
+    @Column(length = 100)
+    private String designation;
+
+    private LocalDate joinDate;
+
+    @Column(length = 20)
+    private String status; // ACTIVE / INACTIVE
+
+    @Column(length = 500)
+    private String img;
+
+    @Column(nullable = false)
+    private Boolean deleted = false;
+
+    @Column(nullable = false, updatable = false)
+    private LocalDateTime createdAt;
+
+    @Column(nullable = false)
+    private LocalDateTime updatedAt;
+
+    @PrePersist
+    void prePersist() {
+        LocalDateTime now = LocalDateTime.now();
+        createdAt = now;
+        updatedAt = now;
+        if (status == null || status.isBlank()) status = "ACTIVE";
+    }
+
+    @PreUpdate
+    void preUpdate() {
+        updatedAt = LocalDateTime.now();
+    }
+
+    // getters/setters
+    // (generate in IDE)
+}
+2) repository/EmployeeRepository.java
+package com.nexorcrm.backend.repository;
+
+import com.nexorcrm.backend.entity.Employee;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import java.util.List;
+
+public interface EmployeeRepository extends JpaRepository<Employee, Long> {
+    List<Employee> findByDeletedFalseOrderByIdDesc();
+}
+3) dto/EmployeeRequest.java
+package com.nexorcrm.backend.dto;
+
+import jakarta.validation.constraints.NotBlank;
+import java.time.LocalDate;
+
+public class EmployeeRequest {
+
+    @NotBlank
+    private String name;
+
+    private String email;
+    private String phone;
+    private String dept;
+    private String designation;
+    private LocalDate joinDate;
+    private String status;
+    private String img;
+
+    // getters/setters
+}
+4) dto/EmployeeResponse.java
+package com.nexorcrm.backend.dto;
+
+import java.time.LocalDate;
+
+public class EmployeeResponse {
+    private Long id;
+    private String employeeCode;
+    private String name;
+    private String email;
+    private String phone;
+    private String dept;
+    private String designation;
+    private LocalDate joinDate;
+    private String status;
+    private String img;
+
+    // getters/setters
+}
+5) service/EmployeeService.java
+package com.nexorcrm.backend.service;
+
+import com.nexorcrm.backend.dto.EmployeeRequest;
+import com.nexorcrm.backend.dto.EmployeeResponse;
+import com.nexorcrm.backend.entity.Employee;
+import com.nexorcrm.backend.repository.EmployeeRepository;
+import jakarta.persistence.EntityNotFoundException;
+import org.springframework.stereotype.Service;
+
+import java.util.List;
+
+@Service
+public class EmployeeService {
+
+    private final EmployeeRepository employeeRepository;
+
+    public EmployeeService(EmployeeRepository employeeRepository) {
+        this.employeeRepository = employeeRepository;
+    }
+
+    public List<EmployeeResponse> list() {
+        return employeeRepository.findByDeletedFalseOrderByIdDesc()
+                .stream()
+                .map(this::toResponse)
+                .toList();
+    }
+
+    public EmployeeResponse create(EmployeeRequest request) {
+        Employee e = new Employee();
+        apply(e, request);
+        e = employeeRepository.save(e);
+
+        if (e.getEmployeeCode() == null || e.getEmployeeCode().isBlank()) {
+            e.setEmployeeCode(String.format("Emp-%03d", e.getId()));
+            e = employeeRepository.save(e);
+        }
+
+        return toResponse(e);
+    }
+
+    public EmployeeResponse update(Long id, EmployeeRequest request) {
+        Employee e = employeeRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Employee not found"));
+        if (Boolean.TRUE.equals(e.getDeleted())) {
+            throw new EntityNotFoundException("Employee not found");
+        }
+
+        apply(e, request);
+        return toResponse(employeeRepository.save(e));
+    }
+
+    public void delete(Long id) {
+        Employee e = employeeRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Employee not found"));
+        e.setDeleted(true);
+        employeeRepository.save(e);
+    }
+
+    private void apply(Employee e, EmployeeRequest r) {
+        e.setName(r.getName());
+        e.setEmail(r.getEmail());
+        e.setPhone(r.getPhone());
+        e.setDept(r.getDept());
+        e.setDesignation(r.getDesignation());
+        e.setJoinDate(r.getJoinDate());
+        e.setStatus(normalizeStatus(r.getStatus()));
+        e.setImg((r.getImg() == null || r.getImg().isBlank()) ? "assets/img/users/user-32.jpg" : r.getImg());
+    }
+
+    private String normalizeStatus(String status) {
+        String s = String.valueOf(status == null ? "ACTIVE" : status).trim().toUpperCase();
+        return s.equals("INACTIVE") ? "INACTIVE" : "ACTIVE";
+    }
+
+    private EmployeeResponse toResponse(Employee e) {
+        EmployeeResponse r = new EmployeeResponse();
+        r.setId(e.getId());
+        r.setEmployeeCode(e.getEmployeeCode());
+        r.setName(e.getName());
+        r.setEmail(e.getEmail());
+        r.setPhone(e.getPhone());
+        r.setDept(e.getDept());
+        r.setDesignation(e.getDesignation());
+        r.setJoinDate(e.getJoinDate());
+        r.setStatus(e.getStatus());
+        r.setImg(e.getImg());
+        return r;
+    }
+}
+6) controller/EmployeeController.java
+package com.nexorcrm.backend.controller;
+
+import com.nexorcrm.backend.dto.EmployeeRequest;
+import com.nexorcrm.backend.dto.EmployeeResponse;
+import com.nexorcrm.backend.service.EmployeeService;
+import jakarta.validation.Valid;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/employees")
+public class EmployeeController {
+
+    private final EmployeeService employeeService;
+
+    public EmployeeController(EmployeeService employeeService) {
+        this.employeeService = employeeService;
+    }
+
+    @GetMapping
+    public List<EmployeeResponse> list() {
+        return employeeService.list();
+    }
+
+    @PostMapping
+    public EmployeeResponse create(@Valid @RequestBody EmployeeRequest request) {
+        return employeeService.create(request);
+    }
+
+    @PutMapping("/{id}")
+    public EmployeeResponse update(@PathVariable Long id, @Valid @RequestBody EmployeeRequest request) {
+        return employeeService.update(id, request);
+    }
+
+    @DeleteMapping("/{id}")
+    public void delete(@PathVariable Long id) {
+        employeeService.delete(id);
+    }
+}
+This matches your frontend API file src/api/employeesApi.js:
+
+GET /api/employees
+POST /api/employees
+PUT /api/employees/{id}
+DELETE /api/employees/{id}
+If you want, next I’ll give you the exact frontend mapping patch so EmployeesPage.jsx uses this API with Add/Edit modals (instead of local mock state).
+
+
+wire it with frotn end
+
+Done — I wired employee frontend to backend API in src/pages/admin/EmployeesPage.jsx.
+
+What’s now wired
+GET /api/employees on page load
+POST /api/employees from Add modal
+PUT /api/employees/{id} from Edit modal
+DELETE /api/employees/{id} from Delete action
+Fixes included
+Removed duplicate/broken imports.
+Normalized API fields to UI fields:
+employeeCode ↔ displayed employee code
+dept (with fallback department)
+status handled as ACTIVE / INACTIVE
+Form now sends backend-compatible payload.
+Added proper reload after create/update/delete.
+Error/notice handling retained.
+If you want, next I can wire the grid card metrics (projects/done/progress/productivity) from backend too instead of placeholders.
+
+
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _ | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::               (v3.5.11)
+
+2026-03-02T11:43:34.917+05:30  INFO 6604 --- [backend] [  restartedMain] c.nexorcrm.backend.BackendApplication    : Starting BackendApplication using Java 21.0.8 with PID 6604 (C:\Users\rambo\Music\Nexorcrm\backend\target\classes started by rambo in C:\Users\rambo\Music\Nexorcrm\backend)
+2026-03-02T11:43:34.920+05:30  INFO 6604 --- [backend] [  restartedMain] c.nexorcrm.backend.BackendApplication    : No active profile set, falling back to 1 default profile: "default"
+2026-03-02T11:43:35.001+05:30  INFO 6604 --- [backend] [  restartedMain] .e.DevToolsPropertyDefaultsPostProcessor : Devtools property defaults active! Set 'spring.devtools.add-properties' to 'false' to disable
+2026-03-02T11:43:35.001+05:30  INFO 6604 --- [backend] [  restartedMain] .e.DevToolsPropertyDefaultsPostProcessor : For additional web related logging consider setting the 'logging.level.web' property to 'DEBUG'
+2026-03-02T11:43:37.283+05:30  INFO 6604 --- [backend] [  restartedMain] .s.d.r.c.RepositoryConfigurationDelegate : Bootstrapping Spring Data JPA repositories in DEFAULT mode.
+2026-03-02T11:43:37.443+05:30  INFO 6604 --- [backend] [  restartedMain] .s.d.r.c.RepositoryConfigurationDelegate : Finished Spring Data repository scanning in 145 ms. Found 26 JPA repository interfaces.
+2026-03-02T11:43:38.790+05:30  INFO 6604 --- [backend] [  restartedMain] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat initialized with port 8081 (http)
+2026-03-02T11:43:38.808+05:30  INFO 6604 --- [backend] [  restartedMain] o.apache.catalina.core.StandardService   : Starting service [Tomcat]
+2026-03-02T11:43:38.809+05:30  INFO 6604 --- [backend] [  restartedMain] o.apache.catalina.core.StandardEngine    : Starting Servlet engine: [Apache Tomcat/10.1.52]
+2026-03-02T11:43:38.870+05:30  INFO 6604 --- [backend] [  restartedMain] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring embedded WebApplicationContext
+2026-03-02T11:43:38.871+05:30  INFO 6604 --- [backend] [  restartedMain] w.s.c.ServletWebServerApplicationContext : Root WebApplicationContext: initialization completed in 3868 ms
+2026-03-02T11:43:38.910+05:30  INFO 6604 --- [backend] [  restartedMain] com.nexorcrm.backend.config.JwtUtil      : JwtUtil initialized successfully
+2026-03-02T11:43:39.247+05:30  INFO 6604 --- [backend] [  restartedMain] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Starting...
+2026-03-02T11:43:39.742+05:30  INFO 6604 --- [backend] [  restartedMain] com.zaxxer.hikari.pool.HikariPool        : HikariPool-1 - Added connection org.postgresql.jdbc.PgConnection@3669d084
+2026-03-02T11:43:39.744+05:30  INFO 6604 --- [backend] [  restartedMain] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Start completed.
+2026-03-02T11:43:39.814+05:30  INFO 6604 --- [backend] [  restartedMain] org.flywaydb.core.FlywayExecutor         : Database: jdbc:postgresql://localhost:5432/nexorcrm (PostgreSQL 18.1)
+2026-03-02T11:43:39.829+05:30  WARN 6604 --- [backend] [  restartedMain] o.f.c.internal.database.base.Database    : Flyway upgrade recommended: PostgreSQL 18.1 is newer than this version of Flyway and support has not been tested. The latest supported version of PostgreSQL is 17.
+2026-03-02T11:43:40.381+05:30  INFO 6604 --- [backend] [  restartedMain] o.f.core.internal.command.DbValidate     : Successfully validated 35 migrations (execution time 00:00.533s)
+2026-03-02T11:43:40.399+05:30  INFO 6604 --- [backend] [  restartedMain] o.f.core.internal.command.DbMigrate      : Current version of schema "public": 35
+2026-03-02T11:43:40.404+05:30  INFO 6604 --- [backend] [  restartedMain] o.f.core.internal.command.DbMigrate      : Schema "public" is up to date. No migration necessary.
+2026-03-02T11:43:40.556+05:30  INFO 6604 --- [backend] [  restartedMain] o.hibernate.jpa.internal.util.LogHelper  : HHH000204: Processing PersistenceUnitInfo [name: default]
+2026-03-02T11:43:40.673+05:30  INFO 6604 --- [backend] [  restartedMain] org.hibernate.Version                    : HHH000412: Hibernate ORM core version 6.6.42.Final
+2026-03-02T11:43:40.741+05:30  INFO 6604 --- [backend] [  restartedMain] o.h.c.internal.RegionFactoryInitiator    : HHH000026: Second-level cache disabled
+2026-03-02T11:43:41.108+05:30  INFO 6604 --- [backend] [  restartedMain] o.s.o.j.p.SpringPersistenceUnitInfo      : No LoadTimeWeaver setup: ignoring JPA class transformer
+2026-03-02T11:43:41.201+05:30  WARN 6604 --- [backend] [  restartedMain] org.hibernate.orm.deprecation            : HHH90000025: PostgreSQLDialect does not need to be specified explicitly using 'hibernate.dialect' (remove the property setting and it will be selected by default)
+2026-03-02T11:43:41.221+05:30  INFO 6604 --- [backend] [  restartedMain] org.hibernate.orm.connections.pooling    : HHH10001005: Database info:
+	Database JDBC URL [Connecting through datasource 'HikariDataSource (HikariPool-1)']
+	Database driver: undefined/unknown
+	Database version: 18.1
+	Autocommit mode: undefined/unknown
+	Isolation level: undefined/unknown
+	Minimum pool size: undefined/unknown
+	Maximum pool size: undefined/unknown
+2026-03-02T11:43:42.915+05:30  INFO 6604 --- [backend] [  restartedMain] o.h.e.t.j.p.i.JtaPlatformInitiator       : HHH000489: No JTA platform available (set 'hibernate.transaction.jta.platform' to enable JTA platform integration)
+2026-03-02T11:43:43.029+05:30 ERROR 6604 --- [backend] [  restartedMain] j.LocalContainerEntityManagerFactoryBean : Failed to initialize JPA EntityManagerFactory: [PersistenceUnit: default] Unable to build Hibernate SessionFactory; nested exception is org.hibernate.tool.schema.spi.SchemaManagementException: Schema-validation: missing table [employees]
+2026-03-02T11:43:43.031+05:30 ERROR 6604 --- [backend] [  restartedMain] o.s.b.web.embedded.tomcat.TomcatStarter  : Error starting Tomcat context. Exception: org.springframework.beans.factory.UnsatisfiedDependencyException. Message: Error creating bean with name 'jwtFilter' defined in file [C:\Users\rambo\Music\Nexorcrm\backend\target\classes\com\nexorcrm\backend\config\JwtFilter.class]: Unsatisfied dependency expressed through constructor parameter 1: Error creating bean with name 'userRepository' defined in com.nexorcrm.backend.repo.UserRepository defined in @EnableJpaRepositories declared on JpaRepositoriesRegistrar.EnableJpaRepositoriesConfiguration: Cannot resolve reference to bean 'jpaSharedEM_entityManagerFactory' while setting bean property 'entityManager'
+2026-03-02T11:43:43.060+05:30  INFO 6604 --- [backend] [  restartedMain] o.apache.catalina.core.StandardService   : Stopping service [Tomcat]
+2026-03-02T11:43:43.064+05:30  WARN 6604 --- [backend] [  restartedMain] o.a.c.loader.WebappClassLoaderBase       : The web application [ROOT] appears to have started a thread named [HikariPool-1:housekeeper] but has failed to stop it. This is very likely to create a memory leak. Stack trace of thread:
+ java.base/jdk.internal.misc.Unsafe.park(Native Method)
+ java.base/java.util.concurrent.locks.LockSupport.parkNanos(LockSupport.java:269)
+ java.base/java.util.concurrent.locks.AbstractQueuedSynchronizer$ConditionObject.awaitNanos(AbstractQueuedSynchronizer.java:1763)
+ java.base/java.util.concurrent.ScheduledThreadPoolExecutor$DelayedWorkQueue.take(ScheduledThreadPoolExecutor.java:1182)
+ java.base/java.util.concurrent.ScheduledThreadPoolExecutor$DelayedWorkQueue.take(ScheduledThreadPoolExecutor.java:899)
+ java.base/java.util.concurrent.ThreadPoolExecutor.getTask(ThreadPoolExecutor.java:1070)
+ java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1130)
+ java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:642)
+ java.base/java.lang.Thread.run(Thread.java:1583)
+2026-03-02T11:43:43.065+05:30  WARN 6604 --- [backend] [  restartedMain] o.a.c.loader.WebappClassLoaderBase       : The web application [ROOT] appears to have started a thread named [HikariPool-1:connection-adder] but has failed to stop it. This is very likely to create a memory leak. Stack trace of thread:
+ java.base/jdk.internal.misc.Unsafe.park(Native Method)
+ java.base/java.util.concurrent.locks.LockSupport.parkNanos(LockSupport.java:269)
+ java.base/java.util.concurrent.locks.AbstractQueuedSynchronizer$ConditionObject.awaitNanos(AbstractQueuedSynchronizer.java:1763)
+ java.base/java.util.concurrent.LinkedBlockingQueue.poll(LinkedBlockingQueue.java:460)
+ java.base/java.util.concurrent.ThreadPoolExecutor.getTask(ThreadPoolExecutor.java:1069)
+ java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1130)
+ java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:642)
+ java.base/java.lang.Thread.run(Thread.java:1583)
+2026-03-02T11:43:43.069+05:30  WARN 6604 --- [backend] [  restartedMain] ConfigServletWebServerApplicationContext : Exception encountered during context initialization - cancelling refresh attempt: org.springframework.context.ApplicationContextException: Unable to start web server
+2026-03-02T11:43:43.072+05:30  INFO 6604 --- [backend] [  restartedMain] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Shutdown initiated...
+2026-03-02T11:43:43.079+05:30  INFO 6604 --- [backend] [  restartedMain] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Shutdown completed.
+2026-03-02T11:43:43.102+05:30  INFO 6604 --- [backend] [  restartedMain] .s.b.a.l.ConditionEvaluationReportLogger : 
+
+Error starting ApplicationContext. To display the condition evaluation report re-run your application with 'debug' enabled.
+2026-03-02T11:43:43.126+05:30 ERROR 6604 --- [backend] [  restartedMain] o.s.boot.SpringApplication               : Application run failed
+
+org.springframework.context.ApplicationContextException: Unable to start web server
+	at org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext.onRefresh(ServletWebServerApplicationContext.java:170) ~[spring-boot-3.5.11.jar:3.5.11]
+	at org.springframework.context.support.AbstractApplicationContext.refresh(AbstractApplicationContext.java:622) ~[spring-context-6.2.16.jar:6.2.16]
+	at org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext.refresh(ServletWebServerApplicationContext.java:146) ~[spring-boot-3.5.11.jar:3.5.11]
+	at org.springframework.boot.SpringApplication.refresh(SpringApplication.java:752) ~[spring-boot-3.5.11.jar:3.5.11]
+	at org.springframework.boot.SpringApplication.refreshContext(SpringApplication.java:439) ~[spring-boot-3.5.11.jar:3.5.11]
+	at org.springframework.boot.SpringApplication.run(SpringApplication.java:318) ~[spring-boot-3.5.11.jar:3.5.11]
+	at org.springframework.boot.SpringApplication.run(SpringApplication.java:1361) ~[spring-boot-3.5.11.jar:3.5.11]
+	at org.springframework.boot.SpringApplication.run(SpringApplication.java:1350) ~[spring-boot-3.5.11.jar:3.5.11]
+	at com.nexorcrm.backend.BackendApplication.main(BackendApplication.java:10) ~[classes/:na]
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103) ~[na:na]
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580) ~[na:na]
+	at org.springframework.boot.devtools.restart.RestartLauncher.run(RestartLauncher.java:50) ~[spring-boot-devtools-3.5.11.jar:3.5.11]
+Caused by: org.springframework.boot.web.server.WebServerException: Unable to start embedded Tomcat
+	at org.springframework.boot.web.embedded.tomcat.TomcatWebServer.initialize(TomcatWebServer.java:147) ~[spring-boot-3.5.11.jar:3.5.11]
+	at org.springframework.boot.web.embedded.tomcat.TomcatWebServer.<init>(TomcatWebServer.java:107) ~[spring-boot-3.5.11.jar:3.5.11]
+	at org.springframework.boot.web.embedded.tomcat.TomcatServletWebServerFactory.getTomcatWebServer(TomcatServletWebServerFactory.java:517) ~[spring-boot-3.5.11.jar:3.5.11]
+	at org.springframework.boot.web.embedded.tomcat.TomcatServletWebServerFactory.getWebServer(TomcatServletWebServerFactory.java:219) ~[spring-boot-3.5.11.jar:3.5.11]
+	at org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext.createWebServer(ServletWebServerApplicationContext.java:193) ~[spring-boot-3.5.11.jar:3.5.11]
+	at org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext.onRefresh(ServletWebServerApplicationContext.java:167) ~[spring-boot-3.5.11.jar:3.5.11]
+	... 11 common frames omitted
+Caused by: org.springframework.beans.factory.UnsatisfiedDependencyException: Error creating bean with name 'jwtFilter' defined in file [C:\Users\rambo\Music\Nexorcrm\backend\target\classes\com\nexorcrm\backend\config\JwtFilter.class]: Unsatisfied dependency expressed through constructor parameter 1: Error creating bean with name 'userRepository' defined in com.nexorcrm.backend.repo.UserRepository defined in @EnableJpaRepositories declared on JpaRepositoriesRegistrar.EnableJpaRepositoriesConfiguration: Cannot resolve reference to bean 'jpaSharedEM_entityManagerFactory' while setting bean property 'entityManager'
+	at org.springframework.beans.factory.support.ConstructorResolver.createArgumentArray(ConstructorResolver.java:804) ~[spring-beans-6.2.16.jar:6.2.16]
+	at org.springframework.beans.factory.support.ConstructorResolver.autowireConstructor(ConstructorResolver.java:240) ~[spring-beans-6.2.16.jar:6.2.16]
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.autowireConstructor(AbstractAutowireCapableBeanFactory.java:1395) ~[spring-beans-6.2.16.jar:6.2.16]
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.createBeanInstance(AbstractAutowireCapableBeanFactory.java:1232) ~[spring-beans-6.2.16.jar:6.2.16]
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.doCreateBean(AbstractAutowireCapableBeanFactory.java:569) ~[spring-beans-6.2.16.jar:6.2.16]
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.createBean(AbstractAutowireCapableBeanFactory.java:529) ~[spring-beans-6.2.16.jar:6.2.16]
+	at org.springframework.beans.factory.support.AbstractBeanFactory.lambda$doGetBean$0(AbstractBeanFactory.java:339) ~[spring-beans-6.2.16.jar:6.2.16]
+	at org.springframework.beans.factory.support.DefaultSingletonBeanRegistry.getSingleton(DefaultSingletonBeanRegistry.java:373) ~[spring-beans-6.2.16.jar:6.2.16]
+	at org.springframework.beans.factory.support.AbstractBeanFactory.doGetBean(AbstractBeanFactory.java:337) ~[spring-beans-6.2.16.jar:6.2.16]
+	at org.springframework.beans.factory.support.AbstractBeanFactory.getBean(AbstractBeanFactory.java:207) ~[spring-beans-6.2.16.jar:6.2.16]
+	at org.springframework.boot.web.servlet.ServletContextInitializerBeans.getOrderedBeansOfType(ServletContextInitializerBeans.java:230) ~[spring-boot-3.5.11.jar:3.5.11]
+	at org.springframework.boot.web.servlet.ServletContextInitializerBeans.addAsRegistrationBean(ServletContextInitializerBeans.java:184) ~[spring-boot-3.5.11.jar:3.5.11]
+	at org.springframework.boot.web.servlet.ServletContextInitializerBeans.addAsRegistrationBean(ServletContextInitializerBeans.java:179) ~[spring-boot-3.5.11.jar:3.5.11]
+	at org.springframework.boot.web.servlet.ServletContextInitializerBeans.addAdaptableBeans(ServletContextInitializerBeans.java:164) ~[spring-boot-3.5.11.jar:3.5.11]
+	at org.springframework.boot.web.servlet.ServletContextInitializerBeans.<init>(ServletContextInitializerBeans.java:96) ~[spring-boot-3.5.11.jar:3.5.11]
+	at org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext.getServletContextInitializerBeans(ServletWebServerApplicationContext.java:271) ~[spring-boot-3.5.11.jar:3.5.11]
+	at org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext.selfInitialize(ServletWebServerApplicationContext.java:245) ~[spring-boot-3.5.11.jar:3.5.11]
+	at org.springframework.boot.web.embedded.tomcat.TomcatStarter.onStartup(TomcatStarter.java:52) ~[spring-boot-3.5.11.jar:3.5.11]
+	at org.apache.catalina.core.StandardContext.startInternal(StandardContext.java:4452) ~[tomcat-embed-core-10.1.52.jar:10.1.52]
+	at org.apache.catalina.util.LifecycleBase.start(LifecycleBase.java:164) ~[tomcat-embed-core-10.1.52.jar:10.1.52]
+	at org.apache.catalina.core.ContainerBase$StartChild.call(ContainerBase.java:1201) ~[tomcat-embed-core-10.1.52.jar:10.1.52]
+	at org.apache.catalina.core.ContainerBase$StartChild.call(ContainerBase.java:1191) ~[tomcat-embed-core-10.1.52.jar:10.1.52]
+	at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:317) ~[na:na]
+	at org.apache.tomcat.util.threads.InlineExecutorService.execute(InlineExecutorService.java:81) ~[tomcat-embed-core-10.1.52.jar:10.1.52]
+	at java.base/java.util.concurrent.AbstractExecutorService.submit(AbstractExecutorService.java:145) ~[na:na]
+	at org.apache.catalina.core.ContainerBase.startInternal(ContainerBase.java:747) ~[tomcat-embed-core-10.1.52.jar:10.1.52]
+	at org.apache.catalina.core.StandardHost.startInternal(StandardHost.java:783) ~[tomcat-embed-core-10.1.52.jar:10.1.52]
+	at org.apache.catalina.util.LifecycleBase.start(LifecycleBase.java:164) ~[tomcat-embed-core-10.1.52.jar:10.1.52]
+	at org.apache.catalina.core.ContainerBase$StartChild.call(ContainerBase.java:1201) ~[tomcat-embed-core-10.1.52.jar:10.1.52]
+	at org.apache.catalina.core.ContainerBase$StartChild.call(ContainerBase.java:1191) ~[tomcat-embed-core-10.1.52.jar:10.1.52]
+	at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:317) ~[na:na]
+	at org.apache.tomcat.util.threads.InlineExecutorService.execute(InlineExecutorService.java:81) ~[tomcat-embed-core-10.1.52.jar:10.1.52]
+	at java.base/java.util.concurrent.AbstractExecutorService.submit(AbstractExecutorService.java:145) ~[na:na]
+	at org.apache.catalina.core.ContainerBase.startInternal(ContainerBase.java:747) ~[tomcat-embed-core-10.1.52.jar:10.1.52]
+	at org.apache.catalina.core.StandardEngine.startInternal(StandardEngine.java:201) ~[tomcat-embed-core-10.1.52.jar:10.1.52]
+	at org.apache.catalina.util.LifecycleBase.start(LifecycleBase.java:164) ~[tomcat-embed-core-10.1.52.jar:10.1.52]
+	at org.apache.catalina.core.StandardService.startInternal(StandardService.java:410) ~[tomcat-embed-core-10.1.52.jar:10.1.52]
+	at org.apache.catalina.util.LifecycleBase.start(LifecycleBase.java:164) ~[tomcat-embed-core-10.1.52.jar:10.1.52]
+	at org.apache.catalina.core.StandardServer.startInternal(StandardServer.java:868) ~[tomcat-embed-core-10.1.52.jar:10.1.52]
+	at org.apache.catalina.util.LifecycleBase.start(LifecycleBase.java:164) ~[tomcat-embed-core-10.1.52.jar:10.1.52]
+	at org.apache.catalina.startup.Tomcat.start(Tomcat.java:436) ~[tomcat-embed-core-10.1.52.jar:10.1.52]
+	at org.springframework.boot.web.embedded.tomcat.TomcatWebServer.initialize(TomcatWebServer.java:128) ~[spring-boot-3.5.11.jar:3.5.11]
+	... 16 common frames omitted
+Caused by: org.springframework.beans.factory.BeanCreationException: Error creating bean with name 'userRepository' defined in com.nexorcrm.backend.repo.UserRepository defined in @EnableJpaRepositories declared on JpaRepositoriesRegistrar.EnableJpaRepositoriesConfiguration: Cannot resolve reference to bean 'jpaSharedEM_entityManagerFactory' while setting bean property 'entityManager'
+	at org.springframework.beans.factory.support.BeanDefinitionValueResolver.resolveReference(BeanDefinitionValueResolver.java:377) ~[spring-beans-6.2.16.jar:6.2.16]
+	at org.springframework.beans.factory.support.BeanDefinitionValueResolver.resolveValueIfNecessary(BeanDefinitionValueResolver.java:135) ~[spring-beans-6.2.16.jar:6.2.16]
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.applyPropertyValues(AbstractAutowireCapableBeanFactory.java:1725) ~[spring-beans-6.2.16.jar:6.2.16]
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.populateBean(AbstractAutowireCapableBeanFactory.java:1474) ~[spring-beans-6.2.16.jar:6.2.16]
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.doCreateBean(AbstractAutowireCapableBeanFactory.java:606) ~[spring-beans-6.2.16.jar:6.2.16]
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.createBean(AbstractAutowireCapableBeanFactory.java:529) ~[spring-beans-6.2.16.jar:6.2.16]
+	at org.springframework.beans.factory.support.AbstractBeanFactory.lambda$doGetBean$0(AbstractBeanFactory.java:339) ~[spring-beans-6.2.16.jar:6.2.16]
+	at org.springframework.beans.factory.support.DefaultSingletonBeanRegistry.getSingleton(DefaultSingletonBeanRegistry.java:373) ~[spring-beans-6.2.16.jar:6.2.16]
+	at org.springframework.beans.factory.support.AbstractBeanFactory.doGetBean(AbstractBeanFactory.java:337) ~[spring-beans-6.2.16.jar:6.2.16]
+	at org.springframework.beans.factory.support.AbstractBeanFactory.getBean(AbstractBeanFactory.java:202) ~[spring-beans-6.2.16.jar:6.2.16]
+	at org.springframework.beans.factory.support.DefaultListableBeanFactory.doResolveDependency(DefaultListableBeanFactory.java:1708) ~[spring-beans-6.2.16.jar:6.2.16]
+	at org.springframework.beans.factory.support.DefaultListableBeanFactory.resolveDependency(DefaultListableBeanFactory.java:1653) ~[spring-beans-6.2.16.jar:6.2.16]
+	at org.springframework.beans.factory.support.ConstructorResolver.resolveAutowiredArgument(ConstructorResolver.java:913) ~[spring-beans-6.2.16.jar:6.2.16]
+	at org.springframework.beans.factory.support.ConstructorResolver.createArgumentArray(ConstructorResolver.java:791) ~[spring-beans-6.2.16.jar:6.2.16]
+	... 57 common frames omitted
+Caused by: org.springframework.beans.factory.BeanCreationException: Error creating bean with name 'jpaSharedEM_entityManagerFactory': Cannot resolve reference to bean 'entityManagerFactory' while setting constructor argument
+	at org.springframework.beans.factory.support.BeanDefinitionValueResolver.resolveReference(BeanDefinitionValueResolver.java:377) ~[spring-beans-6.2.16.jar:6.2.16]
+	at org.springframework.beans.factory.support.BeanDefinitionValueResolver.resolveValueIfNecessary(BeanDefinitionValueResolver.java:135) ~[spring-beans-6.2.16.jar:6.2.16]
+	at org.springframework.beans.factory.support.ConstructorResolver.resolveConstructorArguments(ConstructorResolver.java:691) ~[spring-beans-6.2.16.jar:6.2.16]
+	at org.springframework.beans.factory.support.ConstructorResolver.instantiateUsingFactoryMethod(ConstructorResolver.java:513) ~[spring-beans-6.2.16.jar:6.2.16]
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.instantiateUsingFactoryMethod(AbstractAutowireCapableBeanFactory.java:1375) ~[spring-beans-6.2.16.jar:6.2.16]
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.createBeanInstance(AbstractAutowireCapableBeanFactory.java:1205) ~[spring-beans-6.2.16.jar:6.2.16]
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.doCreateBean(AbstractAutowireCapableBeanFactory.java:569) ~[spring-beans-6.2.16.jar:6.2.16]
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.createBean(AbstractAutowireCapableBeanFactory.java:529) ~[spring-beans-6.2.16.jar:6.2.16]
+	at org.springframework.beans.factory.support.AbstractBeanFactory.lambda$doGetBean$0(AbstractBeanFactory.java:339) ~[spring-beans-6.2.16.jar:6.2.16]
+	at org.springframework.beans.factory.support.DefaultSingletonBeanRegistry.getSingleton(DefaultSingletonBeanRegistry.java:373) ~[spring-beans-6.2.16.jar:6.2.16]
+	at org.springframework.beans.factory.support.AbstractBeanFactory.doGetBean(AbstractBeanFactory.java:337) ~[spring-beans-6.2.16.jar:6.2.16]
+	at org.springframework.beans.factory.support.AbstractBeanFactory.getBean(AbstractBeanFactory.java:202) ~[spring-beans-6.2.16.jar:6.2.16]
+	at org.springframework.beans.factory.support.BeanDefinitionValueResolver.resolveReference(BeanDefinitionValueResolver.java:365) ~[spring-beans-6.2.16.jar:6.2.16]
+	... 70 common frames omitted
+Caused by: org.springframework.beans.factory.BeanCreationException: Error creating bean with name 'entityManagerFactory' defined in class path resource [org/springframework/boot/autoconfigure/orm/jpa/HibernateJpaConfiguration.class]: [PersistenceUnit: default] Unable to build Hibernate SessionFactory; nested exception is org.hibernate.tool.schema.spi.SchemaManagementException: Schema-validation: missing table [employees]
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.initializeBean(AbstractAutowireCapableBeanFactory.java:1826) ~[spring-beans-6.2.16.jar:6.2.16]
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.doCreateBean(AbstractAutowireCapableBeanFactory.java:607) ~[spring-beans-6.2.16.jar:6.2.16]
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.createBean(AbstractAutowireCapableBeanFactory.java:529) ~[spring-beans-6.2.16.jar:6.2.16]
+	at org.springframework.beans.factory.support.AbstractBeanFactory.lambda$doGetBean$0(AbstractBeanFactory.java:339) ~[spring-beans-6.2.16.jar:6.2.16]
+	at org.springframework.beans.factory.support.DefaultSingletonBeanRegistry.getSingleton(DefaultSingletonBeanRegistry.java:373) ~[spring-beans-6.2.16.jar:6.2.16]
+	at org.springframework.beans.factory.support.AbstractBeanFactory.doGetBean(AbstractBeanFactory.java:337) ~[spring-beans-6.2.16.jar:6.2.16]
+	at org.springframework.beans.factory.support.AbstractBeanFactory.getBean(AbstractBeanFactory.java:202) ~[spring-beans-6.2.16.jar:6.2.16]
+	at org.springframework.beans.factory.support.BeanDefinitionValueResolver.resolveReference(BeanDefinitionValueResolver.java:365) ~[spring-beans-6.2.16.jar:6.2.16]
+	... 82 common frames omitted
+Caused by: jakarta.persistence.PersistenceException: [PersistenceUnit: default] Unable to build Hibernate SessionFactory; nested exception is org.hibernate.tool.schema.spi.SchemaManagementException: Schema-validation: missing table [employees]
+	at org.springframework.orm.jpa.AbstractEntityManagerFactoryBean.buildNativeEntityManagerFactory(AbstractEntityManagerFactoryBean.java:431) ~[spring-orm-6.2.16.jar:6.2.16]
+	at org.springframework.orm.jpa.AbstractEntityManagerFactoryBean.afterPropertiesSet(AbstractEntityManagerFactoryBean.java:400) ~[spring-orm-6.2.16.jar:6.2.16]
+	at org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean.afterPropertiesSet(LocalContainerEntityManagerFactoryBean.java:364) ~[spring-orm-6.2.16.jar:6.2.16]
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.invokeInitMethods(AbstractAutowireCapableBeanFactory.java:1873) ~[spring-beans-6.2.16.jar:6.2.16]
+	at org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory.initializeBean(AbstractAutowireCapableBeanFactory.java:1822) ~[spring-beans-6.2.16.jar:6.2.16]
+	... 89 common frames omitted
+Caused by: org.hibernate.tool.schema.spi.SchemaManagementException: Schema-validation: missing table [employees]
+	at org.hibernate.tool.schema.internal.AbstractSchemaValidator.validateTable(AbstractSchemaValidator.java:136) ~[hibernate-core-6.6.42.Final.jar:6.6.42.Final]
+	at org.hibernate.tool.schema.internal.GroupedSchemaValidatorImpl.validateTables(GroupedSchemaValidatorImpl.java:46) ~[hibernate-core-6.6.42.Final.jar:6.6.42.Final]
+	at org.hibernate.tool.schema.internal.AbstractSchemaValidator.performValidation(AbstractSchemaValidator.java:99) ~[hibernate-core-6.6.42.Final.jar:6.6.42.Final]
+	at org.hibernate.tool.schema.internal.AbstractSchemaValidator.doValidation(AbstractSchemaValidator.java:77) ~[hibernate-core-6.6.42.Final.jar:6.6.42.Final]
+	at org.hibernate.tool.schema.spi.SchemaManagementToolCoordinator.performDatabaseAction(SchemaManagementToolCoordinator.java:289) ~[hibernate-core-6.6.42.Final.jar:6.6.42.Final]
+	at org.hibernate.tool.schema.spi.SchemaManagementToolCoordinator.lambda$process$5(SchemaManagementToolCoordinator.java:144) ~[hibernate-core-6.6.42.Final.jar:6.6.42.Final]
+	at java.base/java.util.HashMap.forEach(HashMap.java:1429) ~[na:na]
+	at org.hibernate.tool.schema.spi.SchemaManagementToolCoordinator.process(SchemaManagementToolCoordinator.java:141) ~[hibernate-core-6.6.42.Final.jar:6.6.42.Final]
+	at org.hibernate.boot.internal.SessionFactoryObserverForSchemaExport.sessionFactoryCreated(SessionFactoryObserverForSchemaExport.java:37) ~[hibernate-core-6.6.42.Final.jar:6.6.42.Final]
+	at org.hibernate.internal.SessionFactoryObserverChain.sessionFactoryCreated(SessionFactoryObserverChain.java:35) ~[hibernate-core-6.6.42.Final.jar:6.6.42.Final]
+	at org.hibernate.internal.SessionFactoryImpl.<init>(SessionFactoryImpl.java:324) ~[hibernate-core-6.6.42.Final.jar:6.6.42.Final]
+	at org.hibernate.boot.internal.SessionFactoryBuilderImpl.build(SessionFactoryBuilderImpl.java:463) ~[hibernate-core-6.6.42.Final.jar:6.6.42.Final]
+	at org.hibernate.jpa.boot.internal.EntityManagerFactoryBuilderImpl.build(EntityManagerFactoryBuilderImpl.java:1517) ~[hibernate-core-6.6.42.Final.jar:6.6.42.Final]
+	at org.springframework.orm.jpa.vendor.SpringHibernateJpaPersistenceProvider.createContainerEntityManagerFactory(SpringHibernateJpaPersistenceProvider.java:66) ~[spring-orm-6.2.16.jar:6.2.16]
+	at org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean.createNativeEntityManagerFactory(LocalContainerEntityManagerFactoryBean.java:388) ~[spring-orm-6.2.16.jar:6.2.16]
+	at org.springframework.orm.jpa.AbstractEntityManagerFactoryBean.buildNativeEntityManagerFactory(AbstractEntityManagerFactoryBean.java:419) ~[spring-orm-6.2.16.jar:6.2.16]
+	... 93 common frames omitted
+
+
+Perfect log — root cause is clear:
+
+Schema-validation: missing table [employees]
+
+Your app fails before controllers load, because Hibernate validates entity @Table(name="employees") but that table does not exist in DB.
+
+Fix now
+Create a Flyway migration in backend:
+
+src/main/resources/db/migration/V36__create_employees_table.sql
+
+CREATE TABLE IF NOT EXISTS employees (
+    id BIGSERIAL PRIMARY KEY,
+    employee_code VARCHAR(20) UNIQUE,
+    name VARCHAR(120) NOT NULL,
+    email VARCHAR(120),
+    phone VARCHAR(30),
+    dept VARCHAR(100),
+    designation VARCHAR(100),
+    join_date DATE,
+    status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
+    img VARCHAR(500),
+    deleted BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_employees_deleted ON employees(deleted);
+CREATE INDEX IF NOT EXISTS idx_employees_status ON employees(status);
+Then restart backend.
+
+Also verify
+Entity has exactly:
+@Table(name = "employees")
+columns employee_code, join_date, created_at, updated_at, etc.
+If your existing DB table is named differently (like employee), either:
+rename table in SQL, or
+change entity Table(name="...") to match existing table.
+Once backend starts, your frontend employee CRUD wiring will work with /api/employees.
+
+
+
+
+
+
+
+GPT-5.3-Codex
+
+Medium
+
+IDE context
+
+
+Local
+
+Default permissions
+
