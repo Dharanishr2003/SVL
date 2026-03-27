@@ -1,0 +1,1 @@
+import{q as t}from"./index-CqZ4x97i.js";const n=async s=>{try{return(await t.get(`/api/v1/design-requirements/lead/${s}`)).data||null}catch(e){if(e?.response?.status===404||e?.response?.status===204)return null;throw e}};export{n as g};

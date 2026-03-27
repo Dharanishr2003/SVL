@@ -93,6 +93,30 @@ export default function TopbarAttendanceAction() {
   const holdStartRef = useRef(0);
   const holdTriggeredRef = useRef(false);
 
+  const resolveVisibleSlot = useCallback(() => {
+    const slots = Array.from(
+      document.querySelectorAll("[data-topbar-attendance-slot]"),
+    );
+
+    if (!slots.length) {
+      return null;
+    }
+
+    const visibleSlot = slots.find((candidate) => {
+      if (!(candidate instanceof HTMLElement)) {
+        return false;
+      }
+
+      if (!candidate.isConnected) {
+        return false;
+      }
+
+      return candidate.getClientRects().length > 0;
+    });
+
+    return visibleSlot || slots[0] || null;
+  }, []);
+
   // Derived values that are used in callbacks
   const attendanceStatus = String(attendanceToday?.status || "").toUpperCase();
 
@@ -118,7 +142,7 @@ export default function TopbarAttendanceAction() {
     }
 
     const syncSlot = () => {
-      const nextSlot = document.querySelector("#topbar-attendance-slot");
+      const nextSlot = resolveVisibleSlot();
       if (nextSlot) {
         setSlot(nextSlot);
         return true;
@@ -144,7 +168,7 @@ export default function TopbarAttendanceAction() {
     }
 
     const syncSlot = () => {
-      const nextSlot = document.querySelector("#topbar-attendance-slot");
+      const nextSlot = resolveVisibleSlot();
       if (nextSlot) {
         setSlot(nextSlot);
       }
@@ -156,7 +180,7 @@ export default function TopbarAttendanceAction() {
 
     const timer = window.setTimeout(syncSlot, 100);
     return () => window.clearTimeout(timer);
-  }, [canUseAttendance, location.pathname, slot]);
+  }, [canUseAttendance, location.pathname, resolveVisibleSlot, slot]);
 
   const loadAttendanceToday = useCallback(async () => {
     if (!canUseAttendance) {

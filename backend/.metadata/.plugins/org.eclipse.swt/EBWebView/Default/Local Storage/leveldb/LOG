@@ -1,3 +1,2 @@
-2026/03/27-12:05:57.993 8090 Reusing MANIFEST C:\Users\rambo\Music\SVL\backend\.metadata\.plugins\org.eclipse.swt\EBWebView\Default\Local Storage\leveldb/MANIFEST-000001
-2026/03/27-12:05:57.999 8090 Recovering log #3
-2026/03/27-12:05:58.001 8090 Reusing old log C:\Users\rambo\Music\SVL\backend\.metadata\.plugins\org.eclipse.swt\EBWebView\Default\Local Storage\leveldb/000003.log 
+2026/03/27-18:30:17.613 8034 Creating DB C:\Users\rambo\Music\SVL\backend\.metadata\.plugins\org.eclipse.swt\EBWebView\Default\Local Storage\leveldb since it was missing.
+2026/03/27-18:30:17.646 8034 Reusing MANIFEST C:\Users\rambo\Music\SVL\backend\.metadata\.plugins\org.eclipse.swt\EBWebView\Default\Local Storage\leveldb/MANIFEST-000001

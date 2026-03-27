@@ -1,4 +1,4 @@
-import { Outlet, useNavigate } from "react-router-dom";
+import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useEffect, useRef, useState } from "react";
 import Preloader from "../components/layout/Preloader";
 import Topbar from "../components/layout/Topbar";
@@ -10,13 +10,67 @@ import { getLeadChatNotifications } from "../api/leadsApi";
 
 export default function AdminLayout() {
   const { user, isAuthenticated } = useAuth();
+  const location = useLocation();
   const [notice, setNotice] = useState("");
   const [notifyCount, setNotifyCount] = useState(0);
   const [notifyItems, setNotifyItems] = useState([]);
   const [showDropdown, setShowDropdown] = useState(false);
   const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0 });
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const lastSeenRef = useRef(new Date().toISOString());
   const navigate = useNavigate();
+
+  useEffect(() => {
+    setIsMobileSidebarOpen(false);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 992) {
+        setIsMobileSidebarOpen(false);
+      }
+    };
+
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  useEffect(() => {
+    const htmlElement = document.documentElement;
+    const overlayElements = Array.from(
+      document.querySelectorAll(".sidebar-overlay"),
+    );
+
+    htmlElement.classList.toggle("menu-opened", isMobileSidebarOpen);
+    overlayElements.forEach((overlay) => {
+      overlay.classList.toggle("opened", isMobileSidebarOpen);
+    });
+
+    const handleOverlayClick = () => {
+      setIsMobileSidebarOpen(false);
+    };
+
+    overlayElements.forEach((overlay) => {
+      overlay.addEventListener("click", handleOverlayClick);
+    });
+
+    const handleEscape = (event) => {
+      if (event.key === "Escape") {
+        setIsMobileSidebarOpen(false);
+      }
+    };
+
+    document.addEventListener("keydown", handleEscape);
+
+    return () => {
+      overlayElements.forEach((overlay) => {
+        overlay.classList.remove("opened");
+        overlay.removeEventListener("click", handleOverlayClick);
+      });
+      htmlElement.classList.remove("menu-opened");
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [isMobileSidebarOpen]);
 
   useEffect(() => {
     if (!isAuthenticated || !user) return;
@@ -24,20 +78,33 @@ export default function AdminLayout() {
     if (role === "CUSTOMER") return;
     let active = true;
 
+    const getBellLinks = () => {
+      return Array.from(
+        document.querySelectorAll(
+          ".header-actions .ti-bell, .mobile-topbar-actions .ti-bell",
+        ),
+      )
+        .map((icon) => icon.closest("a"))
+        .filter(Boolean);
+    };
+
     const updateBellBadge = (count) => {
-      const bellLink = document.querySelector(".header-actions .ti-bell")?.closest("a");
-      if (!bellLink) return;
-      let badge = bellLink.querySelector(".chat-notify-badge");
-      if (count > 0) {
-        if (!badge) {
-          badge = document.createElement("span");
-          badge.className = "chat-notify-badge";
-          bellLink.appendChild(badge);
+      const bellLinks = getBellLinks();
+      if (!bellLinks.length) return;
+
+      bellLinks.forEach((bellLink) => {
+        let badge = bellLink.querySelector(".chat-notify-badge");
+        if (count > 0) {
+          if (!badge) {
+            badge = document.createElement("span");
+            badge.className = "chat-notify-badge";
+            bellLink.appendChild(badge);
+          }
+          badge.textContent = String(count);
+        } else if (badge) {
+          badge.remove();
         }
-        badge.textContent = String(count);
-      } else if (badge) {
-        badge.remove();
-      }
+      });
     };
 
     const clearBadge = () => {
@@ -46,7 +113,9 @@ export default function AdminLayout() {
     };
 
     const handleBellClick = (event) => {
-      const bellLink = event.target?.closest(".header-actions .ti-bell")?.closest("a");
+      const bellLink = event.target
+        ?.closest(".header-actions .ti-bell, .mobile-topbar-actions .ti-bell")
+        ?.closest("a");
       if (!bellLink) return;
       event.stopPropagation();
       event.preventDefault();
@@ -116,7 +185,7 @@ export default function AdminLayout() {
     <>
       <Preloader />
 
-      <div className="main-wrapper">
+      <div className={`main-wrapper${isMobileSidebarOpen ? " slide-nav" : ""}`}>
         {notice ? <div className="chat-notice">{notice}</div> : null}
         {showDropdown ? (
           <div
@@ -157,7 +226,12 @@ export default function AdminLayout() {
             </div>
           </div>
         ) : null}
-        <Topbar />
+        <Topbar
+          isMobileSidebarOpen={isMobileSidebarOpen}
+          onMobileSidebarToggle={() =>
+            setIsMobileSidebarOpen((previous) => !previous)
+          }
+        />
         <TopbarAttendanceAction />
         <Sidebar />
 

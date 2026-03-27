@@ -1,3 +1,2 @@
-2026/03/27-12:05:58.071 8090 Reusing MANIFEST C:\Users\rambo\Music\SVL\backend\.metadata\.plugins\org.eclipse.swt\EBWebView\Default\Session Storage/MANIFEST-000001
-2026/03/27-12:05:58.072 8090 Recovering log #3
-2026/03/27-12:05:58.073 8090 Reusing old log C:\Users\rambo\Music\SVL\backend\.metadata\.plugins\org.eclipse.swt\EBWebView\Default\Session Storage/000003.log 
+2026/03/27-18:30:21.005 8034 Creating DB C:\Users\rambo\Music\SVL\backend\.metadata\.plugins\org.eclipse.swt\EBWebView\Default\Session Storage since it was missing.
+2026/03/27-18:30:21.023 8034 Reusing MANIFEST C:\Users\rambo\Music\SVL\backend\.metadata\.plugins\org.eclipse.swt\EBWebView\Default\Session Storage/MANIFEST-000001

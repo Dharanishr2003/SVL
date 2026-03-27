@@ -1,3 +1,2 @@
-2026/03/27-12:05:57.965 17c4 Reusing MANIFEST C:\Users\rambo\Music\SVL\backend\.metadata\.plugins\org.eclipse.swt\EBWebView\Default\shared_proto_db/MANIFEST-000001
-2026/03/27-12:05:57.965 17c4 Recovering log #3
-2026/03/27-12:05:57.966 17c4 Reusing old log C:\Users\rambo\Music\SVL\backend\.metadata\.plugins\org.eclipse.swt\EBWebView\Default\shared_proto_db/000003.log 
+2026/03/27-18:30:17.525 7ca0 Creating DB C:\Users\rambo\Music\SVL\backend\.metadata\.plugins\org.eclipse.swt\EBWebView\Default\shared_proto_db since it was missing.
+2026/03/27-18:30:17.531 7ca0 Reusing MANIFEST C:\Users\rambo\Music\SVL\backend\.metadata\.plugins\org.eclipse.swt\EBWebView\Default\shared_proto_db/MANIFEST-000001

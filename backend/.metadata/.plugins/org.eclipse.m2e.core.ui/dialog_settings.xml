@@ -2,7 +2,7 @@
 <section name="Workbench">
 	<section name="MavenProjectImportWizardPage">
 		<list key="rootDirectory">
-			<item value="C:\Users\rambo\Music\SVL\backend"/>
+			<item value="C:\Users\rambo\Music\SVL\backend\backend"/>
 		</list>
 		<list key="projectNameTemplate">
 			<item value="[artifactId]"/>

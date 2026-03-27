@@ -1,0 +1,1 @@
+import{a as t}from"./apiClient-BCYevyJt.js";const r={getCallHistory(){return t.get("/crm/call-history")},getCities(){return t.get("/crm/cities")},getCompanies(){return t.get("/crm/companies")},getChat(){return t.get("/crm/chat")}};export{r as c};

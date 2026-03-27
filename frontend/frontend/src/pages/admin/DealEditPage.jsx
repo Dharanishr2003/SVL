@@ -3958,21 +3958,6 @@ const [loadingDesignRequirement, setLoadingDesignRequirement] = useState(false);
                 {!isEmployeeDesignView && (
                 <div className="card border mt-3">
                   <div className="card-body">
-                    <h5 className="mb-3">Save Lead Details</h5>
-                    <button
-                      className="btn btn-primary w-100"
-                      onClick={saveLeadDetails}
-                      disabled={detailsSaving || typeSaving}
-                    >
-                      {detailsSaving ? "Saving..." : "Save Details"}
-                    </button>
-                  </div>
-                </div>
-                )}
-
-                {!isEmployeeDesignView && (
-                <div className="card border mt-3">
-                  <div className="card-body">
                     <ul className="nav nav-tabs mb-3" role="tablist">
                       <li className="nav-item" role="presentation">
                         <button

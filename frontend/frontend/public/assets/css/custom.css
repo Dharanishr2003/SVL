@@ -857,6 +857,93 @@ table.dataTable.dtr-inline.collapsed
     padding: 0 1rem;
 }
 
+.mobile-topbar-actions {
+    display: none;
+}
+
+.dropdown .dropdown-toggle::after,
+.dropdown-toggle::after {
+    display: none !important;
+    content: none !important;
+}
+
+@media (max-width: 991.98px) {
+    .header .header-left {
+        position: absolute;
+        left: 56px;
+        width: auto;
+        right: auto;
+        justify-content: flex-start;
+        gap: 0.5rem;
+        padding: 0;
+    }
+
+    .header .header-left .logo,
+    .header .header-left .dark-logo {
+        width: auto;
+        text-align: left;
+        display: inline-flex;
+        align-items: center;
+        line-height: 1;
+    }
+
+    .header .header-left .logo img,
+    .header .header-left .dark-logo img {
+        width: 120px;
+        max-width: none;
+    }
+
+    .mobile-topbar-actions {
+        position: absolute;
+        top: 10px;
+        right: 12px;
+        z-index: 11;
+        display: flex;
+    }
+
+    .mobile-topbar-actions .btn-menubar {
+        width: 30px;
+        height: 30px;
+        padding: 0;
+    }
+
+    .mobile-topbar-actions .topbar-attendance-slot {
+        flex: 0 0 auto;
+        min-width: auto;
+        padding: 0;
+        justify-content: center;
+    }
+
+    .mobile-topbar-actions .topbar-attendance-slot .d-flex {
+        margin-right: 0 !important;
+    }
+
+    .mobile-topbar-actions .btn-checkin-action {
+        padding: 0.35rem 0.5rem;
+        font-size: 0.75rem;
+        white-space: nowrap;
+    }
+
+    .mobile-topbar-actions .profile-dropdown {
+        margin-left: 0 !important;
+    }
+
+    .mobile-topbar-actions .profile-dropdown .dropdown-toggle {
+        border: 0;
+        padding: 0;
+        display: flex;
+        align-items: center;
+    }
+
+    .mobile-topbar-actions .profile-dropdown .avatar img {
+        width: 30px;
+        height: 30px;
+        border-radius: 999px;
+        border: 2px solid #F3F4F6;
+        object-fit: cover;
+    }
+}
+
 .btn-checkin-action {
     background: transparent !important;
     border: 1px solid #2563eb !important;

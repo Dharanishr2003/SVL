@@ -608,6 +608,9 @@ const [showRequirementDetailsModal, setShowRequirementDetailsModal] = useState(f
       lead?.paymentProofFilePath ||
       lead?.paymentProofNotes,
   );
+  const alternatePhoneCountryOption = getCountryOptionByValue(countryCode);
+  const alternatePhoneAllowedLengths = getCountryAllowedLengths(countryCode);
+  const alternatePhoneDisplayMaxLength = getCountryDisplayMaxLength(countryCode);
 
   const showAttemptedSummary = hasAttemptedData || isAttempted;
   const showInterestedSummary = hasInterestedData || isInterested;
@@ -2251,10 +2254,18 @@ const [showRequirementDetailsModal, setShowRequirementDetailsModal] = useState(f
 
   const saveLeadDetails = async () => {
     if (!lead?.id) return;
+    const alternatePhoneValue = String(alternatePhone || "").trim();
+    if (alternatePhoneValue) {
+      const alternatePhoneValidation = validatePhoneNumber(alternatePhoneValue, countryCode);
+      if (alternatePhoneValidation) {
+        showError(alternatePhoneValidation);
+        return;
+      }
+    }
     setDetailsSaving(true);
     try {
       const payload = {
-        alternatePhone: alternatePhone || null,
+        alternatePhone: alternatePhoneValue || null,
         alternateEmail: alternateEmail || null,
         countryCode: countryCode || null,
         followUpDate: followUpDate ? new Date(followUpDate).toISOString() : null,
@@ -2548,7 +2559,17 @@ const [showRequirementDetailsModal, setShowRequirementDetailsModal] = useState(f
                         <select
                           className="form-select"
                           value={countryCode}
-                          onChange={(e) => setCountryCode(e.target.value)}
+                          onChange={(e) => {
+                            const nextCountryCode = e.target.value;
+                            setCountryCode(nextCountryCode);
+                            setAlternatePhone((currentValue) =>
+                              sanitizePhoneDigits(
+                                currentValue,
+                                getCountryOptionByValue(nextCountryCode)?.maxLength,
+                                getCountryAllowedLengths(nextCountryCode),
+                              ),
+                            );
+                          }}
                           disabled={lockAfterAttempted || isLeadReadOnly}
                         >
                           <option value="">Select Country Code</option>
@@ -2576,7 +2597,16 @@ const [showRequirementDetailsModal, setShowRequirementDetailsModal] = useState(f
                         <input
                           className="form-control"
                           value={alternatePhone}
-                          onChange={(e) => setAlternatePhone(e.target.value)}
+                          onChange={(e) =>
+                            setAlternatePhone(
+                              sanitizePhoneDigits(
+                                e.target.value,
+                                alternatePhoneCountryOption?.maxLength,
+                                alternatePhoneAllowedLengths,
+                              ),
+                            )
+                          }
+                          maxLength={alternatePhoneDisplayMaxLength || undefined}
                           readOnly={lockAfterAttempted || isLeadReadOnly}
                         />
                       </div>

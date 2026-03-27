@@ -118,6 +118,20 @@ export default function LocationPickerModal({
       style={{ display: 'block', backgroundColor: 'rgba(0,0,0,0.5)' }}
       tabIndex="-1"
     >
+      <style>
+        {`
+          .location-picker-number-input {
+            -moz-appearance: textfield;
+            appearance: textfield;
+          }
+
+          .location-picker-number-input::-webkit-outer-spin-button,
+          .location-picker-number-input::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+          }
+        `}
+      </style>
       <div className="modal-dialog modal-dialog-centered modal-lg" style={{ margin: '10px' }}>
         <div className="modal-content">
           <div className="modal-header">
@@ -223,7 +237,7 @@ export default function LocationPickerModal({
               <input
                 type="number"
                 min="1"
-                className="form-control form-control-sm"
+                className="form-control form-control-sm location-picker-number-input"
                 value={radiusMeters}
                 onChange={handleRadiusInputChange}
               />

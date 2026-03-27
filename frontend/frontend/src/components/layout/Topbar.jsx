@@ -3,7 +3,10 @@ import { useNavigate, Link } from "react-router-dom";
 import { attachAdminNavigationHandlers } from "../../utils/adminNavigation";
 import { useAuth } from "../../context/AuthContext";
 
-export default function Topbar() {
+export default function Topbar({
+  isMobileSidebarOpen = false,
+  onMobileSidebarToggle,
+}) {
   const containerRef = useRef(null);
   const navigate = useNavigate();
   const { logout, user } = useAuth();
@@ -245,6 +248,47 @@ export default function Topbar() {
     user?.lastName,
   ]);
 
+  const notificationButton = (
+    <a
+      href="#"
+      className="btn btn-menubar position-relative"
+      title="Notifications"
+    >
+      <i className="ti ti-bell"></i>
+      <span className="notification-status-dot"></span>
+    </a>
+  );
+
+  const profileDropdown = (
+    <div className="dropdown profile-dropdown ms-2">
+      <a
+        href="#"
+        className="dropdown-toggle d-flex align-items-center"
+        data-bs-toggle="dropdown"
+        aria-expanded="false"
+        title="Profile"
+      >
+        <span className="avatar avatar-sm online">
+          <img
+            src={user?.profilePhotoUrl || "/assets/img/profiles/avatar-12.jpg"}
+            alt="User"
+          />
+        </span>
+      </a>
+      <div className="dropdown-menu dropdown-menu-end shadow-none">
+        <Link className="dropdown-item" to="/profile">
+          My Profile
+        </Link>
+        <Link className="dropdown-item" to="/profile-settings">
+          Settings
+        </Link>
+        <button className="dropdown-item" onClick={handleLogout}>
+          Logout
+        </button>
+      </div>
+    </div>
+  );
+
   return (
     <div className="header" ref={containerRef}>
       <div className="main-header">
@@ -252,12 +296,19 @@ export default function Topbar() {
           <Link to="/admin-dashboard" className="logo">
             <img src="/assets/img/logo.svg" alt="Logo" />
           </Link>
-          <Link to="/admin-dashboard" className="dark-logo">
-            <img src="/assets/img/logo-white.svg" alt="Logo" />
-          </Link>
         </div>
 
-        <a id="mobile_btn" className="mobile_btn" href="#sidebar">
+        <a
+          id="admin_mobile_btn"
+          className="mobile_btn"
+          href="#sidebar"
+          aria-controls="sidebar"
+          aria-expanded={isMobileSidebarOpen}
+          onClick={(event) => {
+            event.preventDefault();
+            onMobileSidebarToggle?.();
+          }}
+        >
           <span className="bar-icon">
             <span></span>
             <span></span>
@@ -280,7 +331,7 @@ export default function Topbar() {
                 <i className="ti ti-arrow-bar-to-left"></i>
               </a>
               {/* Search */}
-              <div className="input-group input-group-flat d-inline-flex me-1">
+              {/* <div className="input-group input-group-flat d-inline-flex me-1">
                 <span className="input-icon-addon">
                   <i className="ti ti-search"></i>
                 </span>
@@ -292,22 +343,17 @@ export default function Topbar() {
                 <span className="input-group-text">
                   <kbd>CTRL + / </kbd>
                 </span>
-              </div>
+              </div> */}
               {/* /Search */}
 
-              <Link
-                to="/profile-settings"
-                className="btn btn-menubar"
-                title="Settings"
-              >
-                <i className="ti ti-settings-cog"></i>
-              </Link>
+            
             </div>
             <div
               className="topbar-attendance-slot"
               id="topbar-attendance-slot"
+              data-topbar-attendance-slot="desktop"
             ></div>
-            <div className="d-flex align-items-center header-actions">
+            <div className="d-none d-lg-flex align-items-center header-actions">
               <a
                 href="#"
                 className="btn btn-menubar me-1"
@@ -321,46 +367,19 @@ export default function Topbar() {
                   className={isFullscreen ? "ti ti-minimize" : "ti ti-maximize"}
                 ></i>
               </a>
-               <Link to="/apps" className="btn btn-menubar me-1" title="Apps">
+                <Link
+                to="/profile-settings"
+                className="btn btn-menubar"
+                title="Settings"
+              >
+                <i className="ti ti-settings-cog"></i>
+              </Link>
+                <Link to="/apps" className="btn btn-menubar me-1" title="Apps">
                 <i className="ti ti-layout-grid"></i>
               </Link>
-
-              <a
-                href="#"
-                className="btn btn-menubar position-relative"
-                title="Notifications"
-              >
-                <i className="ti ti-bell"></i>
-                <span className="notification-status-dot"></span>
-              </a>
-              <div className="dropdown profile-dropdown ms-2">
-                <a
-                  href="#"
-                  className="dropdown-toggle d-flex align-items-center"
-                  data-bs-toggle="dropdown"
-                  aria-expanded="false"
-                  title="Profile"
-                >
-                  <span className="avatar avatar-sm online">
-                    <img
-                      src={user?.profilePhotoUrl || "/assets/img/profiles/avatar-12.jpg"}
-                      alt="User"
-                    />
-                  </span>
-                </a>
-                <div className="dropdown-menu dropdown-menu-end shadow-none">
-                  <Link className="dropdown-item" to="/profile">
-                    My Profile
-                  </Link>
-                  <Link className="dropdown-item" to="/profile-settings">
-                    Settings
-                  </Link>
-                  <button className="dropdown-item" onClick={handleLogout}>
-                    Logout
-                  </button>
-                </div>
+                {notificationButton}
+                {profileDropdown}
               </div>
-            </div>
 
             {/* Horizontal Single */}
             <div className="sidebar sidebar-horizontal" id="horizontal-menu">
@@ -368,7 +387,7 @@ export default function Topbar() {
             </div>
 
             {/* Mobile Menu */}
-            <div className="dropdown mobile-user-menu">
+              <div className="dropdown mobile-user-menu d-none">
               <a
                 href="#"
                 className="nav-link dropdown-toggle"
@@ -391,6 +410,15 @@ export default function Topbar() {
             </div>
             {/* /Mobile Menu */}
           </div>
+        </div>
+
+        <div className="mobile-topbar-actions d-flex d-lg-none align-items-center">
+          <div
+            className="topbar-attendance-slot topbar-attendance-slot--mobile me-1"
+            data-topbar-attendance-slot="mobile"
+          ></div>
+          <div className="me-1">{notificationButton}</div>
+          <div className="mobile-topbar-profile">{profileDropdown}</div>
         </div>
       </div>
     </div>
