@@ -1,5 +1,7 @@
 package com.nexorcrm.backend.controller;
 
+import com.nexorcrm.backend.dto.BulkLeadCreateRequest;
+import com.nexorcrm.backend.dto.BulkLeadResponse;
 import com.nexorcrm.backend.dto.LeadCreateRequest;
 import com.nexorcrm.backend.dto.LeadAllocatorOptionResponse;
 import com.nexorcrm.backend.dto.LeadAssignableGroupResponse;
@@ -100,6 +102,17 @@ public class LeadController {
     @GetMapping("/importable-employees")
     public List<LeadAllocatorOptionResponse> listImportableEmployees(Authentication authentication) {
         return leadService.getImportableEmployees(authentication.getName());
+    }
+
+    @PostMapping("/bulk")
+    public ResponseEntity<?> bulkCreate(@Valid @RequestBody BulkLeadCreateRequest request,
+                                        Authentication authentication) {
+        try {
+            BulkLeadResponse result = leadService.bulkCreate(request, authentication.getName());
+            return ResponseEntity.ok(result);
+        } catch (IllegalStateException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
     }
 
     @PostMapping

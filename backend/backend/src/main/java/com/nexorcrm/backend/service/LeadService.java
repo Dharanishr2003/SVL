@@ -1,6 +1,9 @@
 
 package com.nexorcrm.backend.service;
 
+import com.nexorcrm.backend.dto.BulkLeadCreateRequest;
+import com.nexorcrm.backend.dto.BulkLeadItem;
+import com.nexorcrm.backend.dto.BulkLeadResponse;
 import com.nexorcrm.backend.dto.LeadAllocatorOptionResponse;
 import com.nexorcrm.backend.dto.LeadAssignableGroupResponse;
 import com.nexorcrm.backend.dto.LeadCreateRequest;
@@ -334,6 +337,83 @@ public class LeadService {
             }
         }
         return new java.util.ArrayList<>(seen.values());
+    }
+
+    @Transactional
+    public BulkLeadResponse bulkCreate(BulkLeadCreateRequest request, String actorPrincipal) {
+        User actor = assertLeadAccess(actorPrincipal);
+        if (actor.getRole() == Role.EMPLOYEE) {
+            throw new AccessDeniedException("Employees cannot use bulk import");
+        }
+
+        Long flowGroupId = resolveFlowGroupForStatus("New Lead");
+
+        java.util.ArrayList<String> errors = new java.util.ArrayList<>();
+        java.util.ArrayList<Lead> toSave = new java.util.ArrayList<>();
+
+        for (int i = 0; i < request.getLeads().size(); i++) {
+            BulkLeadItem item = request.getLeads().get(i);
+            int rowNum = i + 1;
+
+            User assignedUser;
+            try {
+                assignedUser = userRepository.findById(item.getAssignedUserId())
+                        .orElseThrow(() -> new EntityNotFoundException("User not found"));
+                if (assignedUser.getRole() != Role.EMPLOYEE
+                        || !assignedUser.isActive()
+                        || assignedUser.getActivationStatus() != ActivationStatus.ACTIVE
+                        || Boolean.TRUE.equals(assignedUser.getIsDeleted())) {
+                    errors.add("Row " + rowNum + ": assigned user is not an active employee");
+                    continue;
+                }
+            } catch (EntityNotFoundException e) {
+                errors.add("Row " + rowNum + ": assigned user ID " + item.getAssignedUserId() + " not found");
+                continue;
+            }
+
+            String mobile = item.getMobile().trim();
+            String mobileNormalized = normalizeMobile(mobile);
+            if (!StringUtils.hasText(mobileNormalized)) {
+                errors.add("Row " + rowNum + ": mobile number is invalid");
+                continue;
+            }
+
+            Long groupId = flowGroupId;
+            if (groupId == null) {
+                List<UserGroup> groups = findLeadVisibleGroupsForActor(actor);
+                if (groups.isEmpty()) {
+                    errors.add("Row " + rowNum + ": no lead group available for assignment");
+                    continue;
+                }
+                groupId = groups.get(0).getId();
+            }
+
+            Lead row = new Lead();
+            row.setLeadId("LEAD_" + UUID.randomUUID().toString().replace("-", "").substring(0, 14).toUpperCase(Locale.ROOT));
+            row.setEuid(leadRepository.countByDeletedFalse() + toSave.size() + 1);
+            row.setName(item.getName().trim());
+            row.setMobile(mobile);
+            row.setMobileNormalized(mobileNormalized);
+            row.setPrimarySource(item.getPrimarySource().trim());
+            row.setStatus("New Lead");
+            row.setSvStatus(null);
+            row.setAssignedGroupId(groupId);
+            row.setAllocatorUserId(actor.getId());
+            row.setOwnerUserId(assignedUser.getId());
+            row.setOwner(assignedUser.getUsername());
+            toSave.add(row);
+        }
+
+        if (!errors.isEmpty()) {
+            throw new IllegalStateException("Bulk import failed: " + String.join("; ", errors));
+        }
+
+        leadRepository.saveAll(toSave);
+        toSave.forEach(saved ->
+                auditService.log("LEAD_BULK_CREATE", "Bulk imported lead " + saved.getLeadId(), actor.getEmail())
+        );
+
+        return new BulkLeadResponse(toSave.size(), List.of());
     }
 
     public LeadFiltersResponse filters(String actorPrincipal) {
