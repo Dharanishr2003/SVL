@@ -625,6 +625,10 @@ export const adminPhpRoutes = [
     component: "LeadsPage",
   },
   {
+    path: "leads/import",
+    component: "LeadImportPage",
+  },
+  {
     path: "leads/:id",
     component: "LeadEditPage",
   },

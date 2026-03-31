@@ -1101,6 +1101,13 @@ export default function LeadsPage() {
                 Filter
               </button>
               <button
+                className="btn btn-outline-info"
+                onClick={() => navigate('/leads/import')}
+              >
+                <i className="ti ti-upload me-1" />
+                Import Leads
+              </button>
+              <button
                 className="btn btn-success"
                 onClick={openCreateModal}
               >
