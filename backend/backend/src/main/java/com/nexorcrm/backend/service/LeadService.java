@@ -314,6 +314,28 @@ public class LeadService {
     }
 
     @Transactional(readOnly = true)
+    public List<LeadAllocatorOptionResponse> getImportableEmployees(String actorPrincipal) {
+        User actor = assertLeadAccess(actorPrincipal);
+        List<UserGroup> groups = findLeadVisibleGroupsForActor(actor);
+
+        Map<Long, LeadAllocatorOptionResponse> seen = new LinkedHashMap<>();
+        for (UserGroup group : groups) {
+            List<UserGroupMember> members = userGroupMemberRepository
+                    .findByGroup_IdAndUser_RoleAndUser_ActivationStatusAndUser_ActiveTrueAndUser_IsDeletedFalseOrderByUserUsernameAsc(
+                            group.getId(),
+                            Role.EMPLOYEE,
+                            ActivationStatus.ACTIVE
+                    );
+            for (UserGroupMember m : members) {
+                if (!memberHasLeadVisibility(m)) continue;
+                User u = m.getUser();
+                if (u == null || u.getId() == null) continue;
+                seen.putIfAbsent(u.getId(), toAllocatorOptionResponse(u));
+            }
+        }
+        return new java.util.ArrayList<>(seen.values());
+    }
+
     public LeadFiltersResponse filters(String actorPrincipal) {
         User actor = assertLeadAccess(actorPrincipal);
         Set<Long> visibleGroupIds = resolveVisibleLeadGroupIds(actor);

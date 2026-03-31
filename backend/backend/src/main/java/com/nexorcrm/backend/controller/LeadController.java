@@ -97,6 +97,11 @@ public class LeadController {
         return leadService.listAssignableGroups(authentication.getName());
     }
 
+    @GetMapping("/importable-employees")
+    public List<LeadAllocatorOptionResponse> listImportableEmployees(Authentication authentication) {
+        return leadService.getImportableEmployees(authentication.getName());
+    }
+
     @PostMapping
     public LeadResponse create(@Valid @RequestBody LeadCreateRequest request, Authentication authentication) {
         return leadService.create(request, authentication.getName());
