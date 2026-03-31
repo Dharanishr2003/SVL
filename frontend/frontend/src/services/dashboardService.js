@@ -1,11 +1,12 @@
-import apiClient from "./apiClient";
+import { dashboardData } from "../mock/dashboardData";
+import { employeeDashboardData } from "../mock/employeeDashboardData";
 
 const dashboardService = {
   getDashboard() {
-    return apiClient.get("/dashboard");
+    return Promise.resolve(dashboardData);
   },
   getEmployeeDashboard() {
-    return apiClient.get("/dashboard/employee");
+    return Promise.resolve(employeeDashboardData);
   },
 };
 

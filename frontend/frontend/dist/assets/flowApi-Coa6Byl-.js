@@ -1,1 +1,0 @@
-import{q as e}from"./index-CqZ4x97i.js";async function n(){return(await e.get("/api/flow"))?.data||{}}async function o(a){return(await e.put("/api/flow",a))?.data||{}}async function p(){return(await e.get("/api/deal-flow"))?.data||{}}async function r(a){return(await e.put("/api/deal-flow",a))?.data||{}}export{n as a,r as b,p as g,o as u};

@@ -1,19 +1,23 @@
 import logger from "../utils/logger";
+import { getAccessToken } from "../utils/api";
 
 const DEFAULT_BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
 
 async function request(path, options = {}) {
-  const url = `${DEFAULT_BASE_URL}${path}`;
-  const startedAt = performance.now();
+    const url = `${DEFAULT_BASE_URL}${path}`;
+    const startedAt = performance.now();
+    const token = getAccessToken();
 
-  try {
-    const response = await fetch(url, {
-      headers: {
-        "Content-Type": "application/json",
-        ...(options.headers || {}),
-      },
-      ...options,
-    });
+    try {
+      const response = await fetch(url, {
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...(options.headers || {}),
+        },
+        credentials: "include",
+        ...options,
+      });
 
     const contentType = response.headers.get("content-type") || "";
     const isJson = contentType.includes("application/json");

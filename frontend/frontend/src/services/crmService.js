@@ -1,41 +1,54 @@
-import apiClient from "./apiClient";
+import { callHistoryData } from "../mock/callHistoryData";
+import { chatData } from "../mock/chatData";
+import { citiesData } from "../mock/citiesData";
+import { companiesData } from "../mock/companiesData";
+import { dashboardData } from "../mock/dashboardData";
+import { employeeDashboardData } from "../mock/employeeDashboardData";
+import { dealsGridData } from "../mock/dealsGridData";
+
+const resolved = (data) =>
+  Promise.resolve(
+    typeof structuredClone === "function"
+      ? structuredClone(data)
+      : JSON.parse(JSON.stringify(data)),
+  );
 
 const crmService = {
   getCallHistory() {
-    return apiClient.get("/crm/call-history");
+    return resolved(callHistoryData);
   },
   getCandidatesGrid() {
-    return apiClient.get("/crm/candidates-grid");
+    return resolved(dashboardData);
   },
   getCategories() {
-    return apiClient.get("/crm/categories");
+    return resolved(citiesData);
   },
   getCities() {
-    return apiClient.get("/crm/cities");
+    return resolved(citiesData);
   },
   getClientsGrid() {
-    return apiClient.get("/crm/clients-grid");
+    return resolved(dashboardData);
   },
   getCompaniesGrid() {
-    return apiClient.get("/crm/companies-grid");
+    return resolved(companiesData);
   },
   getCompanies() {
-    return apiClient.get("/crm/companies");
+    return resolved(companiesData);
   },
   getContactsGrid() {
-    return apiClient.get("/crm/contacts-grid");
+    return resolved(dashboardData);
   },
   getDealsDashboard() {
-    return apiClient.get("/crm/deals-dashboard");
+    return resolved(dashboardData);
   },
   getLeadsDashboard() {
-    return apiClient.get("/crm/leads-dashboard");
+    return resolved(employeeDashboardData);
   },
   getDealsGrid() {
-    return apiClient.get("/crm/deals-grid");
+    return resolved(dealsGridData);
   },
   getChat() {
-    return apiClient.get("/crm/chat");
+    return resolved(chatData);
   },
 };
 

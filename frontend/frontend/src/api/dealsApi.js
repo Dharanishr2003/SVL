@@ -82,3 +82,8 @@ export async function uploadDealPaymentProof(dealId, file) {
   })
   return response?.data || {}
 }
+
+export async function updateDealPaymentVerification(dealId, payload = {}) {
+  const response = await api.patch(`/api/v1/deals/${dealId}/payment-verification`, payload)
+  return response?.data || {}
+}

@@ -1,6 +1,6 @@
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
-import { getDealById, updateDeal, updateDealStatus, startDesignWork as apiStartDesignWork, uploadDesignDraft as apiUploadDesignDraft, sendDesignFeedback as apiSendDesignFeedback, approveFinalDesign as apiApproveFinalDesign, uploadFinalDesign as apiUploadFinalDesign, uploadDealPaymentProof } from "../../api/dealsApi";
+import { getDealById, updateDeal, updateDealStatus, startDesignWork as apiStartDesignWork, uploadDesignDraft as apiUploadDesignDraft, sendDesignFeedback as apiSendDesignFeedback, approveFinalDesign as apiApproveFinalDesign, uploadFinalDesign as apiUploadFinalDesign, uploadDealPaymentProof, updateDealPaymentVerification } from "../../api/dealsApi";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import {
@@ -28,6 +28,7 @@ import { extractApiErrorMessage } from "../../utils/errorMessage";
 import { COUNTRY_CODE_OPTIONS, getCountryAllowedLengths, getCountryOptionByValue, sanitizePhoneDigits, validatePhoneNumber } from "../../utils/phoneUtils";
 import { pickFlowAssignee, pickGroupAssignee } from "../../utils/flowAssignment";
 import { validateStatusTransition } from "../../utils/statusValidation";
+import { formatStatusLabel, uniqueStatusOptions, normalizeStatusLabelKey } from "../../utils/statusLabels";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../components/system/ToastProvider";
 import StockRequestFormModal from "../../components/system/StockRequestFormModal";
@@ -1076,27 +1077,25 @@ const [loadingDesignRequirement, setLoadingDesignRequirement] = useState(false);
     };
   }, [showAllocateModal, lead?.id]);
 
-  const flowStatuses = Array.isArray(flowRules)
-    ? flowRules
-        .flatMap((rule) => {
-          const base = String(rule?.status || "").trim();
-          const next =
-            rule?.next && typeof rule.next === "object"
-              ? Object.keys(rule.next).map((k) => String(k || "").trim())
-              : [];
-          return [base, ...next];
-        })
-        .filter(Boolean)
-    : [];
-
-  const orderedLeadStatuses = [
-    ...DEFAULT_LEAD_STATUSES,
-    ...leadStatuses,
-    ...flowStatuses,
-  ]
-    .map((item) => String(item || "").trim())
-    .filter(Boolean)
-    .filter((item, index, arr) => arr.indexOf(item) === index);
+  const orderedLeadStatuses = Array.from(
+    new Set(
+      [
+        ...(Array.isArray(flowRules)
+          ? flowRules.flatMap((rule) => {
+              const base = String(rule?.status || "").trim();
+              const next =
+                rule?.next && typeof rule.next === "object"
+                  ? Object.keys(rule.next).map((k) => String(k || "").trim())
+                  : [];
+              return [base, ...next];
+            })
+          : []),
+        String(lead?.status || "").trim(),
+      ]
+        .map((item) => String(item || "").trim())
+        .filter(Boolean),
+    ),
+  );
 
   const timelineEntries = (() => {
     const order = [
@@ -1240,9 +1239,13 @@ const [loadingDesignRequirement, setLoadingDesignRequirement] = useState(false);
       return [];
     }
     
-    // No flow rule at all for this status → show all as fallback
+    // No flow rule at all for this status → show the configured flow statuses
     return filterStatusesByRequirementType(orderedLeadStatuses);
   })();
+  const displayStatusOptions = useMemo(
+    () => uniqueStatusOptions(allowedStatusOptions),
+    [allowedStatusOptions],
+  );
 
 
   const saveStatus = async () => {
@@ -1344,27 +1347,8 @@ const [loadingDesignRequirement, setLoadingDesignRequirement] = useState(false);
       }
       
       if (key === "payment") {
-        try {
-          const paymentAssignment = await pickGroupAssignee({
-            groupId: nextGroupId,
-            currentAssigneeId: lead?.paymentVerificationAssignedToUserId ?? null,
-          }).catch(() => ({ assigneeId: null }));
-          if (paymentAssignment?.assigneeId) {
-            console.log("Assigning payment verification to user:", paymentAssignment.assigneeId);
-            await updateLeadDetails(sourceLeadId || lead.id, {
-              paymentVerificationAssignedToUserId: Number(paymentAssignment.assigneeId),
-            });
-            console.log("✓ Payment verification assigned successfully");
-          } else {
-            console.warn("No assignable employee found for payment verification group", nextGroupId);
-          }
-        } catch (err) {
-          console.warn("Failed to assign payment verification", err);
-        }
-      }
-      
-      if (key === "payment") {
-        // nothing special needed when moving to payment
+        // Backend now assigns payment verification using the same Accounts
+        // round-robin logic as the lead payment verification flow.
       }
       const mergedLead = { ...(lead || {}), ...updated };
       setLead(mergedLead);
@@ -1577,22 +1561,88 @@ const [loadingDesignRequirement, setLoadingDesignRequirement] = useState(false);
   };
 
 
-  const submitRequirement = async () => {
+  const submitRequirement = async (formData = {}) => {
     if (!lead?.id) return;
-    if (!requirementType || !requirementNotes) {
+
+    const submitted = formData || {};
+    const submittedRequirementType = submitted.requirementType ?? requirementType;
+    const submittedRequirementFile = submitted.requirementFile ?? requirementFile;
+    const submittedRequirementFileName = submitted.requirementFileName ?? requirementFileName;
+    const submittedRequirementNotes = submitted.requirementNotes ?? requirementNotes;
+    const submittedDesignProductType = submitted.designProductType || "";
+    const submittedDesignCustomProductType = submitted.designCustomProductType || "";
+    const submittedDesignSize = submitted.designSize || "";
+    const submittedDesignCustomSize = submitted.designCustomSize || "";
+    const submittedDesignOrientation = submitted.designOrientation || "";
+    const submittedDesignNumPages = submitted.designNumPages || "";
+    const submittedDesignDescription = submitted.designDescription || "";
+    const submittedDesignPurpose = submitted.designPurpose || "";
+    const submittedDesignCustomPurpose = submitted.designCustomPurpose || "";
+    const submittedDesignTargetAudience = submitted.designTargetAudience || "";
+    const submittedDesignStylePref = submitted.designStylePref || "";
+    const submittedDesignBrandColors = submitted.designBrandColors || "";
+    const submittedDesignFonts = submitted.designFonts || "";
+    const submittedDesignBrandGuidelinesFile = submitted.designBrandGuidelinesFile || null;
+    const submittedDesignBrandGuidelinesName = submitted.designBrandGuidelinesName || "";
+    const submittedDesignLogoFile = submitted.designLogoFile || null;
+    const submittedDesignLogoName = submitted.designLogoName || "";
+    const submittedDesignImagesFile = submitted.designImagesFile || null;
+    const submittedDesignImagesName = submitted.designImagesName || "";
+    const submittedDesignTextContent = submitted.designTextContent || "";
+    const submittedDesignWebsite = submitted.designWebsite || "";
+    const submittedDesignPhone = submitted.designPhone || "";
+    const submittedDesignPhoneCountryCode = submitted.designPhoneCountryCode || "";
+    const submittedDesignAddress = submitted.designAddress || "";
+    const submittedDesignSocialMedia = submitted.designSocialMedia || "";
+    const submittedDesignQrCode = submitted.designQrCode || "";
+    const submittedDesignReferenceImagesFile = submitted.designReferenceImagesFile || null;
+    const submittedDesignReferenceImagesName = submitted.designReferenceImagesName || "";
+    const submittedDesignReferenceLinks = submitted.designReferenceLinks || "";
+    const submittedDesignPreviousDesignsFile = submitted.designPreviousDesignsFile || null;
+    const submittedDesignPreviousDesignsName = submitted.designPreviousDesignsName || "";
+    const submittedDesignDeadline = submitted.designDeadline || "";
+    const submittedDesignPriority = submitted.designPriority || "";
+    const submittedDesignCustomPriority = submitted.designCustomPriority || "";
+    const submittedDesignAdditionalNotes = submitted.designAdditionalNotes || "";
+    const submittedDesignRestrictions = submitted.designRestrictions || "";
+    const submittedDesignColorPrefs = submitted.designColorPrefs || "";
+    const submittedProductionProductType = submitted.productionProductType || "";
+    const submittedProductionCustomProductType = submitted.productionCustomProductType || "";
+    const submittedProductionQuantity = submitted.productionQuantity || "";
+    const submittedProductionNumPages = submitted.productionNumPages || "";
+    const submittedProductionPaperSize = submitted.productionPaperSize || "";
+    const submittedProductionCustomSizeWidth = submitted.productionCustomSizeWidth || "";
+    const submittedProductionCustomSizeHeight = submitted.productionCustomSizeHeight || "";
+    const submittedProductionCustomSizeUnit = submitted.productionCustomSizeUnit || "mm";
+    const submittedProductionPaperType = submitted.productionPaperType || "";
+    const submittedProductionPaperGsm = submitted.productionPaperGsm || "";
+    const submittedProductionColorType = submitted.productionColorType || "";
+    const submittedProductionPrintSides = submitted.productionPrintSides || "";
+    const submittedProductionPrintingMethod = submitted.productionPrintingMethod || "";
+    const submittedProductionFinishingOptions = submitted.productionFinishingOptions || "";
+    const submittedProductionFoldingType = submitted.productionFoldingType || "";
+    const submittedProductionArtworkFile = submitted.productionArtworkFile || null;
+    const submittedProductionArtworkFileName = submitted.productionArtworkFileName || "";
+    const submittedProductionAdditionalNotes = submitted.productionAdditionalNotes || "";
+    const submittedProductionPrintDeadline = submitted.productionPrintDeadline || "";
+    const submittedProductionDeliveryDate = submitted.productionDeliveryDate || "";
+    const submittedProductionPriority = submitted.productionPriority || "Normal";
+
+    if (!submittedRequirementType || !submittedRequirementNotes) {
       showError("Please select category and add notes");
       return;
     }
-    if (!requirementFile && !requirementFileName) {
+    if (!submittedRequirementFile && !submittedRequirementFileName && (submittedRequirementType === "Requirement" || submittedRequirementType === "Production" || submittedRequirementType === "Design + Production")) {
       showError("Please attach a requirement file");
       return;
     }
+
     setRequirementSaving(true);
     try {
       const needsDesignAssignment =
-        requirementType === "Design" || requirementType === "Design + Production";
+        submittedRequirementType === "Design" || submittedRequirementType === "Design + Production";
       const needsProductionAssignment =
-        requirementType === "Production" || requirementType === "Design + Production";
+        submittedRequirementType === "Production" || submittedRequirementType === "Design + Production";
 
       const [designAssignment, productionAssignment] = await Promise.all([
         needsDesignAssignment
@@ -1613,9 +1663,15 @@ const [loadingDesignRequirement, setLoadingDesignRequirement] = useState(false);
           : Promise.resolve({ assigneeId: null }),
       ]);
 
+      const uploadedFiles = {};
+      const designBriefFiles = [];
+      const sourceLeadKey = sourceLeadId || lead.id;
+      const isDesignRequirement = submittedRequirementType === "Design" || submittedRequirementType === "Design + Production";
+      const isProductionRequirement = submittedRequirementType === "Production" || submittedRequirementType === "Design + Production";
+
       let detailsPayload = {
-        requirementType,
-        requirementNotes,
+        requirementType: submittedRequirementType,
+        requirementNotes: submittedRequirementNotes,
       };
 
       if (designAssignment?.assigneeId) {
@@ -1624,28 +1680,248 @@ const [loadingDesignRequirement, setLoadingDesignRequirement] = useState(false);
       if (productionAssignment?.assigneeId) {
         detailsPayload.productionAssignedToUserId = Number(productionAssignment.assigneeId);
       }
-      
-      let fileAttachment = null;
-      if (requirementFile) {
+
+      if (submittedRequirementFile) {
         try {
-          fileAttachment = await sendLeadChatAttachment(lead.id, {
+          const fileAttachment = await sendLeadChatAttachment(lead.id, {
             threadType: "INTERNAL",
             message: "Requirement file",
-            file: requirementFile,
+            file: submittedRequirementFile,
           });
           if (fileAttachment?.id) {
-            detailsPayload.requirementFileName =
-              fileAttachment.attachmentName || fileAttachment.name || requirementFileName;
-            detailsPayload.requirementFileType = fileAttachment.attachmentType;
-            detailsPayload.requirementFileSize = fileAttachment.attachmentSize;
-            detailsPayload.requirementFilePath = `/api/v1/leads/${lead.id}/chat/messages/${fileAttachment.id}/file`;
+            uploadedFiles.requirementFile = {
+              fileName: fileAttachment.attachmentName || fileAttachment.name || submittedRequirementFileName,
+              fileType: fileAttachment.attachmentType,
+              fileSize: fileAttachment.attachmentSize,
+              filePath: `/api/v1/leads/${lead.id}/chat/messages/${fileAttachment.id}/file`,
+            };
           }
         } catch (uploadErr) {
           console.warn("File upload failed but continuing with notes", uploadErr);
         }
       }
-      
-      // Save requirementType to deal entity first
+
+      if (submittedProductionArtworkFile && isProductionRequirement) {
+        try {
+          const fileAttachment = await sendLeadChatAttachment(lead.id, {
+            threadType: "INTERNAL",
+            message: "Production Artwork",
+            file: submittedProductionArtworkFile,
+          });
+          if (fileAttachment?.id) {
+            uploadedFiles.productionArtwork = {
+              fileName: fileAttachment.attachmentName || fileAttachment.name || submittedProductionArtworkFileName,
+              fileType: fileAttachment.attachmentType,
+              fileSize: fileAttachment.attachmentSize,
+              filePath: `/api/v1/leads/${lead.id}/chat/messages/${fileAttachment.id}/file`,
+            };
+          }
+        } catch (uploadErr) {
+          console.warn("Production artwork upload failed but continuing", uploadErr);
+        }
+      }
+
+      if (isDesignRequirement) {
+        if (submittedDesignBrandGuidelinesFile) {
+          try {
+            const attachment = await sendLeadChatAttachment(lead.id, {
+              threadType: "INTERNAL",
+              message: "Brand Guidelines",
+              file: submittedDesignBrandGuidelinesFile,
+            });
+            if (attachment?.id) {
+              designBriefFiles.push({
+                type: "brandGuidelines",
+                fileName: attachment.attachmentName || attachment.name || submittedDesignBrandGuidelinesName,
+                filePath: `/api/v1/leads/${lead.id}/chat/messages/${attachment.id}/file`,
+              });
+            }
+          } catch (e) {
+            console.warn("Brand guidelines upload failed", e);
+          }
+        }
+
+        if (submittedDesignLogoFile) {
+          try {
+            const attachment = await sendLeadChatAttachment(lead.id, {
+              threadType: "INTERNAL",
+              message: "Logo",
+              file: submittedDesignLogoFile,
+            });
+            if (attachment?.id) {
+              designBriefFiles.push({
+                type: "logo",
+                fileName: attachment.attachmentName || attachment.name || submittedDesignLogoName,
+                filePath: `/api/v1/leads/${lead.id}/chat/messages/${attachment.id}/file`,
+              });
+            }
+          } catch (e) {
+            console.warn("Logo upload failed", e);
+          }
+        }
+
+        if (submittedDesignImagesFile) {
+          try {
+            const attachment = await sendLeadChatAttachment(lead.id, {
+              threadType: "INTERNAL",
+              message: "Client Images",
+              file: submittedDesignImagesFile,
+            });
+            if (attachment?.id) {
+              designBriefFiles.push({
+                type: "clientImages",
+                fileName: attachment.attachmentName || attachment.name || submittedDesignImagesName,
+                filePath: `/api/v1/leads/${lead.id}/chat/messages/${attachment.id}/file`,
+              });
+            }
+          } catch (e) {
+            console.warn("Client images upload failed", e);
+          }
+        }
+
+        if (submittedDesignReferenceImagesFile) {
+          try {
+            const attachment = await sendLeadChatAttachment(lead.id, {
+              threadType: "INTERNAL",
+              message: "Reference Images",
+              file: submittedDesignReferenceImagesFile,
+            });
+            if (attachment?.id) {
+              designBriefFiles.push({
+                type: "referenceImages",
+                fileName: attachment.attachmentName || attachment.name || submittedDesignReferenceImagesName,
+                filePath: `/api/v1/leads/${lead.id}/chat/messages/${attachment.id}/file`,
+              });
+            }
+          } catch (e) {
+            console.warn("Reference images upload failed", e);
+          }
+        }
+
+        if (submittedDesignPreviousDesignsFile) {
+          try {
+            const attachment = await sendLeadChatAttachment(lead.id, {
+              threadType: "INTERNAL",
+              message: "Previous Designs",
+              file: submittedDesignPreviousDesignsFile,
+            });
+            if (attachment?.id) {
+              designBriefFiles.push({
+                type: "previousDesigns",
+                fileName: attachment.attachmentName || attachment.name || submittedDesignPreviousDesignsName,
+                filePath: `/api/v1/leads/${lead.id}/chat/messages/${attachment.id}/file`,
+              });
+            }
+          } catch (e) {
+            console.warn("Previous designs upload failed", e);
+          }
+        }
+
+        const designBrief = {
+          productDetails: {
+            type: submittedDesignProductType === "Custom" ? submittedDesignCustomProductType : submittedDesignProductType,
+            size: submittedDesignSize === "Custom" ? submittedDesignCustomSize : submittedDesignSize,
+            orientation: submittedDesignOrientation,
+            pages: submittedDesignNumPages,
+          },
+          designBrief: {
+            description: submittedDesignDescription,
+            purpose: submittedDesignPurpose === "Custom" ? submittedDesignCustomPurpose : submittedDesignPurpose,
+            targetAudience: submittedDesignTargetAudience,
+            stylePreference: submittedDesignStylePref,
+          },
+          brandDetails: {
+            colors: submittedDesignBrandColors,
+            fonts: submittedDesignFonts,
+            guidelinesFile: designBriefFiles.find((f) => f.type === "brandGuidelines") || null,
+          },
+          contentFromClient: {
+            logo: designBriefFiles.find((f) => f.type === "logo") || null,
+            images: designBriefFiles.find((f) => f.type === "clientImages") || null,
+            textContent: submittedDesignTextContent,
+            website: submittedDesignWebsite,
+            phone: submittedDesignPhone,
+            phoneCountryCode: submittedDesignPhoneCountryCode,
+            address: submittedDesignAddress,
+            socialMedia: submittedDesignSocialMedia,
+            qrCode: submittedDesignQrCode,
+          },
+          referenceDesigns: {
+            images: designBriefFiles.find((f) => f.type === "referenceImages") || null,
+            links: submittedDesignReferenceLinks,
+            previousDesigns: designBriefFiles.find((f) => f.type === "previousDesigns") || null,
+          },
+          deadline: {
+            date: submittedDesignDeadline,
+            priority: submittedDesignPriority === "Custom" ? submittedDesignCustomPriority : submittedDesignPriority,
+          },
+          specialInstructions: {
+            notes: submittedDesignAdditionalNotes,
+            restrictions: submittedDesignRestrictions,
+            colorPreferences: submittedDesignColorPrefs,
+          },
+        };
+        detailsPayload.designBrief = JSON.stringify(designBrief);
+        if (uploadedFiles.requirementFile) {
+          detailsPayload.requirementFileName = uploadedFiles.requirementFile.fileName;
+          detailsPayload.requirementFileType = uploadedFiles.requirementFile.fileType;
+          detailsPayload.requirementFileSize = uploadedFiles.requirementFile.fileSize;
+          detailsPayload.requirementFilePath = uploadedFiles.requirementFile.filePath;
+        }
+
+        detailsPayload.designBrandGuidelinesFileName = designBriefFiles.find((f) => f.type === "brandGuidelines")?.fileName || submittedDesignBrandGuidelinesName || "";
+        detailsPayload.designBrandGuidelinesFilePath = designBriefFiles.find((f) => f.type === "brandGuidelines")?.filePath || null;
+        detailsPayload.designLogoFileName = designBriefFiles.find((f) => f.type === "logo")?.fileName || submittedDesignLogoName || "";
+        detailsPayload.designLogoFilePath = designBriefFiles.find((f) => f.type === "logo")?.filePath || null;
+        detailsPayload.designImagesFileName = designBriefFiles.find((f) => f.type === "clientImages")?.fileName || submittedDesignImagesName || "";
+        detailsPayload.designImagesFilePath = designBriefFiles.find((f) => f.type === "clientImages")?.filePath || null;
+        detailsPayload.designReferenceImagesFileName = designBriefFiles.find((f) => f.type === "referenceImages")?.fileName || submittedDesignReferenceImagesName || "";
+        detailsPayload.designReferenceImagesFilePath = designBriefFiles.find((f) => f.type === "referenceImages")?.filePath || null;
+        detailsPayload.designPreviousDesignsFileName = designBriefFiles.find((f) => f.type === "previousDesigns")?.fileName || submittedDesignPreviousDesignsName || "";
+        detailsPayload.designPreviousDesignsFilePath = designBriefFiles.find((f) => f.type === "previousDesigns")?.filePath || null;
+      }
+
+      if (isProductionRequirement) {
+        const productionBrief = {
+          productDetails: {
+            type: submittedProductionProductType === "Custom" ? submittedProductionCustomProductType : submittedProductionProductType,
+            quantity: submittedProductionQuantity ? parseInt(submittedProductionQuantity) : null,
+            pages: submittedProductionNumPages ? parseInt(submittedProductionNumPages) : null,
+          },
+          sizeDetails: {
+            size: submittedProductionPaperSize === "Custom" ? "Custom" : submittedProductionPaperSize,
+            customWidth: submittedProductionPaperSize === "Custom" ? (submittedProductionCustomSizeWidth ? parseFloat(submittedProductionCustomSizeWidth) : null) : null,
+            customHeight: submittedProductionPaperSize === "Custom" ? (submittedProductionCustomSizeHeight ? parseFloat(submittedProductionCustomSizeHeight) : null) : null,
+            customUnit: submittedProductionCustomSizeUnit,
+          },
+          paperSpecifications: {
+            type: submittedProductionPaperType,
+            gsm: submittedProductionPaperGsm,
+          },
+          printingSpecifications: {
+            colorType: submittedProductionColorType,
+            printSides: submittedProductionPrintSides,
+            printingMethod: submittedProductionPrintingMethod,
+          },
+          finishingOptions: submittedProductionFinishingOptions || "[]",
+          foldingType: submittedProductionFoldingType,
+          artworkFile: uploadedFiles.productionArtwork ? uploadedFiles.productionArtwork.filePath : submittedProductionArtworkFileName,
+          additionalNotes: submittedProductionAdditionalNotes,
+          deadline: {
+            printDeadline: submittedProductionPrintDeadline,
+            deliveryDate: submittedProductionDeliveryDate,
+            priority: submittedProductionPriority,
+          },
+        };
+        detailsPayload.productionBrief = JSON.stringify(productionBrief);
+        if (uploadedFiles.productionArtwork) {
+          detailsPayload.productionArtworkFileName = uploadedFiles.productionArtwork.fileName;
+          detailsPayload.productionArtworkFileType = uploadedFiles.productionArtwork.fileType;
+          detailsPayload.productionArtworkFileSize = uploadedFiles.productionArtwork.fileSize;
+          detailsPayload.productionArtworkFilePath = uploadedFiles.productionArtwork.filePath;
+        }
+      }
+
       const dealUpdated = await updateDeal(dealId, detailsPayload);
       let detailsUpdated = dealUpdated;
       try {
@@ -1653,8 +1929,7 @@ const [loadingDesignRequirement, setLoadingDesignRequirement] = useState(false);
       } catch (leadErr) {
         console.warn("Could not update source lead details (lead may have been deleted):", leadErr);
       }
-      
-      // Determine nextGroupId from flow rules
+
       let nextGroupId = null;
       if (Array.isArray(flowRules)) {
         const targetRule = flowRules.find(
@@ -1666,20 +1941,95 @@ const [loadingDesignRequirement, setLoadingDesignRequirement] = useState(false);
           nextGroupId = targetRule.handledByGroupId;
         }
       }
-      
+
       const updated = await updateDealStatus(dealId, statusValue, nextGroupId);
       const mergedLead = { ...(lead || {}), ...detailsUpdated, ...dealUpdated, ...updated };
       setLead(mergedLead);
-      
-      // Clear requirement modal state
+
+      if (isProductionRequirement) {
+        const localProductionRequirement = {
+          requirementType: submittedRequirementType,
+          productType: submittedProductionProductType === "Custom" ? submittedProductionCustomProductType : submittedProductionProductType,
+          quantity: submittedProductionQuantity ? Number(submittedProductionQuantity) : null,
+          numPages: submittedProductionNumPages ? Number(submittedProductionNumPages) : null,
+          paperSize: submittedProductionPaperSize === "Custom"
+            ? `Custom: ${submittedProductionCustomSizeWidth}${submittedProductionCustomSizeUnit}x${submittedProductionCustomSizeHeight}${submittedProductionCustomSizeUnit}`
+            : submittedProductionPaperSize,
+          customSizeWidth: submittedProductionCustomSizeWidth,
+          customSizeHeight: submittedProductionCustomSizeHeight,
+          customSizeUnit: submittedProductionCustomSizeUnit,
+          paperType: submittedProductionPaperType,
+          paperGsm: submittedProductionPaperGsm,
+          colorType: submittedProductionColorType,
+          printSides: submittedProductionPrintSides,
+          printingMethod: submittedProductionPrintingMethod,
+          finishingOptions: submittedProductionFinishingOptions,
+          foldingType: submittedProductionFoldingType,
+          artworkFileName: uploadedFiles.productionArtwork?.fileName || submittedProductionArtworkFileName,
+          artworkFilePath: uploadedFiles.productionArtwork?.filePath || null,
+          additionalNotes: submittedProductionAdditionalNotes,
+          printDeadline: submittedProductionPrintDeadline || null,
+          deliveryDate: submittedProductionDeliveryDate || null,
+          priority: submittedProductionPriority,
+        };
+        setProductionRequirements([localProductionRequirement]);
+      }
+
+      if (isDesignRequirement) {
+        const localDesignRequirement = {
+          requirementType: submittedRequirementType,
+          requirementNotes: submittedRequirementNotes,
+          requirementFileName: uploadedFiles.requirementFile?.fileName || submittedRequirementFileName || "",
+          requirementFilePath: uploadedFiles.requirementFile?.filePath || null,
+          designProductType: submittedDesignProductType === "Custom" ? submittedDesignCustomProductType : submittedDesignProductType,
+          designCustomProductType: submittedDesignCustomProductType,
+          designSize: submittedDesignSize === "Custom" ? submittedDesignCustomSize : submittedDesignSize,
+          designCustomSize: submittedDesignCustomSize,
+          designOrientation: submittedDesignOrientation,
+          designNumPages: submittedDesignNumPages,
+          designDescription: submittedDesignDescription,
+          designPurpose: submittedDesignPurpose === "Custom" ? submittedDesignCustomPurpose : submittedDesignPurpose,
+          designCustomPurpose: submittedDesignCustomPurpose,
+          designTargetAudience: submittedDesignTargetAudience,
+          designStylePref: submittedDesignStylePref,
+          designBrandColors: submittedDesignBrandColors,
+          designFonts: submittedDesignFonts,
+          designBrandGuidelinesFileName: detailsPayload.designBrandGuidelinesFileName || submittedDesignBrandGuidelinesName || "",
+          designBrandGuidelinesFilePath: detailsPayload.designBrandGuidelinesFilePath || null,
+          designLogoFileName: detailsPayload.designLogoFileName || submittedDesignLogoName || "",
+          designLogoFilePath: detailsPayload.designLogoFilePath || null,
+          designImagesFileName: detailsPayload.designImagesFileName || submittedDesignImagesName || "",
+          designImagesFilePath: detailsPayload.designImagesFilePath || null,
+          designTextContent: submittedDesignTextContent,
+          designWebsite: submittedDesignWebsite,
+          designPhone: submittedDesignPhone,
+          designPhoneCountryCode: submittedDesignPhoneCountryCode,
+          designAddress: submittedDesignAddress,
+          designSocialMedia: submittedDesignSocialMedia,
+          designQrCode: submittedDesignQrCode,
+          designReferenceImagesFileName: detailsPayload.designReferenceImagesFileName || submittedDesignReferenceImagesName || "",
+          designReferenceImagesFilePath: detailsPayload.designReferenceImagesFilePath || null,
+          designReferenceLinks: submittedDesignReferenceLinks,
+          designPreviousDesignsFileName: detailsPayload.designPreviousDesignsFileName || submittedDesignPreviousDesignsName || "",
+          designPreviousDesignsFilePath: detailsPayload.designPreviousDesignsFilePath || null,
+          designDeadline: submittedDesignDeadline || null,
+          designPriority: submittedDesignPriority === "Custom" ? submittedDesignCustomPriority : submittedDesignPriority,
+          designCustomPriority: submittedDesignCustomPriority,
+          designAdditionalNotes: submittedDesignAdditionalNotes,
+          designRestrictions: submittedDesignRestrictions,
+          designColorPrefs: submittedDesignColorPrefs,
+          designBrief: detailsPayload.designBrief || "",
+        };
+        setDesignRequirement(localDesignRequirement);
+      }
+
       setRequirementType("");
       setRequirementFile(null);
       setRequirementFileName("");
       setRequirementNotes("");
-      
+
       showSuccess("Requirement submitted successfully");
-      // Switch to payment tab after requirement submission
-      setActiveTab("payment");
+      setActiveTab("requirement");
       setShowRequirementModal(false);
       if (exitEditIfOwnershipMoved(mergedLead)) return;
     } catch (e) {
@@ -2149,7 +2499,7 @@ const [loadingDesignRequirement, setLoadingDesignRequirement] = useState(false);
         // Keep behavior aligned with Lead Edit verification flow
         paymentVerifiedInvoiceData: lead.invoiceData || null,
       };
-      const updated = await updateLeadDetails(sourceLeadId || lead.id, payload);
+      const updated = await updateDealPaymentVerification(dealId, payload);
       setLead((prev) => ({
         ...(prev || {}),
         ...updated,
@@ -3890,12 +4240,12 @@ const [loadingDesignRequirement, setLoadingDesignRequirement] = useState(false);
                   {allowedStatusOptions.length > 0 && (
                     <div className="mb-3">
                       <div className="d-flex flex-wrap gap-2">
-                        {allowedStatusOptions.map((item) => (
+                        {displayStatusOptions.map((item) => (
                           <span
                             key={item}
-                            className={`badge ${item === statusValue ? "bg-primary" : "bg-light text-dark"}`}
+                            className={`badge ${normalizeStatusLabelKey(item) === normalizeStatusLabelKey(statusValue) ? "bg-primary" : "bg-light text-dark"}`}
                           >
-                            {item}
+                            {formatStatusLabel(item)}
                           </span>
                         ))}
                       </div>
@@ -3908,9 +4258,9 @@ const [loadingDesignRequirement, setLoadingDesignRequirement] = useState(false);
                       onChange={(e) => handleStatusChange(e.target.value)}
                     >
                       <option value="">Select Status</option>
-                    {allowedStatusOptions.map((status) => (
+                    {displayStatusOptions.map((status) => (
                       <option key={status} value={status}>
-                        {status}
+                        {formatStatusLabel(status)}
                       </option>
                     ))}
                   </select>
@@ -4502,4 +4852,5 @@ const [loadingDesignRequirement, setLoadingDesignRequirement] = useState(false);
     </div>
   );
 }
+
 

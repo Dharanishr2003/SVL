@@ -1,0 +1,1 @@
+import{j as r}from"./index-CFGL9i3E.js";function a(){return r.jsx("div",{className:"card",children:r.jsxs("div",{className:"card-body",children:[r.jsx("h4",{className:"mb-2",children:"Error 500"}),r.jsx("p",{className:"mb-0",children:"Layout working confirmation."})]})})}export{a as default};

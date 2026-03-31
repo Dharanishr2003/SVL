@@ -6,6 +6,7 @@ import { getAssignableLeadGroups } from "../../api/leadsApi";
 import { getLeadFlow, updateLeadFlow, getDealFlow, updateDealFlow } from "../../api/flowApi";
 import { useAuth } from "../../context/AuthContext";
 import { LEAD_FLOW_STATUSES, DEAL_FLOW_STATUSES } from "../../constants/leadFlowStatuses";
+import { formatStatusLabel } from "../../utils/statusLabels";
 import { useToast } from "../../components/system/ToastProvider";
 
 const emptyRule = (status) => ({
@@ -185,7 +186,7 @@ function FlowTab({ defaultStatuses, getFn, updateFn, canEdit, groups, label, all
                 .filter((s) => !selectedStatuses.includes(s))
                 .map((status) => (
                   <option key={status} value={status}>
-                    {status}
+                    {formatStatusLabel(status)}
                   </option>
                 ))}
             </select>
@@ -213,7 +214,7 @@ function FlowTab({ defaultStatuses, getFn, updateFn, canEdit, groups, label, all
                 className="badge bg-info d-inline-flex align-items-center gap-2"
                 style={{ padding: "0.5rem 0.75rem" }}
               >
-                {status}
+                {formatStatusLabel(status)}
                 {canEdit && (
                   <button
                     type="button"
@@ -265,7 +266,7 @@ function FlowTab({ defaultStatuses, getFn, updateFn, canEdit, groups, label, all
             {filteredRules.map((rule) => (
               <tr key={rule.status} style={rule.status === "Design" ? { backgroundColor: "#e7f3ff", borderLeft: "4px solid #0d6efd" } : {}}>
                 <td className="fw-medium">
-                  {rule.status}
+                  {formatStatusLabel(rule.status)}
                   {rule.status === "Design" && <span className="badge bg-primary ms-2">Design</span>}
                   {rule.status === "Design + Production" && <span className="badge bg-warning ms-2">Locked</span>}
                 </td>
@@ -336,7 +337,7 @@ function FlowTab({ defaultStatuses, getFn, updateFn, canEdit, groups, label, all
                           checked={rule?.next?.[status] !== undefined}
                           onChange={() => toggleNextStatus(statusPickerRule, status)}
                         />
-                        <span className="fw-medium">{status}</span>
+                        <span className="fw-medium">{formatStatusLabel(status)}</span>
                       </label>
                     </div>
                   );
@@ -361,7 +362,7 @@ function FlowTab({ defaultStatuses, getFn, updateFn, canEdit, groups, label, all
                   const rule = rules.find((r) => r.status === groupPickerRule);
                   return (
                     <div key={`${groupPickerRule}-${status}`} className="d-flex align-items-center gap-3">
-                      <div style={{ minWidth: 160 }} className="fw-medium text-dark">{status}</div>
+                      <div style={{ minWidth: 160 }} className="fw-medium text-dark">{formatStatusLabel(status)}</div>
                       <select
                         className="form-select"
                         value={rule?.next?.[status] ?? ""}
@@ -424,7 +425,7 @@ function StatusConfigSection({ title, allStatuses, selectedStatuses, onStatusAdd
             <option value="">Choose status...</option>
             {availableStatuses.map((status) => (
               <option key={status} value={status}>
-                {status}
+                {formatStatusLabel(status)}
               </option>
             ))}
           </select>
@@ -446,7 +447,7 @@ function StatusConfigSection({ title, allStatuses, selectedStatuses, onStatusAdd
               className="badge bg-info d-inline-flex align-items-center gap-2"
               style={{ padding: "0.5rem 0.75rem" }}
             >
-              {status}
+              {formatStatusLabel(status)}
               {canEdit && (
                 <button
                   type="button"

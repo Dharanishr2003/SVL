@@ -5,6 +5,7 @@ import { getDeals, deleteDeal, updateDealStatus } from "../../api/dealsApi";
 import { getDealFlow } from "../../api/flowApi";
 import { filterStatusesByRequirementType } from "../../constants/leadFlowStatuses";
 import { validateStatusTransition } from "../../utils/statusValidation";
+import { formatStatusLabel, uniqueStatusOptions } from "../../utils/statusLabels";
 import { extractApiErrorMessage } from "../../utils/errorMessage";
 import { useToast } from "../../components/system/ToastProvider";
 
@@ -154,6 +155,10 @@ const DealsPage = () => {
 		}
 		return [];
 	}, [flowRules, statusDeal]);
+	const displayStatusOptions = useMemo(
+		() => uniqueStatusOptions(allowedStatusOptions),
+		[allowedStatusOptions],
+	);
 
 	const saveStatusUpdate = async () => {
 		if (!statusDeal?.id || !statusValue.trim()) return;
@@ -407,9 +412,9 @@ const DealsPage = () => {
 											onChange={(e) => setStatusValue(e.target.value)}
 										>
 											<option value="">Select Status</option>
-										{allowedStatusOptions.map((item) => (
+										{displayStatusOptions.map((item) => (
 											<option key={item} value={item}>
-												{item}
+												{formatStatusLabel(item)}
 											</option>
 										))}
 										</select>

@@ -795,10 +795,12 @@ public class LeadService {
         Set<Long> visibleGroupIds = resolveVisibleLeadGroupIds(actor);
         Lead row = leadRepository.findByIdAndDeletedFalse(id)
                 .orElseThrow(() -> new EntityNotFoundException("Lead not found"));
-        if (!canViewLead(actor, row, visibleGroupIds)) {
+        boolean relatedDealPaymentVerificationEdit =
+                isPaymentVerificationUpdateRequest(request) && canEditRelatedDealPaymentVerification(actor, row);
+        if (!canViewLead(actor, row, visibleGroupIds) && !relatedDealPaymentVerificationEdit) {
             throw new AccessDeniedException("You do not have permission to update this lead");
         }
-        if (!canEditLead(actor, row)) {
+        if (!canEditLead(actor, row) && !relatedDealPaymentVerificationEdit) {
             throw new AccessDeniedException("Only the current owner can edit this lead");
         }
 
@@ -1377,6 +1379,21 @@ public class LeadService {
         }
     }
 
+    public Map<String, Object> uploadPaymentProofFromDeal(Long id, MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new IllegalArgumentException("File is required");
+        }
+
+        Lead row = leadRepository.findByIdAndDeletedFalse(id)
+                .orElseThrow(() -> new EntityNotFoundException("Lead not found"));
+
+        try {
+            return storeLeadFile(row.getId(), file, "payment-proofs", "payment-proof");
+        } catch (Exception ex) {
+            throw new IllegalStateException("Failed to upload payment proof file");
+        }
+    }
+
     public Map<String, Object> uploadLeadLogFile(Long id, MultipartFile file, String actorPrincipal) {
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("File is required");
@@ -1639,6 +1656,9 @@ public class LeadService {
             if (row.getOwnerUserId() != null && Objects.equals(row.getOwnerUserId(), actor.getId())) {
                 return true;
             }
+            if (canDealEmployeeAccessPaymentVerification(actor, row)) {
+                return true;
+            }
             // Keep only the lead that this employee actually handled before deal conversion.
             if ("deal".equalsIgnoreCase(row.getStatus())
                     && row.getPreDealOwnerUserId() != null
@@ -1657,10 +1677,9 @@ public class LeadService {
                     && "PENDING".equalsIgnoreCase(row.getBudgetVerificationStatus())) {
                 return true;
             }
-            // payment verification: assigned employee can see the lead while verification is pending
-            if (row.getPaymentVerificationAssignedToUserId() != null
-                    && Objects.equals(row.getPaymentVerificationAssignedToUserId(), actor.getId())
-                    && "PENDING".equalsIgnoreCase(row.getPaymentVerificationStatus())) {
+            // payment verification: assigned employee can access the lead for the
+            // initial submission, pending review, and re-submission after rejection.
+            if (canEmployeeAccessPaymentVerification(actor, row)) {
                 return true;
             }
             return false;
@@ -1715,21 +1734,88 @@ public class LeadService {
         }
         if (actor.getRole() == Role.EMPLOYEE) {
             if (row.getOwnerUserId() != null && row.getOwnerUserId().equals(actor.getId())) return true;
+            if (canDealEmployeeAccessPaymentVerification(actor, row)) return true;
             // budget-assigned employee can update budget verification fields while pending
             if (row.getBudgetVerificationAssignedToUserId() != null
                     && row.getBudgetVerificationAssignedToUserId().equals(actor.getId())
                     && "PENDING".equalsIgnoreCase(row.getBudgetVerificationStatus())) {
                 return true;
             }
-            // payment-assigned employee can update payment verification fields while pending
-            if (row.getPaymentVerificationAssignedToUserId() != null
-                    && row.getPaymentVerificationAssignedToUserId().equals(actor.getId())
-                    && "PENDING".equalsIgnoreCase(row.getPaymentVerificationStatus())) {
+            // payment-assigned employee can submit, continue, or re-submit
+            // verification, but not edit it once it has been approved.
+            if (canEmployeeAccessPaymentVerification(actor, row)) {
                 return true;
             }
             return false;
         }
         return false;
+    }
+
+    private boolean canEmployeeAccessPaymentVerification(User actor, Lead row) {
+        if (actor == null || row == null || actor.getRole() != Role.EMPLOYEE) {
+            return false;
+        }
+        if (!Objects.equals(row.getPaymentVerificationAssignedToUserId(), actor.getId())) {
+            return false;
+        }
+        return !"APPROVED".equalsIgnoreCase(row.getPaymentVerificationStatus());
+    }
+
+    private boolean canDealEmployeeAccessPaymentVerification(User actor, Lead row) {
+        if (actor == null || row == null || actor.getRole() != Role.EMPLOYEE) {
+            return false;
+        }
+        if ("APPROVED".equalsIgnoreCase(row.getPaymentVerificationStatus())) {
+            return false;
+        }
+        return dealRepository.findBySourceLeadIdAndDeletedFalse(row.getId())
+                .map(deal -> Objects.equals(deal.getOwnerUserId(), actor.getId())
+                        || Objects.equals(deal.getDesignAssignedToUserId(), actor.getId())
+                        || Objects.equals(deal.getProductionAssignedToUserId(), actor.getId()))
+                .orElse(false);
+    }
+
+    private boolean canEditRelatedDealPaymentVerification(User actor, Lead row) {
+        if (actor == null || row == null) {
+            return false;
+        }
+        if (actor.getRole() == Role.SUPER_ADMIN || actor.getRole() == Role.ADMIN || actor.getRole() == Role.MANAGER) {
+            return true;
+        }
+        if (actor.getRole() != Role.EMPLOYEE) {
+            return false;
+        }
+        if ("APPROVED".equalsIgnoreCase(row.getPaymentVerificationStatus())) {
+            return false;
+        }
+        return dealRepository.findBySourceLeadIdAndDeletedFalse(row.getId())
+                .map(deal -> Objects.equals(deal.getOwnerUserId(), actor.getId())
+                        || Objects.equals(deal.getDesignAssignedToUserId(), actor.getId())
+                        || Objects.equals(deal.getProductionAssignedToUserId(), actor.getId()))
+                .orElse(false);
+    }
+
+    private boolean isPaymentVerificationUpdateRequest(LeadUpdateDetailsRequest request) {
+        if (request == null) {
+            return false;
+        }
+        return request.getPaymentProofFileName() != null
+                || request.getPaymentProofFilePath() != null
+                || request.getPaymentProofNotes() != null
+                || request.getPaymentVerificationStatus() != null
+                || request.getPaymentVerificationRejectionReason() != null
+                || request.getPaymentVerificationBillingAddressId() != null
+                || request.getPaymentVerificationShippingAddressId() != null
+                || request.getPaymentVerificationAssignedToUserId() != null
+                || request.getPaymentMethod() != null
+                || request.getTransactionId() != null
+                || request.getPaymentDate() != null
+                || request.getPaymentNotes() != null
+                || request.getRejectionNotes() != null
+                || request.getPaymentVerifiedInvoiceData() != null
+                || request.getPaymentVerificationInvoiceFileName() != null
+                || request.getPaymentVerificationInvoiceFilePath() != null
+                || request.getPaymentVerificationAmount() != null;
     }
 
     private boolean canEmployeeAllocateTo(User actor, User target, Lead row) {

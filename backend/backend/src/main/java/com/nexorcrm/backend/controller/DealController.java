@@ -1,6 +1,7 @@
 package com.nexorcrm.backend.controller;
 
 import com.nexorcrm.backend.dto.DealResponse;
+import com.nexorcrm.backend.dto.LeadUpdateDetailsRequest;
 import com.nexorcrm.backend.dto.ProductionRequirementResponse;
 import com.nexorcrm.backend.entity.LeadChatMessage;
 import com.nexorcrm.backend.service.LeadChatService;
@@ -112,11 +113,27 @@ public class DealController {
     public Map<String, Object> uploadPaymentProof(@PathVariable Long id,
                                                   @RequestParam("file") MultipartFile file,
                                                   Authentication authentication) {
-        DealResponse deal = dealService.getById(id, authentication.getName());
-        if (deal.getSourceLeadId() == null) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Source lead not found");
+        try {
+            Long sourceLeadId = dealService.getSourceLeadIdForPaymentProofUpload(id, authentication.getName());
+            return leadService.uploadPaymentProofFromDeal(sourceLeadId, file);
+        } catch (EntityNotFoundException e) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, e.getMessage());
+        } catch (AccessDeniedException e) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, e.getMessage());
         }
-        return leadService.uploadPaymentProof(deal.getSourceLeadId(), file, authentication.getName());
+    }
+
+    @PatchMapping("/{id}/payment-verification")
+    public Map<String, Object> updatePaymentVerification(@PathVariable Long id,
+                                                         @RequestBody LeadUpdateDetailsRequest request,
+                                                         Authentication authentication) {
+        try {
+            return dealService.updatePaymentVerification(id, request, authentication.getName());
+        } catch (EntityNotFoundException e) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, e.getMessage());
+        } catch (AccessDeniedException e) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, e.getMessage());
+        }
     }
 
     @GetMapping("/design-requests")

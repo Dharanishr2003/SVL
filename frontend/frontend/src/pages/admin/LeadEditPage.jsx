@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useMemo } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -28,6 +28,7 @@ import { extractApiErrorMessage } from "../../utils/errorMessage";
 import { COUNTRY_CODE_OPTIONS, defaultCountryOption, ensureCountryCodeValue, getCountryAllowedLengths, getCountryDisplayMaxLength, getCountryOptionByValue, sanitizePhoneDigits, validatePhoneNumber } from "../../utils/phoneUtils";
 import { pickFlowAssignee, pickGroupAssignee } from "../../utils/flowAssignment";
 import { validateStatusTransition } from "../../utils/statusValidation";
+import { formatStatusLabel, uniqueStatusOptions, normalizeStatusLabelKey } from "../../utils/statusLabels";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../components/system/ToastProvider";
 import StockRequestFormModal from "../../components/system/StockRequestFormModal";
@@ -592,6 +593,10 @@ const [showRequirementDetailsModal, setShowRequirementDetailsModal] = useState(f
       designRequirement ||
       productionRequirements.length > 0,
   );
+  const requirementTypeValue = String(lead?.requirementType || "").trim();
+  const requirementNotesValue = String(lead?.requirementNotes || "").trim();
+  const requirementFileNameValue = String(lead?.requirementFileName || "").trim();
+  const requirementFilePathValue = String(lead?.requirementFilePath || "").trim();
     const hasDesignData = Boolean(
       lead?.designStartAt || lead?.designEndAt || finalDesignMessage?.id || designRequirement,
     );
@@ -999,27 +1004,25 @@ const [showRequirementDetailsModal, setShowRequirementDetailsModal] = useState(f
     };
   }, [showAllocateModal, lead?.id]);
 
-  const flowStatuses = Array.isArray(flowRules)
-    ? flowRules
-        .flatMap((rule) => {
-          const base = String(rule?.status || "").trim();
-          const next =
-            rule?.next && typeof rule.next === "object"
-              ? Object.keys(rule.next).map((k) => String(k || "").trim())
-              : [];
-          return [base, ...next];
-        })
-        .filter(Boolean)
-    : [];
-
-  const orderedLeadStatuses = [
-    ...DEFAULT_LEAD_STATUSES,
-    ...leadStatuses,
-    ...flowStatuses,
-  ]
-    .map((item) => String(item || "").trim())
-    .filter(Boolean)
-    .filter((item, index, arr) => arr.indexOf(item) === index);
+  const orderedLeadStatuses = Array.from(
+    new Set(
+      [
+        ...(Array.isArray(flowRules)
+          ? flowRules.flatMap((rule) => {
+              const base = String(rule?.status || "").trim();
+              const next =
+                rule?.next && typeof rule.next === "object"
+                  ? Object.keys(rule.next).map((k) => String(k || "").trim())
+                  : [];
+              return [base, ...next];
+            })
+          : []),
+        String(lead?.status || "").trim(),
+      ]
+        .map((item) => String(item || "").trim())
+        .filter(Boolean),
+    ),
+  );
 
   const timelineEntries = (() => {
     const order = [
@@ -1125,9 +1128,13 @@ const [showRequirementDetailsModal, setShowRequirementDetailsModal] = useState(f
       return [];
     }
     
-    // No flow rule at all for this status → show all as fallback
+    // No flow rule at all for this status → show the configured flow statuses
     return orderedLeadStatuses;
   })();
+  const displayStatusOptions = useMemo(
+    () => uniqueStatusOptions(allowedStatusOptions),
+    [allowedStatusOptions],
+  );
 
 
   const saveStatus = async () => {
@@ -1448,6 +1455,7 @@ const [showRequirementDetailsModal, setShowRequirementDetailsModal] = useState(f
 
     setRequirementSaving(true);
     try {
+      let localDesignRequirement = null;
       const needsDesignAssignment =
         requirementType === "Design" || requirementType === "Design + Production";
       const needsProductionAssignment =
@@ -1680,6 +1688,50 @@ const [showRequirementDetailsModal, setShowRequirementDetailsModal] = useState(f
         };
         
         detailsPayload.designBrief = JSON.stringify(designBrief);
+        localDesignRequirement = {
+          requirementType,
+          requirementNotes,
+          requirementFileName: uploadedFiles.requirementFile?.fileName || requirementFileName || "",
+          requirementFilePath: uploadedFiles.requirementFile?.filePath || null,
+          designProductType: designProductType === "Custom" ? designCustomProductType : designProductType,
+          designCustomProductType,
+          designSize: designSize === "Custom" ? designCustomSize : designSize,
+          designCustomSize,
+          designOrientation,
+          designNumPages,
+          designDescription,
+          designPurpose: designPurpose === "Custom" ? designCustomPurpose : designPurpose,
+          designCustomPurpose,
+          designTargetAudience,
+          designStylePref,
+          designBrandColors,
+          designFonts,
+          designBrandGuidelinesFileName: designBriefFiles.find((f) => f.type === "brandGuidelines")?.fileName || designBrandGuidelinesName || "",
+          designBrandGuidelinesFilePath: designBriefFiles.find((f) => f.type === "brandGuidelines")?.filePath || null,
+          designLogoFileName: designBriefFiles.find((f) => f.type === "logo")?.fileName || designLogoName || "",
+          designLogoFilePath: designBriefFiles.find((f) => f.type === "logo")?.filePath || null,
+          designImagesFileName: designBriefFiles.find((f) => f.type === "clientImages")?.fileName || designImagesName || "",
+          designImagesFilePath: designBriefFiles.find((f) => f.type === "clientImages")?.filePath || null,
+          designTextContent,
+          designWebsite,
+          designPhone,
+          designPhoneCountryCode,
+          designAddress,
+          designSocialMedia,
+          designQrCode,
+          designReferenceImagesFileName: designBriefFiles.find((f) => f.type === "referenceImages")?.fileName || designReferenceImagesName || "",
+          designReferenceImagesFilePath: designBriefFiles.find((f) => f.type === "referenceImages")?.filePath || null,
+          designReferenceLinks,
+          designPreviousDesignsFileName: designBriefFiles.find((f) => f.type === "previousDesigns")?.fileName || designPreviousDesignsName || "",
+          designPreviousDesignsFilePath: designBriefFiles.find((f) => f.type === "previousDesigns")?.filePath || null,
+          designDeadline,
+          designPriority: designPriority === "Custom" ? designCustomPriority : designPriority,
+          designCustomPriority,
+          designAdditionalNotes,
+          designRestrictions,
+          designColorPrefs,
+          designBrief: JSON.stringify(designBrief),
+        };
       }
       
       // Handle Production brief serialization if applicable
@@ -1753,6 +1805,9 @@ const [showRequirementDetailsModal, setShowRequirementDetailsModal] = useState(f
       const updated = await updateLeadRowStatus(lead.id, statusValue, nextGroupId);
       const mergedLead = { ...(lead || {}), ...detailsUpdated, ...updated };
       setLead(mergedLead);
+      if (localDesignRequirement) {
+        setDesignRequirement(localDesignRequirement);
+      }
 
       if (String(statusValue || "").trim().toLowerCase() === "budget") {
         try {
@@ -1843,9 +1898,9 @@ const [showRequirementDetailsModal, setShowRequirementDetailsModal] = useState(f
       }
       
       showSuccess("Requirement submitted successfully");
-      // Switch to payment tab after requirement submission
-      setActiveTab("payment");
-      setShowRequirementModal(false);
+        // Stay on the requirement tab so the saved details are visible immediately
+        setActiveTab("requirement");
+        setShowRequirementModal(false);
       if (exitEditIfOwnershipMoved(mergedLead)) return;
     } catch (e) {
       showError(extractApiErrorMessage(e, "Failed to submit requirement"));
@@ -2876,6 +2931,50 @@ const [showRequirementDetailsModal, setShowRequirementDetailsModal] = useState(f
                 {activeTab === "requirement" && showRequirementSummary && (
                 <div className="tab-pane fade show active">
                   {/* General Requirement Details */}
+                  {(requirementTypeValue || requirementNotesValue || requirementFileNameValue) && (
+                    <div className="card mb-3">
+                      <div className="card-body">
+                        <div className="row g-3">
+                          <div className="col-md-4">
+                            <label className="form-label fw-semibold">Requirement Type</label>
+                            <input className="form-control form-control-sm" value={requirementTypeValue || "-"} readOnly />
+                          </div>
+                          <div className="col-md-8">
+                            <label className="form-label fw-semibold">Requirement Notes</label>
+                            <textarea className="form-control form-control-sm" value={requirementNotesValue || "-"} readOnly rows={3} />
+                          </div>
+                          {requirementFileNameValue && (
+                            <div className="col-12">
+                              <label className="form-label fw-semibold">Requirement File</label>
+                              <div className="py-2 d-flex flex-wrap gap-2 align-items-center">
+                                <span className="text-break">{requirementFileNameValue}</span>
+                                <button
+                                  type="button"
+                                  className="btn btn-sm btn-outline-info"
+                                  onClick={() => setPreviewFile({ fileName: requirementFileNameValue, filePath: requirementFilePathValue })}
+                                  disabled={!requirementFilePathValue}
+                                >
+                                  Preview
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn btn-sm btn-outline-secondary"
+                                  onClick={() => {
+                                    if (requirementFilePathValue) {
+                                      downloadRequirementFile();
+                                    }
+                                  }}
+                                  disabled={!requirementFilePathValue}
+                                >
+                                  Download
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
               
                   {/* Production Requirements Section */}
                   {productionRequirements.length > 0 && (
@@ -3818,12 +3917,12 @@ const [showRequirementDetailsModal, setShowRequirementDetailsModal] = useState(f
                   {allowedStatusOptions.length > 0 && (
                     <div className="mb-3">
                       <div className="d-flex flex-wrap gap-2">
-                        {allowedStatusOptions.map((item) => (
+                        {displayStatusOptions.map((item) => (
                           <span
                             key={item}
-                            className={`badge ${item === statusValue ? "bg-primary" : "bg-light text-dark"}`}
+                            className={`badge ${normalizeStatusLabelKey(item) === normalizeStatusLabelKey(statusValue) ? "bg-primary" : "bg-light text-dark"}`}
                           >
-                            {item}
+                            {formatStatusLabel(item)}
                           </span>
                         ))}
                       </div>
@@ -3836,9 +3935,9 @@ const [showRequirementDetailsModal, setShowRequirementDetailsModal] = useState(f
                       onChange={(e) => handleStatusChange(e.target.value)}
                     >
                       <option value="">Select Status</option>
-                    {allowedStatusOptions.map((status) => (
+                    {displayStatusOptions.map((status) => (
                       <option key={status} value={status}>
-                        {status}
+                        {formatStatusLabel(status)}
                       </option>
                     ))}
                   </select>

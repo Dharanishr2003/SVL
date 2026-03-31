@@ -25,6 +25,7 @@ import { getUserGroups } from "../../api/userGroupApi";
 import { getLeadFlow } from "../../api/flowApi";
 import { updateCustomerLeadStatus } from "../../api/customerApi";
 import { extractApiErrorMessage } from "../../utils/errorMessage";
+import { formatStatusLabel, uniqueStatusOptions, normalizeStatusLabelKey } from "../../utils/statusLabels";
 import {
   COUNTRY_CODE_OPTIONS,
   defaultCountryOption,
@@ -820,31 +821,26 @@ export default function LeadsPage() {
   };
 
   const orderedLeadStatuses = useMemo(() => {
-    // Extract statuses from flow rules
+    const currentRowStatus = String(statusLead?.status || "").trim();
     const flowStatuses = Array.isArray(flowRules)
-      ? flowRules
-          .flatMap((rule) => {
-            const base = String(rule?.status || "").trim();
-            const next =
-              rule?.next && typeof rule.next === "object"
-                ? Object.keys(rule.next).map((k) => String(k || "").trim())
-                : [];
-            return [base, ...next];
-          })
-          .filter(Boolean)
+      ? flowRules.flatMap((rule) => {
+          const base = String(rule?.status || "").trim();
+          const next =
+            rule?.next && typeof rule.next === "object"
+              ? Object.keys(rule.next).map((k) => String(k || "").trim())
+              : [];
+          return [base, ...next];
+        })
       : [];
 
-    const combined = [
-      ...DEFAULT_LEAD_STATUSES,
-      ...(leadStatusOptions || []),
-      ...(leadFilters.leadStatuses || []),
-      ...flowStatuses,
-    ];
-    const normalized = combined
-      .map((item) => String(item || "").trim())
-      .filter(Boolean);
-    return Array.from(new Set(normalized));
-  }, [leadStatusOptions, leadFilters.leadStatuses, flowRules]);
+    return Array.from(
+      new Set(
+        [...flowStatuses, currentRowStatus]
+          .map((item) => String(item || "").trim())
+          .filter(Boolean),
+      ),
+    );
+  }, [flowRules, statusLead?.status]);
 
   const normalizeKey = (s) => String(s || "").trim().toLowerCase();
   const displayStatus = (s) => {
@@ -878,9 +874,13 @@ export default function LeadsPage() {
       return [];
     }
     
-    // No flow rule at all for this status → show all as fallback
+    // No flow rule at all for this status → show the configured flow statuses
     return orderedLeadStatuses;
   }, [flowRules, orderedLeadStatuses, statusLead]);
+  const displayStatusOptions = useMemo(
+    () => uniqueStatusOptions(allowedStatusOptions),
+    [allowedStatusOptions],
+  );
 
   const openRemarkModal = (lead) => {
     setRemarkLead(lead);
@@ -1696,12 +1696,12 @@ export default function LeadsPage() {
                   {orderedLeadStatuses.length > 0 && (
                     <div className="mb-3">
                       <div className="d-flex flex-wrap gap-2">
-                        {allowedStatusOptions.map((item) => (
+                        {displayStatusOptions.map((item) => (
                           <span
                             key={item}
-                            className={`badge ${item === statusValue ? "bg-primary" : "bg-light text-dark"}`}
+                            className={`badge ${normalizeStatusLabelKey(item) === normalizeStatusLabelKey(statusValue) ? "bg-primary" : "bg-light text-dark"}`}
                           >
-                            {displayStatus ? displayStatus(item) : item}
+                            {formatStatusLabel(item)}
                           </span>
                         ))}                      </div>
                     </div>
@@ -1714,9 +1714,9 @@ export default function LeadsPage() {
                       onChange={(e) => setStatusValue(e.target.value)}
                     >
                       <option value="">Select Status</option>
-                      {allowedStatusOptions.map((item) => (
+                      {displayStatusOptions.map((item) => (
                         <option key={item} value={item}>
-                          {item}
+                          {formatStatusLabel(item)}
                         </option>
                       ))}
                     </select>

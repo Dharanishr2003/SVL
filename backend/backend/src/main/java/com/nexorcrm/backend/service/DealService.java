@@ -1,6 +1,8 @@
 package com.nexorcrm.backend.service;
 
 import com.nexorcrm.backend.dto.DealResponse;
+import com.nexorcrm.backend.dto.LeadUpdateDetailsRequest;
+import com.nexorcrm.backend.dto.LeadFlowResponse;
 import com.nexorcrm.backend.entity.ActivationStatus;
 import com.nexorcrm.backend.entity.Deal;
 import com.nexorcrm.backend.entity.Lead;
@@ -54,6 +56,7 @@ public class DealService {
     private final LeadRepository leadRepository;
     private final UserRepository userRepository;
     private final DealFlowService dealFlowService;
+    private final LeadFlowService leadFlowService;
     private final UserGroupRepository userGroupRepository;
     private final UserGroupMemberRepository userGroupMemberRepository;
 
@@ -62,6 +65,7 @@ public class DealService {
                        LeadRepository leadRepository,
                        UserRepository userRepository,
                        DealFlowService dealFlowService,
+                       LeadFlowService leadFlowService,
                        UserGroupRepository userGroupRepository,
                        UserGroupMemberRepository userGroupMemberRepository) {
         this.dealRepository = dealRepository;
@@ -69,6 +73,7 @@ public class DealService {
         this.leadRepository = leadRepository;
         this.userRepository = userRepository;
         this.dealFlowService = dealFlowService;
+        this.leadFlowService = leadFlowService;
         this.userGroupRepository = userGroupRepository;
         this.userGroupMemberRepository = userGroupMemberRepository;
     }
@@ -334,10 +339,10 @@ public class DealService {
         Deal saved = dealRepository.save(deal);
         createSourceLeadLog(saved, "Status changed to " + saved.getStatus(), actor);
         
-        // Auto-assign payment verification to deal owner when status changes to payment
-        if ("payment".equalsIgnoreCase(newStatus) && deal.getOwnerUserId() != null && deal.getSourceLeadId() != null) {
+        // Align deal payment assignment with lead payment verification flow.
+        if ("payment".equalsIgnoreCase(newStatus) && deal.getSourceLeadId() != null) {
             leadRepository.findByIdAndDeletedFalse(deal.getSourceLeadId()).ifPresent(lead -> {
-                lead.setPaymentVerificationAssignedToUserId(deal.getOwnerUserId());
+                assignPaymentVerificationRoundRobin(lead);
                 leadRepository.save(lead);
             });
         }
@@ -358,6 +363,100 @@ public class DealService {
         return toResponse(latest);
     }
 
+    public Map<String, Object> updatePaymentVerification(Long id,
+                                                         LeadUpdateDetailsRequest request,
+                                                         String actorPrincipal) {
+        User actor = assertAccess(actorPrincipal);
+        Deal deal = dealRepository.findByIdAndDeletedFalse(id)
+                .orElseThrow(() -> new EntityNotFoundException("Deal not found"));
+        assertCanEditDeal(actor, deal);
+        if (deal.getSourceLeadId() == null) {
+            throw new EntityNotFoundException("Source lead not found");
+        }
+
+        Lead lead = leadRepository.findByIdAndDeletedFalse(deal.getSourceLeadId())
+                .orElseThrow(() -> new EntityNotFoundException("Lead not found"));
+
+        if (request.getPaymentProofFileName() != null) {
+            lead.setPaymentProofFileName(normalizeNullable(request.getPaymentProofFileName()));
+        }
+        if (request.getPaymentProofFilePath() != null) {
+            lead.setPaymentProofFilePath(normalizeNullable(request.getPaymentProofFilePath()));
+        }
+        if (request.getPaymentProofNotes() != null) {
+            lead.setPaymentProofNotes(normalizeNullable(request.getPaymentProofNotes()));
+        }
+        if (request.getPaymentVerificationStatus() != null) {
+            lead.setPaymentVerificationStatus(normalizeNullable(request.getPaymentVerificationStatus()));
+        }
+        if (request.getPaymentVerificationRejectionReason() != null) {
+            lead.setPaymentVerificationRejectionReason(normalizeNullable(request.getPaymentVerificationRejectionReason()));
+        }
+        if (request.getPaymentVerificationBillingAddressId() != null) {
+            lead.setPaymentVerificationBillingAddressId(request.getPaymentVerificationBillingAddressId());
+        }
+        if (request.getPaymentVerificationShippingAddressId() != null) {
+            lead.setPaymentVerificationShippingAddressId(request.getPaymentVerificationShippingAddressId());
+        }
+        if (request.getPaymentVerificationAssignedToUserId() != null) {
+            lead.setPaymentVerificationAssignedToUserId(request.getPaymentVerificationAssignedToUserId());
+        }
+        if (request.getPaymentVerificationAmount() != null) {
+            lead.setPaymentVerificationAmount(request.getPaymentVerificationAmount());
+        }
+        if (request.getPaymentMethod() != null) {
+            lead.setPaymentMethod(normalizeNullable(request.getPaymentMethod()));
+        }
+        if (request.getTransactionId() != null) {
+            lead.setTransactionId(normalizeNullable(request.getTransactionId()));
+        }
+        if (request.getPaymentDate() != null) {
+            lead.setPaymentDate(request.getPaymentDate());
+        }
+        if (request.getPaymentNotes() != null) {
+            lead.setPaymentNotes(normalizeNullable(request.getPaymentNotes()));
+        }
+        if (request.getRejectionNotes() != null) {
+            lead.setRejectionNotes(normalizeNullable(request.getRejectionNotes()));
+        }
+        if (request.getPaymentVerifiedInvoiceData() != null) {
+            lead.setPaymentVerifiedInvoiceData(request.getPaymentVerifiedInvoiceData());
+            deal.setInvoiceData(request.getPaymentVerifiedInvoiceData());
+        }
+        if ("PENDING".equalsIgnoreCase(request.getPaymentVerificationStatus())) {
+            assignPaymentVerificationRoundRobin(lead);
+        }
+        leadRepository.save(lead);
+        dealRepository.save(deal);
+
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("id", lead.getId());
+        response.put("sourceLeadId", deal.getSourceLeadId());
+        response.put("paymentProofFileName", lead.getPaymentProofFileName());
+        response.put("paymentProofFilePath", lead.getPaymentProofFilePath());
+        response.put("paymentProofNotes", lead.getPaymentProofNotes());
+        response.put("paymentVerificationStatus", lead.getPaymentVerificationStatus());
+        response.put("paymentVerificationRejectionReason", lead.getPaymentVerificationRejectionReason());
+        response.put("paymentVerificationBillingAddressId", lead.getPaymentVerificationBillingAddressId());
+        response.put("paymentVerificationShippingAddressId", lead.getPaymentVerificationShippingAddressId());
+        response.put("paymentVerificationAssignedToUserId", lead.getPaymentVerificationAssignedToUserId());
+        response.put("paymentVerificationAmount", lead.getPaymentVerificationAmount());
+        response.put("paymentVerifiedInvoiceData", lead.getPaymentVerifiedInvoiceData());
+        return response;
+    }
+
+    @Transactional(readOnly = true)
+    public Long getSourceLeadIdForPaymentProofUpload(Long id, String actorPrincipal) {
+        User actor = assertAccess(actorPrincipal);
+        Deal deal = dealRepository.findByIdAndDeletedFalse(id)
+                .orElseThrow(() -> new EntityNotFoundException("Deal not found"));
+        assertCanEditDeal(actor, deal);
+        if (deal.getSourceLeadId() == null) {
+            throw new EntityNotFoundException("Source lead not found");
+        }
+        return deal.getSourceLeadId();
+    }
+
     /**
      * Called from LeadService when a lead's status changes to payment.
      * Updates the related deal's status and auto-assigns payment verification to the deal owner.
@@ -367,14 +466,90 @@ public class DealService {
             deal.setStatus(leadStatus);
             final Deal savedDeal = dealRepository.save(deal);
             
-            // Auto-assign payment verification to deal owner when status is payment
-            if ("payment".equalsIgnoreCase(leadStatus) && savedDeal.getOwnerUserId() != null) {
+            // Align deal payment assignment with lead payment verification flow.
+            if ("payment".equalsIgnoreCase(leadStatus)) {
                 leadRepository.findByIdAndDeletedFalse(sourceLeadId).ifPresent(lead -> {
-                    lead.setPaymentVerificationAssignedToUserId(savedDeal.getOwnerUserId());
+                    assignPaymentVerificationRoundRobin(lead);
                     leadRepository.save(lead);
                 });
             }
         });
+    }
+
+    private void assignPaymentVerificationRoundRobin(Lead lead) {
+        try {
+            if (lead == null) {
+                return;
+            }
+
+            LeadFlowResponse flowResponse = leadFlowService.getFlow();
+            List<Map<String, Object>> rules = flowResponse.getRules();
+            if (rules == null || rules.isEmpty()) {
+                return;
+            }
+
+            Long handledByGroupId = null;
+            for (Map<String, Object> rule : rules) {
+                if (rule == null) continue;
+                Object statusVal = rule.get("status");
+                if (statusVal != null && statusVal.toString().trim().equalsIgnoreCase("Accounts")) {
+                    Object groupIdVal = rule.get("handledByGroupId");
+                    if (groupIdVal != null) {
+                        handledByGroupId = Long.parseLong(groupIdVal.toString());
+                        break;
+                    }
+                }
+            }
+
+            if (handledByGroupId == null) {
+                return;
+            }
+
+            List<UserGroupMember> eligibleMembers = userGroupMemberRepository
+                    .findByGroup_IdAndUser_RoleAndUser_ActivationStatusAndUser_ActiveTrueAndUser_IsDeletedFalseOrderByUserUsernameAsc(
+                            handledByGroupId,
+                            Role.EMPLOYEE,
+                            ActivationStatus.ACTIVE
+                    );
+            if (eligibleMembers.isEmpty()) {
+                return;
+            }
+
+            List<User> candidates = eligibleMembers.stream()
+                    .map(UserGroupMember::getUser)
+                    .filter(Objects::nonNull)
+                    .toList();
+            List<Long> candidateIds = candidates.stream().map(User::getId).toList();
+            Set<Long> candidateIdSet = new HashSet<>(candidateIds);
+
+            Long lastAssignedUserId = leadRepository.findByDeletedFalseAndPaymentVerificationAssignedToUserIdIsNotNullOrderByUpdatedAtDesc()
+                    .stream()
+                    .map(Lead::getPaymentVerificationAssignedToUserId)
+                    .filter(Objects::nonNull)
+                    .filter(candidateIdSet::contains)
+                    .findFirst()
+                    .orElse(null);
+
+            User nextAssignedUser;
+            if (lastAssignedUserId == null) {
+                nextAssignedUser = candidates.get(0);
+            } else {
+                int currentIndex = -1;
+                for (int idx = 0; idx < candidates.size(); idx++) {
+                    if (Objects.equals(candidates.get(idx).getId(), lastAssignedUserId)) {
+                        currentIndex = idx;
+                        break;
+                    }
+                }
+                nextAssignedUser = currentIndex < 0
+                        ? candidates.get(0)
+                        : candidates.get((currentIndex + 1) % candidates.size());
+            }
+
+            lead.setPaymentVerificationAssignedToUserId(nextAssignedUser.getId());
+        } catch (Exception e) {
+            logger.warn("Failed to assign payment verification round-robin for deal: " + e.getMessage(), e);
+        }
     }
 
     /**

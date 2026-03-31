@@ -1292,7 +1292,7 @@ const RequirementModal = React.memo(({
                 </>
               )}
 
-              {(requirementType === "Production" || requirementType === "Design + Production") && requirementType === "Design" && (
+              {(requirementType === "Production" || requirementType === "Design + Production") && (
                 <div className="mb-3">
                   <label className="form-label">Requirement File</label>
                   <input 
