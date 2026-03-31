@@ -216,6 +216,16 @@ export async function downloadLeadPaymentProofFile(leadId) {
   }
 }
 
+export async function getImportableEmployees() {
+  const response = await api.get('/api/v1/leads/importable-employees')
+  return Array.isArray(response?.data) ? response.data : []
+}
+
+export async function bulkCreateLeads(leads) {
+  const response = await api.post('/api/v1/leads/bulk', { leads })
+  return response?.data || {}
+}
+
 export async function rejectBudgetVerification(leadId, rejectionReason) {
   const response = await api.patch(`/api/v1/leads/${leadId}/details`, {
     budgetVerificationStatus: "REJECTED",
