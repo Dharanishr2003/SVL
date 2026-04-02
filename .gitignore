@@ -1,0 +1,8 @@
+node_modules/
+.metadata/
+*.log
+*.cache
+*.index
+*.prefs
+*.ini
+*.ser
