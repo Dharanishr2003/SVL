@@ -362,7 +362,7 @@ public class LeadService {
                 if (assignedUser.getRole() != Role.EMPLOYEE
                         || !assignedUser.isActive()
                         || assignedUser.getActivationStatus() != ActivationStatus.ACTIVE
-                        || Boolean.TRUE.equals(assignedUser.getIsDeleted())) {
+                        || assignedUser.isDeleted()) {
                     errors.add("Row " + rowNum + ": assigned user is not an active employee");
                     continue;
                 }

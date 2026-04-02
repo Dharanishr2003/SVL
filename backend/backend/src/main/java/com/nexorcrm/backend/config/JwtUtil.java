@@ -20,11 +20,13 @@ import java.util.UUID;
 @Component
 public class JwtUtil {
 
-    private static final long ACCESS_TOKEN_EXPIRY_MILLIS = 15 * 60 * 1000;
     private static final Logger log = LoggerFactory.getLogger(JwtUtil.class);
 
     @Value("${security.jwt.secret}")
     private String secret;
+
+    @Value("${auth.access-token.expiry-minutes:60}")
+    private long accessTokenExpiryMinutes;
 
     private SecretKey secretKey;
 
@@ -50,7 +52,7 @@ public class JwtUtil {
                 .claim("role", user.getRole().name())
                 .claim("forcePasswordChange", user.isForcePasswordChange())
                 .issuedAt(Date.from(now))
-                .expiration(Date.from(now.plusMillis(ACCESS_TOKEN_EXPIRY_MILLIS)))
+                .expiration(Date.from(now.plusSeconds(accessTokenExpiryMinutes * 60)))
                 .signWith(secretKey)
                 .compact();
     }

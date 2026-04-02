@@ -1,9 +1,48 @@
 import logger from "../utils/logger";
-import { getAccessToken } from "../utils/api";
+import { getAccessToken, setAccessToken } from "../utils/api";
 
 const DEFAULT_BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
+let refreshPromise = null;
 
-async function request(path, options = {}) {
+async function refreshAccessToken() {
+  if (!refreshPromise) {
+    refreshPromise = fetch(`${DEFAULT_BASE_URL}/api/auth/refresh`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      credentials: "include",
+      body: "{}",
+    })
+      .then(async (response) => {
+        const contentType = response.headers.get("content-type") || "";
+        const isJson = contentType.includes("application/json");
+        const payload = isJson ? await response.json() : await response.text();
+
+        if (!response.ok) {
+          const error = new Error(`Token refresh failed: ${response.status}`);
+          error.status = response.status;
+          error.payload = payload;
+          throw error;
+        }
+
+        const token = payload?.accessToken || null;
+        if (!token) {
+          throw new Error("No access token returned during refresh");
+        }
+
+        setAccessToken(token);
+        return token;
+      })
+      .finally(() => {
+        refreshPromise = null;
+      });
+  }
+
+  return refreshPromise;
+}
+
+async function request(path, options = {}, hasRetried = false) {
     const url = `${DEFAULT_BASE_URL}${path}`;
     const startedAt = performance.now();
     const token = getAccessToken();
@@ -24,6 +63,11 @@ async function request(path, options = {}) {
     const payload = isJson ? await response.json() : await response.text();
 
     if (!response.ok) {
+      if (response.status === 401 && !hasRetried && !path.includes("/api/auth/refresh")) {
+        await refreshAccessToken();
+        return request(path, options, true);
+      }
+
       const error = new Error(`API request failed: ${response.status}`);
       error.status = response.status;
       error.payload = payload;

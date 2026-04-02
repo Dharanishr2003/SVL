@@ -7,6 +7,7 @@ import com.nexorcrm.backend.exception.TokenRefreshException;
 import com.nexorcrm.backend.repo.RefreshTokenRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.beans.factory.annotation.Value;
 
 import java.time.LocalDateTime;
 
@@ -14,10 +15,11 @@ import java.time.LocalDateTime;
 @Transactional
 public class RefreshTokenService {
 
-    private static final long REFRESH_TOKEN_DAYS = 7L;
-
     private final RefreshTokenRepository refreshTokenRepository;
     private final JwtUtil jwtUtil;
+
+    @Value("${auth.refresh-token.expiry-days:30}")
+    private long refreshTokenExpiryDays;
 
     public RefreshTokenService(RefreshTokenRepository refreshTokenRepository, JwtUtil jwtUtil) {
         this.refreshTokenRepository = refreshTokenRepository;
@@ -28,7 +30,7 @@ public class RefreshTokenService {
         RefreshToken refreshToken = new RefreshToken();
         refreshToken.setUser(user);
         refreshToken.setToken(jwtUtil.generateRefreshToken());
-        refreshToken.setExpiryDate(LocalDateTime.now().plusDays(REFRESH_TOKEN_DAYS));
+        refreshToken.setExpiryDate(LocalDateTime.now().plusDays(refreshTokenExpiryDays));
         refreshToken.setRevoked(false);
         return refreshTokenRepository.save(refreshToken);
     }
