@@ -18,18 +18,85 @@ public class BulkLeadItem {
     @Size(max = 160, message = "Primary Source must be at most 160 characters")
     private String primarySource;
 
+    @Size(max = 20, message = "Lead pincode must be at most 20 characters")
+    private String leadPincode;
+
+    @Size(max = 190)
+    private String email;
+
+    @Size(max = 20)
+    private String countryCode;
+
+    @Size(max = 40)
+    private String alternatePhone;
+
+    @Size(max = 190)
+    private String alternateEmail;
+
+    @Size(max = 160)
+    private String secondarySource;
+
+    @Size(max = 160)
+    private String tertiarySource;
+
+    @Size(max = 200)
+    private String projectName;
+
+    @Size(max = 200)
+    private String occupation;
+
+    @Size(max = 200)
+    private String companyName;
+
+    @Size(max = 200)
+    private String productType;
+
+    @Size(max = 10)
+    private String leadCountry;
+
+    @Size(max = 10)
+    private String leadState;
+
+    @Size(max = 200)
+    private String leadCity;
+
     @NotNull(message = "Assigned user ID is required")
     private Long assignedUserId;
 
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
-
     public String getMobile() { return mobile; }
     public void setMobile(String mobile) { this.mobile = mobile; }
-
     public String getPrimarySource() { return primarySource; }
     public void setPrimarySource(String primarySource) { this.primarySource = primarySource; }
-
+    public String getLeadPincode() { return leadPincode; }
+    public void setLeadPincode(String leadPincode) { this.leadPincode = leadPincode; }
+    public String getEmail() { return email; }
+    public void setEmail(String email) { this.email = email; }
+    public String getCountryCode() { return countryCode; }
+    public void setCountryCode(String countryCode) { this.countryCode = countryCode; }
+    public String getAlternatePhone() { return alternatePhone; }
+    public void setAlternatePhone(String alternatePhone) { this.alternatePhone = alternatePhone; }
+    public String getAlternateEmail() { return alternateEmail; }
+    public void setAlternateEmail(String alternateEmail) { this.alternateEmail = alternateEmail; }
+    public String getSecondarySource() { return secondarySource; }
+    public void setSecondarySource(String secondarySource) { this.secondarySource = secondarySource; }
+    public String getTertiarySource() { return tertiarySource; }
+    public void setTertiarySource(String tertiarySource) { this.tertiarySource = tertiarySource; }
+    public String getProjectName() { return projectName; }
+    public void setProjectName(String projectName) { this.projectName = projectName; }
+    public String getOccupation() { return occupation; }
+    public void setOccupation(String occupation) { this.occupation = occupation; }
+    public String getCompanyName() { return companyName; }
+    public void setCompanyName(String companyName) { this.companyName = companyName; }
+    public String getProductType() { return productType; }
+    public void setProductType(String productType) { this.productType = productType; }
+    public String getLeadCountry() { return leadCountry; }
+    public void setLeadCountry(String leadCountry) { this.leadCountry = leadCountry; }
+    public String getLeadState() { return leadState; }
+    public void setLeadState(String leadState) { this.leadState = leadState; }
+    public String getLeadCity() { return leadCity; }
+    public void setLeadCity(String leadCity) { this.leadCity = leadCity; }
     public Long getAssignedUserId() { return assignedUserId; }
     public void setAssignedUserId(Long assignedUserId) { this.assignedUserId = assignedUserId; }
 }

@@ -21,7 +21,18 @@ export const PAGE_ACCESS_OPTIONS = [
   { key: "activity", label: "Activity", category: "CRM" },
   { key: "quotation", label: "Quotation", category: "CRM" },
   { key: "channel-partners", label: "Channel Partners", category: "CRM" },
-  { key: "lead-source", label: "Lead Source", category: "CRM" },
+  {
+    key: "lead-source",
+    label: "Lead Source",
+    category: "CRM",
+    children: [
+      { key: "lead-status", label: "Lead Status" },
+      { key: "primary-source", label: "Primary Source" },
+      { key: "secondary-source", label: "Secondary Source" },
+      { key: "tertiary-source", label: "Tertiary Source" },
+      { key: "lead-type", label: "Lead Type" },
+    ],
+  },
   {
     key: "stocks",
     label: "Stocks",

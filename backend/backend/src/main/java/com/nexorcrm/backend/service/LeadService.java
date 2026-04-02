@@ -319,7 +319,10 @@ public class LeadService {
     @Transactional(readOnly = true)
     public List<LeadAllocatorOptionResponse> getImportableEmployees(String actorPrincipal) {
         User actor = assertLeadAccess(actorPrincipal);
-        List<UserGroup> groups = findLeadVisibleGroupsForActor(actor);
+        Long flowGroupId = resolveFlowGroupForStatus("New Lead");
+        List<UserGroup> groups = flowGroupId != null
+                ? java.util.List.of(resolveLeadGroupForCreate(actor, flowGroupId))
+                : findLeadVisibleGroupsForActor(actor);
 
         Map<Long, LeadAllocatorOptionResponse> seen = new LinkedHashMap<>();
         for (UserGroup group : groups) {
@@ -388,6 +391,19 @@ public class LeadService {
                 groupId = groups.get(0).getId();
             }
 
+            boolean isEligibleForSelectedGroup = userGroupMemberRepository
+                    .findByGroup_IdAndUser_IdAndUser_RoleAndUser_ActivationStatusAndUser_ActiveTrueAndUser_IsDeletedFalse(
+                            groupId,
+                            assignedUser.getId(),
+                            Role.EMPLOYEE,
+                            ActivationStatus.ACTIVE
+                    ).stream()
+                    .anyMatch(this::memberHasLeadVisibility);
+            if (!isEligibleForSelectedGroup) {
+                errors.add("Row " + rowNum + ": assigned user is not eligible for the selected lead group");
+                continue;
+            }
+
             Lead row = new Lead();
             row.setLeadId("LEAD_" + UUID.randomUUID().toString().replace("-", "").substring(0, 14).toUpperCase(Locale.ROOT));
             row.setEuid(leadRepository.countByDeletedFalse() + toSave.size() + 1);
@@ -395,6 +411,20 @@ public class LeadService {
             row.setMobile(mobile);
             row.setMobileNormalized(mobileNormalized);
             row.setPrimarySource(item.getPrimarySource().trim());
+            row.setLeadPincode(normalizeNullable(item.getLeadPincode()));
+            row.setEmail(normalizeNullable(item.getEmail()));
+            row.setCountryCode(normalizeNullable(item.getCountryCode()));
+            row.setAlternatePhone(normalizeNullable(item.getAlternatePhone()));
+            row.setAlternateEmail(normalizeNullable(item.getAlternateEmail()));
+            row.setSecondarySource(normalizeNullable(item.getSecondarySource()));
+            row.setTertiarySource(normalizeNullable(item.getTertiarySource()));
+            row.setProjectName(normalizeNullable(item.getProjectName()));
+            row.setOccupation(normalizeNullable(item.getOccupation()));
+            row.setCompanyName(normalizeNullable(item.getCompanyName()));
+            row.setProductType(normalizeNullable(item.getProductType()));
+            row.setLeadCountry(normalizeNullable(item.getLeadCountry()));
+            row.setLeadState(normalizeNullable(item.getLeadState()));
+            row.setLeadCity(normalizeNullable(item.getLeadCity()));
             row.setStatus("New Lead");
             row.setSvStatus(null);
             row.setAssignedGroupId(groupId);
@@ -455,7 +485,29 @@ public class LeadService {
         Long flowGroupId = resolveFlowGroupForStatus("New Lead");
         Long groupId = flowGroupId != null ? flowGroupId : request.getLeadGroupId();
         UserGroup selectedGroup = resolveLeadGroupForCreate(actor, groupId);
-        User ownerUser = resolveLeadOwnerForCreate(actor, selectedGroup);
+        User ownerUser;
+        if (actor.getRole() != Role.EMPLOYEE && request.getAssignedUserId() != null) {
+            ownerUser = userRepository.findById(request.getAssignedUserId())
+                    .orElseThrow(() -> new EntityNotFoundException("Assigned user not found"));
+            if (ownerUser.getRole() != Role.EMPLOYEE || !ownerUser.isActive()
+                    || ownerUser.getActivationStatus() != ActivationStatus.ACTIVE
+                    || ownerUser.isDeleted()) {
+                throw new IllegalStateException("Assigned user is not an active employee");
+            }
+            boolean isEligibleForSelectedGroup = userGroupMemberRepository
+                    .findByGroup_IdAndUser_IdAndUser_RoleAndUser_ActivationStatusAndUser_ActiveTrueAndUser_IsDeletedFalse(
+                            selectedGroup.getId(),
+                            ownerUser.getId(),
+                            Role.EMPLOYEE,
+                            ActivationStatus.ACTIVE
+                    ).stream()
+                    .anyMatch(this::memberHasLeadVisibility);
+            if (!isEligibleForSelectedGroup) {
+                throw new IllegalStateException("Assigned user is not eligible for the selected lead group");
+            }
+        } else {
+            ownerUser = resolveLeadOwnerForCreate(actor, selectedGroup);
+        }
 
         String projectName = normalizeNullable(request.getProjectName());
         String email = normalizeNullable(request.getEmail());
@@ -923,6 +975,27 @@ public class LeadService {
         }
         if (request.getCompanyName() != null) {
             row.setCompanyName(normalizeNullable(request.getCompanyName()));
+        }
+        if (request.getEmail() != null) {
+            row.setEmail(normalizeNullable(request.getEmail()));
+        }
+        if (request.getProductType() != null) {
+            row.setProductType(normalizeNullable(request.getProductType()));
+        }
+        if (request.getLeadCountry() != null) {
+            row.setLeadCountry(normalizeNullable(request.getLeadCountry()));
+        }
+        if (request.getLeadState() != null) {
+            row.setLeadState(normalizeNullable(request.getLeadState()));
+        }
+        if (request.getLeadCity() != null) {
+            row.setLeadCity(normalizeNullable(request.getLeadCity()));
+        }
+        if (request.getLeadPincode() != null) {
+            row.setLeadPincode(normalizeNullable(request.getLeadPincode()));
+        }
+        if (request.getProjectId() != null) {
+            row.setProjectId(request.getProjectId());
         }
         if (request.getLeadType() != null) {
             String leadType = normalizeNullable(request.getLeadType());
@@ -2859,6 +2932,12 @@ public class LeadService {
         res.setProjectName(row.getProjectName());
         res.setOccupation(row.getOccupation());
         res.setCompanyName(row.getCompanyName());
+        res.setProductType(row.getProductType());
+        res.setLeadCountry(row.getLeadCountry());
+        res.setLeadState(row.getLeadState());
+        res.setLeadCity(row.getLeadCity());
+        res.setLeadPincode(row.getLeadPincode());
+        res.setProjectId(row.getProjectId());
         res.setLeadType(row.getLeadType());
         res.setChannelPartnerId(row.getChannelPartnerId());
         res.setChannelPartnerName(cpNameMap.get(row.getChannelPartnerId()));

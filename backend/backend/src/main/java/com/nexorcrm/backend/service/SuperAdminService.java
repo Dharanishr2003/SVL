@@ -299,6 +299,33 @@ public class SuperAdminService {
         target.setEmail(email);
         target.setFirstName(firstName);
         target.setLastName(lastName);
+
+        if (actor.getRole() == Role.SUPER_ADMIN) {
+            if (StringUtils.hasText(request.getInstitutionName())) {
+                target.setInstitutionName(request.getInstitutionName().trim());
+            }
+            if (StringUtils.hasText(request.getInstitutionCategory())) {
+                target.setInstitutionCategory(request.getInstitutionCategory().trim());
+            }
+            if (StringUtils.hasText(request.getInstitutionType())) {
+                target.setInstitutionType(request.getInstitutionType().trim());
+            }
+            if (StringUtils.hasText(request.getDepartmentName())) {
+                target.setDepartmentName(request.getDepartmentName().trim());
+            }
+            if (StringUtils.hasText(request.getTeamName())) {
+                target.setTeamName(request.getTeamName().trim());
+            } else if (request.getTeamName() != null && request.getTeamName().isEmpty()) {
+                target.setTeamName(null);
+            }
+        } else if (actor.getRole() == Role.ADMIN) {
+            if (StringUtils.hasText(request.getTeamName())) {
+                target.setTeamName(request.getTeamName().trim());
+            } else if (request.getTeamName() != null && request.getTeamName().isEmpty()) {
+                target.setTeamName(null);
+            }
+        }
+
         if (StringUtils.hasText(newPassword)) {
             target.setPasswordHash(passwordEncoder.encode(newPassword));
             target.setForcePasswordChange(false);

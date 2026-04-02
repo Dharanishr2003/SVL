@@ -1129,7 +1129,7 @@ function UseradminPage() {
                     }
                     setTeamId("");
                   }}
-                  disabled={currentRole === "MANAGER" || !filters.type}
+                  disabled={currentRole === "MANAGER" || (currentRole === "SUPER_ADMIN" ? !filters.type : !typeId)}
                 >
                   <option value="">Select</option>
                   {departments.map((dept) => (
@@ -1154,7 +1154,7 @@ function UseradminPage() {
                       setTeamId("");
                     }
                   }}
-                  disabled={!filters.department || (currentRole !== "MANAGER" && currentRole !== "SUPER_ADMIN")}
+                  disabled={currentRole === "SUPER_ADMIN" ? !filters.department : !departmentId}
                 >
                   <option value="">Select</option>
                   {teams.map((team) => (
@@ -1328,8 +1328,8 @@ function UseradminPage() {
                         <th>Username</th>
                         <th>Status</th>
                         <th>E-mail</th>
-                        <th>Registered</th>
-                        <th>Last Login</th>
+                        <th>Department</th>
+                        <th>Team</th>
                         <th>Actions</th>
                       </tr>
                     </thead>
@@ -1357,8 +1357,8 @@ function UseradminPage() {
                               </span>
                             </td>
                             <td>{row.email || "-"}</td>
-                            <td>{row.registeredAt || "-"}</td>
-                            <td>{row.lastLoginAt || "-"}</td>
+                            <td>{row.departmentName || "-"}</td>
+                            <td>{row.team || "-"}</td>
                             <td className="d-flex gap-2">
                               <button
                                 className="btn btn-sm btn-outline-primary"

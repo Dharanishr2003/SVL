@@ -137,16 +137,11 @@ export default function ProjectsPage() {
       showError("Project status is required");
       return;
     }
-    if (!form.description || !form.description.toString().trim()) {
-      showError("Project description is required");
-      return;
-    }
-
     const payload = {
       projectName: form.name.trim(),
       projectType: form.type,
       projectStatus: form.status,
-      description: form.description.trim(),
+      description: form.description.trim() || null,
     };
 
     setSaving(true);

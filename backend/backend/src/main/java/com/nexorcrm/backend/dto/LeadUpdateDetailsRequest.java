@@ -71,6 +71,14 @@ public class LeadUpdateDetailsRequest {
     private Long budgetVerificationAssignedToUserId;
     private String budgetVerificationRejectionReason;
 
+    private String email;
+    private String productType;
+    private String leadCountry;
+    private String leadState;
+    private String leadCity;
+    private String leadPincode;
+    private Long projectId;
+
     // production requirement - JSON serialized production brief
     private String productionBrief;
 
@@ -441,4 +449,19 @@ public class LeadUpdateDetailsRequest {
 
     public String getDesignBrief() { return designBrief; }
     public void setDesignBrief(String designBrief) { this.designBrief = designBrief; }
+
+    public String getEmail() { return email; }
+    public void setEmail(String email) { this.email = email; }
+    public String getProductType() { return productType; }
+    public void setProductType(String productType) { this.productType = productType; }
+    public String getLeadCountry() { return leadCountry; }
+    public void setLeadCountry(String leadCountry) { this.leadCountry = leadCountry; }
+    public String getLeadState() { return leadState; }
+    public void setLeadState(String leadState) { this.leadState = leadState; }
+    public String getLeadCity() { return leadCity; }
+    public void setLeadCity(String leadCity) { this.leadCity = leadCity; }
+    public String getLeadPincode() { return leadPincode; }
+    public void setLeadPincode(String leadPincode) { this.leadPincode = leadPincode; }
+    public Long getProjectId() { return projectId; }
+    public void setProjectId(Long projectId) { this.projectId = projectId; }
 }

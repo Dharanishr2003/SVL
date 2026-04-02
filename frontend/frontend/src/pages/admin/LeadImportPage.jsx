@@ -1,6 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getImportableEmployees, bulkCreateLeads } from '../../api/leadsApi';
+import { bulkCreateLeads, getAssignableLeadGroups } from '../../api/leadsApi';
+import { getGroupMembers, getUserGroups } from '../../api/userGroupApi';
+import { getLeadFlow } from '../../api/flowApi';
+import { CRM_PAGE_OPTIONS } from '../../constants/crmPages';
 
 const QUICK_SELECT_OPTIONS = [
   { label: 'First 10', value: 10 },
@@ -10,23 +13,34 @@ const QUICK_SELECT_OPTIONS = [
   { label: 'All', value: Infinity },
 ];
 
+const CSV_COLUMNS = [
+  'name', 'mobile', 'primarySource', 'leadPincode',
+  'email', 'countryCode', 'alternatePhone', 'alternateEmail',
+  'secondarySource', 'tertiarySource', 'projectName',
+  'occupation', 'companyName', 'productType', 'leadCountry', 'leadState', 'leadCity',
+];
+
 function parseCSV(text) {
-  const lines = text.split(/\r?\n/).filter((l) => l.trim());
+  const lines = text.split(/\r?\n/).filter((l) => l.trim() && !l.trim().startsWith('#'));
   if (lines.length < 2) return [];
   return lines.slice(1).map((line, idx) => {
     const cols = line.split(',').map((c) => c.trim());
-    return {
-      _rowIndex: idx,
-      name: cols[0] || '',
-      mobile: cols[1] || '',
-      primarySource: cols[2] || '',
-      _error: !cols[0] || !cols[1] || !cols[2] ? 'Missing required field(s)' : null,
-    };
+    const row = { _rowIndex: idx };
+    CSV_COLUMNS.forEach((col, i) => { row[col] = cols[i] || ''; });
+    row._error = !row.name || !row.mobile || !row.primarySource ? 'Missing required field(s)' : null;
+    return row;
   });
 }
 
 function downloadSampleCSV() {
-  const csv = 'name,mobile,primarySource\nJohn Doe,9876543210,Facebook\nJane Smith,9123456789,Google';
+  const mandatoryNote = '# MANDATORY: name | mobile | primarySource';
+  const optionalNote = '# OPTIONAL: leadPincode | email | countryCode | alternatePhone | alternateEmail | secondarySource | tertiarySource | projectName | occupation | companyName | productType | leadCountry | leadState | leadCity';
+  const header = CSV_COLUMNS.join(',');
+  const sample = [
+    'John Doe,9876543210,Facebook,110001,john@example.com,+91,,,Google,,MyProject,Engineer,Acme Corp,Software,IN,TN,Chennai',
+    'Jane Smith,9123456789,Google,560001,,,,,,,,,,,IN,KA,Bengaluru',
+  ].join('\n');
+  const csv = mandatoryNote + '\n' + optionalNote + '\n' + header + '\n' + sample;
   const blob = new Blob([csv], { type: 'text/csv' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -43,13 +57,103 @@ export default function LeadImportPage() {
   const [checkedIndexes, setCheckedIndexes] = useState(new Set());
   const [employees, setEmployees] = useState([]);
   const [selectedEmployeeIds, setSelectedEmployeeIds] = useState([]);
+  const [employeePickerValue, setEmployeePickerValue] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+  const [showCustomCount, setShowCustomCount] = useState(false);
+  const [customCount, setCustomCount] = useState('');
+  const leadPageKey = CRM_PAGE_OPTIONS.find((item) => item.key === 'leads')?.key || 'leads';
+  const [groupOptions, setGroupOptions] = useState([]);
+  const [flowRules, setFlowRules] = useState([]);
+
+  const leadEligibleGroups = useMemo(
+    () =>
+      groupOptions.filter((group) =>
+        Array.isArray(group.pageKeys)
+          ? group.pageKeys.map((key) => String(key || '').trim().toLowerCase()).includes(leadPageKey)
+          : false,
+      ),
+    [groupOptions, leadPageKey],
+  );
+
+  const newLeadFlowGroupId = useMemo(() => {
+    const rule = Array.isArray(flowRules)
+      ? flowRules.find((item) => String(item?.status || '').trim().toLowerCase() === 'new lead')
+      : null;
+    return rule?.handledByGroupId != null && String(rule.handledByGroupId).trim() !== ''
+      ? String(rule.handledByGroupId)
+      : '';
+  }, [flowRules]);
+
+  const importGroup = useMemo(
+    () =>
+      newLeadFlowGroupId
+        ? leadEligibleGroups.find((group) => String(group.id) === String(newLeadFlowGroupId)) || null
+        : leadEligibleGroups[0] || null,
+    [leadEligibleGroups, newLeadFlowGroupId],
+  );
 
   useEffect(() => {
-    getImportableEmployees().then(setEmployees).catch(() => setEmployees([]));
+    let isMounted = true;
+    Promise.all([getAssignableLeadGroups(), getUserGroups(), getLeadFlow()])
+      .then(([assignable, allGroups, flowPayload]) => {
+        if (!isMounted) return;
+        const byId = new Map((Array.isArray(allGroups) ? allGroups : []).map((g) => [String(g.id), g]));
+        const merged = (Array.isArray(assignable) ? assignable : []).map((group) => {
+          const full = byId.get(String(group.id));
+          const pageKeys =
+            Array.isArray(group.pageKeys) && group.pageKeys.length > 0
+              ? group.pageKeys
+              : Array.isArray(full?.pageKeys) ? full.pageKeys : [];
+          return { ...group, pageKeys };
+        });
+        setGroupOptions(merged);
+        setFlowRules(Array.isArray(flowPayload?.rules) ? flowPayload.rules : []);
+      })
+      .catch(() => {
+        if (!isMounted) return;
+        setGroupOptions([]);
+        setFlowRules([]);
+      });
+    return () => {
+      isMounted = false;
+    };
   }, []);
+
+  useEffect(() => {
+    let isMounted = true;
+    if (!importGroup?.id) {
+      setEmployees([]);
+      return () => {
+        isMounted = false;
+      };
+    }
+    getGroupMembers(importGroup.id)
+      .then((members) => {
+        if (!isMounted) return;
+        const eligibleMembers = (Array.isArray(members) ? members : []).filter((member) => {
+          const roleName = String(member?.role || '').toUpperCase();
+          const pageKeys = Array.isArray(member?.pageKeys)
+            ? member.pageKeys.map((key) => String(key || '').trim().toLowerCase()).filter(Boolean)
+            : [];
+          return roleName === 'EMPLOYEE' && (pageKeys.length === 0 || pageKeys.includes(leadPageKey));
+        });
+        setEmployees(
+          eligibleMembers.map((member) => ({
+            id: member.userId,
+            username: member.username || `User ${member.userId}`,
+          })),
+        );
+      })
+      .catch(() => {
+        if (!isMounted) return;
+        setEmployees([]);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, [importGroup, leadPageKey]);
 
   function handleFileChange(e) {
     const file = e.target.files?.[0];
@@ -74,8 +178,11 @@ export default function LeadImportPage() {
   function toggleRow(rowIndex) {
     setCheckedIndexes((prev) => {
       const next = new Set(prev);
-      if (next.has(rowIndex)) next.delete(rowIndex);
-      else next.add(rowIndex);
+      if (next.has(rowIndex)) {
+        next.delete(rowIndex);
+      } else {
+        next.add(rowIndex);
+      }
       return next;
     });
   }
@@ -86,23 +193,61 @@ export default function LeadImportPage() {
     );
   }
 
+  function addEmployeeFromDropdown(id) {
+    if (!id) return;
+    setSelectedEmployeeIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
+    setEmployeePickerValue('');
+  }
+
   async function handleSubmit() {
     setSubmitError('');
     setSuccessMsg('');
+
     const selectedRows = rows.filter((r) => checkedIndexes.has(r._rowIndex) && !r._error);
-    if (selectedRows.length === 0) { setSubmitError('Select at least one valid row.'); return; }
-    if (selectedEmployeeIds.length === 0) { setSubmitError('Select at least one employee to assign leads to.'); return; }
+    if (selectedRows.length === 0) {
+      setSubmitError('Select at least one valid row.');
+      return;
+    }
+    if (selectedEmployeeIds.length === 0) {
+      setSubmitError('Select at least one employee to assign leads to.');
+      return;
+    }
+
     const leads = selectedRows.map((row, i) => ({
       name: row.name,
       mobile: row.mobile,
       primarySource: row.primarySource,
+      leadPincode: row.leadPincode || null,
+      email: row.email || null,
+      countryCode: row.countryCode || null,
+      alternatePhone: row.alternatePhone || null,
+      alternateEmail: row.alternateEmail || null,
+      secondarySource: row.secondarySource || null,
+      tertiarySource: row.tertiarySource || null,
+      projectName: row.projectName || null,
+      occupation: row.occupation || null,
+      companyName: row.companyName || null,
+      productType: row.productType || null,
+      leadCountry: row.leadCountry || null,
+      leadState: row.leadState || null,
+      leadCity: row.leadCity || null,
       assignedUserId: selectedEmployeeIds[i % selectedEmployeeIds.length],
     }));
+
     setSubmitting(true);
     try {
       const result = await bulkCreateLeads(leads);
       setSuccessMsg(result.created + ' leads imported successfully.');
-      setTimeout(() => navigate('/leads'), 1500);
+      setRows((prevRows) =>
+        prevRows.map((row) =>
+          checkedIndexes.has(row._rowIndex) && !row._error
+            ? { ...row, _imported: true }
+            : row
+        )
+      );
+      setCheckedIndexes(new Set());
+      setSelectedEmployeeIds([]);
+      setEmployeePickerValue('');
     } catch (err) {
       setSubmitError(err?.response?.data?.error || err?.message || 'Import failed.');
     } finally {
@@ -110,113 +255,264 @@ export default function LeadImportPage() {
     }
   }
 
-  const validRows = rows.filter((r) => !r._error);
+  const visibleRows = rows.filter((r) => !r._imported);
+  const validRows = visibleRows.filter((r) => !r._error);
   const checkedValidCount = validRows.filter((r) => checkedIndexes.has(r._rowIndex)).length;
 
   return (
-    <div className="page-wrapper content">
-        <div className="d-flex align-items-center gap-2 mb-4">
-          <button className="btn btn-outline-secondary btn-sm" onClick={() => navigate('/leads')}>
-            <i className="ti ti-arrow-left me-1" />
-            Back to Leads
-          </button>
-          <h4 className="mb-0">Import Leads</h4>
-        </div>
+    <div className="content">
+      <div className="d-flex align-items-center gap-2 mb-4">
+        <button className="btn btn-outline-secondary btn-sm" onClick={() => navigate('/leads')}>
+          <i className="ti ti-arrow-left me-1" />
+          Back to Leads
+        </button>
+        <h4 className="mb-0">Import Leads</h4>
+      </div>
 
+      <div className="card mb-3">
+        <div className="card-body">
+          <h6 className="card-title">Step 1 - Download Sample CSV</h6>
+         
+          <button className="btn btn-outline-primary btn-sm" onClick={downloadSampleCSV}>
+            <i className="ti ti-download me-1" />
+            Download Sample CSV
+          </button>
+        </div>
+      </div>
+
+      <div className="card mb-3">
+        <div className="card-body">
+          <h6 className="card-title">Step 2 - Upload CSV</h6>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".csv"
+            className="form-control"
+            style={{ maxWidth: 360 }}
+            onChange={handleFileChange}
+          />
+        </div>
+      </div>
+
+      {visibleRows.length > 0 && (
         <div className="card mb-3">
           <div className="card-body">
-            <h6 className="card-title">Step 1 — Download Sample CSV</h6>
-            <p className="text-muted mb-2">
-              The CSV must have columns: <strong>name</strong>, <strong>mobile</strong>, <strong>primarySource</strong>
-            </p>
-            <button className="btn btn-outline-primary btn-sm" onClick={downloadSampleCSV}>
-              <i className="ti ti-download me-1" />
-              Download Sample CSV
+            <div className="d-flex align-items-center gap-3 mb-3 flex-wrap">
+              <h6 className="card-title mb-0">Preview ({visibleRows.length} rows)</h6>
+              <div className="d-flex align-items-center gap-2">
+                <label className="mb-0 text-muted small">Quick Select:</label>
+                <select
+                  className="form-select form-select-sm"
+                  style={{ width: 'auto' }}
+                  defaultValue=""
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === 'custom') {
+                      setShowCustomCount(true);
+                      setCustomCount('');
+                    } else {
+                      setShowCustomCount(false);
+                      handleQuickSelect(val === 'all' ? Infinity : Number(val));
+                    }
+                  }}
+                >
+                  <option value="" disabled>Choose...</option>
+                  {QUICK_SELECT_OPTIONS.map((opt) => (
+                    <option key={opt.label} value={opt.value === Infinity ? 'all' : opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                  <option value="custom">Custom...</option>
+                </select>
+                {showCustomCount && (
+                  <div className="d-flex align-items-center gap-1">
+                    <input
+                      type="number"
+                      className="form-control form-control-sm"
+                      style={{ width: 80 }}
+                      min={1}
+                      max={validRows.length}
+                      placeholder="Count"
+                      value={customCount}
+                      onChange={(e) => setCustomCount(e.target.value)}
+                    />
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-primary"
+                      onClick={() => {
+                        const n = parseInt(customCount, 10);
+                        if (n > 0) handleQuickSelect(n);
+                      }}
+                    >
+                      Go
+                    </button>
+                  </div>
+                )}
+              </div>
+              <span className="text-muted small">{checkedValidCount} selected</span>
+            </div>
+            <div className="table-responsive">
+              <table className="table table-sm table-bordered table-hover">
+                <thead>
+                  <tr>
+                    <th style={{ width: 40 }}>#</th>
+                    <th style={{ width: 40 }}>
+                      <input
+                        type="checkbox"
+                        checked={validRows.length > 0 && checkedValidCount === validRows.length}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setCheckedIndexes(new Set(validRows.map((r) => r._rowIndex)));
+                          } else {
+                            setCheckedIndexes(new Set());
+                          }
+                        }}
+                      />
+                    </th>
+                    <th>Name</th>
+                    <th>Mobile</th>
+                    <th>Primary Source</th>
+                    <th>Pin Code</th>
+                    <th>Email</th>
+                    <th>Country Code</th>
+                    <th>Alt. Phone</th>
+                    <th>Alt. Email</th>
+                    <th>Sec. Source</th>
+                    <th>Ter. Source</th>
+                    <th>Project</th>
+                    <th>Occupation</th>
+                    <th>Company</th>
+                    <th>Product Type</th>
+                    <th>Country</th>
+                    <th>State</th>
+                    <th>City</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {visibleRows.map((row, idx) => (
+                    <tr key={row._rowIndex} className={row._error ? 'table-danger' : ''}>
+                      <td>{idx + 1}</td>
+                      <td>
+                        {!row._error && (
+                          <input
+                            type="checkbox"
+                            checked={checkedIndexes.has(row._rowIndex)}
+                            onChange={() => toggleRow(row._rowIndex)}
+                          />
+                        )}
+                      </td>
+                      <td>{row.name || <span className="text-danger">-</span>}</td>
+                      <td>{row.mobile || <span className="text-danger">-</span>}</td>
+                      <td>{row.primarySource || <span className="text-danger">-</span>}</td>
+                      <td>{row.leadPincode || <span className="text-muted">-</span>}</td>
+                      <td>{row.email || <span className="text-muted">-</span>}</td>
+                      <td>{row.countryCode || <span className="text-muted">-</span>}</td>
+                      <td>{row.alternatePhone || <span className="text-muted">-</span>}</td>
+                      <td>{row.alternateEmail || <span className="text-muted">-</span>}</td>
+                      <td>{row.secondarySource || <span className="text-muted">-</span>}</td>
+                      <td>{row.tertiarySource || <span className="text-muted">-</span>}</td>
+                      <td>{row.projectName || <span className="text-muted">-</span>}</td>
+                      <td>{row.occupation || <span className="text-muted">-</span>}</td>
+                      <td>{row.companyName || <span className="text-muted">-</span>}</td>
+                      <td>{row.productType || <span className="text-muted">-</span>}</td>
+                      <td>{row.leadCountry || <span className="text-muted">-</span>}</td>
+                      <td>{row.leadState || <span className="text-muted">-</span>}</td>
+                      <td>{row.leadCity || <span className="text-muted">-</span>}</td>
+                      <td>
+                        {row._error ? (
+                          <span className="badge bg-danger">{row._error}</span>
+                        ) : (
+                          <span className="badge bg-success">Valid</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {visibleRows.length > 0 && (
+        <div className="card mb-3">
+          <div className="card-body">
+            <h6 className="card-title">Step 3 - Assign to Employee(s)</h6>
+            {employees.length === 0 ? (
+              <p className="text-muted">{importGroup ? 'No active employees in this group.' : 'No group available.'}</p>
+            ) : (
+              <>
+                <div className="mb-3" style={{ maxWidth: 360 }}>
+                  <label className="form-label">Assign Employee</label>
+                  <select
+                    className="form-select"
+                    value={employeePickerValue}
+                    onChange={(e) => {
+                      setEmployeePickerValue(e.target.value);
+                      addEmployeeFromDropdown(e.target.value);
+                    }}
+                  >
+                    <option value="">Select employee</option>
+                    {employees
+                      .filter((emp) => !selectedEmployeeIds.includes(String(emp.id)))
+                      .map((emp) => (
+                        <option key={emp.id} value={String(emp.id)}>
+                          {emp.username}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+
+                <div className="d-flex flex-wrap gap-2 mb-3">
+                  {selectedEmployeeIds.length === 0 ? (
+                    <span className="text-muted small">No employee selected yet.</span>
+                  ) : (
+                    selectedEmployeeIds.map((employeeId) => {
+                      const employee = employees.find((emp) => String(emp.id) === String(employeeId));
+                      return (
+                        <span
+                          key={employeeId}
+                          className="badge rounded-pill text-bg-primary d-inline-flex align-items-center gap-2 px-3 py-2"
+                        >
+                          <span>{employee?.username || employeeId}</span>
+                          <button
+                            type="button"
+                            className="btn btn-link btn-sm text-white p-0 text-decoration-none"
+                            onClick={() => toggleEmployee(employeeId)}
+                            aria-label={`Remove ${employee?.username || employeeId}`}
+                            style={{ lineHeight: 1 }}
+                          >
+                            x
+                          </button>
+                        </span>
+                      );
+                    })
+                  )}
+                </div>
+              </>
+            )}
+            {selectedEmployeeIds.length > 1 && checkedValidCount > 0 && (
+              <p className="text-muted small mb-2">
+                {checkedValidCount} leads will be distributed round-robin across {selectedEmployeeIds.length} employees.
+              </p>
+            )}
+            {submitError && <div className="alert alert-danger py-2">{submitError}</div>}
+            {successMsg && <div className="alert alert-success py-2">{successMsg}</div>}
+            <button
+              className="btn btn-success"
+              disabled={submitting || checkedValidCount === 0 || selectedEmployeeIds.length === 0}
+              onClick={handleSubmit}
+            >
+              {submitting ? 'Importing...' : 'Import ' + checkedValidCount + ' Lead(s)'}
             </button>
           </div>
         </div>
+      )}
 
-        <div className="card mb-3">
-          <div className="card-body">
-            <h6 className="card-title">Step 2 — Upload CSV</h6>
-            <input ref={fileInputRef} type="file" accept=".csv" className="form-control" style={{ maxWidth: 360 }} onChange={handleFileChange} />
-          </div>
-        </div>
-
-        {rows.length > 0 && (
-          <div className="card mb-3">
-            <div className="card-body">
-              <div className="d-flex align-items-center gap-3 mb-3 flex-wrap">
-                <h6 className="card-title mb-0">Preview ({rows.length} rows)</h6>
-                <div className="d-flex align-items-center gap-2">
-                  <label className="mb-0 text-muted small">Quick Select:</label>
-                  <select className="form-select form-select-sm" style={{ width: 'auto' }} defaultValue="" onChange={(e) => { const val = e.target.value; handleQuickSelect(val === 'all' ? Infinity : Number(val)); }}>
-                    <option value="" disabled>Choose...</option>
-                    {QUICK_SELECT_OPTIONS.map((opt) => (
-                      <option key={opt.label} value={opt.value === Infinity ? 'all' : opt.value}>{opt.label}</option>
-                    ))}
-                  </select>
-                </div>
-                <span className="text-muted small">{checkedValidCount} selected</span>
-              </div>
-              <div className="table-responsive">
-                <table className="table table-sm table-bordered table-hover">
-                  <thead>
-                    <tr>
-                      <th style={{ width: 40 }}>#</th>
-                      <th style={{ width: 40 }}>
-                        <input type="checkbox" checked={validRows.length > 0 && checkedValidCount === validRows.length} onChange={(e) => { if (e.target.checked) { setCheckedIndexes(new Set(validRows.map((r) => r._rowIndex))); } else { setCheckedIndexes(new Set()); } }} />
-                      </th>
-                      <th>Name</th>
-                      <th>Mobile</th>
-                      <th>Primary Source</th>
-                      <th>Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rows.map((row, idx) => (
-                      <tr key={row._rowIndex} className={row._error ? 'table-danger' : ''}>
-                        <td>{idx + 1}</td>
-                        <td>{!row._error && (<input type="checkbox" checked={checkedIndexes.has(row._rowIndex)} onChange={() => toggleRow(row._rowIndex)} />)}</td>
-                        <td>{row.name || <span className="text-danger">—</span>}</td>
-                        <td>{row.mobile || <span className="text-danger">—</span>}</td>
-                        <td>{row.primarySource || <span className="text-danger">—</span>}</td>
-                        <td>{row._error ? (<span className="badge bg-danger">{row._error}</span>) : (<span className="badge bg-success">Valid</span>)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {rows.length > 0 && (
-          <div className="card mb-3">
-            <div className="card-body">
-              <h6 className="card-title">Step 3 — Assign to Employee(s)</h6>
-              {employees.length === 0 ? (
-                <p className="text-muted">No active employees available.</p>
-              ) : (
-                <div className="d-flex flex-wrap gap-2 mb-3">
-                  {employees.map((emp) => (
-                    <button key={emp.id} type="button" className={'btn btn-sm ' + (selectedEmployeeIds.includes(emp.id) ? 'btn-primary' : 'btn-outline-secondary')} onClick={() => toggleEmployee(emp.id)}>
-                      {emp.username}
-                    </button>
-                  ))}
-                </div>
-              )}
-              {selectedEmployeeIds.length > 1 && checkedValidCount > 0 && (
-                <p className="text-muted small mb-2">{checkedValidCount} leads will be distributed round-robin across {selectedEmployeeIds.length} employees.</p>
-              )}
-              {submitError && <div className="alert alert-danger py-2">{submitError}</div>}
-              {successMsg && <div className="alert alert-success py-2">{successMsg}</div>}
-              <button className="btn btn-success" disabled={submitting || checkedValidCount === 0 || selectedEmployeeIds.length === 0} onClick={handleSubmit}>
-                {submitting ? 'Importing...' : 'Import ' + checkedValidCount + ' Lead(s)'}
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
+      {visibleRows.length === 0 && rows.length > 0 && successMsg && (
+        <div className="alert alert-success py-2">{successMsg}</div>
+      )}
+    </div>
   );
 }

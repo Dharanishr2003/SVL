@@ -23,7 +23,11 @@ import { getLeadStatuses, DEFAULT_LEAD_STATUSES } from "../../api/leadStatusApi"
 import { getLeadTypes } from "../../api/leadTypeApi";
 import { getProductionRequirements, createProductionRequirement } from "../../api/productionRequirementApi";
 import { getDesignRequirement } from "../../api/designRequirementApi";
+import { createProject, getProjects } from "../../api/projectApi";
+import { getProjectStatuses } from "../../api/projectStatusApi";
+import { getProjectTypes } from "../../api/projectTypeApi";
 import { COUNTRY_CODES } from "../../constants/countryCodes";
+import { Country, State, City } from "country-state-city";
 import { extractApiErrorMessage } from "../../utils/errorMessage";
 import { COUNTRY_CODE_OPTIONS, defaultCountryOption, ensureCountryCodeValue, getCountryAllowedLengths, getCountryDisplayMaxLength, getCountryOptionByValue, sanitizePhoneDigits, validatePhoneNumber } from "../../utils/phoneUtils";
 import { pickFlowAssignee, pickGroupAssignee } from "../../utils/flowAssignment";
@@ -107,6 +111,18 @@ function normalizeCountryCode(value) {
   return raw.startsWith("+") ? raw : `+${raw}`;
 }
 
+function normalizeLeadStateValue(countryIso, stateValue) {
+  const raw = String(stateValue || "").trim();
+  if (!countryIso || !raw) return "";
+  const states = State.getStatesOfCountry(countryIso);
+  const directMatch = states.find(
+    (state) =>
+      String(state.isoCode || "").toUpperCase() === raw.toUpperCase() ||
+      String(state.name || "").toLowerCase() === raw.toLowerCase(),
+  );
+  return directMatch?.isoCode || raw;
+}
+
 const DEFAULT_CUSTOMER_LOGIN_PASSWORD = "Customer@123";
 
 export default function LeadEditPage({ leadIdOverride } = {}) {
@@ -128,6 +144,22 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
   const [followUpDate, setFollowUpDate] = useState("");
   const [occupation, setOccupation] = useState("");
   const [companyName, setCompanyName] = useState("");
+  const [productType, setProductType] = useState("");
+  const [leadEmail, setLeadEmail] = useState("");
+  const [showAddProjectModal, setShowAddProjectModal] = useState(false);
+  const [newProjectName, setNewProjectName] = useState("");
+  const [newProjectType, setNewProjectType] = useState("");
+  const [newProjectStatus, setNewProjectStatus] = useState("");
+  const [newProjectDescription, setNewProjectDescription] = useState("");
+  const [projectTypes, setProjectTypes] = useState([]);
+  const [projectStatuses, setProjectStatuses] = useState([]);
+  const [projectSaving, setProjectSaving] = useState(false);
+  const [projects, setProjects] = useState([]);
+  const [selectedProjectId, setSelectedProjectId] = useState("");
+  const [leadCountry, setLeadCountry] = useState("");
+  const [leadState, setLeadState] = useState("");
+  const [leadCity, setLeadCity] = useState("");
+  const [leadPincode, setLeadPincode] = useState("");
   const [statusValue, setStatusValue] = useState("");
   const [flowRules, setFlowRules] = useState([]);
   const [showAttemptedModal, setShowAttemptedModal] = useState(false);
@@ -311,6 +343,32 @@ const [showRequirementDetailsModal, setShowRequirementDetailsModal] = useState(f
         setCompanyName(
           pickText(leadData, ["companyName", "company", "organization", "organisation"]) || "",
         );
+        setProductType(pickText(leadData, ["productType", "product_type"]) || "");
+        setLeadEmail(pickText(leadData, ["email"]) || "");
+        setSelectedProjectId(pickText(leadData, ["projectId", "project_id"]) || "");
+        const savedCountry = pickText(leadData, ["leadCountry", "country"]) || "";
+        let resolvedLeadCountry = savedCountry;
+        if (savedCountry) {
+          setLeadCountry(savedCountry);
+        } else {
+          // derive from phone country code
+          const phone = normalizeCountryCode(
+            pickText(leadData, ["countryCode", "country_code", "dialCode", "dial_code"]),
+          ).replace("+", "");
+          const matched = Country.getAllCountries().find((c) => c.phonecode === phone);
+          if (matched) {
+            resolvedLeadCountry = matched.isoCode;
+            setLeadCountry(matched.isoCode);
+          }
+        }
+        setLeadState(
+          normalizeLeadStateValue(
+            resolvedLeadCountry,
+            pickText(leadData, ["leadState", "state"]) || "",
+          ),
+        );
+        setLeadCity(pickText(leadData, ["leadCity", "city"]) || "");
+        setLeadPincode(pickText(leadData, ["leadPincode", "lead_pincode", "pincode", "pinCode"]) || "");
         setAttemptedOpenReason(
           pickText(leadData, ["attemptedOpenReason", "attempted_open_reason"]) || "",
         );
@@ -580,6 +638,9 @@ const [showRequirementDetailsModal, setShowRequirementDetailsModal] = useState(f
   const isLeadReadOnly = isConverted;
   const isEmployeeDesignView = role === "EMPLOYEE" && statusLower === "design";
   const lockAfterAttempted = hasReachedStage("interested") || isRejected;
+  const canEditAllGeneralInfo =
+    role === "SUPER_ADMIN" || role === "ADMIN" || role === "MANAGER";
+  const isGeneralInfoReadOnly = !canEditAllGeneralInfo && (lockAfterAttempted || isLeadReadOnly);
   const hasAttemptedData = Boolean(
     lead?.attemptedOpenReason || lead?.attemptedCallStatus || lead?.attemptedCallRemarks,
   );
@@ -923,6 +984,10 @@ const [showRequirementDetailsModal, setShowRequirementDetailsModal] = useState(f
       active = false;
     };
   }, [role]);
+
+  useEffect(() => {
+    getProjects().then(setProjects).catch(() => {});
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -2307,6 +2372,51 @@ const [showRequirementDetailsModal, setShowRequirementDetailsModal] = useState(f
     }
   };
 
+  // Auto-select country ISO code based on phone country code
+  useEffect(() => {
+    if (!countryCode) return;
+    const phone = countryCode.replace("+", "");
+    const matched = Country.getAllCountries().find((c) => c.phonecode === phone);
+    if (matched && !leadCountry) {
+      setLeadCountry(matched.isoCode);
+    }
+  }, [countryCode, leadCountry]);
+
+  const openAddProjectModal = async () => {
+    setNewProjectName("");
+    setNewProjectType("");
+    setNewProjectStatus("");
+    setNewProjectDescription("");
+    setShowAddProjectModal(true);
+    try {
+      const [types, statuses] = await Promise.all([getProjectTypes(), getProjectStatuses()]);
+      setProjectTypes(types);
+      setProjectStatuses(statuses);
+    } catch {
+      // non-critical, dropdowns will be empty
+    }
+  };
+
+  const handleCreateProject = async () => {
+    if (!newProjectName.trim()) { showError("Project name is required"); return; }
+    setProjectSaving(true);
+    try {
+      await createProject({
+        projectName: newProjectName.trim(),
+        projectType: newProjectType || null,
+        projectStatus: newProjectStatus || null,
+        description: newProjectDescription.trim() || null,
+      });
+      showSuccess("Project created successfully");
+      setShowAddProjectModal(false);
+      getProjects().then(setProjects).catch(() => {});
+    } catch (e) {
+      showError(extractApiErrorMessage(e, "Failed to create project"));
+    } finally {
+      setProjectSaving(false);
+    }
+  };
+
   const saveLeadDetails = async () => {
     if (!lead?.id) return;
     const alternatePhoneValue = String(alternatePhone || "").trim();
@@ -2326,6 +2436,13 @@ const [showRequirementDetailsModal, setShowRequirementDetailsModal] = useState(f
         followUpDate: followUpDate ? new Date(followUpDate).toISOString() : null,
         occupation: occupation || null,
         companyName: companyName || null,
+        productType: productType || null,
+        email: leadEmail || null,
+        projectId: selectedProjectId || null,
+        leadCountry: leadCountry || null,
+        leadState: leadState || null,
+        leadCity: leadCity || null,
+        leadPincode: leadPincode || null,
         attemptedOpenReason: isAttempted ? attemptedOpenReason || null : null,
         attemptedCallStatus: isAttempted ? attemptedCallStatus || null : null,
         attemptedCallRemarks: isAttempted ? attemptedCallRemarks || null : null,
@@ -2349,6 +2466,12 @@ const [showRequirementDetailsModal, setShowRequirementDetailsModal] = useState(f
       setLead((prev) => ({
         ...(prev || {}),
         ...updated,
+        email: leadEmail || null,
+        projectId: selectedProjectId || null,
+        leadCountry: leadCountry || null,
+        leadState: leadState || null,
+        leadCity: leadCity || null,
+        leadPincode: leadPincode || null,
         // Preserve the current status here; save details should not move the lead.
         // The dedicated status workflow handles status transitions.
         status: prev?.status ?? updated?.status ?? null,
@@ -2625,7 +2748,7 @@ const [showRequirementDetailsModal, setShowRequirementDetailsModal] = useState(f
                               ),
                             );
                           }}
-                          disabled={lockAfterAttempted || isLeadReadOnly}
+                          disabled={isGeneralInfoReadOnly}
                         >
                           <option value="">Select Country Code</option>
                           {COUNTRY_CODES.map((item) => (
@@ -2641,11 +2764,78 @@ const [showRequirementDetailsModal, setShowRequirementDetailsModal] = useState(f
                       </div>
                       <div className="col-md-6">
                         <label className="form-label">Email</label>
-                        <input className="form-control" value={lead.email || ""} readOnly />
+                        <input
+                          className="form-control"
+                          value={leadEmail}
+                          onChange={(e) => setLeadEmail(e.target.value)}
+                          readOnly={isGeneralInfoReadOnly}
+                        />
+                      </div>
+                        <div className="col-md-6">
+                        <label className="form-label">State</label>
+                        <select
+                          className="form-select"
+                          value={leadState}
+                          onChange={(e) => {
+                            setLeadState(e.target.value);
+                            setLeadCity("");
+                          }}
+                          disabled={isGeneralInfoReadOnly || !leadCountry}
+                        >
+                          <option value="">Select State</option>
+                          {State.getStatesOfCountry(leadCountry).map((s) => (
+                            <option key={s.isoCode} value={s.isoCode}>{s.name}</option>
+                          ))}
+                        </select>
                       </div>
                       <div className="col-md-6">
-                        <label className="form-label">Enquiry Project</label>
-                        <input className="form-control" value={lead.projectName || ""} readOnly />
+                        <label className="form-label">City</label>
+                        <select
+                          className="form-select"
+                          value={leadCity}
+                          onChange={(e) => setLeadCity(e.target.value)}
+                          disabled={isGeneralInfoReadOnly || !leadState}
+                        >
+                          <option value="">Select City</option>
+                          {City.getCitiesOfState(leadCountry, leadState).map((c) => (
+                            <option key={c.name} value={c.name}>{c.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="col-md-6">
+                        <label className="form-label">Pin Code</label>
+                        <input
+                          className="form-control"
+                          value={leadPincode}
+                          onChange={(e) => setLeadPincode(e.target.value)}
+                          readOnly={isGeneralInfoReadOnly}
+                        />
+                      </div>
+                      <div className="col-md-6">
+                        <div className="d-flex justify-content-between align-items-center mb-1">
+                          <label className="form-label mb-0">Project / Company Name</label>
+                          {!isGeneralInfoReadOnly && (
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-outline-primary py-0 px-2"
+                              onClick={openAddProjectModal}
+                              title="Add Project"
+                            >
+                              <i className="ti ti-plus"></i>
+                            </button>
+                          )}
+                        </div>
+                        <select
+                          className="form-select"
+                          value={selectedProjectId}
+                          onChange={(e) => setSelectedProjectId(e.target.value)}
+                          disabled={isGeneralInfoReadOnly}
+                        >
+                          <option value="">Select Project</option>
+                          {projects.map((p) => (
+                            <option key={p.id} value={p.id}>{p.projectName ?? p.name}</option>
+                          ))}
+                        </select>
                       </div>
                       <div className="col-md-6">
                         <label className="form-label">Alternate No.</label>
@@ -2662,7 +2852,7 @@ const [showRequirementDetailsModal, setShowRequirementDetailsModal] = useState(f
                             )
                           }
                           maxLength={alternatePhoneDisplayMaxLength || undefined}
-                          readOnly={lockAfterAttempted || isLeadReadOnly}
+                          readOnly={isGeneralInfoReadOnly}
                         />
                       </div>
                       <div className="col-md-6">
@@ -2671,7 +2861,7 @@ const [showRequirementDetailsModal, setShowRequirementDetailsModal] = useState(f
                           className="form-control"
                           value={alternateEmail}
                           onChange={(e) => setAlternateEmail(e.target.value)}
-                          readOnly={lockAfterAttempted || isLeadReadOnly}
+                          readOnly={isGeneralInfoReadOnly}
                         />
                       </div>
                       <div className="col-md-6">
@@ -2680,7 +2870,7 @@ const [showRequirementDetailsModal, setShowRequirementDetailsModal] = useState(f
                           className="form-control"
                           value={occupation}
                           onChange={(e) => setOccupation(e.target.value)}
-                          readOnly={lockAfterAttempted || isLeadReadOnly}
+                          readOnly={isGeneralInfoReadOnly}
                         />
                       </div>
                       <div className="col-md-6">
@@ -2689,9 +2879,20 @@ const [showRequirementDetailsModal, setShowRequirementDetailsModal] = useState(f
                           className="form-control"
                           value={companyName}
                           onChange={(e) => setCompanyName(e.target.value)}
-                          readOnly={lockAfterAttempted || isLeadReadOnly}
+                          readOnly={isGeneralInfoReadOnly}
                         />
                       </div>
+                      <div className="col-md-6">
+                        <label className="form-label">Type of Product</label>
+                        <input
+                          className="form-control"
+                          placeholder="e.g. Software, Hardware, Service"
+                          value={productType}
+                          onChange={(e) => setProductType(e.target.value)}
+                          readOnly={isGeneralInfoReadOnly}
+                        />
+                      </div>
+
                     </div>
                   </div>
 
@@ -4384,6 +4585,62 @@ const [showRequirementDetailsModal, setShowRequirementDetailsModal] = useState(f
         filePath={previewFile?.filePath} 
         onClose={() => setPreviewFile(null)} 
       />
+
+      {showAddProjectModal && (
+        <div className="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center bg-dark bg-opacity-50" style={{ zIndex: 1060 }}>
+          <div className="card shadow-lg" style={{ width: "100%", maxWidth: "460px" }}>
+            <div className="card-header d-flex align-items-center justify-content-between">
+              <h5 className="mb-0">Add Project</h5>
+              <button type="button" className="btn-close" onClick={() => setShowAddProjectModal(false)} />
+            </div>
+            <div className="card-body">
+              <div className="mb-3">
+                <label className="form-label">Project Name <span className="text-danger">*</span></label>
+                <input
+                  className="form-control"
+                  placeholder="Enter project name"
+                  value={newProjectName}
+                  onChange={(e) => setNewProjectName(e.target.value)}
+                />
+              </div>
+              <div className="mb-3">
+                <label className="form-label">Type</label>
+                <select className="form-select" value={newProjectType} onChange={(e) => setNewProjectType(e.target.value)}>
+                  <option value="">Select Type</option>
+                  {projectTypes.map((t) => (
+                    <option key={t.id ?? t} value={t.projectType ?? t}>{t.projectType ?? t}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="mb-3">
+                <label className="form-label">Status</label>
+                <select className="form-select" value={newProjectStatus} onChange={(e) => setNewProjectStatus(e.target.value)}>
+                  <option value="">Select Status</option>
+                  {projectStatuses.map((s) => (
+                    <option key={s.id ?? s} value={s.projectStatus ?? s}>{s.projectStatus ?? s}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="mb-3">
+                <label className="form-label">Description</label>
+                <textarea
+                  className="form-control"
+                  rows={3}
+                  placeholder="Enter project description"
+                  value={newProjectDescription}
+                  onChange={(e) => setNewProjectDescription(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="card-footer d-flex justify-content-end gap-2">
+              <button type="button" className="btn btn-secondary" onClick={() => setShowAddProjectModal(false)}>Cancel</button>
+              <button type="button" className="btn btn-primary" onClick={handleCreateProject} disabled={projectSaving}>
+                {projectSaving ? "Creating..." : "Create Project"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showAllocateModal && (
         <div className="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center bg-dark bg-opacity-50" style={{ zIndex: 1050 }}>

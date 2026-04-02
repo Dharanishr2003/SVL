@@ -67,6 +67,24 @@ public class Lead {
     @Column(name = "company_name", length = 200)
     private String companyName;
 
+    @Column(name = "product_type", length = 200)
+    private String productType;
+
+    @Column(name = "lead_country", length = 10)
+    private String leadCountry;
+
+    @Column(name = "lead_state", length = 10)
+    private String leadState;
+
+    @Column(name = "lead_city", length = 200)
+    private String leadCity;
+
+    @Column(name = "lead_pincode", length = 20)
+    private String leadPincode;
+
+    @Column(name = "project_id")
+    private Long projectId;
+
     @Column(name = "lead_type", length = 160)
     private String leadType;
 
@@ -300,6 +318,18 @@ public class Lead {
     public void setOccupation(String occupation) { this.occupation = occupation; }
     public String getCompanyName() { return companyName; }
     public void setCompanyName(String companyName) { this.companyName = companyName; }
+    public String getProductType() { return productType; }
+    public void setProductType(String productType) { this.productType = productType; }
+    public String getLeadCountry() { return leadCountry; }
+    public void setLeadCountry(String leadCountry) { this.leadCountry = leadCountry; }
+    public String getLeadState() { return leadState; }
+    public void setLeadState(String leadState) { this.leadState = leadState; }
+    public String getLeadCity() { return leadCity; }
+    public void setLeadCity(String leadCity) { this.leadCity = leadCity; }
+    public String getLeadPincode() { return leadPincode; }
+    public void setLeadPincode(String leadPincode) { this.leadPincode = leadPincode; }
+    public Long getProjectId() { return projectId; }
+    public void setProjectId(Long projectId) { this.projectId = projectId; }
     public String getLeadType() { return leadType; }
     public void setLeadType(String leadType) { this.leadType = leadType; }
     public Long getChannelPartnerId() { return channelPartnerId; }

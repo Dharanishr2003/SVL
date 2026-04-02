@@ -32,9 +32,14 @@ public class LeadCreateRequest {
     @Size(max = 200, message = "Project Name must be at most 200 characters")
     private String projectName;
 
+    @Size(max = 20, message = "Lead Pincode must be at most 20 characters")
+    private String leadPincode;
+
     private Long channelPartnerId;
 
     private Long leadGroupId;
+
+    private Long assignedUserId;
 
     @Size(max = 200, message = "Channel Partner Name must be at most 200 characters")
     private String channelPartnerName;
@@ -103,6 +108,14 @@ public class LeadCreateRequest {
         this.projectName = projectName;
     }
 
+    public String getLeadPincode() {
+        return leadPincode;
+    }
+
+    public void setLeadPincode(String leadPincode) {
+        this.leadPincode = leadPincode;
+    }
+
     public Long getChannelPartnerId() {
         return channelPartnerId;
     }
@@ -126,4 +139,7 @@ public class LeadCreateRequest {
     public void setChannelPartnerName(String channelPartnerName) {
         this.channelPartnerName = channelPartnerName;
     }
+
+    public Long getAssignedUserId() { return assignedUserId; }
+    public void setAssignedUserId(Long assignedUserId) { this.assignedUserId = assignedUserId; }
 }

@@ -48,12 +48,14 @@ const EMPTY_CREATE_FORM = {
   name: "",
   email: "",
   mobile: "",
+  productType: "",
   primarySource: "",
   secondarySource: "",
   tertiarySource: "",
   leadGroupId: "",
   channelPartnerId: "",
   countryCode: defaultCountryOption.value,
+  assignedUserId: "",
 };
 
 const DESIGN_THREAD_MARKER = "[[design-thread]]";
@@ -518,6 +520,19 @@ export default function LeadsPage() {
       ),
     [groupOptions, leadPageKey],
   );
+  const eligibleCreateGroupMembers = useMemo(
+    () =>
+      (Array.isArray(createGroupMembers) ? createGroupMembers : []).filter((member) => {
+        const roleName = String(member?.role || "").toUpperCase();
+        const pageKeys = Array.isArray(member?.pageKeys)
+          ? member.pageKeys
+              .map((key) => String(key || "").trim().toLowerCase())
+              .filter(Boolean)
+          : [];
+        return roleName === "EMPLOYEE" && (pageKeys.length === 0 || pageKeys.includes(String(leadPageKey).toLowerCase()));
+      }),
+    [createGroupMembers, leadPageKey],
+  );
   const newLeadFlowGroupId = useMemo(() => {
     const rule = Array.isArray(flowRules)
       ? flowRules.find(
@@ -579,12 +594,16 @@ export default function LeadsPage() {
         email: createForm.email.trim() || null,
         countryCode: createForm.countryCode,
         mobile: createForm.mobile.trim(),
+        productType: createForm.productType.trim() || null,
         primarySource: createForm.primarySource.trim(),
         secondarySource: createForm.secondarySource.trim() || null,
         tertiarySource: createForm.tertiarySource.trim() || null,
         projectName: createForm.projectName.trim() || null,
         leadGroupId: createForm.leadGroupId
           ? Number(createForm.leadGroupId)
+          : null,
+        assignedUserId: createForm.assignedUserId
+          ? Number(createForm.assignedUserId)
           : null,
       };
       if (createForm.channelPartnerId) {
@@ -1478,7 +1497,7 @@ export default function LeadsPage() {
                 </div>
                 <div className="modal-body">
                   <div className="mb-3">
-                    <label className="form-label">Project Interested</label>
+                    <label className="form-label">Project  / Company Name</label>
                     <select
                       className="form-select"
                       value={createForm.projectName}
@@ -1486,7 +1505,7 @@ export default function LeadsPage() {
                         setCreateForm((prev) => ({ ...prev, projectName: e.target.value }))
                       }
                     >
-                      <option value="">Select Project</option>
+                      <option value="">Select Project / Company Name</option>
                       {projectOptions.map((item) => (
                         <option key={item} value={item}>
                           {item}
@@ -1536,6 +1555,17 @@ export default function LeadsPage() {
                           setCreateForm((prev) => ({ ...prev, email: e.target.value }))
                         }
                         placeholder="E-mail Id"
+                      />
+                    </div>
+                    <div className="col-md-6">
+                      <label className="form-label">Type of Product</label>
+                      <input
+                        className="form-control"
+                        value={createForm.productType}
+                        onChange={(e) =>
+                          setCreateForm((prev) => ({ ...prev, productType: e.target.value }))
+                        }
+                        placeholder="e.g. Software, Hardware, Service"
                       />
                     </div>
                     <div className="col-md-6">
@@ -1639,33 +1669,31 @@ export default function LeadsPage() {
                     )}
                   </div>
 
-                  {createForm.leadGroupId && (
+                  {role === "EMPLOYEE" ? (
+                    <div className="mt-3 alert alert-info py-2 mb-0">
+                      <i className="ti ti-user-check me-1" />
+                      This lead will be assigned to you.
+                    </div>
+                  ) : createForm.leadGroupId && (
                     <div className="mt-3">
-                      <h6 className="mb-2">Selected Group Members</h6>
-                      <div className="table-responsive">
-                        <table className="table table-sm table-bordered">
-                          <thead className="table-light">
-                            <tr>
-                              <th>Username</th>
-                              <th>Role</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {createGroupMembers.length === 0 ? (
-                              <tr>
-                                <td colSpan={2}>No members in selected group</td>
-                              </tr>
-                            ) : (
-                              createGroupMembers.map((member) => (
-                                <tr key={member.userId}>
-                                  <td>{member.username || "-"}</td>
-                                  <td>{member.role || "-"}</td>
-                                </tr>
-                              ))
-                            )}
-                          </tbody>
-                        </table>
-                      </div>
+                      <label className="form-label">Assign To Employee</label>
+                      <select
+                        className="form-select"
+                        value={createForm.assignedUserId}
+                        onChange={(e) =>
+                          setCreateForm((prev) => ({ ...prev, assignedUserId: e.target.value }))
+                        }
+                      >
+                        <option value="">— Auto assign —</option>
+                        {eligibleCreateGroupMembers.map((member) => (
+                          <option key={member.userId} value={member.userId}>
+                            {member.username || `User ${member.userId}`}
+                          </option>
+                        ))}
+                      </select>
+                      {eligibleCreateGroupMembers.length === 0 && (
+                        <small className="text-muted">No eligible employees in selected group.</small>
+                      )}
                     </div>
                   )}
                 </div>

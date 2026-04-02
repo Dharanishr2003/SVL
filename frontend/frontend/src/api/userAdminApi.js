@@ -77,6 +77,11 @@ export async function updateUserProfile(userId, payload) {
     email: payload?.email,
     firstName: payload?.firstName,
     lastName: payload?.lastName,
+    teamName: payload?.teamName,
+    departmentName: payload?.departmentName,
+    institutionName: payload?.institutionName,
+    institutionCategory: payload?.institutionCategory,
+    institutionType: payload?.institutionType,
   }
 
   const newPassword = String(payload?.newPassword || '').trim()

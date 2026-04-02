@@ -19,7 +19,6 @@ public class ProjectRequest {
     @Size(max = 160, message = "Project status must be at most 160 characters")
     private String projectStatus;
 
-    @NotBlank(message = "Project description is required")
     @Size(max = 1000, message = "Project description must be at most 1000 characters")
     private String description;
 

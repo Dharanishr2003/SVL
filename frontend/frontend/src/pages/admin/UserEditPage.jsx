@@ -16,6 +16,13 @@ import {
   getUserGroups as getAllGroups,
   removeGroupMember,
 } from "../../api/userGroupApi";
+import {
+  getInstitutions,
+  getInstitutionCategories,
+  getInstitutionTypes,
+  getDepartments,
+  getTeams,
+} from "../../api/orgHierarchyApi";
 import { extractApiErrorMessage } from "../../utils/errorMessage";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../components/system/ToastProvider";
@@ -65,12 +72,29 @@ export default function UserEditPage() {
     lastName: "",
     newPassword: "",
     confirmPassword: "",
+    teamName: "",
+    departmentName: "",
+    institutionName: "",
+    institutionCategory: "",
+    institutionType: "",
   });
+  const [orgTeams, setOrgTeams] = useState([]);
+  const [orgDepartments, setOrgDepartments] = useState([]);
+  const [orgInstitutions, setOrgInstitutions] = useState([]);
+  const [orgCategories, setOrgCategories] = useState([]);
+  const [orgTypes, setOrgTypes] = useState([]);
+  const [orgInstId, setOrgInstId] = useState("");
+  const [orgCatId, setOrgCatId] = useState("");
+  const [orgTypeId, setOrgTypeId] = useState("");
+  const [orgDeptId, setOrgDeptId] = useState("");
 
   const currentRole = String(currentUser?.role || "").toUpperCase();
   const isAdmin = currentRole === "ADMIN";
   const isSuperAdmin = currentRole === "SUPER_ADMIN";
   const canManageRole = isAdmin || isSuperAdmin;
+  const canEditTeam = isAdmin || isSuperAdmin;
+  const canEditDepartment = isSuperAdmin;
+  const canEditOrgScope = isSuperAdmin;
 
   const canSeeUser = (row) => {
     if (!row) return false;
@@ -108,6 +132,11 @@ export default function UserEditPage() {
           lastName: user.lastName || "",
           newPassword: "",
           confirmPassword: "",
+          teamName: user.team || "",
+          departmentName: user.departmentName || "",
+          institutionName: user.institution || "",
+          institutionCategory: user.institutionCategory || "",
+          institutionType: user.institutionType || "",
         });
         return;
       }
@@ -121,6 +150,11 @@ export default function UserEditPage() {
             lastName: found?.lastName || "",
             newPassword: "",
             confirmPassword: "",
+            teamName: found?.team || "",
+            departmentName: found?.departmentName || "",
+            institutionName: found?.institution || "",
+            institutionCategory: found?.institutionCategory || "",
+            institutionType: found?.institutionType || "",
           });
         }
       } catch (e) {
@@ -158,6 +192,114 @@ export default function UserEditPage() {
     loadDetails();
   }, [user?.id]);
 
+  // Load org hierarchy for ADMIN (teams only) and SUPER_ADMIN (full)
+  useEffect(() => {
+    if (!isAdmin && !isSuperAdmin) return;
+    const load = async () => {
+      try {
+        if (isSuperAdmin) {
+          const insts = await getInstitutions();
+          setOrgInstitutions(Array.isArray(insts) ? insts : []);
+        }
+        // For ADMIN: use currentUser's own org scope to load teams
+        if (isAdmin && currentUser) {
+          const insts = await getInstitutions();
+          const instMatch = (Array.isArray(insts) ? insts : []).find(
+            (i) => String(i.name || "").toLowerCase() === String(currentUser.institution || "").toLowerCase()
+          );
+          const instId = instMatch ? String(instMatch.id) : "";
+          if (!instId) return;
+          const cats = await getInstitutionCategories(instId);
+          const catMatch = (Array.isArray(cats) ? cats : []).find(
+            (c) => String(c.name || "").toLowerCase() === String(currentUser.institutionCategory || "").toLowerCase()
+          );
+          const catId = catMatch ? String(catMatch.id) : "";
+          if (!catId) return;
+          const types = await getInstitutionTypes(instId, catId);
+          const typeMatch = (Array.isArray(types) ? types : []).find(
+            (t) => String(t.name || "").toLowerCase() === String(currentUser.institutionType || "").toLowerCase()
+          );
+          const typeId = typeMatch ? String(typeMatch.id) : "";
+          if (!typeId) return;
+          const depts = await getDepartments(instId, catId, typeId);
+          const deptMatch = (Array.isArray(depts) ? depts : []).find(
+            (d) => String(d.name || "").toLowerCase() === String(currentUser.departmentName || "").toLowerCase()
+          );
+          const deptId = deptMatch ? String(deptMatch.id) : "";
+          if (!deptId) return;
+          setOrgDeptId(deptId);
+          setOrgTypeId(typeId);
+          const teams = await getTeams(instId, catId, typeId, deptId);
+          setOrgTeams(Array.isArray(teams) ? teams : []);
+        }
+      } catch (e) {
+        // silently ignore org load errors
+      }
+    };
+    load();
+  }, [isAdmin, isSuperAdmin, currentUser]);
+
+  // For SUPER_ADMIN: cascade load categories/types/depts/teams based on selections
+  useEffect(() => {
+    if (!isSuperAdmin || !orgInstId) { setOrgCategories([]); return; }
+    getInstitutionCategories(orgInstId).then((d) => setOrgCategories(Array.isArray(d) ? d : [])).catch(() => {});
+  }, [isSuperAdmin, orgInstId]);
+
+  useEffect(() => {
+    if (!isSuperAdmin || !orgInstId || !orgCatId) { setOrgTypes([]); return; }
+    getInstitutionTypes(orgInstId, orgCatId).then((d) => setOrgTypes(Array.isArray(d) ? d : [])).catch(() => {});
+  }, [isSuperAdmin, orgInstId, orgCatId]);
+
+  useEffect(() => {
+    if (!isSuperAdmin || !orgInstId || !orgCatId || !orgTypeId) { setOrgDepartments([]); return; }
+    getDepartments(orgInstId, orgCatId, orgTypeId).then((d) => setOrgDepartments(Array.isArray(d) ? d : [])).catch(() => {});
+  }, [isSuperAdmin, orgInstId, orgCatId, orgTypeId]);
+
+  useEffect(() => {
+    if (!orgInstId || !orgCatId || !orgTypeId || !orgDeptId) { setOrgTeams([]); return; }
+    getTeams(orgInstId, orgCatId, orgTypeId, orgDeptId).then((d) => setOrgTeams(Array.isArray(d) ? d : [])).catch(() => {});
+  }, [orgInstId, orgCatId, orgTypeId, orgDeptId]);
+
+  useEffect(() => {
+    if (!isSuperAdmin || orgInstId || !form.institutionName || orgInstitutions.length === 0) return;
+    const match = orgInstitutions.find(
+      (item) => String(item.name || "").toLowerCase() === String(form.institutionName || "").toLowerCase(),
+    );
+    if (match?.id != null) {
+      setOrgInstId(String(match.id));
+    }
+  }, [isSuperAdmin, orgInstId, form.institutionName, orgInstitutions]);
+
+  useEffect(() => {
+    if (!isSuperAdmin || !orgInstId || orgCatId || !form.institutionCategory || orgCategories.length === 0) return;
+    const match = orgCategories.find(
+      (item) => String(item.name || "").toLowerCase() === String(form.institutionCategory || "").toLowerCase(),
+    );
+    if (match?.id != null) {
+      setOrgCatId(String(match.id));
+    }
+  }, [isSuperAdmin, orgInstId, orgCatId, form.institutionCategory, orgCategories]);
+
+  useEffect(() => {
+    if (!isSuperAdmin || !orgCatId || orgTypeId || !form.institutionType || orgTypes.length === 0) return;
+    const match = orgTypes.find(
+      (item) => String(item.name || "").toLowerCase() === String(form.institutionType || "").toLowerCase(),
+    );
+    if (match?.id != null) {
+      setOrgTypeId(String(match.id));
+    }
+  }, [isSuperAdmin, orgCatId, orgTypeId, form.institutionType, orgTypes]);
+
+  useEffect(() => {
+    if (!isSuperAdmin || !orgTypeId || orgDeptId || !form.departmentName || orgDepartments.length === 0) return;
+    const match = orgDepartments.find(
+      (item) => String(item.name || "").toLowerCase() === String(form.departmentName || "").toLowerCase(),
+    );
+    if (match?.id != null) {
+      setOrgDeptId(String(match.id));
+    }
+  }, [isSuperAdmin, orgTypeId, orgDeptId, form.departmentName, orgDepartments]);
+
   const handleSave = async () => {
     if (!user?.id) return;
     if (!form.firstName.trim() || !form.lastName.trim()) {
@@ -175,6 +317,11 @@ export default function UserEditPage() {
       const updated = await updateUserProfile(user.id, {
         firstName: form.firstName,
         lastName: form.lastName,
+        teamName: canEditTeam ? form.teamName : undefined,
+        departmentName: canEditDepartment ? form.departmentName : undefined,
+        institutionName: canEditOrgScope ? form.institutionName : undefined,
+        institutionCategory: canEditOrgScope ? form.institutionCategory : undefined,
+        institutionType: canEditOrgScope ? form.institutionType : undefined,
         newPassword: form.newPassword,
         confirmPassword: form.confirmPassword,
       });
@@ -481,6 +628,14 @@ export default function UserEditPage() {
                           <span>Email:</span>
                           <span className="fw-medium">{user.email || "-"}</span>
                         </div>
+                        <div className="mb-2 d-flex justify-content-between">
+                          <span>Department:</span>
+                          <span className="fw-medium">{user.departmentName || "-"}</span>
+                        </div>
+                        <div className="mb-2 d-flex justify-content-between">
+                          <span>Team:</span>
+                          <span className="fw-medium">{user.team || "-"}</span>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -517,6 +672,203 @@ export default function UserEditPage() {
                             }
                           />
                         </div>
+                        {!canEditOrgScope && (
+                          <>
+                            <div className="mb-3">
+                              <label className="form-label">Department</label>
+                              <input
+                                className="form-control"
+                                value={form.departmentName}
+                                onChange={(e) =>
+                                  setForm((prev) => ({
+                                    ...prev,
+                                    departmentName: e.target.value,
+                                  }))
+                                }
+                                disabled={!canEditDepartment}
+                                readOnly={!canEditDepartment}
+                              />
+                            </div>
+                            <div className="mb-3">
+                              <label className="form-label">Team</label>
+                              {isAdmin && orgTeams.length > 0 ? (
+                                <select
+                                  className="form-select"
+                                  value={form.teamName}
+                                  onChange={(e) =>
+                                    setForm((prev) => ({
+                                      ...prev,
+                                      teamName: e.target.value,
+                                    }))
+                                  }
+                                  disabled={!canEditTeam}
+                                >
+                                  <option value="">Select Team</option>
+                                  {orgTeams.map((team) => (
+                                    <option key={team.id} value={team.name}>
+                                      {team.name}
+                                    </option>
+                                  ))}
+                                </select>
+                              ) : (
+                                <input
+                                  className="form-control"
+                                  value={form.teamName}
+                                  onChange={(e) =>
+                                    setForm((prev) => ({
+                                      ...prev,
+                                      teamName: e.target.value,
+                                    }))
+                                  }
+                                  disabled={!canEditTeam}
+                                  readOnly={!canEditTeam}
+                                />
+                              )}
+                            </div>
+                          </>
+                        )}
+                        {canEditOrgScope && (
+                          <>
+                            <div className="mb-3">
+                              <label className="form-label">Institution</label>
+                              <select
+                                className="form-select"
+                                value={orgInstId}
+                                onChange={(e) =>
+                                  {
+                                    const nextId = e.target.value;
+                                    const selected = orgInstitutions.find((item) => String(item.id) === String(nextId));
+                                    setOrgInstId(nextId);
+                                    setOrgCatId("");
+                                    setOrgTypeId("");
+                                    setOrgDeptId("");
+                                    setForm((prev) => ({
+                                      ...prev,
+                                      institutionName: selected?.name || "",
+                                      institutionCategory: "",
+                                      institutionType: "",
+                                      departmentName: "",
+                                      teamName: "",
+                                    }));
+                                  }
+                                }
+                            >
+                                <option value="">Select Institution</option>
+                                {orgInstitutions.map((item) => (
+                                  <option key={item.id} value={item.id}>
+                                    {item.name}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            <div className="mb-3">
+                              <label className="form-label">Institution Category</label>
+                              <select
+                                className="form-select"
+                                value={orgCatId}
+                                onChange={(e) =>
+                                  {
+                                    const nextId = e.target.value;
+                                    const selected = orgCategories.find((item) => String(item.id) === String(nextId));
+                                    setOrgCatId(nextId);
+                                    setOrgTypeId("");
+                                    setOrgDeptId("");
+                                    setForm((prev) => ({
+                                      ...prev,
+                                      institutionCategory: selected?.name || "",
+                                      institutionType: "",
+                                      departmentName: "",
+                                      teamName: "",
+                                    }));
+                                  }
+                                }
+                                disabled={!orgInstId}
+                              >
+                                <option value="">Select Institution Category</option>
+                                {orgCategories.map((item) => (
+                                  <option key={item.id} value={item.id}>
+                                    {item.name}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            <div className="mb-3">
+                              <label className="form-label">Institution Type</label>
+                              <select
+                                className="form-select"
+                                value={orgTypeId}
+                                onChange={(e) =>
+                                  {
+                                    const nextId = e.target.value;
+                                    const selected = orgTypes.find((item) => String(item.id) === String(nextId));
+                                    setOrgTypeId(nextId);
+                                    setOrgDeptId("");
+                                    setForm((prev) => ({
+                                      ...prev,
+                                      institutionType: selected?.name || "",
+                                      departmentName: "",
+                                      teamName: "",
+                                    }));
+                                  }
+                                }
+                                disabled={!orgCatId}
+                              >
+                                <option value="">Select Institution Type</option>
+                                {orgTypes.map((item) => (
+                                  <option key={item.id} value={item.id}>
+                                    {item.name}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            <div className="mb-3">
+                              <label className="form-label">Department</label>
+                              <select
+                                className="form-select"
+                                value={orgDeptId}
+                                onChange={(e) => {
+                                  const nextId = e.target.value;
+                                  const selected = orgDepartments.find((item) => String(item.id) === String(nextId));
+                                  setOrgDeptId(nextId);
+                                  setForm((prev) => ({
+                                    ...prev,
+                                    departmentName: selected?.name || "",
+                                    teamName: "",
+                                  }));
+                                }}
+                                disabled={!orgTypeId}
+                              >
+                                <option value="">Select Department</option>
+                                {orgDepartments.map((item) => (
+                                  <option key={item.id} value={item.id}>
+                                    {item.name}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            <div className="mb-3">
+                              <label className="form-label">Team</label>
+                              <select
+                                className="form-select"
+                                value={form.teamName}
+                                onChange={(e) =>
+                                  setForm((prev) => ({
+                                    ...prev,
+                                    teamName: e.target.value,
+                                  }))
+                                }
+                                disabled={!orgDeptId}
+                              >
+                                <option value="">Select Team</option>
+                                {orgTeams.map((team) => (
+                                  <option key={team.id} value={team.name}>
+                                    {team.name}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          </>
+                        )}
                         <div className="mb-3">
                           <label className="form-label">New Password</label>
                           <div className="position-relative">
@@ -599,6 +951,11 @@ export default function UserEditPage() {
                               setForm({
                                 firstName: user.firstName || "",
                                 lastName: user.lastName || "",
+                                teamName: user.team || "",
+                                departmentName: user.departmentName || "",
+                                institutionName: user.institution || "",
+                                institutionCategory: user.institutionCategory || "",
+                                institutionType: user.institutionType || "",
                                 newPassword: "",
                                 confirmPassword: "",
                               })

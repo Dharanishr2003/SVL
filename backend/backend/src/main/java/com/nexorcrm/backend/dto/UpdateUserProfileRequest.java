@@ -18,6 +18,21 @@ public class UpdateUserProfileRequest {
     @Size(max = 80)
     private String lastName;
 
+    @Size(max = 160)
+    private String teamName;
+
+    @Size(max = 160)
+    private String departmentName;
+
+    @Size(max = 160)
+    private String institutionName;
+
+    @Size(max = 160)
+    private String institutionCategory;
+
+    @Size(max = 160)
+    private String institutionType;
+
     @Size(min = 8, max = 100)
     private String newPassword;
 
@@ -54,6 +69,46 @@ public class UpdateUserProfileRequest {
 
     public void setLastName(String lastName) {
         this.lastName = lastName;
+    }
+
+    public String getTeamName() {
+        return teamName;
+    }
+
+    public void setTeamName(String teamName) {
+        this.teamName = teamName;
+    }
+
+    public String getDepartmentName() {
+        return departmentName;
+    }
+
+    public void setDepartmentName(String departmentName) {
+        this.departmentName = departmentName;
+    }
+
+    public String getInstitutionName() {
+        return institutionName;
+    }
+
+    public void setInstitutionName(String institutionName) {
+        this.institutionName = institutionName;
+    }
+
+    public String getInstitutionCategory() {
+        return institutionCategory;
+    }
+
+    public void setInstitutionCategory(String institutionCategory) {
+        this.institutionCategory = institutionCategory;
+    }
+
+    public String getInstitutionType() {
+        return institutionType;
+    }
+
+    public void setInstitutionType(String institutionType) {
+        this.institutionType = institutionType;
     }
 
     public String getNewPassword() {
