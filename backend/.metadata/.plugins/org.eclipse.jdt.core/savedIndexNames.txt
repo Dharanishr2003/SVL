@@ -37,7 +37,6 @@ INDEX VERSION 1.134+C:\Users\rambo\Music\SVL\backend\.metadata\.plugins\org.ecli
 2537775291.index
 1811352259.index
 3687801922.index
-1965174767.index
 3199367861.index
 3803470245.index
 3407356009.index
