@@ -402,11 +402,20 @@ export default function Sidebar() {
                   </li>
                   )}
                   {canAccess("quotation") && (
-                  <li className="">
-                    <Link to="/quotation">
+                  <li className="submenu">
+                    <a href="javascript:void(0);" className=" ">
                       <i className="ti ti-file-invoice"></i>
                       <span>Quotation</span>
-                    </Link>
+                      <span className="menu-arrow"></span>
+                    </a>
+                    <ul>
+                      <li>
+                        <Link to="/quotation">Create Quotation</Link>
+                      </li>
+                      <li>
+                        <Link to="/quotation-list">Quotation List</Link>
+                      </li>
+                    </ul>
                   </li>
                   )}
                   {/* Stocks section */}

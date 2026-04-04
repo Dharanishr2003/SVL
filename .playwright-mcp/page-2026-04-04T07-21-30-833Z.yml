@@ -1,0 +1,59 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e3]:
+      - generic [ref=e5]:
+        - generic [ref=e7]:
+          - link "" [ref=e9] [cursor=pointer]:
+            - /url: "#"
+            - generic [ref=e10]: 
+          - generic [ref=e11]:
+            - link "" [ref=e12] [cursor=pointer]:
+              - /url: "#"
+              - generic [ref=e13]: 
+            - link "鈴" [ref=e14] [cursor=pointer]:
+              - /url: /profile-settings
+              - generic [ref=e15]: 鈴
+            - link "" [ref=e16] [cursor=pointer]:
+              - /url: /apps
+              - generic [ref=e17]: 
+            - link "" [ref=e18] [cursor=pointer]:
+              - /url: "#"
+              - generic [ref=e19]: 
+            - link "User" [ref=e22] [cursor=pointer]:
+              - /url: "#"
+              - img "User" [ref=e24]
+        - text: 
+      - generic [ref=e25]:
+        - link "Logo" [ref=e27] [cursor=pointer]:
+          - /url: /admin-dashboard
+          - img "Logo" [ref=e28]
+        - text:  墳  
+        - list [ref=e31]:
+          - listitem [ref=e32]:
+            - generic [ref=e33]: MAIN MENU
+          - listitem:
+            - list
+          - listitem [ref=e34]:
+            - generic [ref=e35]: CRM
+          - listitem:
+            - list
+          - listitem:
+            - list
+          - listitem:
+            - list
+          - listitem:
+            - list
+      - generic [ref=e36]:
+        - status "Loading page" [ref=e39]:
+          - generic [ref=e40]: Loading...
+        - generic [ref=e42]:
+          - paragraph [ref=e43]: 2025 © SVL.
+          - paragraph [ref=e44]:
+            - text: Designed & Developed By
+            - link "Nexor CRM" [ref=e45] [cursor=pointer]:
+              - /url: javascript:void(0);
+    - generic [ref=e46]:
+      - img [ref=e48]
+      - button "Open Tanstack query devtools" [ref=e96] [cursor=pointer]:
+        - img [ref=e97]
+  - generic [ref=e146] [cursor=pointer]: 

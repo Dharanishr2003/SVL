@@ -1,1 +1,0 @@
-import{j as s}from"./index-Bv59pBQq.js";function c({cardClass:r="card",bodyClass:a="card-body",header:d=null,children:n}){return s.jsxs("div",{className:r,children:[d,s.jsx("div",{className:a,children:n})]})}export{c as I};

@@ -13,7 +13,11 @@
       "Bash(npm run:*)",
       "Bash(grep -n \"}}$\" \"C:/Users/rambo/Music/SVL/frontend/frontend/src/pages/admin/UsergroupsPage.jsx\")",
       "Bash(git -C \"C:/Users/rambo/Music/SVL\" show HEAD:frontend/frontend/src/pages/admin/UsergroupsPage.jsx)",
-      "Bash(grep -n \"createPrimarySource\\\\|export.*primary\" c:/Users/rambo/Music/SVL/frontend/frontend/src/api/*.js)"
+      "Bash(grep -n \"createPrimarySource\\\\|export.*primary\" c:/Users/rambo/Music/SVL/frontend/frontend/src/api/*.js)",
+      "Bash(npm list:*)",
+      "mcp__playwright__browser_navigate",
+      "mcp__playwright__browser_console_messages",
+      "Bash(node -e ':*)"
     ]
   }
 }

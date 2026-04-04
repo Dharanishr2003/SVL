@@ -1,0 +1,334 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e3]:
+      - generic [ref=e5]:
+        - generic [ref=e7]:
+          - link "" [ref=e9] [cursor=pointer]:
+            - /url: "#"
+            - generic [ref=e10]: 
+          - generic [ref=e11]:
+            - link "" [ref=e12] [cursor=pointer]:
+              - /url: "#"
+              - generic [ref=e13]: 
+            - link "鈴" [ref=e14] [cursor=pointer]:
+              - /url: /profile-settings
+              - generic [ref=e15]: 鈴
+            - link "" [ref=e16] [cursor=pointer]:
+              - /url: /apps
+              - generic [ref=e17]: 
+            - link "" [ref=e18] [cursor=pointer]:
+              - /url: "#"
+              - generic [ref=e19]: 
+            - link "User" [ref=e22] [cursor=pointer]:
+              - /url: "#"
+              - img "User" [ref=e24]
+          - text:   﨡    ﰌ                         ﭞ         﨡       
+        - text: 
+      - generic [ref=e25]:
+        - link "Logo" [ref=e27] [cursor=pointer]:
+          - /url: /admin-dashboard
+          - img "Logo" [ref=e28]
+        - text:  墳  
+        - list [ref=e31]:
+          - listitem [ref=e32]:
+            - generic [ref=e33]: MAIN MENU
+          - listitem [ref=e34]:
+            - list [ref=e35]:
+              - listitem [ref=e36]:
+                - link " Dashboard Hot" [ref=e37] [cursor=pointer]:
+                  - /url: "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')"
+                  - generic [ref=e38]: 
+                  - generic [ref=e39]: Dashboard
+                  - generic [ref=e40]: Hot
+              - listitem [ref=e42]:
+                - link " Super Admin" [ref=e43] [cursor=pointer]:
+                  - /url: "#"
+                  - generic [ref=e44]: 
+                  - generic [ref=e45]: Super Admin
+          - listitem [ref=e47]:
+            - generic [ref=e48]: PROJECTS
+          - listitem [ref=e49]:
+            - list [ref=e50]:
+              - listitem [ref=e51]:
+                - link "﨡 Clients" [ref=e52] [cursor=pointer]:
+                  - /url: /clients
+                  - generic [ref=e53]: 﨡
+                  - generic [ref=e54]: Clients
+          - listitem [ref=e55]:
+            - generic [ref=e56]: CRM
+          - listitem [ref=e57]:
+            - list [ref=e58]:
+              - listitem [ref=e59]:
+                - link " Contacts" [ref=e60] [cursor=pointer]:
+                  - /url: /contacts
+                  - generic [ref=e61]: 
+                  - generic [ref=e62]: Contacts
+              - listitem [ref=e63]:
+                - link " Companies" [ref=e64] [cursor=pointer]:
+                  - /url: /companies
+                  - generic [ref=e65]: 
+                  - generic [ref=e66]: Companies
+              - listitem [ref=e67]:
+                - link "ﰌ Design" [ref=e68] [cursor=pointer]:
+                  - /url: /design
+                  - generic [ref=e69]: ﰌ
+                  - generic [ref=e70]: Design
+              - listitem [ref=e71]:
+                - link " Production" [ref=e72] [cursor=pointer]:
+                  - /url: /production
+                  - generic [ref=e73]: 
+                  - generic [ref=e74]: Production
+              - listitem [ref=e75]:
+                - link " Leads" [ref=e76] [cursor=pointer]:
+                  - /url: /leads
+                  - generic [ref=e77]: 
+                  - generic [ref=e78]: Leads
+              - listitem [ref=e79]:
+                - link " Rejected Leads" [ref=e80] [cursor=pointer]:
+                  - /url: /rejected-leads
+                  - generic [ref=e81]: 
+                  - generic [ref=e82]: Rejected Leads
+              - listitem [ref=e83]:
+                - link " Pipeline" [ref=e84] [cursor=pointer]:
+                  - /url: /pipeline
+                  - generic [ref=e85]: 
+                  - generic [ref=e86]: Pipeline
+              - listitem [ref=e87]:
+                - link " Analytics" [ref=e88] [cursor=pointer]:
+                  - /url: /analytics
+                  - generic [ref=e89]: 
+                  - generic [ref=e90]: Analytics
+              - listitem [ref=e91]:
+                - link " Activities" [ref=e92] [cursor=pointer]:
+                  - /url: /activity
+                  - generic [ref=e93]: 
+                  - generic [ref=e94]: Activities
+              - listitem [ref=e95]:
+                - link " Quotation" [ref=e96] [cursor=pointer]:
+                  - /url: /quotation
+                  - generic [ref=e97]: 
+                  - generic [ref=e98]: Quotation
+              - listitem [ref=e99]:
+                - link " Stocks" [ref=e100] [cursor=pointer]:
+                  - /url: "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')"
+                  - generic [ref=e101]: 
+                  - generic [ref=e102]: Stocks
+              - listitem [ref=e104]:
+                - link " RRQ" [ref=e105] [cursor=pointer]:
+                  - /url: "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')"
+                  - generic [ref=e106]: 
+                  - generic [ref=e107]: RRQ
+              - listitem [ref=e109]:
+                - link " Projects" [ref=e110] [cursor=pointer]:
+                  - /url: "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')"
+                  - generic [ref=e111]: 
+                  - generic [ref=e112]: Projects
+              - listitem [ref=e114]:
+                - link " Lead Source" [ref=e115] [cursor=pointer]:
+                  - /url: "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')"
+                  - generic [ref=e116]: 
+                  - generic [ref=e117]: Lead Source
+          - listitem [ref=e119]:
+            - generic [ref=e120]: HRM
+          - listitem [ref=e121]:
+            - list [ref=e122]:
+              - listitem [ref=e123]:
+                - link " Employees" [ref=e124] [cursor=pointer]:
+                  - /url: "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')"
+                  - generic [ref=e125]: 
+                  - generic [ref=e126]: Employees
+              - listitem [ref=e128]:
+                - link " Tickets" [ref=e129] [cursor=pointer]:
+                  - /url: "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')"
+                  - generic [ref=e130]: 
+                  - generic [ref=e131]: Tickets
+              - listitem [ref=e133]:
+                - link " Holidays" [ref=e134] [cursor=pointer]:
+                  - /url: /holidays
+                  - generic [ref=e135]: 
+                  - generic [ref=e136]: Holidays
+              - listitem [ref=e137]:
+                - link " Attendance" [ref=e138] [cursor=pointer]:
+                  - /url: "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')"
+                  - generic [ref=e139]: 
+                  - generic [ref=e140]: Attendance
+              - listitem [ref=e142]:
+                - link " Performance" [ref=e143] [cursor=pointer]:
+                  - /url: "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')"
+                  - generic [ref=e144]: 
+                  - generic [ref=e145]: Performance
+              - listitem [ref=e147]:
+                - link " Training" [ref=e148] [cursor=pointer]:
+                  - /url: "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')"
+                  - generic [ref=e149]: 
+                  - generic [ref=e150]: Training
+              - listitem [ref=e152]:
+                - link " Promotion" [ref=e153] [cursor=pointer]:
+                  - /url: /promotion
+                  - generic [ref=e154]: 
+                  - generic [ref=e155]: Promotion
+              - listitem [ref=e156]:
+                - link " Resignation" [ref=e157] [cursor=pointer]:
+                  - /url: /resignation
+                  - generic [ref=e158]: 
+                  - generic [ref=e159]: Resignation
+              - listitem [ref=e160]:
+                - link " Termination" [ref=e161] [cursor=pointer]:
+                  - /url: /termination
+                  - generic [ref=e162]: 
+                  - generic [ref=e163]: Termination
+          - listitem [ref=e164]:
+            - generic [ref=e165]: RECRUITMENT
+          - listitem [ref=e166]:
+            - list [ref=e167]:
+              - listitem [ref=e168]:
+                - link " Jobs" [ref=e169] [cursor=pointer]:
+                  - /url: /job-grid
+                  - generic [ref=e170]: 
+                  - generic [ref=e171]: Jobs
+              - listitem [ref=e172]:
+                - link " Candidates" [ref=e173] [cursor=pointer]:
+                  - /url: /candidates-grid
+                  - generic [ref=e174]: 
+                  - generic [ref=e175]: Candidates
+              - listitem [ref=e176]:
+                - link " Referrals" [ref=e177] [cursor=pointer]:
+                  - /url: /referrals
+                  - generic [ref=e178]: 
+                  - generic [ref=e179]: Referrals
+          - listitem [ref=e180]:
+            - generic [ref=e181]: FINANCE & ACCOUNTS
+          - listitem [ref=e182]:
+            - list [ref=e183]:
+              - listitem [ref=e184]:
+                - link "ﭞ Sales" [ref=e185] [cursor=pointer]:
+                  - /url: "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')"
+                  - generic [ref=e186]: ﭞ
+                  - generic [ref=e187]: Sales
+              - listitem [ref=e189]:
+                - link " Accounting" [ref=e190] [cursor=pointer]:
+                  - /url: "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')"
+                  - generic [ref=e191]: 
+                  - generic [ref=e192]: Accounting
+              - listitem [ref=e194]:
+                - link " Payroll" [ref=e195] [cursor=pointer]:
+                  - /url: "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')"
+                  - generic [ref=e196]: 
+                  - generic [ref=e197]: Payroll
+              - listitem [ref=e199]:
+                - link " Accounts" [ref=e200] [cursor=pointer]:
+                  - /url: "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')"
+                  - generic [ref=e201]: 
+                  - generic [ref=e202]: Accounts
+              - listitem [ref=e204]:
+                - link " Vendor Management" [ref=e205] [cursor=pointer]:
+                  - /url: "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')"
+                  - generic [ref=e206]: 
+                  - generic [ref=e207]: Vendor Management
+          - listitem [ref=e209]:
+            - generic [ref=e210]: REPORTS
+          - listitem [ref=e211]:
+            - list [ref=e212]:
+              - listitem [ref=e213]:
+                - link " Reports" [ref=e214] [cursor=pointer]:
+                  - /url: "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')"
+                  - generic [ref=e215]: 
+                  - generic [ref=e216]: Reports
+          - listitem [ref=e218]:
+            - generic [ref=e219]: Settings
+          - listitem [ref=e220]:
+            - list [ref=e221]:
+              - listitem [ref=e222]:
+                - link " User Admin" [ref=e223] [cursor=pointer]:
+                  - /url: /useradmin
+                  - generic [ref=e224]: 
+                  - generic [ref=e225]: User Admin
+              - listitem [ref=e226]:
+                - link " Group Access" [ref=e227] [cursor=pointer]:
+                  - /url: /group-access
+                  - generic [ref=e228]: 
+                  - generic [ref=e229]: Group Access
+              - listitem [ref=e230]:
+                - link "﨡 User Groups" [ref=e231] [cursor=pointer]:
+                  - /url: /usergroups
+                  - generic [ref=e232]: 﨡
+                  - generic [ref=e233]: User Groups
+              - listitem [ref=e234]:
+                - link " Registration" [ref=e235] [cursor=pointer]:
+                  - /url: /registration
+                  - generic [ref=e236]: 
+                  - generic [ref=e237]: Registration
+              - listitem [ref=e238]:
+                - link " Session" [ref=e239] [cursor=pointer]:
+                  - /url: /session-settings
+                  - generic [ref=e240]: 
+                  - generic [ref=e241]: Session
+              - listitem [ref=e242]:
+                - link " User Settings" [ref=e243] [cursor=pointer]:
+                  - /url: /user-settings
+                  - generic [ref=e244]: 
+                  - generic [ref=e245]: User Settings
+              - listitem [ref=e246]:
+                - link " Security" [ref=e247] [cursor=pointer]:
+                  - /url: /security
+                  - generic [ref=e248]: 
+                  - generic [ref=e249]: Security
+              - listitem [ref=e250]:
+                - link " Security Settings" [ref=e251] [cursor=pointer]:
+                  - /url: /security-settings
+                  - generic [ref=e252]: 
+                  - generic [ref=e253]: Security Settings
+              - listitem [ref=e254]:
+                - link " Flow" [ref=e255] [cursor=pointer]:
+                  - /url: /flow
+                  - generic [ref=e256]: 
+                  - generic [ref=e257]: Flow
+              - listitem [ref=e258]:
+                - link " Logs" [ref=e259] [cursor=pointer]:
+                  - /url: /logs
+                  - generic [ref=e260]: 
+                  - generic [ref=e261]: Logs
+      - generic [ref=e262]:
+        - generic [ref=e264]:
+          - generic [ref=e265]:
+            - link "" [ref=e266] [cursor=pointer]:
+              - /url: /dashboard
+              - generic [ref=e267]: 
+            - generic [ref=e268]: / Quotation Maker
+          - generic [ref=e269]:
+            - heading "Customer Details" [level=5] [ref=e271]
+            - generic [ref=e273]:
+              - generic [ref=e274]:
+                - generic [ref=e275]: Customer Name *
+                - generic [ref=e276]:
+                  - textbox "Enter customer name" [ref=e277]
+                  - button " New Customer" [ref=e278] [cursor=pointer]:
+                    - generic [ref=e279]: 
+                    - text: New Customer
+              - generic [ref=e280]:
+                - generic [ref=e281]: Date *
+                - textbox [ref=e282]: 2026-04-04
+          - generic [ref=e283]:
+            - heading "Select Product" [level=5] [ref=e285]
+            - generic [ref=e287]:
+              - generic [ref=e288]:
+                - generic [ref=e289]: Category *
+                - combobox [ref=e290]:
+                  - option "Select a category" [selected]
+                  - option "Printing"
+                  - option "Packaging"
+              - generic [ref=e291]:
+                - generic [ref=e292]: Product *
+                - combobox [disabled] [ref=e293]:
+                  - option "Select a category first" [selected]
+        - generic [ref=e295]:
+          - paragraph [ref=e296]: 2025 © SVL.
+          - paragraph [ref=e297]:
+            - text: Designed & Developed By
+            - link "Nexor CRM" [ref=e298] [cursor=pointer]:
+              - /url: javascript:void(0);
+    - generic [ref=e299]:
+      - img [ref=e301]
+      - button "Open Tanstack query devtools" [ref=e349] [cursor=pointer]:
+        - img [ref=e350]
+  - generic [ref=e399] [cursor=pointer]: 

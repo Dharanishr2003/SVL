@@ -263,6 +263,7 @@ const ROUTE_ACCESS_RULES = [
   { pageKeys: ["stocks", "stocks-item"], prefixes: ["/stocks/item"] },
   { pageKeys: ["stocks", "stocks-categories"], prefixes: ["/stocks/categories"] },
   { pageKeys: ["quotation"], prefixes: ["/quotation"] },
+  { pageKeys: ["quotation"], prefixes: ["/quotation-list"] },
   { pageKeys: ["activity"], prefixes: ["/activity"] },
   { pageKeys: ["analytics"], prefixes: ["/analytics"] },
   { pageKeys: ["pipeline"], prefixes: ["/pipeline"] },

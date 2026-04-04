@@ -814,6 +814,14 @@ export const adminPhpRoutes = [
     component: "ProjectReportPage",
   },
   {
+    path: "quotation",
+    component: "QuotationPage",
+  },
+  {
+    path: "quotation-list",
+    component: "QuotationListPage",
+  },
+  {
     path: "projects-grid",
     component: "ProjectsPage",
   },
