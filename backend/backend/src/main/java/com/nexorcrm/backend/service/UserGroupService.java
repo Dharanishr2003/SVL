@@ -37,8 +37,6 @@ import java.util.stream.Collectors;
 @Transactional
 public class UserGroupService {
     private record GroupScope(String institutionName,
-                              String institutionCategory,
-                              String institutionType,
                               String departmentName) {}
 
     private static final List<String> DEFAULT_PAGE_KEYS = List.of(
@@ -50,7 +48,6 @@ public class UserGroupService {
             // CRM
             "leads",
             "rejected-leads",
-            "deals",
             "design",
             "production",
             "contacts",
@@ -59,7 +56,6 @@ public class UserGroupService {
             "analytics",
             "activity",
             "quotation",
-            "channel-partners",
             "lead-source",
             "lead-status",
             "primary-source",
@@ -199,7 +195,7 @@ public class UserGroupService {
         assertCanManageGroups(actor);
 
         if (actor.getRole() == Role.SUPER_ADMIN) {
-            return userGroupRepository.findAllByOrderByGroupLevelAscNameAsc()
+            return userGroupRepository.findAllByOrderByNameAsc()
                     .stream()
                     .map(this::toResponse)
                     .toList();
@@ -207,12 +203,10 @@ public class UserGroupService {
 
         assertActorHasDepartmentScope(actor);
         List<UserGroup> rows = userGroupRepository
-                .findByInstitutionNameIgnoreCaseAndInstitutionCategoryIgnoreCaseAndInstitutionTypeIgnoreCaseAndDepartmentNameIgnoreCaseOrderByGroupLevelAscNameAsc(
-                        actor.getInstitutionName(),
-                        actor.getInstitutionCategory(),
-                        actor.getInstitutionType(),
-                        actor.getDepartmentName()
-                );
+                .findByInstitutionNameIgnoreCaseOrderByNameAsc(actor.getInstitutionName())
+                .stream()
+                .filter(group -> isGroupVisibleToActor(actor, group))
+                .toList();
 
         if (actor.getRole() == Role.MANAGER) {
             String actorTeamLower = normalizeLower(actor.getTeamName());
@@ -234,17 +228,20 @@ public class UserGroupService {
             throw new IllegalStateException("Group name already exists");
         }
 
-        GroupScope targetScope = resolveScopeForCreate(actor, request);
-        List<String> scopedTeams = resolveScopedTeamsForActor(actor, request.getTeamNames(), true, targetScope);
+        UserGroupMemberScope memberScope = resolveMemberScope(request.getMemberScope());
+        GroupScope targetScope = resolveScopeForCreate(actor, request, memberScope);
+        List<String> scopedTeams = resolveScopedTeamsForActor(
+                actor,
+                request.getTeamNames(),
+                requiresTeamSelection(memberScope),
+                targetScope
+        );
 
         UserGroup group = new UserGroup();
         group.setName(name);
-        group.setGroupLevel(request.getGroupLevel());
         group.setSystemGroup(false);
-        group.setMemberScope(UserGroupMemberScope.NONE);
+        group.setMemberScope(memberScope);
         group.setInstitutionName(targetScope.institutionName());
-        group.setInstitutionCategory(targetScope.institutionCategory());
-        group.setInstitutionType(targetScope.institutionType());
         group.setDepartmentName(targetScope.departmentName());
         group.setTeamNamesCsv(String.join(",", scopedTeams));
         group.setPageKeysCsv(String.join(",", resolveGroupPageKeysForActor(actor, request.getPageKeys(), null)));
@@ -267,16 +264,20 @@ public class UserGroupService {
             throw new IllegalStateException("Group name already exists");
         }
 
-        GroupScope targetScope = resolveScopeForUpdate(actor, request);
-        List<String> scopedTeams = resolveScopedTeamsForActor(actor, request.getTeamNames(), true, targetScope);
         List<String> oldGroupPageKeys = parseTeamNamesCsv(group.getPageKeysCsv());
         List<String> resolvedGroupPageKeys = resolveGroupPageKeysForActor(actor, request.getPageKeys(), group);
+        UserGroupMemberScope memberScope = resolveMemberScope(request.getMemberScope());
+        GroupScope targetScope = resolveScopeForUpdate(actor, request, memberScope);
+        List<String> scopedTeams = resolveScopedTeamsForActor(
+                actor,
+                request.getTeamNames(),
+                requiresTeamSelection(memberScope),
+                targetScope
+        );
 
         group.setName(name);
-        group.setGroupLevel(request.getGroupLevel());
+        group.setMemberScope(memberScope);
         group.setInstitutionName(targetScope.institutionName());
-        group.setInstitutionCategory(targetScope.institutionCategory());
-        group.setInstitutionType(targetScope.institutionType());
         group.setDepartmentName(targetScope.departmentName());
         group.setTeamNamesCsv(String.join(",", scopedTeams));
         group.setPageKeysCsv(String.join(",", resolvedGroupPageKeys));
@@ -304,21 +305,15 @@ public class UserGroupService {
     @Transactional(readOnly = true)
     public List<UserGroupAssignableTeamResponse> listAssignableTeams(String actorPrincipal,
                                                                      String institutionName,
-                                                                     String institutionCategory,
-                                                                     String institutionType,
                                                                      String departmentName) {
         User actor = resolveActor(actorPrincipal);
         assertCanManageGroups(actor);
         List<String> teams;
         if (actor.getRole() == Role.SUPER_ADMIN
                 && StringUtils.hasText(institutionName)
-                && StringUtils.hasText(institutionCategory)
-                && StringUtils.hasText(institutionType)
                 && StringUtils.hasText(departmentName)) {
             teams = getAvailableTeamsForScope(new GroupScope(
                     institutionName.trim(),
-                    institutionCategory.trim(),
-                    institutionType.trim(),
                     departmentName.trim()
             ));
         } else {
@@ -366,7 +361,7 @@ public class UserGroupService {
     }
 
     private List<UserGroup> resolveImplicitSystemGroupsForActor(User actor) {
-        List<UserGroup> allGroups = userGroupRepository.findAllByOrderByGroupLevelAscNameAsc();
+        List<UserGroup> allGroups = userGroupRepository.findAllByOrderByNameAsc();
         return allGroups.stream()
                 .filter(UserGroup::isSystemGroup)
                 .filter(group -> appliesSystemGroupToActor(group, actor))
@@ -383,20 +378,20 @@ public class UserGroupService {
             if (actor.getRole() != Role.MANAGER) {
                 return false;
             }
+        } else if (scope == UserGroupMemberScope.TEAM_LEADS) {
+            if (actor.getRole() != Role.TEAM_LEAD) {
+                return false;
+            }
+        } else if (scope == UserGroupMemberScope.EMPLOYEES) {
+            if (actor.getRole() != Role.EMPLOYEE) {
+                return false;
+            }
         } else {
             return false;
         }
 
         if (StringUtils.hasText(group.getInstitutionName())
                 && !textEquals(group.getInstitutionName(), actor.getInstitutionName())) {
-            return false;
-        }
-        if (StringUtils.hasText(group.getInstitutionCategory())
-                && !textEquals(group.getInstitutionCategory(), actor.getInstitutionCategory())) {
-            return false;
-        }
-        if (StringUtils.hasText(group.getInstitutionType())
-                && !textEquals(group.getInstitutionType(), actor.getInstitutionType())) {
             return false;
         }
         if (StringUtils.hasText(group.getDepartmentName())
@@ -413,38 +408,44 @@ public class UserGroupService {
 
         List<User> candidates;
         List<String> scopedTeams;
+        UserGroup group = null;
+        UserGroupMemberScope memberScope = UserGroupMemberScope.NONE;
+        List<Role> allowedRoles = List.of(Role.MANAGER, Role.TEAM_LEAD, Role.EMPLOYEE);
         if (groupId != null) {
-            UserGroup group = userGroupRepository.findById(groupId)
+            group = userGroupRepository.findById(groupId)
                     .orElseThrow(() -> new EntityNotFoundException("User group not found"));
             assertCanAccessGroup(actor, group);
+            memberScope = group.getMemberScope() == null ? UserGroupMemberScope.NONE : group.getMemberScope();
+            allowedRoles = allowedRolesForMemberScope(memberScope);
+            if (memberScope == UserGroupMemberScope.NONE && actor.getRole() == Role.SUPER_ADMIN) {
+                allowedRoles = List.of(Role.ADMIN, Role.MANAGER, Role.TEAM_LEAD, Role.EMPLOYEE);
+            }
             if (actor.getRole() == Role.SUPER_ADMIN) {
-                scopedTeams = parseTeamNames(group);
-                if (scopedTeams.isEmpty()) {
+                if (!StringUtils.hasText(group.getInstitutionName())) {
                     return List.of();
                 }
+                scopedTeams = parseTeamNames(group);
                 List<String> normalizedTeamNames = scopedTeams.stream()
                         .map(this::normalizeLower)
                         .toList();
-                if (StringUtils.hasText(group.getInstitutionName())
-                        && StringUtils.hasText(group.getInstitutionCategory())
-                        && StringUtils.hasText(group.getInstitutionType())
-                        && StringUtils.hasText(group.getDepartmentName())) {
+                if (memberScope == UserGroupMemberScope.ADMINS || !StringUtils.hasText(group.getDepartmentName())) {
+                    candidates = userRepository.findActiveByRoleInAndBranchScope(
+                            allowedRoles,
+                            ActivationStatus.ACTIVE,
+                            group.getInstitutionName()
+                    );
+                } else if (memberScope == UserGroupMemberScope.MANAGERS || normalizedTeamNames.isEmpty()) {
                     candidates = userRepository.findActiveByRoleInAndDepartmentScope(
-                            List.of(Role.ADMIN, Role.MANAGER, Role.EMPLOYEE),
+                            allowedRoles,
                             ActivationStatus.ACTIVE,
                             group.getInstitutionName(),
-                            group.getInstitutionCategory(),
-                            group.getInstitutionType(),
                             group.getDepartmentName()
-                    ).stream()
-                            .filter(u -> u.getRole() == Role.ADMIN
-                                    || normalizedTeamNames.contains(normalizeLower(u.getTeamName())))
-                            .toList();
+                    );
                 } else {
-                    // Legacy groups may not have full institution scope stored.
-                    candidates = userRepository.findActiveByRoleInAndTeamNameIn(
-                            List.of(Role.ADMIN, Role.MANAGER, Role.EMPLOYEE),
+                    candidates = userRepository.findActiveByRoleInAndBranchScopeAndTeamNameIn(
+                            allowedRoles,
                             ActivationStatus.ACTIVE,
+                            group.getInstitutionName(),
                             normalizedTeamNames
                     );
                 }
@@ -453,21 +454,37 @@ public class UserGroupService {
                         .toList();
             }
             if (actor.getRole() == Role.ADMIN) {
-                // Admin can add managers/employees from any team in own department.
-                candidates = userRepository.findActiveByRoleInAndDepartmentScope(
-                        List.of(Role.MANAGER, Role.EMPLOYEE),
-                        ActivationStatus.ACTIVE,
-                        actor.getInstitutionName(),
-                        actor.getInstitutionCategory(),
-                        actor.getInstitutionType(),
-                        actor.getDepartmentName()
-                );
+                if (memberScope == UserGroupMemberScope.ADMINS || !StringUtils.hasText(group.getDepartmentName())) {
+                    candidates = userRepository.findActiveByRoleInAndBranchScope(
+                            allowedRoles,
+                            ActivationStatus.ACTIVE,
+                            actor.getInstitutionName()
+                    );
+                } else if (memberScope == UserGroupMemberScope.MANAGERS) {
+                    candidates = userRepository.findActiveByRoleInAndDepartmentScope(
+                            allowedRoles,
+                            ActivationStatus.ACTIVE,
+                            actor.getInstitutionName(),
+                            actor.getDepartmentName()
+                    );
+                } else {
+                    scopedTeams = parseTeamNames(group);
+                    if (scopedTeams.isEmpty()) {
+                        return List.of();
+                    }
+                    candidates = userRepository.findActiveByRoleInAndDepartmentScopeAndTeamNameIn(
+                            allowedRoles,
+                            ActivationStatus.ACTIVE,
+                            actor.getInstitutionName(),
+                            actor.getDepartmentName(),
+                            scopedTeams.stream().map(this::normalizeLower).toList()
+                    );
+                }
                 return candidates.stream()
                         .map(this::toAssignableUserResponse)
                         .toList();
-            } else {
-                scopedTeams = parseTeamNames(group);
             }
+            scopedTeams = parseTeamNames(group);
         } else {
             scopedTeams = resolveScopedTeamsForActor(actor, teamNames, false, null);
             if (actor.getRole() == Role.SUPER_ADMIN) {
@@ -478,7 +495,7 @@ public class UserGroupService {
                         .map(this::normalizeLower)
                         .toList();
                 candidates = userRepository.findActiveByRoleInAndTeamNameIn(
-                        List.of(Role.ADMIN, Role.MANAGER, Role.EMPLOYEE),
+                        List.of(Role.ADMIN, Role.MANAGER, Role.TEAM_LEAD, Role.EMPLOYEE),
                         ActivationStatus.ACTIVE,
                         normalizedTeamNames
                 );
@@ -497,11 +514,9 @@ public class UserGroupService {
                 .toList();
 
         candidates = userRepository.findActiveByRoleInAndDepartmentScopeAndTeamNameIn(
-                List.of(Role.MANAGER, Role.EMPLOYEE),
+                allowedRoles,
                 ActivationStatus.ACTIVE,
                 actor.getInstitutionName(),
-                actor.getInstitutionCategory(),
-                actor.getInstitutionType(),
                 actor.getDepartmentName(),
                 normalizedTeamNames
         );
@@ -564,8 +579,9 @@ public class UserGroupService {
             throw new IllegalStateException("Only active users can be added");
         }
         boolean canSuperAdminAssignAdmin = actor.getRole() == Role.SUPER_ADMIN && target.getRole() == Role.ADMIN;
-        if (target.getRole() != Role.MANAGER && target.getRole() != Role.EMPLOYEE && !canSuperAdminAssignAdmin) {
-            throw new AccessDeniedException("Only admins, managers and employees can be added");
+        UserGroupMemberScope scope = group.getMemberScope() == null ? UserGroupMemberScope.NONE : group.getMemberScope();
+        if (!canAddRoleToGroup(scope, target.getRole(), canSuperAdminAssignAdmin)) {
+            throw new AccessDeniedException("User role is not allowed for this group");
         }
         assertUserInsideActorScope(actor, target);
         if (actor.getRole() == Role.ADMIN) {
@@ -660,13 +676,13 @@ public class UserGroupService {
             return;
         }
         assertActorHasDepartmentScope(actor);
-        if (!textEquals(actor.getInstitutionName(), group.getInstitutionName())
-                || !textEquals(actor.getInstitutionCategory(), group.getInstitutionCategory())
-                || !textEquals(actor.getInstitutionType(), group.getInstitutionType())
-                || !textEquals(actor.getDepartmentName(), group.getDepartmentName())) {
+        if (!isGroupVisibleToActor(actor, group)) {
             throw new AccessDeniedException("You do not have permission to access this group");
         }
-        if (actor.getRole() == Role.MANAGER) {
+        if (group.getMemberScope() == UserGroupMemberScope.ADMINS) {
+            return;
+        }
+        if (actor.getRole() == Role.MANAGER || actor.getRole() == Role.TEAM_LEAD) {
             String actorTeamLower = normalizeLower(actor.getTeamName());
             boolean canSee = parseTeamNames(group).stream()
                     .map(this::normalizeLower)
@@ -677,10 +693,18 @@ public class UserGroupService {
         }
     }
 
+    private boolean isGroupVisibleToActor(User actor, UserGroup group) {
+        if (!textEquals(actor.getInstitutionName(), group.getInstitutionName())) {
+            return false;
+        }
+        if (group.getMemberScope() == UserGroupMemberScope.ADMINS) {
+            return actor.getRole() == Role.ADMIN || actor.getRole() == Role.SUPER_ADMIN;
+        }
+        return textEquals(actor.getDepartmentName(), group.getDepartmentName());
+    }
+
     private void assertActorHasDepartmentScope(User actor) {
         if (!StringUtils.hasText(actor.getInstitutionName())
-                || !StringUtils.hasText(actor.getInstitutionCategory())
-                || !StringUtils.hasText(actor.getInstitutionType())
                 || !StringUtils.hasText(actor.getDepartmentName())) {
             throw new AccessDeniedException("Your account is missing department scope configuration");
         }
@@ -716,8 +740,7 @@ public class UserGroupService {
                 }
             }
             if (dedup.isEmpty() && requireAtLeastOne) {
-                // Super admins can create role-based groups without a team list.
-                return List.of();
+                throw new IllegalStateException("At least one team must be selected");
             }
             return new ArrayList<>(dedup);
         }
@@ -727,7 +750,7 @@ public class UserGroupService {
         Map<String, String> availableByLower = availableTeams.stream()
                 .collect(Collectors.toMap(this::normalizeLower, team -> team, (a, b) -> a, LinkedHashMap::new));
 
-        if (actor.getRole() == Role.MANAGER) {
+        if (actor.getRole() == Role.MANAGER || actor.getRole() == Role.TEAM_LEAD) {
             assertActorHasTeamScope(actor);
             return List.of(actor.getTeamName().trim());
         }
@@ -751,8 +774,6 @@ public class UserGroupService {
     private List<String> getAvailableTeamsForScope(GroupScope scope) {
         return userRepository.findDistinctTeamNamesByDepartmentScope(
                 scope.institutionName(),
-                scope.institutionCategory(),
-                scope.institutionType(),
                 scope.departmentName()
         ).stream().filter(StringUtils::hasText).map(String::trim).distinct().toList();
     }
@@ -765,15 +786,13 @@ public class UserGroupService {
                     .distinct()
                     .toList();
         }
-        if (actor.getRole() == Role.MANAGER) {
+        if (actor.getRole() == Role.MANAGER || actor.getRole() == Role.TEAM_LEAD) {
             assertActorHasTeamScope(actor);
             return List.of(actor.getTeamName().trim());
         }
         assertActorHasDepartmentScope(actor);
         return userRepository.findDistinctTeamNamesByDepartmentScope(
                 actor.getInstitutionName(),
-                actor.getInstitutionCategory(),
-                actor.getInstitutionType(),
                 actor.getDepartmentName()
         ).stream().filter(StringUtils::hasText).map(String::trim).distinct().toList();
     }
@@ -789,12 +808,11 @@ public class UserGroupService {
             throw new AccessDeniedException("You do not have permission to assign this user");
         }
         if (!textEquals(actor.getInstitutionName(), target.getInstitutionName())
-                || !textEquals(actor.getInstitutionCategory(), target.getInstitutionCategory())
-                || !textEquals(actor.getInstitutionType(), target.getInstitutionType())
                 || !textEquals(actor.getDepartmentName(), target.getDepartmentName())) {
             throw new AccessDeniedException("You do not have permission to assign this user");
         }
-        if (actor.getRole() == Role.MANAGER && !textEquals(actor.getTeamName(), target.getTeamName())) {
+        if ((actor.getRole() == Role.MANAGER || actor.getRole() == Role.TEAM_LEAD)
+                && !textEquals(actor.getTeamName(), target.getTeamName())) {
             throw new AccessDeniedException("You do not have permission to assign this user");
         }
     }
@@ -811,15 +829,11 @@ public class UserGroupService {
 
     private void assertUserInsideGroupDepartmentScope(UserGroup group, User target) {
         if (!StringUtils.hasText(group.getInstitutionName())
-                || !StringUtils.hasText(group.getInstitutionCategory())
-                || !StringUtils.hasText(group.getInstitutionType())
                 || !StringUtils.hasText(group.getDepartmentName())) {
             // Legacy group rows may not have scope columns populated.
             return;
         }
         if (!textEquals(group.getInstitutionName(), target.getInstitutionName())
-                || !textEquals(group.getInstitutionCategory(), target.getInstitutionCategory())
-                || !textEquals(group.getInstitutionType(), target.getInstitutionType())
                 || !textEquals(group.getDepartmentName(), target.getDepartmentName())) {
             throw new AccessDeniedException("Selected user is outside this group's scope");
         }
@@ -852,8 +866,6 @@ public class UserGroupService {
                 return true;
             }
             return textEquals(actor.getInstitutionName(), target.getInstitutionName())
-                    && textEquals(actor.getInstitutionCategory(), target.getInstitutionCategory())
-                    && textEquals(actor.getInstitutionType(), target.getInstitutionType())
                     && textEquals(actor.getDepartmentName(), target.getDepartmentName());
         }
         if (actor.getRole() == Role.MANAGER) {
@@ -861,8 +873,14 @@ public class UserGroupService {
                 return true;
             }
             return textEquals(actor.getInstitutionName(), target.getInstitutionName())
-                    && textEquals(actor.getInstitutionCategory(), target.getInstitutionCategory())
-                    && textEquals(actor.getInstitutionType(), target.getInstitutionType())
+                    && textEquals(actor.getDepartmentName(), target.getDepartmentName())
+                    && textEquals(actor.getTeamName(), target.getTeamName());
+        }
+        if (actor.getRole() == Role.TEAM_LEAD) {
+            if (!hasTeamScope(target)) {
+                return true;
+            }
+            return textEquals(actor.getInstitutionName(), target.getInstitutionName())
                     && textEquals(actor.getDepartmentName(), target.getDepartmentName())
                     && textEquals(actor.getTeamName(), target.getTeamName());
         }
@@ -871,8 +889,6 @@ public class UserGroupService {
 
     private boolean hasDepartmentScope(User user) {
         return StringUtils.hasText(user.getInstitutionName())
-                && StringUtils.hasText(user.getInstitutionCategory())
-                && StringUtils.hasText(user.getInstitutionType())
                 && StringUtils.hasText(user.getDepartmentName());
     }
 
@@ -987,38 +1003,89 @@ public class UserGroupService {
         return DEFAULT_PAGE_KEYS;
     }
 
-    private GroupScope resolveScopeForCreate(User actor, CreateUserGroupRequest request) {
+    private UserGroupMemberScope resolveMemberScope(String rawValue) {
+        if (!StringUtils.hasText(rawValue)) {
+            return UserGroupMemberScope.NONE;
+        }
+        try {
+            return UserGroupMemberScope.valueOf(rawValue.trim().toUpperCase(Locale.ROOT));
+        } catch (Exception ex) {
+            throw new IllegalStateException("Invalid member scope: " + rawValue);
+        }
+    }
+
+    private List<Role> allowedRolesForMemberScope(UserGroupMemberScope scope) {
+        UserGroupMemberScope normalized = scope == null ? UserGroupMemberScope.NONE : scope;
+        return switch (normalized) {
+            case ADMINS -> List.of(Role.ADMIN);
+            case MANAGERS -> List.of(Role.MANAGER);
+            case TEAM_LEADS -> List.of(Role.TEAM_LEAD);
+            case EMPLOYEES -> List.of(Role.EMPLOYEE);
+            case NONE -> List.of(Role.MANAGER, Role.TEAM_LEAD, Role.EMPLOYEE);
+        };
+    }
+
+    private boolean canAddRoleToGroup(UserGroupMemberScope scope, Role targetRole, boolean canSuperAdminAssignAdmin) {
+        if (canSuperAdminAssignAdmin) {
+            return true;
+        }
+        UserGroupMemberScope normalized = scope == null ? UserGroupMemberScope.NONE : scope;
+        return switch (normalized) {
+            case ADMINS -> targetRole == Role.ADMIN;
+            case MANAGERS -> targetRole == Role.MANAGER;
+            case TEAM_LEADS -> targetRole == Role.TEAM_LEAD;
+            case EMPLOYEES -> targetRole == Role.EMPLOYEE;
+            case NONE -> targetRole == Role.MANAGER || targetRole == Role.TEAM_LEAD || targetRole == Role.EMPLOYEE;
+        };
+    }
+
+    private boolean requiresTeamSelection(UserGroupMemberScope scope) {
+        UserGroupMemberScope normalized = scope == null ? UserGroupMemberScope.NONE : scope;
+        return normalized == UserGroupMemberScope.NONE
+                || normalized == UserGroupMemberScope.TEAM_LEADS
+                || normalized == UserGroupMemberScope.EMPLOYEES;
+    }
+
+    private GroupScope resolveScopeForCreate(User actor,
+                                             CreateUserGroupRequest request,
+                                             UserGroupMemberScope memberScope) {
         if (actor.getRole() == Role.SUPER_ADMIN) {
+            if (memberScope == UserGroupMemberScope.ADMINS) {
+                return new GroupScope(
+                        requiredScopeValue(request.getInstitutionName(), "Branch is required"),
+                        ""
+                );
+            }
             return new GroupScope(
-                    requiredScopeValue(request.getInstitutionName(), "Institution is required"),
-                    requiredScopeValue(request.getInstitutionCategory(), "Institution Category is required"),
-                    requiredScopeValue(request.getInstitutionType(), "Institution Type is required"),
-                    requiredScopeValue(request.getDepartmentName(), "Department Name is required")
+                    requiredScopeValue(request.getInstitutionName(), "Branch is required"),
+                    requiredScopeValue(request.getDepartmentName(), "Department is required")
             );
         }
         assertActorHasDepartmentScope(actor);
         return new GroupScope(
                 actor.getInstitutionName().trim(),
-                actor.getInstitutionCategory().trim(),
-                actor.getInstitutionType().trim(),
                 actor.getDepartmentName().trim()
         );
     }
 
-    private GroupScope resolveScopeForUpdate(User actor, UpdateUserGroupRequest request) {
+    private GroupScope resolveScopeForUpdate(User actor,
+                                             UpdateUserGroupRequest request,
+                                             UserGroupMemberScope memberScope) {
         if (actor.getRole() == Role.SUPER_ADMIN) {
+            if (memberScope == UserGroupMemberScope.ADMINS) {
+                return new GroupScope(
+                        requiredScopeValue(request.getInstitutionName(), "Branch is required"),
+                        ""
+                );
+            }
             return new GroupScope(
-                    requiredScopeValue(request.getInstitutionName(), "Institution is required"),
-                    requiredScopeValue(request.getInstitutionCategory(), "Institution Category is required"),
-                    requiredScopeValue(request.getInstitutionType(), "Institution Type is required"),
-                    requiredScopeValue(request.getDepartmentName(), "Department Name is required")
+                    requiredScopeValue(request.getInstitutionName(), "Branch is required"),
+                    requiredScopeValue(request.getDepartmentName(), "Department is required")
             );
         }
         assertActorHasDepartmentScope(actor);
         return new GroupScope(
                 actor.getInstitutionName().trim(),
-                actor.getInstitutionCategory().trim(),
-                actor.getInstitutionType().trim(),
                 actor.getDepartmentName().trim()
         );
     }
@@ -1028,6 +1095,10 @@ public class UserGroupService {
             throw new IllegalStateException(message);
         }
         return value.trim();
+    }
+
+    private String trimOrEmpty(String value) {
+        return StringUtils.hasText(value) ? value.trim() : "";
     }
 
     private String normalizeLower(String value) {
@@ -1042,30 +1113,64 @@ public class UserGroupService {
         UserGroupResponse response = new UserGroupResponse();
         response.setId(group.getId());
         response.setName(group.getName());
-        response.setGroupLevel(group.getGroupLevel());
         response.setCanDelete(!group.isSystemGroup());
         response.setMembers(resolveMembers(group));
         response.setInstitutionName(group.getInstitutionName());
-        response.setInstitutionCategory(group.getInstitutionCategory());
-        response.setInstitutionType(group.getInstitutionType());
         response.setDepartmentName(group.getDepartmentName());
         response.setTeamNames(parseTeamNames(group));
         response.setPageKeys(parseTeamNamesCsv(group.getPageKeysCsv()));
+        response.setMemberScope(group.getMemberScope() == null ? null : group.getMemberScope().name());
         return response;
     }
 
     private long resolveMembers(UserGroup group) {
         if (group.getMemberScope() == UserGroupMemberScope.ADMINS) {
-            return userRepository.countByRoleInAndActivationStatusAndIsDeletedFalse(
-                    List.of(Role.SUPER_ADMIN, Role.ADMIN),
-                    ActivationStatus.ACTIVE
-            );
+            if (!StringUtils.hasText(group.getInstitutionName())) {
+                return 0;
+            }
+            return userRepository.countActiveAdminsByBranch(group.getInstitutionName());
         }
         if (group.getMemberScope() == UserGroupMemberScope.MANAGERS) {
-            return userRepository.countByRoleInAndActivationStatusAndIsDeletedFalse(
-                    List.of(Role.MANAGER),
-                    ActivationStatus.ACTIVE
+            if (!StringUtils.hasText(group.getInstitutionName()) || !StringUtils.hasText(group.getDepartmentName())) {
+                return 0;
+            }
+            return userRepository.countActiveManagersInScope(
+                    group.getInstitutionName(),
+                    group.getDepartmentName(),
+                    ""
             );
+        }
+        if (group.getMemberScope() == UserGroupMemberScope.TEAM_LEADS) {
+            if (!StringUtils.hasText(group.getInstitutionName()) || !StringUtils.hasText(group.getDepartmentName())) {
+                return 0;
+            }
+            List<String> teams = parseTeamNames(group).stream().map(this::normalizeLower).toList();
+            if (teams.isEmpty()) {
+                return 0;
+            }
+            return userRepository.findActiveByRoleInAndDepartmentScopeAndTeamNameIn(
+                    List.of(Role.TEAM_LEAD),
+                    ActivationStatus.ACTIVE,
+                    group.getInstitutionName(),
+                    group.getDepartmentName(),
+                    teams
+            ).size();
+        }
+        if (group.getMemberScope() == UserGroupMemberScope.EMPLOYEES) {
+            if (!StringUtils.hasText(group.getInstitutionName()) || !StringUtils.hasText(group.getDepartmentName())) {
+                return 0;
+            }
+            List<String> teams = parseTeamNames(group).stream().map(this::normalizeLower).toList();
+            if (teams.isEmpty()) {
+                return 0;
+            }
+            return userRepository.findActiveByRoleInAndDepartmentScopeAndTeamNameIn(
+                    List.of(Role.EMPLOYEE),
+                    ActivationStatus.ACTIVE,
+                    group.getInstitutionName(),
+                    group.getDepartmentName(),
+                    teams
+            ).size();
         }
         return userGroupMemberRepository.countByGroup(group);
     }
@@ -1091,7 +1196,6 @@ public class UserGroupService {
         UserGroupSummaryResponse response = new UserGroupSummaryResponse();
         response.setId(group.getId());
         response.setName(group.getName());
-        response.setGroupLevel(group.getGroupLevel());
         return response;
     }
 }

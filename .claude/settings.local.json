@@ -9,7 +9,11 @@
       "Bash(find /c/Users/rambo/Music/SVL/frontend/frontend/src -type f \\\\\\( -name \"*.js\" -o -name \"*.jsx\" -o -name \"*.ts\" -o -name \"*.tsx\" \\\\\\) -exec grep -l \"state\\\\|city\" {} \\\\;)",
       "Bash(npm install:*)",
       "Bash(sort -t V -k2 -n)",
-      "Bash(grep -l \"getPrimarySources\\\\|getSecondarySources\\\\|getTertiarySources\" \"c:/Users/rambo/Music/SVL/frontend/frontend/src/pages/admin\"/*.jsx)"
+      "Bash(grep -l \"getPrimarySources\\\\|getSecondarySources\\\\|getTertiarySources\" \"c:/Users/rambo/Music/SVL/frontend/frontend/src/pages/admin\"/*.jsx)",
+      "Bash(npm run:*)",
+      "Bash(grep -n \"}}$\" \"C:/Users/rambo/Music/SVL/frontend/frontend/src/pages/admin/UsergroupsPage.jsx\")",
+      "Bash(git -C \"C:/Users/rambo/Music/SVL\" show HEAD:frontend/frontend/src/pages/admin/UsergroupsPage.jsx)",
+      "Bash(grep -n \"createPrimarySource\\\\|export.*primary\" c:/Users/rambo/Music/SVL/frontend/frontend/src/api/*.js)"
     ]
   }
 }

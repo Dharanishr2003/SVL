@@ -1,8 +1,19 @@
 package com.nexorcrm.backend.service;
 
-import com.nexorcrm.backend.dto.*;
-import com.nexorcrm.backend.entity.*;
-import com.nexorcrm.backend.repo.*;
+import com.nexorcrm.backend.dto.CreateDepartmentRequest;
+import com.nexorcrm.backend.dto.CreateInstitutionRequest;
+import com.nexorcrm.backend.dto.CreateTeamRequest;
+import com.nexorcrm.backend.dto.OrgOptionResponse;
+import com.nexorcrm.backend.dto.OrgSelectionResponse;
+import com.nexorcrm.backend.entity.Department;
+import com.nexorcrm.backend.entity.Institution;
+import com.nexorcrm.backend.entity.Role;
+import com.nexorcrm.backend.entity.Team;
+import com.nexorcrm.backend.entity.User;
+import com.nexorcrm.backend.repo.DepartmentRepository;
+import com.nexorcrm.backend.repo.InstitutionRepository;
+import com.nexorcrm.backend.repo.TeamRepository;
+import com.nexorcrm.backend.repo.UserRepository;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
@@ -17,23 +28,17 @@ import java.util.Locale;
 public class OrgHierarchyService {
 
     private final InstitutionRepository institutionRepository;
-    private final InstitutionCategoryRepository categoryRepository;
-    private final InstitutionTypeRepository typeRepository;
     private final DepartmentRepository departmentRepository;
     private final TeamRepository teamRepository;
     private final UserRepository userRepository;
 
     public OrgHierarchyService(
             InstitutionRepository institutionRepository,
-            InstitutionCategoryRepository categoryRepository,
-            InstitutionTypeRepository typeRepository,
             DepartmentRepository departmentRepository,
             TeamRepository teamRepository,
             UserRepository userRepository
     ) {
         this.institutionRepository = institutionRepository;
-        this.categoryRepository = categoryRepository;
-        this.typeRepository = typeRepository;
         this.departmentRepository = departmentRepository;
         this.teamRepository = teamRepository;
         this.userRepository = userRepository;
@@ -50,145 +55,76 @@ public class OrgHierarchyService {
         assertCanManage(actor);
         String name = req.getName().trim();
         if (institutionRepository.existsByNameIgnoreCaseAndIsDeletedFalse(name)) {
-            throw new IllegalStateException("Institution already exists");
+            throw new IllegalStateException("Branch already exists");
         }
-        Institution i = new Institution();
-        i.setName(name);
-        i.setEmail(trimOrNull(req.getEmail()));
-        i.setPhone(trimOrNull(req.getPhone()));
-        i.setAddress(trimOrNull(req.getAddress()));
-        i.setStatus(status(req.getStatus()));
-        Institution saved = institutionRepository.save(i);
+        Institution institution = new Institution();
+        institution.setName(name);
+        institution.setEmail(trimOrNull(req.getEmail()));
+        institution.setPhone(trimOrNull(req.getPhone()));
+        institution.setAddress(trimOrNull(req.getAddress()));
+        institution.setStatus(status(req.getStatus()));
+        Institution saved = institutionRepository.save(institution);
         return new OrgOptionResponse(saved.getId(), saved.getName(), saved.getStatus());
     }
 
     @Transactional(readOnly = true)
-    public List<OrgOptionResponse> listCategories(Long institutionId) {
-        Institution inst = institutionRepository.findByIdAndIsDeletedFalse(institutionId)
-                .orElseThrow(() -> new EntityNotFoundException("Institution not found"));
-        return categoryRepository.findByInstitutionAndIsDeletedFalseOrderByNameAsc(inst).stream()
-                .map(c -> new OrgOptionResponse(c.getId(), c.getName(), c.getStatus()))
-                .toList();
-    }
-
-    public OrgOptionResponse addCategory(CreateInstitutionCategoryRequest req, String actor) {
-        assertCanManage(actor);
-        Institution inst = institutionRepository.findByIdAndIsDeletedFalse(req.getInstitutionId())
-                .orElseThrow(() -> new EntityNotFoundException("Institution not found"));
-        String name = req.getName().trim();
-        if (categoryRepository.existsByInstitutionAndNameIgnoreCaseAndIsDeletedFalse(inst, name)) {
-            throw new IllegalStateException("Institution category already exists");
-        }
-        InstitutionCategory c = new InstitutionCategory();
-        c.setInstitution(inst);
-        c.setName(name);
-        c.setStatus(status(req.getStatus()));
-        InstitutionCategory saved = categoryRepository.save(c);
-        return new OrgOptionResponse(saved.getId(), saved.getName(), saved.getStatus());
-    }
-
-    @Transactional(readOnly = true)
-    public List<OrgOptionResponse> listTypes(Long institutionId, Long categoryId) {
-        Institution inst = institutionRepository.findByIdAndIsDeletedFalse(institutionId)
-                .orElseThrow(() -> new EntityNotFoundException("Institution not found"));
-        InstitutionCategory cat = categoryRepository.findByIdAndIsDeletedFalse(categoryId)
-                .orElseThrow(() -> new EntityNotFoundException("Category not found"));
-        return typeRepository.findByInstitutionAndCategoryAndIsDeletedFalseOrderByNameAsc(inst, cat).stream()
-                .map(t -> new OrgOptionResponse(t.getId(), t.getName(), t.getStatus()))
-                .toList();
-    }
-
-    public OrgOptionResponse addType(CreateInstitutionTypeRequest req, String actor) {
-        assertCanManage(actor);
-        Institution inst = institutionRepository.findByIdAndIsDeletedFalse(req.getInstitutionId())
-                .orElseThrow(() -> new EntityNotFoundException("Institution not found"));
-        InstitutionCategory cat = categoryRepository.findByIdAndIsDeletedFalse(req.getCategoryId())
-                .orElseThrow(() -> new EntityNotFoundException("Category not found"));
-        String name = req.getName().trim();
-        if (typeRepository.existsByInstitutionAndCategoryAndNameIgnoreCaseAndIsDeletedFalse(inst, cat, name)) {
-            throw new IllegalStateException("Institution type already exists");
-        }
-        InstitutionType t = new InstitutionType();
-        t.setInstitution(inst);
-        t.setCategory(cat);
-        t.setName(name);
-        t.setStatus(status(req.getStatus()));
-        InstitutionType saved = typeRepository.save(t);
-        return new OrgOptionResponse(saved.getId(), saved.getName(), saved.getStatus());
-    }
-
-    @Transactional(readOnly = true)
-    public List<OrgOptionResponse> listDepartments(Long institutionId, Long categoryId, Long typeId) {
-        Institution inst = institutionRepository.findByIdAndIsDeletedFalse(institutionId)
-                .orElseThrow(() -> new EntityNotFoundException("Institution not found"));
-        InstitutionCategory cat = categoryRepository.findByIdAndIsDeletedFalse(categoryId)
-                .orElseThrow(() -> new EntityNotFoundException("Category not found"));
-        InstitutionType type = typeRepository.findByIdAndIsDeletedFalse(typeId)
-                .orElseThrow(() -> new EntityNotFoundException("Type not found"));
-        return departmentRepository.findByInstitutionAndCategoryAndTypeAndIsDeletedFalseOrderByNameAsc(inst, cat, type).stream()
+    public List<OrgOptionResponse> listDepartments(Long institutionId) {
+        Institution institution = institutionRepository.findByIdAndIsDeletedFalse(institutionId)
+                .orElseThrow(() -> new EntityNotFoundException("Branch not found"));
+        return departmentRepository.findByInstitutionAndIsDeletedFalseOrderByNameAsc(institution).stream()
                 .map(d -> new OrgOptionResponse(d.getId(), d.getName(), d.getStatus()))
                 .toList();
     }
 
     public OrgOptionResponse addDepartment(CreateDepartmentRequest req, String actor) {
         assertCanManage(actor);
-        Institution inst = institutionRepository.findByIdAndIsDeletedFalse(req.getInstitutionId())
-                .orElseThrow(() -> new EntityNotFoundException("Institution not found"));
-        InstitutionCategory cat = categoryRepository.findByIdAndIsDeletedFalse(req.getCategoryId())
-                .orElseThrow(() -> new EntityNotFoundException("Category not found"));
-        InstitutionType type = typeRepository.findByIdAndIsDeletedFalse(req.getTypeId())
-                .orElseThrow(() -> new EntityNotFoundException("Type not found"));
+        Institution institution = institutionRepository.findByIdAndIsDeletedFalse(req.getInstitutionId())
+                .orElseThrow(() -> new EntityNotFoundException("Branch not found"));
         String name = req.getName().trim();
-        if (departmentRepository.existsByInstitutionAndCategoryAndTypeAndNameIgnoreCaseAndIsDeletedFalse(inst, cat, type, name)) {
+        if (departmentRepository.existsByInstitutionAndNameIgnoreCaseAndIsDeletedFalse(institution, name)) {
             throw new IllegalStateException("Department already exists");
         }
-        Department d = new Department();
-        d.setInstitution(inst);
-        d.setCategory(cat);
-        d.setType(type);
-        d.setName(name);
-        d.setStatus(status(req.getStatus()));
-        Department saved = departmentRepository.save(d);
+        Department department = new Department();
+        department.setInstitution(institution);
+        department.setName(name);
+        department.setStatus(status(req.getStatus()));
+        Department saved = departmentRepository.save(department);
         return new OrgOptionResponse(saved.getId(), saved.getName(), saved.getStatus());
     }
 
     @Transactional(readOnly = true)
-    public List<OrgOptionResponse> listTeams(Long institutionId, Long categoryId, Long typeId, Long departmentId) {
-        Institution inst = institutionRepository.findByIdAndIsDeletedFalse(institutionId)
-                .orElseThrow(() -> new EntityNotFoundException("Institution not found"));
-        InstitutionCategory cat = categoryRepository.findByIdAndIsDeletedFalse(categoryId)
-                .orElseThrow(() -> new EntityNotFoundException("Category not found"));
-        InstitutionType type = typeRepository.findByIdAndIsDeletedFalse(typeId)
-                .orElseThrow(() -> new EntityNotFoundException("Type not found"));
-        Department dept = departmentRepository.findByIdAndIsDeletedFalse(departmentId)
+    public List<OrgOptionResponse> listTeams(Long institutionId, Long departmentId) {
+        Institution institution = institutionRepository.findByIdAndIsDeletedFalse(institutionId)
+                .orElseThrow(() -> new EntityNotFoundException("Branch not found"));
+        Department department = departmentRepository.findByIdAndIsDeletedFalse(departmentId)
                 .orElseThrow(() -> new EntityNotFoundException("Department not found"));
-        return teamRepository.findByInstitutionAndCategoryAndTypeAndDepartmentAndIsDeletedFalseOrderByNameAsc(inst, cat, type, dept).stream()
+        if (!department.getInstitution().getId().equals(institution.getId())) {
+            throw new EntityNotFoundException("Department not found in branch");
+        }
+        return teamRepository.findByDepartmentAndIsDeletedFalseOrderByNameAsc(department).stream()
                 .map(t -> new OrgOptionResponse(t.getId(), t.getName(), t.getStatus()))
                 .toList();
     }
 
     public OrgOptionResponse addTeam(CreateTeamRequest req, String actor) {
         assertCanManage(actor);
-        Institution inst = institutionRepository.findByIdAndIsDeletedFalse(req.getInstitutionId())
-                .orElseThrow(() -> new EntityNotFoundException("Institution not found"));
-        InstitutionCategory cat = categoryRepository.findByIdAndIsDeletedFalse(req.getCategoryId())
-                .orElseThrow(() -> new EntityNotFoundException("Category not found"));
-        InstitutionType type = typeRepository.findByIdAndIsDeletedFalse(req.getTypeId())
-                .orElseThrow(() -> new EntityNotFoundException("Type not found"));
-        Department dept = departmentRepository.findByIdAndIsDeletedFalse(req.getDepartmentId())
+        Institution institution = institutionRepository.findByIdAndIsDeletedFalse(req.getInstitutionId())
+                .orElseThrow(() -> new EntityNotFoundException("Branch not found"));
+        Department department = departmentRepository.findByIdAndIsDeletedFalse(req.getDepartmentId())
                 .orElseThrow(() -> new EntityNotFoundException("Department not found"));
+        if (!department.getInstitution().getId().equals(institution.getId())) {
+            throw new EntityNotFoundException("Department not found in branch");
+        }
         String name = req.getName().trim();
-        if (teamRepository.existsByInstitutionAndCategoryAndTypeAndDepartmentAndNameIgnoreCaseAndIsDeletedFalse(inst, cat, type, dept, name)) {
+        if (teamRepository.existsByDepartmentAndNameIgnoreCaseAndIsDeletedFalse(department, name)) {
             throw new IllegalStateException("Team already exists");
         }
-        Team t = new Team();
-        t.setInstitution(inst);
-        t.setCategory(cat);
-        t.setType(type);
-        t.setDepartment(dept);
-        t.setName(name);
-        t.setStatus(status(req.getStatus()));
-        Team saved = teamRepository.save(t);
+        Team team = new Team();
+        team.setInstitution(institution);
+        team.setDepartment(department);
+        team.setName(name);
+        team.setStatus(status(req.getStatus()));
+        Team saved = teamRepository.save(team);
         return new OrgOptionResponse(saved.getId(), saved.getName(), saved.getStatus());
     }
 
@@ -205,14 +141,12 @@ public class OrgHierarchyService {
         OrgSelectionResponse response = new OrgSelectionResponse();
 
         String institutionName = target.getInstitutionName();
-        String categoryName = target.getInstitutionCategory();
-        String typeName = target.getInstitutionType();
         String departmentName = target.getDepartmentName();
         String teamName = target.getTeamName();
 
         response.setInstitutionName(institutionName);
-        response.setCategoryName(categoryName);
-        response.setTypeName(typeName);
+        response.setCategoryName(null);
+        response.setTypeName(null);
         response.setDepartmentName(departmentName);
         response.setTeamName(teamName);
 
@@ -220,42 +154,19 @@ public class OrgHierarchyService {
             return response;
         }
 
-        Institution inst = institutionRepository
+        Institution institution = institutionRepository
                 .findByNameIgnoreCaseAndIsDeletedFalse(institutionName.trim())
                 .orElse(null);
-        if (inst == null) {
+        if (institution == null) {
             return response;
         }
-        response.setInstitutionId(inst.getId());
-
-        if (!StringUtils.hasText(categoryName)) {
-            return response;
-        }
-        InstitutionCategory category = categoryRepository
-                .findByInstitutionAndNameIgnoreCaseAndIsDeletedFalse(inst, categoryName.trim())
-                .orElse(null);
-        if (category == null) {
-            return response;
-        }
-        response.setCategoryId(category.getId());
-
-        if (!StringUtils.hasText(typeName)) {
-            return response;
-        }
-        InstitutionType type = typeRepository
-                .findByInstitutionAndCategoryAndNameIgnoreCaseAndIsDeletedFalse(inst, category, typeName.trim())
-                .orElse(null);
-        if (type == null) {
-            return response;
-        }
-        response.setTypeId(type.getId());
+        response.setInstitutionId(institution.getId());
 
         if (!StringUtils.hasText(departmentName)) {
             return response;
         }
         Department department = departmentRepository
-                .findByInstitutionAndCategoryAndTypeAndNameIgnoreCaseAndIsDeletedFalse(
-                        inst, category, type, departmentName.trim())
+                .findFirstByInstitutionAndNameIgnoreCaseAndIsDeletedFalseOrderByIdAsc(institution, departmentName.trim())
                 .orElse(null);
         if (department == null) {
             return response;
@@ -266,14 +177,12 @@ public class OrgHierarchyService {
             return response;
         }
         Team team = teamRepository
-                .findByInstitutionAndCategoryAndTypeAndDepartmentAndNameIgnoreCaseAndIsDeletedFalse(
-                        inst, category, type, department, teamName.trim())
+                .findFirstByDepartmentAndNameIgnoreCaseAndIsDeletedFalseOrderByIdAsc(department, teamName.trim())
                 .orElse(null);
         if (team == null) {
             return response;
         }
         response.setTeamId(team.getId());
-
         return response;
     }
 
@@ -285,7 +194,9 @@ public class OrgHierarchyService {
     }
 
     private User resolveActor(String actorPrincipal) {
-        if (!StringUtils.hasText(actorPrincipal)) throw new AccessDeniedException("Unauthenticated actor");
+        if (!StringUtils.hasText(actorPrincipal)) {
+            throw new AccessDeniedException("Unauthenticated actor");
+        }
         if (actorPrincipal.contains("@")) {
             return userRepository.findByEmailAndIsDeletedFalse(actorPrincipal.trim().toLowerCase(Locale.ROOT))
                     .orElseThrow(() -> new EntityNotFoundException("Actor not found"));
@@ -295,8 +206,8 @@ public class OrgHierarchyService {
     }
 
     private String status(String value) {
-        String v = StringUtils.hasText(value) ? value.trim().toUpperCase(Locale.ROOT) : "ACTIVE";
-        return ("INACTIVE".equals(v)) ? "INACTIVE" : "ACTIVE";
+        String resolved = StringUtils.hasText(value) ? value.trim().toUpperCase(Locale.ROOT) : "ACTIVE";
+        return "INACTIVE".equals(resolved) ? "INACTIVE" : "ACTIVE";
     }
 
     private String trimOrNull(String value) {
@@ -315,16 +226,25 @@ public class OrgHierarchyService {
             return true;
         }
         if (actorRole == Role.ADMIN) {
-            String actorType = safeLower(actor.getInstitutionType());
-            String targetType = safeLower(target.getInstitutionType());
-            return !actorType.isEmpty() && actorType.equals(targetType);
+            String actorBranch = safeLower(actor.getInstitutionName());
+            String targetBranch = safeLower(target.getInstitutionName());
+            return !actorBranch.isEmpty() && actorBranch.equals(targetBranch);
         }
         if (actorRole == Role.MANAGER) {
-            String actorTeam = safeLower(actor.getTeamName());
-            String targetTeam = safeLower(target.getTeamName());
-            return target.getRole() == Role.EMPLOYEE
-                    && !actorTeam.isEmpty()
-                    && actorTeam.equals(targetTeam);
+            return !safeLower(actor.getInstitutionName()).isEmpty()
+                    && safeLower(actor.getInstitutionName()).equals(safeLower(target.getInstitutionName()))
+                    && !safeLower(actor.getDepartmentName()).isEmpty()
+                    && safeLower(actor.getDepartmentName()).equals(safeLower(target.getDepartmentName()))
+                    && (target.getRole() == Role.TEAM_LEAD || target.getRole() == Role.EMPLOYEE);
+        }
+        if (actorRole == Role.TEAM_LEAD) {
+            return !safeLower(actor.getInstitutionName()).isEmpty()
+                    && safeLower(actor.getInstitutionName()).equals(safeLower(target.getInstitutionName()))
+                    && !safeLower(actor.getDepartmentName()).isEmpty()
+                    && safeLower(actor.getDepartmentName()).equals(safeLower(target.getDepartmentName()))
+                    && !safeLower(actor.getTeamName()).isEmpty()
+                    && safeLower(actor.getTeamName()).equals(safeLower(target.getTeamName()))
+                    && target.getRole() == Role.EMPLOYEE;
         }
         return false;
     }

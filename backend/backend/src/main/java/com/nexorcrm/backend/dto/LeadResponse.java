@@ -23,10 +23,9 @@ public class LeadResponse {
     private String leadState;
     private String leadCity;
     private String leadPincode;
+    private String streetAddress;
     private Long projectId;
     private String leadType;
-    private Long channelPartnerId;
-    private String channelPartnerName;
     private String status;
     private String svStatus;
     private Long leadGroupId;
@@ -260,6 +259,8 @@ public class LeadResponse {
     public void setLeadCity(String leadCity) { this.leadCity = leadCity; }
     public String getLeadPincode() { return leadPincode; }
     public void setLeadPincode(String leadPincode) { this.leadPincode = leadPincode; }
+    public String getStreetAddress() { return streetAddress; }
+    public void setStreetAddress(String streetAddress) { this.streetAddress = streetAddress; }
     public Long getProjectId() { return projectId; }
     public void setProjectId(Long projectId) { this.projectId = projectId; }
 
@@ -269,22 +270,6 @@ public class LeadResponse {
 
     public void setLeadType(String leadType) {
         this.leadType = leadType;
-    }
-
-    public Long getChannelPartnerId() {
-        return channelPartnerId;
-    }
-
-    public void setChannelPartnerId(Long channelPartnerId) {
-        this.channelPartnerId = channelPartnerId;
-    }
-
-    public String getChannelPartnerName() {
-        return channelPartnerName;
-    }
-
-    public void setChannelPartnerName(String channelPartnerName) {
-        this.channelPartnerName = channelPartnerName;
     }
 
     public String getStatus() {

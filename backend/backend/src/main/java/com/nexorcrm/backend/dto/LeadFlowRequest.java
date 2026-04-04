@@ -7,6 +7,7 @@ public class LeadFlowRequest {
     private Long defaultGroupId;
     private List<Map<String, Object>> rules;
     private List<String> statuses;
+    private String institutionName;
 
     public Long getDefaultGroupId() {
         return defaultGroupId;
@@ -30,5 +31,13 @@ public class LeadFlowRequest {
 
     public void setStatuses(List<String> statuses) {
         this.statuses = statuses;
+    }
+
+    public String getInstitutionName() {
+        return institutionName;
+    }
+
+    public void setInstitutionName(String institutionName) {
+        this.institutionName = institutionName;
     }
 }

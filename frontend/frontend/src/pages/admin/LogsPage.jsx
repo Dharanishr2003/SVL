@@ -6,10 +6,12 @@ import {
 } from "../../api/auditLogApi";
 import { extractApiErrorMessage } from "../../utils/errorMessage";
 import { useAuth } from "../../context/AuthContext";
+import { usePageAccess } from "../../context/PageAccessContext";
 import { useToast } from "../../components/system/ToastProvider";
 
 export default function LogsPage() {
   const { user } = useAuth();
+  const { canAccess } = usePageAccess();
   const role = String(user?.role || "").toUpperCase();
   const { showSuccess, showError } = useToast();
   const [rows, setRows] = useState([]);
@@ -18,8 +20,17 @@ export default function LogsPage() {
   const [totalPages, setTotalPages] = useState(0);
   const [loading, setLoading] = useState(false);
   const [olderThanDays, setOlderThanDays] = useState(30);
+  const canViewLogs = canAccess("settings-logs");
+  const canDeleteLogs = role === "SUPER_ADMIN" || role === "ADMIN";
 
   const load = async (nextPage = page, nextSize = size) => {
+    if (!canViewLogs) {
+      setRows([]);
+      setPage(0);
+      setTotalPages(0);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const payload = await getAuditLogs(nextPage, nextSize);
@@ -37,7 +48,7 @@ export default function LogsPage() {
 
   useEffect(() => {
     load(0, size);
-  }, [role]);
+  }, [role, size, canViewLogs]);
 
   const handleDeleteAll = async () => {
     setLoading(true);
@@ -73,7 +84,7 @@ export default function LogsPage() {
       <div className="card mb-3">
         <div className="card-header d-flex align-items-center justify-content-between">
           <h4 className="mb-0">Audit Logs</h4>
-          {role !== "EMPLOYEE" ? (
+          {canDeleteLogs ? (
             <div className="d-flex align-items-center gap-2">
               <div className="input-group" style={{ width: 220 }}>
                 <input
@@ -102,6 +113,11 @@ export default function LogsPage() {
           ) : null}
         </div>
         <div className="card-body">
+          {!canViewLogs ? (
+            <div className="alert alert-warning mb-0">
+              You do not have permission to view audit logs.
+            </div>
+          ) : (
           <div className="d-flex align-items-center justify-content-between mb-3">
             <div>{totalLabel}</div>
             <div className="d-flex align-items-center gap-2">
@@ -134,6 +150,8 @@ export default function LogsPage() {
               </button>
             </div>
           </div>
+          )}
+          {canViewLogs && (
           <div className="table-responsive">
             <table className="table table-striped table-bordered table-hover">
               <thead className="table-dark">
@@ -168,6 +186,7 @@ export default function LogsPage() {
               </tbody>
             </table>
           </div>
+          )}
         </div>
       </div>
     </div>

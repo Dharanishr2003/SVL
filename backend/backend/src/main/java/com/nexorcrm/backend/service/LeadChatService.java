@@ -383,8 +383,6 @@ public class LeadChatService {
             return false;
         }
         return textEquals(actor.getInstitutionName(), target.getInstitutionName())
-                && textEquals(actor.getInstitutionCategory(), target.getInstitutionCategory())
-                && textEquals(actor.getInstitutionType(), target.getInstitutionType())
                 && textEquals(actor.getDepartmentName(), target.getDepartmentName())
                 && textEquals(actor.getTeamName(), target.getTeamName());
     }
@@ -397,8 +395,6 @@ public class LeadChatService {
             return false;
         }
         return textEquals(actor.getInstitutionName(), target.getInstitutionName())
-                && textEquals(actor.getInstitutionCategory(), target.getInstitutionCategory())
-                && textEquals(actor.getInstitutionType(), target.getInstitutionType())
                 && textEquals(actor.getDepartmentName(), target.getDepartmentName());
     }
 
@@ -409,8 +405,6 @@ public class LeadChatService {
     private boolean hasDepartmentScope(User user) {
         return user != null
                 && StringUtils.hasText(user.getInstitutionName())
-                && StringUtils.hasText(user.getInstitutionCategory())
-                && StringUtils.hasText(user.getInstitutionType())
                 && StringUtils.hasText(user.getDepartmentName());
     }
 

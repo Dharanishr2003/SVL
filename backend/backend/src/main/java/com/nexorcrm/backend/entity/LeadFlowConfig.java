@@ -26,6 +26,9 @@ public class LeadFlowConfig {
     @Column(name = "statuses_json", columnDefinition = "text")
     private String statusesJson;
 
+    @Column(name = "scoped_flow_json", columnDefinition = "text")
+    private String scopedFlowJson;
+
     @Column(name = "updated_by", length = 120)
     private String updatedBy;
 
@@ -74,6 +77,14 @@ public class LeadFlowConfig {
 
     public void setRulesJson(String rulesJson) {
         this.rulesJson = rulesJson;
+    }
+
+    public String getScopedFlowJson() {
+        return scopedFlowJson;
+    }
+
+    public void setScopedFlowJson(String scopedFlowJson) {
+        this.scopedFlowJson = scopedFlowJson;
     }
 
     public String getUpdatedBy() {

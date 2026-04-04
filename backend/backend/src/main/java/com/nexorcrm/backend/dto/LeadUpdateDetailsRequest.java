@@ -7,7 +7,6 @@ public class LeadUpdateDetailsRequest {
     private String alternateEmail;
     private String countryCode;
     private LocalDateTime followUpDate;
-    private String occupation;
     private String companyName;
     private String leadType;
     private String attemptedOpenReason;
@@ -77,7 +76,7 @@ public class LeadUpdateDetailsRequest {
     private String leadState;
     private String leadCity;
     private String leadPincode;
-    private Long projectId;
+    private String streetAddress;
 
     // production requirement - JSON serialized production brief
     private String productionBrief;
@@ -122,14 +121,6 @@ public class LeadUpdateDetailsRequest {
 
     public void setFollowUpDate(LocalDateTime followUpDate) {
         this.followUpDate = followUpDate;
-    }
-
-    public String getOccupation() {
-        return occupation;
-    }
-
-    public void setOccupation(String occupation) {
-        this.occupation = occupation;
     }
 
     public String getCompanyName() {
@@ -462,6 +453,6 @@ public class LeadUpdateDetailsRequest {
     public void setLeadCity(String leadCity) { this.leadCity = leadCity; }
     public String getLeadPincode() { return leadPincode; }
     public void setLeadPincode(String leadPincode) { this.leadPincode = leadPincode; }
-    public Long getProjectId() { return projectId; }
-    public void setProjectId(Long projectId) { this.projectId = projectId; }
+    public String getStreetAddress() { return streetAddress; }
+    public void setStreetAddress(String streetAddress) { this.streetAddress = streetAddress; }
 }

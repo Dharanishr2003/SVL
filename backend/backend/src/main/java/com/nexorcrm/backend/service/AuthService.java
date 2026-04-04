@@ -201,8 +201,6 @@ public class AuthService {
         response.setRefreshToken(refreshToken);
         response.setRole(user.getRole().name());
         response.setInstitution(user.getInstitutionName());
-        response.setInstitutionCategory(user.getInstitutionCategory());
-        response.setInstitutionType(user.getInstitutionType());
         response.setDepartmentName(user.getDepartmentName());
         response.setTeam(user.getTeamName());
         response.setForcePasswordChange(user.isForcePasswordChange());
@@ -313,8 +311,6 @@ public class AuthService {
         res.setRegisteredIp(user.getRegisteredIp());
         res.setLastActiveIp(user.getLastActiveIp());
         res.setInstitutionName(user.getInstitutionName());
-        res.setInstitutionCategory(user.getInstitutionCategory());
-        res.setInstitutionType(user.getInstitutionType());
         res.setDepartmentName(user.getDepartmentName());
         res.setTeamName(user.getTeamName());
 

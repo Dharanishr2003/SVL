@@ -39,12 +39,6 @@ public class CreateUserRequest {
     private String institution;
 
     @Size(max = 160)
-    private String institutionCategory;
-
-    @Size(max = 160)
-    private String institutionType;
-
-    @Size(max = 160)
     private String departmentName;
 
     @Size(max = 160)
@@ -99,22 +93,6 @@ public class CreateUserRequest {
 
     public void setInstitution(String institution) {
         this.institution = institution;
-    }
-
-    public String getInstitutionCategory() {
-        return institutionCategory;
-    }
-
-    public void setInstitutionCategory(String institutionCategory) {
-        this.institutionCategory = institutionCategory;
-    }
-
-    public String getInstitutionType() {
-        return institutionType;
-    }
-
-    public void setInstitutionType(String institutionType) {
-        this.institutionType = institutionType;
     }
 
     public String getDepartmentName() {

@@ -11,7 +11,6 @@ export const PAGE_ACCESS_OPTIONS = [
   },
   { key: "leads", label: "Leads", category: "CRM" },
   { key: "rejected-leads", label: "Rejected Leads", category: "CRM" },
-  { key: "deals", label: "Deals", category: "CRM" },
   { key: "design", label: "Design", category: "CRM" },
   { key: "production", label: "Production", category: "CRM" },
   { key: "contacts", label: "Contacts", category: "CRM" },
@@ -20,7 +19,6 @@ export const PAGE_ACCESS_OPTIONS = [
   { key: "analytics", label: "Analytics", category: "CRM" },
   { key: "activity", label: "Activity", category: "CRM" },
   { key: "quotation", label: "Quotation", category: "CRM" },
-  { key: "channel-partners", label: "Channel Partners", category: "CRM" },
   {
     key: "lead-source",
     label: "Lead Source",
@@ -264,7 +262,6 @@ const ROUTE_ACCESS_RULES = [
   { pageKeys: ["stocks", "stocks-dashboard"], prefixes: ["/stocks"] },
   { pageKeys: ["stocks", "stocks-item"], prefixes: ["/stocks/item"] },
   { pageKeys: ["stocks", "stocks-categories"], prefixes: ["/stocks/categories"] },
-  { pageKeys: ["channel-partners"], prefixes: ["/channel-partners"] },
   { pageKeys: ["quotation"], prefixes: ["/quotation"] },
   { pageKeys: ["activity"], prefixes: ["/activity"] },
   { pageKeys: ["analytics"], prefixes: ["/analytics"] },
@@ -274,7 +271,6 @@ const ROUTE_ACCESS_RULES = [
   { pageKeys: ["contacts"], prefixes: ["/contacts", "/contacts-grid"] },
   { pageKeys: ["production"], prefixes: ["/production", "/production-detail"] },
   { pageKeys: ["design"], prefixes: ["/design", "/design-detail", "/design-work"] },
-  { pageKeys: ["deals"], prefixes: ["/deals", "/deals-dashboard"] },
   { pageKeys: ["rejected-leads"], prefixes: ["/rejected-leads"] },
   { pageKeys: ["leads"], prefixes: ["/leads", "/leads-dashboard"] },
   { pageKeys: ["employees", "employees-list"], prefixes: ["/employees"] },
@@ -331,6 +327,7 @@ const ADMIN_ONLY_PREFIXES = [
   "/session-settings",
   "/user-settings",
   "/flow",
+  "/logs",
 ];
 
 function normalizePath(path) {
@@ -372,7 +369,10 @@ export function canAccessPathWithPageKeys(path, pageKeys, role) {
   const normalizedRole = String(role || "").trim().toUpperCase();
   const canUsePermissionControlledAdminRoutes =
     normalizedRole === "ADMIN" ||
-    normalizedRole === "SUPER_ADMIN";
+    normalizedRole === "SUPER_ADMIN" ||
+    normalizedRole === "MANAGER" ||
+    normalizedRole === "TEAM_LEAD" ||
+    normalizedRole === "EMPLOYEE";
   if (normalizedRole === "SUPER_ADMIN") return true;
   if (isAdminOnlyPath(path) && !canUsePermissionControlledAdminRoutes) return false;
   if (isAlwaysAllowedPath(path)) return true;

@@ -14,6 +14,7 @@ import java.util.Optional;
 
 public interface UserRepository extends JpaRepository<User, Long> {
     boolean existsByRole(Role role);
+    boolean existsByRoleAndIsDeletedFalse(Role role);
     boolean existsByUsername(String username);
     boolean existsByEmail(String email);
     boolean existsByUsernameIgnoreCaseAndIsDeletedFalse(String username);
@@ -62,15 +63,11 @@ public interface UserRepository extends JpaRepository<User, Long> {
               AND u.teamName IS NOT NULL
               AND trim(u.teamName) <> ''
               AND lower(coalesce(u.institutionName, '')) = lower(:institutionName)
-              AND lower(coalesce(u.institutionCategory, '')) = lower(:institutionCategory)
-              AND lower(coalesce(u.institutionType, '')) = lower(:institutionType)
               AND lower(coalesce(u.departmentName, '')) = lower(:departmentName)
             ORDER BY u.teamName ASC
             """)
     List<String> findDistinctTeamNamesByDepartmentScope(
             @Param("institutionName") String institutionName,
-            @Param("institutionCategory") String institutionCategory,
-            @Param("institutionType") String institutionType,
             @Param("departmentName") String departmentName
     );
 
@@ -81,8 +78,6 @@ public interface UserRepository extends JpaRepository<User, Long> {
               AND u.activationStatus = :activationStatus
               AND u.role IN :roles
               AND lower(coalesce(u.institutionName, '')) = lower(:institutionName)
-              AND lower(coalesce(u.institutionCategory, '')) = lower(:institutionCategory)
-              AND lower(coalesce(u.institutionType, '')) = lower(:institutionType)
               AND lower(coalesce(u.departmentName, '')) = lower(:departmentName)
               AND lower(coalesce(u.teamName, '')) IN :teamNamesLower
             ORDER BY lower(u.username) ASC, u.id ASC
@@ -91,8 +86,6 @@ public interface UserRepository extends JpaRepository<User, Long> {
             @Param("roles") List<Role> roles,
             @Param("activationStatus") ActivationStatus activationStatus,
             @Param("institutionName") String institutionName,
-            @Param("institutionCategory") String institutionCategory,
-            @Param("institutionType") String institutionType,
             @Param("departmentName") String departmentName,
             @Param("teamNamesLower") List<String> teamNamesLower
     );
@@ -104,8 +97,6 @@ public interface UserRepository extends JpaRepository<User, Long> {
               AND u.activationStatus = :activationStatus
               AND u.role IN :roles
               AND lower(coalesce(u.institutionName, '')) = lower(:institutionName)
-              AND lower(coalesce(u.institutionCategory, '')) = lower(:institutionCategory)
-              AND lower(coalesce(u.institutionType, '')) = lower(:institutionType)
               AND lower(coalesce(u.departmentName, '')) = lower(:departmentName)
             ORDER BY lower(u.username) ASC, u.id ASC
             """)
@@ -113,9 +104,22 @@ public interface UserRepository extends JpaRepository<User, Long> {
             @Param("roles") List<Role> roles,
             @Param("activationStatus") ActivationStatus activationStatus,
             @Param("institutionName") String institutionName,
-            @Param("institutionCategory") String institutionCategory,
-            @Param("institutionType") String institutionType,
             @Param("departmentName") String departmentName
+    );
+
+    @Query("""
+            SELECT u
+            FROM User u
+            WHERE u.isDeleted = false
+              AND u.activationStatus = :activationStatus
+              AND u.role IN :roles
+              AND lower(coalesce(u.institutionName, '')) = lower(:institutionName)
+            ORDER BY lower(u.username) ASC, u.id ASC
+            """)
+    List<User> findActiveByRoleInAndBranchScope(
+            @Param("roles") List<Role> roles,
+            @Param("activationStatus") ActivationStatus activationStatus,
+            @Param("institutionName") String institutionName
     );
 
     @Query("""
@@ -133,78 +137,79 @@ public interface UserRepository extends JpaRepository<User, Long> {
             @Param("teamNamesLower") List<String> teamNamesLower
     );
 
-    boolean existsByRoleAndInstitutionNameIgnoreCaseAndInstitutionCategoryIgnoreCaseAndInstitutionTypeIgnoreCaseAndDepartmentNameIgnoreCaseAndIsDeletedFalse(
+    @Query("""
+            SELECT u
+            FROM User u
+            WHERE u.isDeleted = false
+              AND u.activationStatus = :activationStatus
+              AND u.role IN :roles
+              AND lower(coalesce(u.institutionName, '')) = lower(:institutionName)
+              AND lower(coalesce(u.teamName, '')) IN :teamNamesLower
+            ORDER BY lower(u.username) ASC, u.id ASC
+            """)
+    List<User> findActiveByRoleInAndBranchScopeAndTeamNameIn(
+            @Param("roles") List<Role> roles,
+            @Param("activationStatus") ActivationStatus activationStatus,
+            @Param("institutionName") String institutionName,
+            @Param("teamNamesLower") List<String> teamNamesLower
+    );
+
+    boolean existsByRoleAndInstitutionNameIgnoreCaseAndDepartmentNameIgnoreCaseAndIsDeletedFalse(
             Role role,
             String institutionName,
-            String institutionCategory,
-            String institutionType,
             String departmentName
     );
 
-    boolean existsByRoleAndIdNotAndInstitutionNameIgnoreCaseAndInstitutionCategoryIgnoreCaseAndInstitutionTypeIgnoreCaseAndDepartmentNameIgnoreCaseAndIsDeletedFalse(
+    boolean existsByRoleAndIdNotAndInstitutionNameIgnoreCaseAndDepartmentNameIgnoreCaseAndIsDeletedFalse(
             Role role,
             Long id,
             String institutionName,
-            String institutionCategory,
-            String institutionType,
             String departmentName
     );
 
-    boolean existsByRoleAndActivationStatusAndInstitutionNameIgnoreCaseAndInstitutionCategoryIgnoreCaseAndInstitutionTypeIgnoreCaseAndDepartmentNameIgnoreCaseAndIsDeletedFalse(
+    boolean existsByRoleAndActivationStatusAndInstitutionNameIgnoreCaseAndDepartmentNameIgnoreCaseAndIsDeletedFalse(
             Role role,
             ActivationStatus activationStatus,
             String institutionName,
-            String institutionCategory,
-            String institutionType,
             String departmentName
     );
 
-    boolean existsByRoleAndIdNotAndActivationStatusAndInstitutionNameIgnoreCaseAndInstitutionCategoryIgnoreCaseAndInstitutionTypeIgnoreCaseAndDepartmentNameIgnoreCaseAndIsDeletedFalse(
+    boolean existsByRoleAndIdNotAndActivationStatusAndInstitutionNameIgnoreCaseAndDepartmentNameIgnoreCaseAndIsDeletedFalse(
             Role role,
             Long id,
             ActivationStatus activationStatus,
             String institutionName,
-            String institutionCategory,
-            String institutionType,
             String departmentName
     );
 
-    boolean existsByRoleAndInstitutionNameIgnoreCaseAndInstitutionCategoryIgnoreCaseAndInstitutionTypeIgnoreCaseAndDepartmentNameIgnoreCaseAndTeamNameIgnoreCaseAndIsDeletedFalse(
+    boolean existsByRoleAndInstitutionNameIgnoreCaseAndDepartmentNameIgnoreCaseAndTeamNameIgnoreCaseAndIsDeletedFalse(
             Role role,
             String institutionName,
-            String institutionCategory,
-            String institutionType,
             String departmentName,
             String teamName
     );
 
-    boolean existsByRoleAndIdNotAndInstitutionNameIgnoreCaseAndInstitutionCategoryIgnoreCaseAndInstitutionTypeIgnoreCaseAndDepartmentNameIgnoreCaseAndTeamNameIgnoreCaseAndIsDeletedFalse(
+    boolean existsByRoleAndIdNotAndInstitutionNameIgnoreCaseAndDepartmentNameIgnoreCaseAndTeamNameIgnoreCaseAndIsDeletedFalse(
             Role role,
             Long id,
             String institutionName,
-            String institutionCategory,
-            String institutionType,
             String departmentName,
             String teamName
     );
 
-    boolean existsByRoleAndActivationStatusAndInstitutionNameIgnoreCaseAndInstitutionCategoryIgnoreCaseAndInstitutionTypeIgnoreCaseAndDepartmentNameIgnoreCaseAndTeamNameIgnoreCaseAndIsDeletedFalse(
+    boolean existsByRoleAndActivationStatusAndInstitutionNameIgnoreCaseAndDepartmentNameIgnoreCaseAndTeamNameIgnoreCaseAndIsDeletedFalse(
             Role role,
             ActivationStatus activationStatus,
             String institutionName,
-            String institutionCategory,
-            String institutionType,
             String departmentName,
             String teamName
     );
 
-    boolean existsByRoleAndIdNotAndActivationStatusAndInstitutionNameIgnoreCaseAndInstitutionCategoryIgnoreCaseAndInstitutionTypeIgnoreCaseAndDepartmentNameIgnoreCaseAndTeamNameIgnoreCaseAndIsDeletedFalse(
+    boolean existsByRoleAndIdNotAndActivationStatusAndInstitutionNameIgnoreCaseAndDepartmentNameIgnoreCaseAndTeamNameIgnoreCaseAndIsDeletedFalse(
             Role role,
             Long id,
             ActivationStatus activationStatus,
             String institutionName,
-            String institutionCategory,
-            String institutionType,
             String departmentName,
             String teamName
     );
@@ -216,15 +221,10 @@ public interface UserRepository extends JpaRepository<User, Long> {
               AND u.activationStatus = com.nexorcrm.backend.entity.ActivationStatus.ACTIVE
               AND u.role = com.nexorcrm.backend.entity.Role.MANAGER
               AND lower(trim(coalesce(u.institutionName, ''))) = lower(trim(:institutionName))
-              AND lower(trim(coalesce(u.institutionCategory, ''))) = lower(trim(:institutionCategory))
-              AND lower(trim(coalesce(u.institutionType, ''))) = lower(trim(:institutionType))
               AND lower(trim(coalesce(u.departmentName, ''))) = lower(trim(:departmentName))
-              AND lower(trim(coalesce(u.teamName, ''))) = lower(trim(:teamName))
             """)
     long countActiveManagersInScope(
             @Param("institutionName") String institutionName,
-            @Param("institutionCategory") String institutionCategory,
-            @Param("institutionType") String institutionType,
             @Param("departmentName") String departmentName,
             @Param("teamName") String teamName
     );
@@ -237,16 +237,71 @@ public interface UserRepository extends JpaRepository<User, Long> {
               AND u.role = com.nexorcrm.backend.entity.Role.MANAGER
               AND u.id <> :excludeUserId
               AND lower(trim(coalesce(u.institutionName, ''))) = lower(trim(:institutionName))
-              AND lower(trim(coalesce(u.institutionCategory, ''))) = lower(trim(:institutionCategory))
-              AND lower(trim(coalesce(u.institutionType, ''))) = lower(trim(:institutionType))
               AND lower(trim(coalesce(u.departmentName, ''))) = lower(trim(:departmentName))
-              AND lower(trim(coalesce(u.teamName, ''))) = lower(trim(:teamName))
             """)
     long countActiveManagersInScopeExcludingUser(
             @Param("excludeUserId") Long excludeUserId,
             @Param("institutionName") String institutionName,
-            @Param("institutionCategory") String institutionCategory,
-            @Param("institutionType") String institutionType,
+            @Param("departmentName") String departmentName,
+            @Param("teamName") String teamName
+    );
+
+    @Query("""
+            SELECT count(u)
+            FROM User u
+            WHERE u.isDeleted = false
+              AND u.activationStatus = com.nexorcrm.backend.entity.ActivationStatus.ACTIVE
+              AND u.role = com.nexorcrm.backend.entity.Role.ADMIN
+              AND lower(trim(coalesce(u.institutionName, ''))) = lower(trim(:institutionName))
+            """)
+    long countActiveAdminsByBranch(
+            @Param("institutionName") String institutionName
+    );
+
+    @Query("""
+            SELECT count(u)
+            FROM User u
+            WHERE u.isDeleted = false
+              AND u.activationStatus = com.nexorcrm.backend.entity.ActivationStatus.ACTIVE
+              AND u.role = com.nexorcrm.backend.entity.Role.ADMIN
+              AND u.id <> :excludeUserId
+              AND lower(trim(coalesce(u.institutionName, ''))) = lower(trim(:institutionName))
+            """)
+    long countActiveAdminsByBranchExcludingUser(
+            @Param("excludeUserId") Long excludeUserId,
+            @Param("institutionName") String institutionName
+    );
+
+    @Query("""
+            SELECT count(u)
+            FROM User u
+            WHERE u.isDeleted = false
+              AND u.activationStatus = com.nexorcrm.backend.entity.ActivationStatus.ACTIVE
+              AND u.role = com.nexorcrm.backend.entity.Role.TEAM_LEAD
+              AND lower(trim(coalesce(u.institutionName, ''))) = lower(trim(:institutionName))
+              AND lower(trim(coalesce(u.departmentName, ''))) = lower(trim(:departmentName))
+              AND lower(trim(coalesce(u.teamName, ''))) = lower(trim(:teamName))
+            """)
+    long countActiveTeamLeadsInScope(
+            @Param("institutionName") String institutionName,
+            @Param("departmentName") String departmentName,
+            @Param("teamName") String teamName
+    );
+
+    @Query("""
+            SELECT count(u)
+            FROM User u
+            WHERE u.isDeleted = false
+              AND u.activationStatus = com.nexorcrm.backend.entity.ActivationStatus.ACTIVE
+              AND u.role = com.nexorcrm.backend.entity.Role.TEAM_LEAD
+              AND u.id <> :excludeUserId
+              AND lower(trim(coalesce(u.institutionName, ''))) = lower(trim(:institutionName))
+              AND lower(trim(coalesce(u.departmentName, ''))) = lower(trim(:departmentName))
+              AND lower(trim(coalesce(u.teamName, ''))) = lower(trim(:teamName))
+            """)
+    long countActiveTeamLeadsInScopeExcludingUser(
+            @Param("excludeUserId") Long excludeUserId,
+            @Param("institutionName") String institutionName,
             @Param("departmentName") String departmentName,
             @Param("teamName") String teamName
     );
@@ -261,7 +316,8 @@ public interface UserRepository extends JpaRepository<User, Long> {
                         WHEN com.nexorcrm.backend.entity.Role.SUPER_ADMIN THEN 1
                         WHEN com.nexorcrm.backend.entity.Role.ADMIN THEN 2
                         WHEN com.nexorcrm.backend.entity.Role.MANAGER THEN 3
-                        WHEN com.nexorcrm.backend.entity.Role.EMPLOYEE THEN 4
+                        WHEN com.nexorcrm.backend.entity.Role.TEAM_LEAD THEN 4
+                        WHEN com.nexorcrm.backend.entity.Role.EMPLOYEE THEN 5
                         ELSE 99
                     END,
                     lower(u.username) ASC,
@@ -287,14 +343,12 @@ public interface UserRepository extends JpaRepository<User, Long> {
                       AND u.activationStatus IN :activationStatuses
                       AND u.isDeleted = false
                       AND lower(coalesce(u.institutionName, '')) = lower(:institutionName)
-                      AND lower(coalesce(u.institutionCategory, '')) = lower(:institutionCategory)
-                      AND lower(coalesce(u.institutionType, '')) = lower(:institutionType)
-                      AND lower(coalesce(u.departmentName, '')) = lower(:departmentName)
                     ORDER BY CASE u.role
                         WHEN com.nexorcrm.backend.entity.Role.SUPER_ADMIN THEN 1
                         WHEN com.nexorcrm.backend.entity.Role.ADMIN THEN 2
                         WHEN com.nexorcrm.backend.entity.Role.MANAGER THEN 3
-                        WHEN com.nexorcrm.backend.entity.Role.EMPLOYEE THEN 4
+                        WHEN com.nexorcrm.backend.entity.Role.TEAM_LEAD THEN 4
+                        WHEN com.nexorcrm.backend.entity.Role.EMPLOYEE THEN 5
                         ELSE 99
                     END,
                     lower(u.username) ASC,
@@ -306,8 +360,40 @@ public interface UserRepository extends JpaRepository<User, Long> {
                       AND u.activationStatus IN :activationStatuses
                       AND u.isDeleted = false
                       AND lower(coalesce(u.institutionName, '')) = lower(:institutionName)
-                      AND lower(coalesce(u.institutionCategory, '')) = lower(:institutionCategory)
-                      AND lower(coalesce(u.institutionType, '')) = lower(:institutionType)
+                    """
+    )
+    Page<User> findByRoleInAndActivationStatusInAndBranchScopeOrderByRoleHierarchy(
+            @Param("roles") List<Role> roles,
+            @Param("activationStatuses") List<ActivationStatus> activationStatuses,
+            @Param("institutionName") String institutionName,
+            Pageable pageable
+    );
+
+    @Query(
+            value = """
+                    SELECT u FROM User u
+                    WHERE u.role IN :roles
+                      AND u.activationStatus IN :activationStatuses
+                      AND u.isDeleted = false
+                      AND lower(coalesce(u.institutionName, '')) = lower(:institutionName)
+                      AND lower(coalesce(u.departmentName, '')) = lower(:departmentName)
+                    ORDER BY CASE u.role
+                        WHEN com.nexorcrm.backend.entity.Role.SUPER_ADMIN THEN 1
+                        WHEN com.nexorcrm.backend.entity.Role.ADMIN THEN 2
+                        WHEN com.nexorcrm.backend.entity.Role.MANAGER THEN 3
+                        WHEN com.nexorcrm.backend.entity.Role.TEAM_LEAD THEN 4
+                        WHEN com.nexorcrm.backend.entity.Role.EMPLOYEE THEN 5
+                        ELSE 99
+                    END,
+                    lower(u.username) ASC,
+                    u.id ASC
+                    """,
+            countQuery = """
+                    SELECT COUNT(u) FROM User u
+                    WHERE u.role IN :roles
+                      AND u.activationStatus IN :activationStatuses
+                      AND u.isDeleted = false
+                      AND lower(coalesce(u.institutionName, '')) = lower(:institutionName)
                       AND lower(coalesce(u.departmentName, '')) = lower(:departmentName)
                     """
     )
@@ -315,8 +401,6 @@ public interface UserRepository extends JpaRepository<User, Long> {
             @Param("roles") List<Role> roles,
             @Param("activationStatuses") List<ActivationStatus> activationStatuses,
             @Param("institutionName") String institutionName,
-            @Param("institutionCategory") String institutionCategory,
-            @Param("institutionType") String institutionType,
             @Param("departmentName") String departmentName,
             Pageable pageable
     );
@@ -328,15 +412,14 @@ public interface UserRepository extends JpaRepository<User, Long> {
                       AND u.activationStatus IN :activationStatuses
                       AND u.isDeleted = false
                       AND lower(coalesce(u.institutionName, '')) = lower(:institutionName)
-                      AND lower(coalesce(u.institutionCategory, '')) = lower(:institutionCategory)
-                      AND lower(coalesce(u.institutionType, '')) = lower(:institutionType)
                       AND lower(coalesce(u.departmentName, '')) = lower(:departmentName)
                       AND lower(coalesce(u.teamName, '')) = lower(:teamName)
                     ORDER BY CASE u.role
                         WHEN com.nexorcrm.backend.entity.Role.SUPER_ADMIN THEN 1
                         WHEN com.nexorcrm.backend.entity.Role.ADMIN THEN 2
                         WHEN com.nexorcrm.backend.entity.Role.MANAGER THEN 3
-                        WHEN com.nexorcrm.backend.entity.Role.EMPLOYEE THEN 4
+                        WHEN com.nexorcrm.backend.entity.Role.TEAM_LEAD THEN 4
+                        WHEN com.nexorcrm.backend.entity.Role.EMPLOYEE THEN 5
                         ELSE 99
                     END,
                     lower(u.username) ASC,
@@ -348,8 +431,6 @@ public interface UserRepository extends JpaRepository<User, Long> {
                       AND u.activationStatus IN :activationStatuses
                       AND u.isDeleted = false
                       AND lower(coalesce(u.institutionName, '')) = lower(:institutionName)
-                      AND lower(coalesce(u.institutionCategory, '')) = lower(:institutionCategory)
-                      AND lower(coalesce(u.institutionType, '')) = lower(:institutionType)
                       AND lower(coalesce(u.departmentName, '')) = lower(:departmentName)
                       AND lower(coalesce(u.teamName, '')) = lower(:teamName)
                     """
@@ -358,8 +439,6 @@ public interface UserRepository extends JpaRepository<User, Long> {
             @Param("roles") List<Role> roles,
             @Param("activationStatuses") List<ActivationStatus> activationStatuses,
             @Param("institutionName") String institutionName,
-            @Param("institutionCategory") String institutionCategory,
-            @Param("institutionType") String institutionType,
             @Param("departmentName") String departmentName,
             @Param("teamName") String teamName,
             Pageable pageable

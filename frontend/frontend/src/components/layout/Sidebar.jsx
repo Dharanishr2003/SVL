@@ -344,14 +344,6 @@ export default function Sidebar() {
                     </a>
                   </li>
                   )}
-                  {canAccess("deals") && (
-                  <li className="">
-                    <a href="/deals" className="">
-                      <i className="ti ti-heart-handshake"></i>
-                      <span>Deals</span>
-                    </a>
-                  </li>
-                  )}
                   {canAccess("design") && (
                   <li className="">
                     <a href="/design">
@@ -505,14 +497,6 @@ export default function Sidebar() {
                       </li>
                       )}
                     </ul>
-                  </li>
-                  )}
-                  {canAccess("channel-partners") && (
-                  <li className="">
-                    <Link to="/channel-partners">
-                      <i className="ti ti-users"></i>
-                      <span>Channel Partner</span>
-                    </Link>
                   </li>
                   )}
                   {canAccessAny("lead-source", "lead-status", "primary-source", "secondary-source", "tertiary-source", "lead-type") && (

@@ -3,15 +3,13 @@ package com.nexorcrm.backend.dto;
 public class UserGroupResponse {
     private Long id;
     private String name;
-    private Integer groupLevel;
     private long members;
     private boolean canDelete;
     private String institutionName;
-    private String institutionCategory;
-    private String institutionType;
     private String departmentName;
     private java.util.List<String> teamNames;
     private java.util.List<String> pageKeys;
+    private String memberScope;
 
     public Long getId() {
         return id;
@@ -27,14 +25,6 @@ public class UserGroupResponse {
 
     public void setName(String name) {
         this.name = name;
-    }
-
-    public Integer getGroupLevel() {
-        return groupLevel;
-    }
-
-    public void setGroupLevel(Integer groupLevel) {
-        this.groupLevel = groupLevel;
     }
 
     public long getMembers() {
@@ -61,22 +51,6 @@ public class UserGroupResponse {
         this.institutionName = institutionName;
     }
 
-    public String getInstitutionCategory() {
-        return institutionCategory;
-    }
-
-    public void setInstitutionCategory(String institutionCategory) {
-        this.institutionCategory = institutionCategory;
-    }
-
-    public String getInstitutionType() {
-        return institutionType;
-    }
-
-    public void setInstitutionType(String institutionType) {
-        this.institutionType = institutionType;
-    }
-
     public String getDepartmentName() {
         return departmentName;
     }
@@ -99,5 +73,13 @@ public class UserGroupResponse {
 
     public void setPageKeys(java.util.List<String> pageKeys) {
         this.pageKeys = pageKeys;
+    }
+
+    public String getMemberScope() {
+        return memberScope;
+    }
+
+    public void setMemberScope(String memberScope) {
+        this.memberScope = memberScope;
     }
 }

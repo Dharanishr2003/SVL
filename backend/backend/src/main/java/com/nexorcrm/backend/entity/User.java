@@ -73,12 +73,6 @@ public class User {
     @Column(name = "institution_name", length = 160)
     private String institutionName;
 
-    @Column(name = "institution_category", length = 160)
-    private String institutionCategory;
-
-    @Column(name = "institution_type", length = 160)
-    private String institutionType;
-
     @Column(name = "department_name", length = 160)
     private String departmentName;
 
@@ -237,22 +231,6 @@ public class User {
 
     public void setInstitutionName(String institutionName) {
         this.institutionName = institutionName;
-    }
-
-    public String getInstitutionCategory() {
-        return institutionCategory;
-    }
-
-    public void setInstitutionCategory(String institutionCategory) {
-        this.institutionCategory = institutionCategory;
-    }
-
-    public String getInstitutionType() {
-        return institutionType;
-    }
-
-    public void setInstitutionType(String institutionType) {
-        this.institutionType = institutionType;
     }
 
     public String getDepartmentName() {

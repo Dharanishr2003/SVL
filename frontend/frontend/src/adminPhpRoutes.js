@@ -268,28 +268,12 @@ export const adminPhpRoutes = [
     component: "DataTablesPage",
   },
   {
-    path: "deals-dashboard",
-    component: "DealsDashboardPage",
-  },
-  {
-    path: "deals-grid",
-    component: "DealsPage",
-  },
-  {
-    path: "deals",
-    component: "DealsPage",
-  },
-  {
     path: "design",
     component: "DesignPage",
   },
   {
     path: "design-detail/:dealId",
     component: "DesignDetailPage",
-  },
-  {
-    path: "deal/:id",
-    component: "DealEditPage",
   },
   {
     path: "design-work/:id",
@@ -1256,18 +1240,6 @@ export const adminPhpRoutes = [
   {
     path: "project-type",
     component: "ProjectTypePage",
-  },
-  {
-    path: "channel-partners",
-    component: "ChannelPartnersPage",
-  },
-  {
-    path: "channel-partners/create",
-    component: "CreateChannelPartnerPage",
-  },
-  {
-    path: "channel-partners/:id",
-    component: "ChannelPartnerEditPage",
   },
   {
     path: "primary-source",

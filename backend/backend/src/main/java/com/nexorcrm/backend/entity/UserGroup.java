@@ -20,9 +20,6 @@ public class UserGroup {
     @Column(name = "name", nullable = false, unique = true, length = 120)
     private String name;
 
-    @Column(name = "group_level", nullable = false)
-    private Integer groupLevel;
-
     @Column(name = "is_system_group", nullable = false)
     private boolean systemGroup = false;
 
@@ -32,12 +29,6 @@ public class UserGroup {
 
     @Column(name = "institution_name", length = 160)
     private String institutionName;
-
-    @Column(name = "institution_category", length = 160)
-    private String institutionCategory;
-
-    @Column(name = "institution_type", length = 160)
-    private String institutionType;
 
     @Column(name = "department_name", length = 160)
     private String departmentName;
@@ -64,14 +55,6 @@ public class UserGroup {
         this.name = name;
     }
 
-    public Integer getGroupLevel() {
-        return groupLevel;
-    }
-
-    public void setGroupLevel(Integer groupLevel) {
-        this.groupLevel = groupLevel;
-    }
-
     public boolean isSystemGroup() {
         return systemGroup;
     }
@@ -94,22 +77,6 @@ public class UserGroup {
 
     public void setInstitutionName(String institutionName) {
         this.institutionName = institutionName;
-    }
-
-    public String getInstitutionCategory() {
-        return institutionCategory;
-    }
-
-    public void setInstitutionCategory(String institutionCategory) {
-        this.institutionCategory = institutionCategory;
-    }
-
-    public String getInstitutionType() {
-        return institutionType;
-    }
-
-    public void setInstitutionType(String institutionType) {
-        this.institutionType = institutionType;
     }
 
     public String getDepartmentName() {

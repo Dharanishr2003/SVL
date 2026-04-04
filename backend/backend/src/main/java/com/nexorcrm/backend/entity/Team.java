@@ -15,14 +15,6 @@ public class Team {
     private Institution institution;
 
     @ManyToOne(optional = false, fetch = FetchType.LAZY)
-    @JoinColumn(name = "category_id")
-    private InstitutionCategory category;
-
-    @ManyToOne(optional = false, fetch = FetchType.LAZY)
-    @JoinColumn(name = "type_id")
-    private InstitutionType type;
-
-    @ManyToOne(optional = false, fetch = FetchType.LAZY)
     @JoinColumn(name = "department_id")
     private Department department;
 
@@ -50,10 +42,6 @@ public class Team {
     public Long getId() { return id; }
     public Institution getInstitution() { return institution; }
     public void setInstitution(Institution institution) { this.institution = institution; }
-    public InstitutionCategory getCategory() { return category; }
-    public void setCategory(InstitutionCategory category) { this.category = category; }
-    public InstitutionType getType() { return type; }
-    public void setType(InstitutionType type) { this.type = type; }
     public Department getDepartment() { return department; }
     public void setDepartment(Department department) { this.department = department; }
     public String getName() { return name; }

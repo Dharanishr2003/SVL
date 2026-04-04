@@ -39,7 +39,7 @@ export async function getAssignableLeadGroups() {
     }
     return []
   }
-  return rows
+    return rows
     .map((row) => ({
       id: row?.id,
       name: row?.name || '',
@@ -50,6 +50,7 @@ export async function getAssignableLeadGroups() {
           row?.pageVisibility ??
           row?.visibilityPages,
       ),
+      institutionName: row?.institutionName || '',
       departmentName: row?.departmentName || '',
       teamNames: Array.isArray(row?.teamNames) ? row.teamNames : [],
     }))

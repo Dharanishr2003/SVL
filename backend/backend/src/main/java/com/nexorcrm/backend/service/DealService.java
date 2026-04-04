@@ -1057,7 +1057,7 @@ public class DealService {
 
     private List<UserGroup> findDealVisibleGroupsForActor(User actor) {
         if (actor.getRole() == Role.SUPER_ADMIN) {
-            return userGroupRepository.findAllByOrderByGroupLevelAscNameAsc().stream()
+            return userGroupRepository.findAllByOrderByNameAsc().stream()
                     .filter(this::hasDealVisibility)
                     .toList();
         }
@@ -1065,10 +1065,8 @@ public class DealService {
         if (actor.getRole() == Role.ADMIN) {
             assertDepartmentScope(actor);
             return userGroupRepository
-                    .findByInstitutionNameIgnoreCaseAndInstitutionCategoryIgnoreCaseAndInstitutionTypeIgnoreCaseAndDepartmentNameIgnoreCaseOrderByGroupLevelAscNameAsc(
+                    .findByInstitutionNameIgnoreCaseAndDepartmentNameIgnoreCaseOrderByNameAsc(
                             actor.getInstitutionName(),
-                            actor.getInstitutionCategory(),
-                            actor.getInstitutionType(),
                             actor.getDepartmentName()
                     ).stream()
                     .filter(this::hasDealVisibility)
@@ -1078,10 +1076,8 @@ public class DealService {
         if (actor.getRole() == Role.MANAGER) {
             assertTeamScope(actor);
             return userGroupRepository
-                    .findByInstitutionNameIgnoreCaseAndInstitutionCategoryIgnoreCaseAndInstitutionTypeIgnoreCaseAndDepartmentNameIgnoreCaseOrderByGroupLevelAscNameAsc(
+                    .findByInstitutionNameIgnoreCaseAndDepartmentNameIgnoreCaseOrderByNameAsc(
                             actor.getInstitutionName(),
-                            actor.getInstitutionCategory(),
-                            actor.getInstitutionType(),
                             actor.getDepartmentName()
                     ).stream()
                     .filter(this::hasDealVisibility)
@@ -1254,8 +1250,6 @@ public class DealService {
 
     private void assertDepartmentScope(User actor) {
         if (!StringUtils.hasText(actor.getInstitutionName())
-                || !StringUtils.hasText(actor.getInstitutionCategory())
-                || !StringUtils.hasText(actor.getInstitutionType())
                 || !StringUtils.hasText(actor.getDepartmentName())) {
             throw new AccessDeniedException("Your account is missing department scope configuration");
         }

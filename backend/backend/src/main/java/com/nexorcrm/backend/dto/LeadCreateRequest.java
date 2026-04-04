@@ -29,20 +29,27 @@ public class LeadCreateRequest {
     @Size(max = 160, message = "Tertiary Source must be at most 160 characters")
     private String tertiarySource;
 
-    @Size(max = 200, message = "Project Name must be at most 200 characters")
-    private String projectName;
+    @Size(max = 200, message = "Company Name must be at most 200 characters")
+    private String companyName;
+
+    @Size(max = 200, message = "Product Type must be at most 200 characters")
+    private String productType;
+
+    @Size(max = 10, message = "Lead Country must be at most 10 characters")
+    private String leadCountry;
+
+    @Size(max = 10, message = "Lead State must be at most 10 characters")
+    private String leadState;
+
+    @Size(max = 200, message = "Lead City must be at most 200 characters")
+    private String leadCity;
 
     @Size(max = 20, message = "Lead Pincode must be at most 20 characters")
     private String leadPincode;
 
-    private Long channelPartnerId;
-
     private Long leadGroupId;
 
     private Long assignedUserId;
-
-    @Size(max = 200, message = "Channel Partner Name must be at most 200 characters")
-    private String channelPartnerName;
 
     public String getName() {
         return name;
@@ -100,12 +107,44 @@ public class LeadCreateRequest {
         this.tertiarySource = tertiarySource;
     }
 
-    public String getProjectName() {
-        return projectName;
+    public String getCompanyName() {
+        return companyName;
     }
 
-    public void setProjectName(String projectName) {
-        this.projectName = projectName;
+    public void setCompanyName(String companyName) {
+        this.companyName = companyName;
+    }
+
+    public String getProductType() {
+        return productType;
+    }
+
+    public void setProductType(String productType) {
+        this.productType = productType;
+    }
+
+    public String getLeadCountry() {
+        return leadCountry;
+    }
+
+    public void setLeadCountry(String leadCountry) {
+        this.leadCountry = leadCountry;
+    }
+
+    public String getLeadState() {
+        return leadState;
+    }
+
+    public void setLeadState(String leadState) {
+        this.leadState = leadState;
+    }
+
+    public String getLeadCity() {
+        return leadCity;
+    }
+
+    public void setLeadCity(String leadCity) {
+        this.leadCity = leadCity;
     }
 
     public String getLeadPincode() {
@@ -116,28 +155,12 @@ public class LeadCreateRequest {
         this.leadPincode = leadPincode;
     }
 
-    public Long getChannelPartnerId() {
-        return channelPartnerId;
-    }
-
-    public void setChannelPartnerId(Long channelPartnerId) {
-        this.channelPartnerId = channelPartnerId;
-    }
-
     public Long getLeadGroupId() {
         return leadGroupId;
     }
 
     public void setLeadGroupId(Long leadGroupId) {
         this.leadGroupId = leadGroupId;
-    }
-
-    public String getChannelPartnerName() {
-        return channelPartnerName;
-    }
-
-    public void setChannelPartnerName(String channelPartnerName) {
-        this.channelPartnerName = channelPartnerName;
     }
 
     public Long getAssignedUserId() { return assignedUserId; }

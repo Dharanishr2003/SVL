@@ -15,8 +15,6 @@ public class EmployeeRequest {
     private String phone;
     private String dept;
     private String institution;
-    private String institutionCategory;
-    private String institutionType;
     private String userDepartmentName;
     private String departmentName;
     private String team;
@@ -59,18 +57,6 @@ public class EmployeeRequest {
 	}
 	public void setInstitution(String institution) {
 		this.institution = institution;
-	}
-	public String getInstitutionCategory() {
-		return institutionCategory;
-	}
-	public void setInstitutionCategory(String institutionCategory) {
-		this.institutionCategory = institutionCategory;
-	}
-	public String getInstitutionType() {
-		return institutionType;
-	}
-	public void setInstitutionType(String institutionType) {
-		this.institutionType = institutionType;
 	}
 	public String getUserDepartmentName() {
 		return userDepartmentName;

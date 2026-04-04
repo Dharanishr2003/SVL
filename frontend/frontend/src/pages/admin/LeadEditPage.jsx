@@ -1,5 +1,7 @@
-import { useCallback, useEffect, useState, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { motion, AnimatePresence } from "motion/react";
+import "./LeadEditPage.css";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import {
@@ -26,13 +28,13 @@ import { getDesignRequirement } from "../../api/designRequirementApi";
 import { createProject, getProjects } from "../../api/projectApi";
 import { getProjectStatuses } from "../../api/projectStatusApi";
 import { getProjectTypes } from "../../api/projectTypeApi";
-import { COUNTRY_CODES } from "../../constants/countryCodes";
 import { Country, State, City } from "country-state-city";
 import { extractApiErrorMessage } from "../../utils/errorMessage";
 import { COUNTRY_CODE_OPTIONS, defaultCountryOption, ensureCountryCodeValue, getCountryAllowedLengths, getCountryDisplayMaxLength, getCountryOptionByValue, sanitizePhoneDigits, validatePhoneNumber } from "../../utils/phoneUtils";
 import { pickFlowAssignee, pickGroupAssignee } from "../../utils/flowAssignment";
 import { validateStatusTransition } from "../../utils/statusValidation";
 import { formatStatusLabel, uniqueStatusOptions, normalizeStatusLabelKey } from "../../utils/statusLabels";
+import { useCountryCodePicker } from "../../hooks/useCountryCodePicker";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../components/system/ToastProvider";
 import StockRequestFormModal from "../../components/system/StockRequestFormModal";
@@ -156,6 +158,7 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
   const [projectSaving, setProjectSaving] = useState(false);
   const [projects, setProjects] = useState([]);
   const [selectedProjectId, setSelectedProjectId] = useState("");
+  const countryPickerButtonRef = useRef(null);
   const [leadCountry, setLeadCountry] = useState("");
   const [leadState, setLeadState] = useState("");
   const [leadCity, setLeadCity] = useState("");
@@ -203,6 +206,8 @@ const [showRequirementDetailsModal, setShowRequirementDetailsModal] = useState(f
   const [verifyNotes, setVerifyNotes] = useState("");
   const [verifyFile, setVerifyFile] = useState(null);
   const [verifyFileName, setVerifyFileName] = useState("");
+  const [showLeadLogModal, setShowLeadLogModal] = useState(false);
+  const [showStatusModal, setShowStatusModal] = useState(false);
   
   // Address-related state for payment verification
   const [billingAddresses, setBillingAddresses] = useState([]);
@@ -213,6 +218,25 @@ const [showRequirementDetailsModal, setShowRequirementDetailsModal] = useState(f
   const [showAddAddressModal, setShowAddAddressModal] = useState(false);
   const [addressLoading, setAddressLoading] = useState(false);
   const [newAddressType, setNewAddressType] = useState("BILLING");
+  const [streetAddress, setStreetAddress] = useState("");
+
+  const {
+    isOpen: generalCountryPickerOpen,
+    pickerRef: generalCountryPickerRef,
+    closePicker: closeGeneralCountryPicker,
+    togglePicker: toggleGeneralCountryPicker,
+    searchQuery: generalCountrySearch,
+  } = useCountryCodePicker();
+
+  const filteredGeneralCountryOptions = useMemo(() => {
+    if (!generalCountrySearch.trim()) return COUNTRY_CODE_OPTIONS;
+    const searchLower = generalCountrySearch.toLowerCase();
+    return COUNTRY_CODE_OPTIONS.filter(
+      (option) =>
+        option.label.toLowerCase().includes(searchLower) ||
+        option.callingCode.includes(searchLower),
+    );
+  }, [generalCountrySearch]);
 
   const DESIGN_THREAD_MARKER = "[[design-thread]]";
   function hasDesignThreadMarker(value) {
@@ -369,6 +393,10 @@ const [showRequirementDetailsModal, setShowRequirementDetailsModal] = useState(f
         );
         setLeadCity(pickText(leadData, ["leadCity", "city"]) || "");
         setLeadPincode(pickText(leadData, ["leadPincode", "lead_pincode", "pincode", "pinCode"]) || "");
+        setStreetAddress(
+          pickText(leadData, ["streetAddress", "street_address", "addressLine1", "address_line1"]) ||
+            "",
+        );
         setAttemptedOpenReason(
           pickText(leadData, ["attemptedOpenReason", "attempted_open_reason"]) || "",
         );
@@ -455,6 +483,9 @@ const [showRequirementDetailsModal, setShowRequirementDetailsModal] = useState(f
     return () => window.removeEventListener("focus", handleFocus);
   }, [id]);
 
+  const effectiveStatus = String(lead?.status || "").trim();
+  const statusLower = effectiveStatus.toLowerCase();
+
   // Fetch production requirements when lead loads (with retry for auth errors)
   useEffect(() => {
     if (!lead?.id) return;
@@ -499,11 +530,21 @@ const [showRequirementDetailsModal, setShowRequirementDetailsModal] = useState(f
     return () => {
       isMounted = false;
     };
-  }, [lead?.id]);
+  }, [lead?.id, effectiveStatus]);
 
   useEffect(() => {
     if (!lead?.id) return;
     let isMounted = true;
+    const statusKey = String(effectiveStatus || "").trim().toLowerCase();
+    const shouldLoadDesignRequirement = ["design", "production", "payment"].includes(statusKey);
+
+    if (!shouldLoadDesignRequirement) {
+      setDesignRequirement(null);
+      setLoadingDesignRequirement(false);
+      return () => {
+        isMounted = false;
+      };
+    }
 
     const fetchDesignRequirement = async () => {
       setLoadingDesignRequirement(true);
@@ -525,7 +566,7 @@ const [showRequirementDetailsModal, setShowRequirementDetailsModal] = useState(f
     return () => {
       isMounted = false;
     };
-  }, [lead?.id]);
+  }, [lead?.id, effectiveStatus]);
 
   useEffect(() => {
     if (!lead?.id || autoStatusHandled) return;
@@ -576,9 +617,6 @@ const [showRequirementDetailsModal, setShowRequirementDetailsModal] = useState(f
     
     fetchAddresses();
   }, [showVerifyModal, lead?.id]);
-
-  const effectiveStatus = String(lead?.status || "").trim();
-  const statusLower = effectiveStatus.toLowerCase();
 
   const normalizeKey = (s) => String(s || "").trim().toLowerCase();
   // include the new "requirement" stage so that when a lead is in
@@ -971,7 +1009,9 @@ const [showRequirementDetailsModal, setShowRequirementDetailsModal] = useState(f
     let active = true;
     const loadFlow = async () => {
       try {
-        const flow = await getLeadFlow();
+        const canLoadFlowConfig =
+          role === "SUPER_ADMIN" || role === "ADMIN" || role === "MANAGER";
+        const flow = canLoadFlowConfig ? await getLeadFlow().catch(() => ({})) : {};
         if (!active) return;
         setFlowRules(Array.isArray(flow?.rules) ? flow.rules : []);
       } catch (e) {
@@ -2443,6 +2483,7 @@ const [showRequirementDetailsModal, setShowRequirementDetailsModal] = useState(f
         leadState: leadState || null,
         leadCity: leadCity || null,
         leadPincode: leadPincode || null,
+        streetAddress: streetAddress || null,
         attemptedOpenReason: isAttempted ? attemptedOpenReason || null : null,
         attemptedCallStatus: isAttempted ? attemptedCallStatus || null : null,
         attemptedCallRemarks: isAttempted ? attemptedCallRemarks || null : null,
@@ -2472,6 +2513,7 @@ const [showRequirementDetailsModal, setShowRequirementDetailsModal] = useState(f
         leadState: leadState || null,
         leadCity: leadCity || null,
         leadPincode: leadPincode || null,
+        streetAddress: streetAddress || null,
         // Preserve the current status here; save details should not move the lead.
         // The dedicated status workflow handles status transitions.
         status: prev?.status ?? updated?.status ?? null,
@@ -2521,9 +2563,39 @@ const [showRequirementDetailsModal, setShowRequirementDetailsModal] = useState(f
           <h3 className="mb-1">Edit Lead</h3>
           <p className="text-muted mb-0">View lead details and status</p>
         </div>
-        <button className="btn btn-light" onClick={() => navigate("/leads")}>
-          Back to Leads
-        </button>
+        <div className="d-flex gap-2 align-items-center">
+          <div className="lead-current-status-box">
+            <span className="lead-current-status-label">Current Status</span>
+            <strong>{lead?.status || "-"}</strong>
+          </div>
+          <button
+            className="btn btn-outline-primary btn-sm"
+            onClick={() => setShowStatusModal(true)}
+            title="Update status"
+          >
+            <i className="ti ti-transfer-out me-1"></i>Update Status
+          </button>
+          <button
+            className="btn btn-primary btn-sm"
+            onClick={saveLeadDetails}
+            disabled={detailsSaving || typeSaving}
+            title="Save all changes"
+          >
+            <i className="ti ti-device-floppy me-1"></i>
+            {detailsSaving ? "Saving..." : "Save"}
+          </button>
+          <button
+            className="btn btn-outline-secondary btn-sm"
+            onClick={() => setShowLeadLogModal(true)}
+            title="View activity log"
+          >
+            <i className="ti ti-history me-1"></i>
+            Log
+          </button>
+          <button className="btn btn-light btn-sm" onClick={() => navigate("/leads")}>
+            Back
+          </button>
+        </div>
       </div>
 
       {isConverted && (
@@ -2532,163 +2604,101 @@ const [showRequirementDetailsModal, setShowRequirementDetailsModal] = useState(f
         </div>
       )}
 
-      <div className="d-flex flex-column flex-sm-row align-items-sm-center justify-content-between mb-3">
-        <div className="lead-status-current">
-          <span className="text-muted">Current status:&nbsp;</span>
-          <span className="badge bg-primary">{effectiveStatus || "N/A"}</span>
-        </div>
-      </div>
-      <div className="card mb-3 border">
-        <div className="card-body">
-          <h5 className="mb-3">Status Timeline</h5>
-          {timelineEntries.length === 0 ? (
-            <div className="text-muted">No status history yet.</div>
-          ) : (
-            <div className="lead-status-timeline-horizontal">
-              {timelineEntries.map((item, index) => {
-                const isLatest = index === timelineEntries.length - 1;
-                return (
-                  <div
-                    key={item.key || `${item.statusKey}-${index}`}
-                    className="lead-status-step-horizontal position-relative"
-                  >
-                    <div
-                      className={`lead-status-step-item ${isLatest ? "is-current" : "is-previous"}`}
-                      style={{
-                        animationDelay: `${index * 420}ms`,
-                        "--step-delay": `${index * 420}ms`,
-                      }}
-                    >
-                      <div className="lead-status-step-label">
-                        <div
-                          className={`lead-status-dot ${isLatest ? "is-current" : "is-previous"}`}
-                        />
-                        <span>{item.label}</span>
-                      </div>
-                      <div className="lead-status-step-meta">
-                        {formatDateTime(item.createdAt)}
-                        {item.actor ? <div>by {item.actor}</div> : null}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="card">
-        <div className="card-body">
-          {loading ? (
-            <div>Loading...</div>
-          ) : !lead ? (
-            <div className="text-muted">Lead not found.</div>
-          ) : (
-            <div className="row g-4">
+      {loading ? (
+        <div>Loading...</div>
+      ) : !lead ? (
+        <div className="text-muted">Lead not found.</div>
+      ) : (
+        <div>
+          <div className="row g-4">
               {!isEmployeeDesignView && (
-              <div className="col-lg-7">
-                <ul className="nav nav-tabs mb-3" role="tablist" style={{ overflowX: "auto", display: "flex", flexWrap: "nowrap" }}>
-                  <li className="nav-item" role="presentation">
-                    <button
-                      className={`nav-link ${activeTab === "general" ? "active" : ""}`}
-                      id="general-tab"
-                      onClick={() => setActiveTab("general")}
-                      type="button"
-                      role="tab"
-                      aria-selected={activeTab === "general"}
-                    >
-                      General Info
-                    </button>
-                  </li>
-                  {showAttemptedSummary && (
-                  <li className="nav-item" role="presentation">
-                    <button
-                      className={`nav-link ${activeTab === "attempted" ? "active" : ""}`}
-                      id="attempted-tab"
-                      onClick={() => setActiveTab("attempted")}
-                      type="button"
-                      role="tab"
-                      aria-selected={activeTab === "attempted"}
-                    >
-                      Attempted
-                    </button>
-                  </li>
-                  )}
-                  {showInterestedSummary && (
-                  <li className="nav-item" role="presentation">
-                    <button
-                      className={`nav-link ${activeTab === "interested" ? "active" : ""}`}
-                      id="interested-tab"
-                      onClick={() => setActiveTab("interested")}
-                      type="button"
-                      role="tab"
-                      aria-selected={activeTab === "interested"}
-                    >
-                      Interested
-                    </button>
-                  </li>
-                  )}
-                  {showRequirementSummary && (
-                  <li className="nav-item" role="presentation">
-                    <button
-                      className={`nav-link ${activeTab === "requirement" ? "active" : ""}`}
-                      id="requirement-tab"
-                      onClick={() => setActiveTab("requirement")}
-                      type="button"
-                      role="tab"
-                      aria-selected={activeTab === "requirement"}
-                    >
-                      Requirement
-                    </button>
-                  </li>
-                  )}
-                  {(statusLower === "budget" || lead?.budgetVerificationStatus) && (
-                  <li className="nav-item" role="presentation">
-                    <button
-                      className={`nav-link ${activeTab === "budget" ? "active" : ""}`}
-                      id="budget-tab"
-                      onClick={() => setActiveTab("budget")}
-                      type="button"
-                      role="tab"
-                      aria-selected={activeTab === "budget"}
-                    >
-                      Budget
-                    </button>
-                  </li>
-                  )}
-                  {isRejected && (
-                  <li className="nav-item" role="presentation">
-                    <button
-                      className={`nav-link ${activeTab === "rejected" ? "active" : ""}`}
-                      id="rejected-tab"
-                      onClick={() => setActiveTab("rejected")}
-                      type="button"
-                      role="tab"
-                      aria-selected={activeTab === "rejected"}
-                    >
-                      Rejected
-                    </button>
-                  </li>
-                  )}
-                  {showPaymentSummary && statusLower !== "budget" && (
-                  <li className="nav-item" role="presentation">
-                    <button
-                      className={`nav-link ${activeTab === "payment" ? "active" : ""}`}
-                      id="payment-tab"
-                      onClick={() => setActiveTab("payment")}
-                      type="button"
-                      role="tab"
-                      aria-selected={activeTab === "payment"}
-                    >
-                      {isProduction ? "Production" : "Payment"}
-                    </button>
-                  </li>
-                  )}
-                </ul>
+              <div className="col-12 lead-edit-tab-shell">
+                <div className="lead-edit-wizard">
+                  {/* Progress Bar */}
+                  <div className="lead-edit-wizard-progress-bar">
+                    <motion.div
+                      className="lead-edit-wizard-progress"
+                      initial={{ width: "0%" }}
+                      animate={{ width: "100%" }}
+                      transition={{ duration: 0.35, ease: "easeOut" }}
+                    />
+                  </div>
 
+                  {/* Step Circles */}
+                  <motion.div className="lead-edit-wizard-circles">
+                    <div className="lead-edit-wizard-circle-item" onClick={() => setActiveTab("general")}>
+                      <motion.div className={`lead-edit-wizard-circle${activeTab === "general" ? " active" : ""}`}>
+                        <i className="ti ti-user" />
+                      </motion.div>
+                      <div className="lead-edit-wizard-circle-label">General Info</div>
+                    </div>
+
+                    {showAttemptedSummary && (
+                    <div className="lead-edit-wizard-circle-item" onClick={() => setActiveTab("attempted")}>
+                      <motion.div className={`lead-edit-wizard-circle${activeTab === "attempted" ? " active" : ""}`}>
+                        <i className="ti ti-phone" />
+                      </motion.div>
+                      <div className="lead-edit-wizard-circle-label">Attempted</div>
+                    </div>
+                    )}
+
+                    {showInterestedSummary && (
+                    <div className="lead-edit-wizard-circle-item" onClick={() => setActiveTab("interested")}>
+                      <motion.div className={`lead-edit-wizard-circle${activeTab === "interested" ? " active" : ""}`}>
+                        <i className="ti ti-heart" />
+                      </motion.div>
+                      <div className="lead-edit-wizard-circle-label">Interested</div>
+                    </div>
+                    )}
+
+                    {showRequirementSummary && (
+                    <div className="lead-edit-wizard-circle-item" onClick={() => setActiveTab("requirement")}>
+                      <motion.div className={`lead-edit-wizard-circle${activeTab === "requirement" ? " active" : ""}`}>
+                        <i className="ti ti-list" />
+                      </motion.div>
+                      <div className="lead-edit-wizard-circle-label">Requirement</div>
+                    </div>
+                    )}
+
+                    {(statusLower === "budget" || lead?.budgetVerificationStatus) && (
+                    <div className="lead-edit-wizard-circle-item" onClick={() => setActiveTab("budget")}>
+                      <motion.div className={`lead-edit-wizard-circle${activeTab === "budget" ? " active" : ""}`}>
+                        <i className="ti ti-currency-dollar" />
+                      </motion.div>
+                      <div className="lead-edit-wizard-circle-label">Budget</div>
+                    </div>
+                    )}
+
+                    {isRejected && (
+                    <div className="lead-edit-wizard-circle-item" onClick={() => setActiveTab("rejected")}>
+                      <motion.div className={`lead-edit-wizard-circle${activeTab === "rejected" ? " active" : ""}`}>
+                        <i className="ti ti-x" />
+                      </motion.div>
+                      <div className="lead-edit-wizard-circle-label">Rejected</div>
+                    </div>
+                    )}
+
+                    {showPaymentSummary && statusLower !== "budget" && (
+                    <div className="lead-edit-wizard-circle-item" onClick={() => setActiveTab("payment")}>
+                      <motion.div className={`lead-edit-wizard-circle${activeTab === "payment" ? " active" : ""}`}>
+                        <i className="ti ti-receipt" />
+                      </motion.div>
+                      <div className="lead-edit-wizard-circle-label">{isProduction ? "Production" : "Payment"}</div>
+                    </div>
+                    )}
+                  </motion.div>
+                </div>
+
+                <AnimatePresence mode="wait">
                 {activeTab === "general" && (
-                <div className="tab-pane fade show active">
+                <motion.div
+                  key="general-tab"
+                  initial={{ opacity: 0, x: 18, filter: "blur(4px)" }}
+                  animate={{ opacity: 1, x: 0, filter: "blur(0px)" }}
+                  exit={{ opacity: 0, x: -18, filter: "blur(4px)" }}
+                  transition={{ duration: 0.26, ease: "easeOut" }}
+                  className="lead-edit-wizard-step-panel"
+                >
                   <div className="mb-4">
                     <div className="d-flex justify-content-between align-items-center mb-3">
                       <h5 className="mb-0">General Info</h5>
@@ -2701,273 +2711,291 @@ const [showRequirementDetailsModal, setShowRequirementDetailsModal] = useState(f
                         </button>
                       </div>
                     </div>
-                    <div className="row g-3">
-                      <div className="col-md-6">
-                        <label className="form-label">Enquiry Id</label>
-                        <input
-                          className="form-control"
-                          value={
-                            pickText(lead, [
-                              "enquiryId",
-                              "enquiryID",
-                              "leadId",
-                              "leadID",
-                              "lead_id",
-                              "enquiryCode",
-                              "enquiry_code",
-                            ]) || "-"
-                          }
-                          readOnly
-                        />
-                      </div>
-                      <div className="col-md-6">
-                        <label className="form-label">EUID</label>
-                        <input
-                          className="form-control"
-                          value={pickText(lead, ["euid"]) || "-"}
-                          readOnly
-                        />
-                      </div>
-                      <div className="col-md-6">
-                        <label className="form-label">Enquiry Name</label>
-                        <input className="form-control" value={lead.name || ""} readOnly />
-                      </div>
-                      <div className="col-md-6">
-                        <label className="form-label">Country Code</label>
-                        <select
-                          className="form-select"
-                          value={countryCode}
-                          onChange={(e) => {
-                            const nextCountryCode = e.target.value;
-                            setCountryCode(nextCountryCode);
-                            setAlternatePhone((currentValue) =>
-                              sanitizePhoneDigits(
-                                currentValue,
-                                getCountryOptionByValue(nextCountryCode)?.maxLength,
-                                getCountryAllowedLengths(nextCountryCode),
-                              ),
-                            );
-                          }}
-                          disabled={isGeneralInfoReadOnly}
-                        >
-                          <option value="">Select Country Code</option>
-                          {COUNTRY_CODES.map((item) => (
-                            <option key={`${item.code}-${item.name}`} value={item.code}>
-                              {item.name} ({item.code})
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <div className="col-md-6">
-                        <label className="form-label">Mobile Number</label>
-                        <input className="form-control" value={lead.mobile || ""} readOnly />
-                      </div>
-                      <div className="col-md-6">
-                        <label className="form-label">Email</label>
-                        <input
-                          className="form-control"
-                          value={leadEmail}
-                          onChange={(e) => setLeadEmail(e.target.value)}
-                          readOnly={isGeneralInfoReadOnly}
-                        />
-                      </div>
-                        <div className="col-md-6">
-                        <label className="form-label">State</label>
-                        <select
-                          className="form-select"
-                          value={leadState}
-                          onChange={(e) => {
-                            setLeadState(e.target.value);
-                            setLeadCity("");
-                          }}
-                          disabled={isGeneralInfoReadOnly || !leadCountry}
-                        >
-                          <option value="">Select State</option>
-                          {State.getStatesOfCountry(leadCountry).map((s) => (
-                            <option key={s.isoCode} value={s.isoCode}>{s.name}</option>
-                          ))}
-                        </select>
-                      </div>
-                      <div className="col-md-6">
-                        <label className="form-label">City</label>
-                        <select
-                          className="form-select"
-                          value={leadCity}
-                          onChange={(e) => setLeadCity(e.target.value)}
-                          disabled={isGeneralInfoReadOnly || !leadState}
-                        >
-                          <option value="">Select City</option>
-                          {City.getCitiesOfState(leadCountry, leadState).map((c) => (
-                            <option key={c.name} value={c.name}>{c.name}</option>
-                          ))}
-                        </select>
-                      </div>
-                      <div className="col-md-6">
-                        <label className="form-label">Pin Code</label>
-                        <input
-                          className="form-control"
-                          value={leadPincode}
-                          onChange={(e) => setLeadPincode(e.target.value)}
-                          readOnly={isGeneralInfoReadOnly}
-                        />
-                      </div>
-                      <div className="col-md-6">
-                        <div className="d-flex justify-content-between align-items-center mb-1">
-                          <label className="form-label mb-0">Project / Company Name</label>
-                          {!isGeneralInfoReadOnly && (
-                            <button
-                              type="button"
-                              className="btn btn-sm btn-outline-primary py-0 px-2"
-                              onClick={openAddProjectModal}
-                              title="Add Project"
-                            >
-                              <i className="ti ti-plus"></i>
-                            </button>
-                          )}
+                    <div className="row g-4 align-items-start">
+                      <div className="col-lg-7">
+                        <div className="lead-info-section h-100">
+                          <h6 className="lead-info-section-title">General Info</h6>
+                          <div className="row g-3">
+                            <div className="col-md-6">
+                              <div className="lead-info-column">
+                                <div>
+                                  <label className="form-label">Enquiry Id</label>
+                                  <input
+                                    className="form-control"
+                                    value={
+                                      pickText(lead, [
+                                        "enquiryId",
+                                        "enquiryID",
+                                        "leadId",
+                                        "leadID",
+                                        "lead_id",
+                                        "enquiryCode",
+                                        "enquiry_code",
+                                      ]) || "-"
+                                    }
+                                    readOnly
+                                  />
+                                </div>
+                                <div>
+                                  <label className="form-label">Enquiry Name</label>
+                                  <input className="form-control" value={lead.name || "-"} readOnly />
+                                </div>
+                                <div>
+                                  <label className="form-label">Mobile Number</label>
+                                  <div className="lead-phone-field" ref={generalCountryPickerRef}>
+                                    <div className="lead-phone-input-wrap">
+                                      <button
+                                        ref={countryPickerButtonRef}
+                                        type="button"
+                                        className="lead-phone-code-trigger"
+                                        onClick={toggleGeneralCountryPicker}
+                                        aria-expanded={generalCountryPickerOpen}
+                                        disabled={isGeneralInfoReadOnly}
+                                      >
+                                        <span>{countryCode || defaultCountryOption.value}</span>
+                                        <i className="ti ti-chevron-down" />
+                                      </button>
+                                      <input
+                                        className="lead-phone-input"
+                                        value={lead.mobile || ""}
+                                        readOnly
+                                      />
+                                    </div>
+                                    
+                                    {generalCountryPickerOpen && !isGeneralInfoReadOnly && (
+                                      <div className="lead-phone-code-menu">
+                                        {filteredGeneralCountryOptions.length > 0 ? (
+                                          filteredGeneralCountryOptions.map((option) => (
+                                            <button
+                                              key={`${option.country}-${option.callingCode}`}
+                                              type="button"
+                                              className={`lead-phone-code-option${countryCode === option.value ? " is-active" : ""}`}
+                                              onClick={() => {
+                                                setCountryCode(ensureCountryCodeValue(option.value));
+                                                setAlternatePhone((currentValue) =>
+                                                  sanitizePhoneDigits(
+                                                    currentValue,
+                                                    getCountryOptionByValue(option.value)?.maxLength,
+                                                    getCountryAllowedLengths(option.value),
+                                                  ),
+                                                );
+                                                closeGeneralCountryPicker();
+                                              }}
+                                            >
+                                              <span>{option.label}</span>
+                                            </button>
+                                          ))
+                                        ) : (
+                                          <div className="lead-phone-code-empty">No countries found</div>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                                  <div>
+                                  <label className="form-label">Email</label>
+                                  <input
+                                    className="form-control"
+                                    value={leadEmail}
+                                    onChange={(e) => setLeadEmail(e.target.value)}
+                                    readOnly={isGeneralInfoReadOnly}
+                                  />
+                                </div>
+                                <div>
+                                  <label className="form-label">Type of Product</label>
+                                  <input
+                                    className="form-control"
+                                    placeholder="e.g. Software, Hardware, Service"
+                                    value={productType}
+                                    onChange={(e) => setProductType(e.target.value)}
+                                    readOnly={isGeneralInfoReadOnly}
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                            <div className="col-md-6">
+                              <div className="lead-info-column">
+                              
+                                <div>
+                                  <label className="form-label">Alternate No.</label>
+                                  <input
+                                    className="form-control"
+                                    value={alternatePhone}
+                                    onChange={(e) =>
+                                      setAlternatePhone(
+                                        sanitizePhoneDigits(
+                                          e.target.value,
+                                          alternatePhoneCountryOption?.maxLength,
+                                          alternatePhoneAllowedLengths,
+                                        ),
+                                      )
+                                    }
+                                    maxLength={alternatePhoneDisplayMaxLength || undefined}
+                                    readOnly={isGeneralInfoReadOnly}
+                                  />
+                                </div>
+                                <div>
+                                  <label className="form-label">Alternate Email</label>
+                                  <input
+                                    className="form-control"
+                                    value={alternateEmail}
+                                    onChange={(e) => setAlternateEmail(e.target.value)}
+                                    readOnly={isGeneralInfoReadOnly}
+                                  />
+                                </div>
+                                <div>
+                                  <label className="form-label">Company Name</label>
+                                  <input
+                                    className="form-control"
+                                    value={companyName}
+                                    onChange={(e) => setCompanyName(e.target.value)}
+                                    readOnly={isGeneralInfoReadOnly}
+                                  />
+                                </div>
+                                <div>
+                                  <label className="form-label">Primary Source</label>
+                                  <input
+                                    className="form-control"
+                                    value={lead?.primarySource || "-"}
+                                    readOnly
+                                  />
+                                </div>
+                                <div>
+                                  <label className="form-label">Secondary Source</label>
+                                  <input
+                                    className="form-control"
+                                    value={lead?.secondarySource || "-"}
+                                    readOnly
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          </div>
                         </div>
-                        <select
-                          className="form-select"
-                          value={selectedProjectId}
-                          onChange={(e) => setSelectedProjectId(e.target.value)}
-                          disabled={isGeneralInfoReadOnly}
-                        >
-                          <option value="">Select Project</option>
-                          {projects.map((p) => (
-                            <option key={p.id} value={p.id}>{p.projectName ?? p.name}</option>
-                          ))}
-                        </select>
                       </div>
-                      <div className="col-md-6">
-                        <label className="form-label">Alternate No.</label>
-                        <input
-                          className="form-control"
-                          value={alternatePhone}
-                          onChange={(e) =>
-                            setAlternatePhone(
-                              sanitizePhoneDigits(
-                                e.target.value,
-                                alternatePhoneCountryOption?.maxLength,
-                                alternatePhoneAllowedLengths,
-                              ),
-                            )
-                          }
-                          maxLength={alternatePhoneDisplayMaxLength || undefined}
-                          readOnly={isGeneralInfoReadOnly}
-                        />
-                      </div>
-                      <div className="col-md-6">
-                        <label className="form-label">Alternate Email</label>
-                        <input
-                          className="form-control"
-                          value={alternateEmail}
-                          onChange={(e) => setAlternateEmail(e.target.value)}
-                          readOnly={isGeneralInfoReadOnly}
-                        />
-                      </div>
-                      <div className="col-md-6">
-                        <label className="form-label">Occupation</label>
-                        <input
-                          className="form-control"
-                          value={occupation}
-                          onChange={(e) => setOccupation(e.target.value)}
-                          readOnly={isGeneralInfoReadOnly}
-                        />
-                      </div>
-                      <div className="col-md-6">
-                        <label className="form-label">Company Name</label>
-                        <input
-                          className="form-control"
-                          value={companyName}
-                          onChange={(e) => setCompanyName(e.target.value)}
-                          readOnly={isGeneralInfoReadOnly}
-                        />
-                      </div>
-                      <div className="col-md-6">
-                        <label className="form-label">Type of Product</label>
-                        <input
-                          className="form-control"
-                          placeholder="e.g. Software, Hardware, Service"
-                          value={productType}
-                          onChange={(e) => setProductType(e.target.value)}
-                          readOnly={isGeneralInfoReadOnly}
-                        />
-                      </div>
-
-                    </div>
-                  </div>
-
-                  <div>
-                    <h5 className="mb-3">Lead Overview</h5>
-                    <div className="row g-3">
-                      <div className="col-md-6">
-                        <label className="form-label">Lead Group</label>
-                        <input
-                          className="form-control"
-                          value={pickText(lead, ["leadGroupName", "groupName"]) || "-"}
-                          readOnly
-                        />
-                      </div>
-                      <div className="col-md-6">
-                        <label className="form-label">Rating</label>
-                        <select
-                          className="form-select"
-                          value={leadTypeValue}
-                          onChange={(e) => {
-                            const next = e.target.value;
-                            setLeadTypeValue(next);
-                            saveLeadType(next);
-                          }}
-                          disabled={typeSaving || isLeadReadOnly}
-                        >
-                          <option value="">Select Rating</option>
-                          {leadTypeOptions.map((item) => (
-                            <option key={item} value={item}>
-                              {item}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <div className="col-md-6">
-                        <label className="form-label">Allocator</label>
-                        <input
-                          className="form-control"
-                          value={
-                            pickText(lead, [
-                              "Allocator",
-                              "allocator",
-                              "allocatorName",
-                              "createdByName",
-                              "createdBy",
-                              "createdByUsername",
-                              "creator",
-                            ]) || "-"
-                          }
-                          readOnly
-                        />
-                      </div>
-                      <div className="col-md-6">
-                        <label className="form-label">Lead Owner</label>
-                        <input
-                          className="form-control"
-                          value={
-                            pickText(lead, [
-                              "ownerName",
-                              "owner",
-                              "ownerUsername",
-                              "ownerUserName",
-                            ]) || "-"
-                          }
-                          readOnly
-                        />
-                      </div>
-                      <div className="col-md-6">
-                        <label className="form-label">Enquiry Status</label>
-                        <input className="form-control" value={lead.status || ""} readOnly />
+                      <div className="col-lg-5">
+                        <div className="d-flex flex-column gap-3">
+                        <div className="lead-info-section">
+                          <h6 className="lead-info-section-title">Address</h6>
+                          <div className="row g-3">
+                            <div className="col-12">
+                              <label className="form-label">Street Address</label>
+                              <textarea
+                                className="form-control"
+                                value={streetAddress}
+                                onChange={(e) => setStreetAddress(e.target.value)}
+                                readOnly={isGeneralInfoReadOnly}
+                                rows={2}
+                              />
+                            </div>
+                            <div className="col-md-6">
+                              <label className="form-label">State</label>
+                              <select
+                                className="form-select"
+                                value={leadState}
+                                onChange={(e) => {
+                                  setLeadState(e.target.value);
+                                  setLeadCity("");
+                                }}
+                                disabled={isGeneralInfoReadOnly || !leadCountry}
+                              >
+                                <option value="">Select State</option>
+                                {State.getStatesOfCountry(leadCountry).map((s) => (
+                                  <option key={s.isoCode} value={s.isoCode}>{s.name}</option>
+                                ))}
+                              </select>
+                            </div>
+                            <div className="col-md-6">
+                              <label className="form-label">City</label>
+                              <select
+                                className="form-select"
+                                value={leadCity}
+                                onChange={(e) => setLeadCity(e.target.value)}
+                                disabled={isGeneralInfoReadOnly || !leadState}
+                              >
+                                <option value="">Select City</option>
+                                {City.getCitiesOfState(leadCountry, leadState).map((c) => (
+                                  <option key={c.name} value={c.name}>{c.name}</option>
+                                ))}
+                              </select>
+                            </div>
+                            <div className="col-md-6">
+                              <label className="form-label">Pin Code</label>
+                              <input
+                                className="form-control"
+                                value={leadPincode}
+                                onChange={(e) => setLeadPincode(e.target.value)}
+                                readOnly={isGeneralInfoReadOnly}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                        <div className="lead-info-section">
+                          <h6 className="lead-info-section-title">Lead Overview</h6>
+                          <div className="row g-3">
+                            <div className="col-md-6">
+                              <label className="form-label">Current Status</label>
+                              <input className="form-control" value={lead?.status || "-"} readOnly />
+                            </div>
+                          
+                            <div className="col-md-6">
+                              <label className="form-label">Created At</label>
+                              <input
+                                className="form-control"
+                                value={formatDateTime(lead?.createdAt) || "-"}
+                                readOnly
+                              />
+                            </div>
+                            {role !== "EMPLOYEE" && (
+                              <>
+                                <div className="col-md-6">
+                                  <label className="form-label">Lead Owner</label>
+                                  <input
+                                    className="form-control"
+                                    placeholder="Lead owner name"
+                                    value={lead?.ownerName || lead?.owner || "-"}
+                                    readOnly
+                                  />
+                                </div>
+                                <div className="col-md-6">
+                                  <label className="form-label">Lead Type / Rating</label>
+                                  <select
+                                    className="form-select"
+                                    value={leadTypeValue}
+                                    onChange={(e) => setLeadTypeValue(e.target.value)}
+                                    disabled={isGeneralInfoReadOnly}
+                                  >
+                                    <option value="">Select Lead Type</option>
+                                    {leadTypeOptions.map((type) => (
+                                      <option key={type} value={type}>
+                                        {type}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+                              </>
+                            )}
+                          
+                          
+                            <div className="col-md-6">
+                              <label className="form-label">Lead Allocator</label>
+                              <input
+                                className="form-control"
+                                placeholder="Lead allocator name"
+                                value={lead?.allocator || lead?.allocatorName || lead?.allocatedTo || lead?.assignedTo || "-"}
+                                readOnly
+                              />
+                            </div>
+                         
+                            </div>
+                          </div>
+                        </div>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </div>
+                </motion.div>
                 )}
+                </AnimatePresence>
 
                 <>
                 {activeTab === "attempted" && showAttemptedSummary && (
@@ -4094,217 +4122,10 @@ const [showRequirementDetailsModal, setShowRequirementDetailsModal] = useState(f
               </div>
               )}
 
-              <div className={isEmployeeDesignView ? "col-12" : "col-lg-5"}>
-                {isConverted ? (
-                  <div className="card border">
-                    <div className="card-body text-center py-5">
-                      <i className="ti ti-lock" style={{ fontSize: 36, color: "#6c757d" }} />
-                      <h5 className="mt-3 mb-2">Lead Locked</h5>
-                      <p className="text-muted mb-0">This lead has been converted to a deal. No further edits are allowed here.</p>
-                    </div>
-                  </div>
-                ) : (<>
-                {isEmployeeDesignView ? (
-                  <div className="mx-auto" style={{ maxWidth: "760px" }}>
-                    <div className="mb-3">
-                      <h5 className="mb-1">Design Review</h5>
-                      <div className="text-muted">Only lead status and customer design response are shown in this phase.</div>
-                    </div>
-                  </div>
-                ) : null}
-                <div className="card border">
-                  <div className="card-body">
-                    <h5 className="mb-3">Lead Status</h5>
-                  {allowedStatusOptions.length > 0 && (
-                    <div className="mb-3">
-                      <div className="d-flex flex-wrap gap-2">
-                        {displayStatusOptions.map((item) => (
-                          <span
-                            key={item}
-                            className={`badge ${normalizeStatusLabelKey(item) === normalizeStatusLabelKey(statusValue) ? "bg-primary" : "bg-light text-dark"}`}
-                          >
-                            {formatStatusLabel(item)}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  <label className="form-label">Status</label>
-                    <select
-                      className="form-select mb-3"
-                      value={statusValue}
-                      onChange={(e) => handleStatusChange(e.target.value)}
-                    >
-                      <option value="">Select Status</option>
-                    {displayStatusOptions.map((status) => (
-                      <option key={status} value={status}>
-                        {formatStatusLabel(status)}
-                      </option>
-                    ))}
-                  </select>
-                  {effectiveStatus.toLowerCase() === "design" ? (
-                    <button
-                      className="btn btn-primary w-100 mb-3"
-                      onClick={saveStatus}
-                      disabled={statusSaving}
-                    >
-                      {statusSaving ? "Saving..." : "Update Status"}
-                    </button>
-                  ) : null}
-                  {isEmployeeDesignView ? (
-                    <div className="card border mb-3">
-                      <div className="card-body">
-                        <h6 className="mb-2">Upload Final Design</h6>
-                        <input
-                          className="form-control mb-3"
-                          type="file"
-                          onChange={(e) => setDesignUploadFile(e.target.files?.[0] || null)}
-                        />
-                        <button
-                          className="btn btn-outline-primary w-100"
-                          type="button"
-                          onClick={uploadFinalDesign}
-                          disabled={saving || !designUploadFile}
-                        >
-                          {saving ? "Uploading..." : "Upload File"}
-                        </button>
-                      </div>
-                    </div>
-                  ) : null}
-                    {effectiveStatus.toLowerCase() !== "design" ? (
-                    <button
-                      className="btn btn-primary w-100"
-                      onClick={saveStatus}
-                      disabled={statusSaving}
-                    >
-                      {statusSaving ? "Saving..." : "Update Status"}
-                    </button>
-                    ) : null}
-                  </div>
-                </div>
-
-                {!isEmployeeDesignView && (
-                <div className="card border mt-3">
-                  <div className="card-body">
-                    <h5 className="mb-3">Save Lead Details</h5>
-                    <button
-                      className="btn btn-primary w-100"
-                      onClick={saveLeadDetails}
-                      disabled={detailsSaving || typeSaving}
-                    >
-                      {detailsSaving ? "Saving..." : "Save Details"}
-                    </button>
-                  </div>
-                </div>
-                )}
-                </>)}
-
-                {!isEmployeeDesignView && (
-                <div className="card border mt-3">
-                  <div className="card-body">
-                    <ul className="nav nav-tabs mb-3" role="tablist">
-                      <li className="nav-item" role="presentation">
-                        <button
-                          className="nav-link active"
-                          id="lead-log-tab"
-                          data-bs-toggle="tab"
-                          data-bs-target="#lead-log"
-                          type="button"
-                          role="tab"
-                          aria-controls="lead-log"
-                          aria-selected="true"
-                        >
-                          Lead Log
-                        </button>
-                      </li>
-                      <li className="nav-item" role="presentation">
-                        <button
-                          className="nav-link"
-                          id="call-history-tab"
-                          data-bs-toggle="tab"
-                          data-bs-target="#call-history"
-                          type="button"
-                          role="tab"
-                          aria-controls="call-history"
-                          aria-selected="false"
-                        >
-                          Call History
-                        </button>
-                      </li>
-                    </ul>
-                    <div className="tab-content">
-                      <div
-                        className="tab-pane fade show active"
-                        id="lead-log"
-                        role="tabpanel"
-                        aria-labelledby="lead-log-tab"
-                      >
-                        <div style={{ maxHeight: "320px", overflowY: "auto" }}>
-                          {leadLogs.length === 0 ? (
-                            <div className="text-muted">No lead log yet.</div>
-                          ) : (
-                            <div className="d-flex flex-column gap-3">
-                              {leadLogs.map((item) => (
-                                <div key={item.id || `${item.action}-${item.createdAt}`}>
-                                  <div className="d-flex align-items-start gap-3">
-                                    <div
-                                      className="rounded-circle bg-light d-flex align-items-center justify-content-center"
-                                      style={{ width: "48px", height: "48px", fontWeight: 600 }}
-                                    >
-                                      {(item.actor || "U").charAt(0).toUpperCase()}
-                                    </div>
-                                    <div>
-                                      <div className="fw-medium">{item.action || "Log Entry"}</div>
-                                      <div className="text-muted">by {item.actor || "user"}</div>
-                                      <div className="text-muted">
-                                        on {formatDateTime(item.createdAt)}
-                                      </div>
-                                      {item.fileName && (
-                                        <div className="text-muted small mt-1 text-break">
-                                          <button
-                                            type="button"
-                                            className="btn btn-link btn-sm p-0 align-baseline text-start text-decoration-underline"
-                                            onClick={() => downloadProtectedFile(item.filePath, item.fileName, "Failed to download file")}
-                                          >
-                                            {item.fileName}
-                                          </button>
-                                        </div>
-                                      )}
-                                    </div>
-                                    {item.fileName && (
-                                      <button
-                                        type="button"
-                                        className="btn btn-sm btn-outline-info"
-                                        onClick={() => downloadProtectedFile(item.filePath, item.fileName, "Failed to download file")}
-                                      >
-                                        <i className="ti ti-download me-1"></i>Download
-                                      </button>
-                                    )}
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                      <div
-                        className="tab-pane fade"
-                        id="call-history"
-                        role="tabpanel"
-                        aria-labelledby="call-history-tab"
-                      >
-                        <div className="text-muted">No call history yet.</div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                )}
-
-              </div>
             </div>
-          )}
+          
         </div>
-      </div>
+      )}
 
       {showAttemptedModal && (
         <div className="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center bg-dark bg-opacity-50" style={{ zIndex: 1050 }}>
@@ -4892,6 +4713,152 @@ const [showRequirementDetailsModal, setShowRequirementDetailsModal] = useState(f
         onSubmit={handleStockRequestSubmit}
         submitting={stockRequestSubmitting}
       />
+
+      {/* Status Change Modal */}
+      {showStatusModal && (
+        <div className="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center bg-dark bg-opacity-50" style={{ zIndex: 1050 }}>
+          <div className="card shadow-lg" style={{ width: "100%", maxWidth: "500px" }}>
+            <div className="card-header d-flex align-items-center justify-content-between bg-light">
+              <h5 className="mb-0">
+                <i className="ti ti-transfer-out me-2"></i>Update Lead Status
+              </h5>
+              <button
+                type="button"
+                className="btn-close"
+                aria-label="Close"
+                onClick={() => setShowStatusModal(false)}
+              />
+            </div>
+            <div className="card-body">
+              <div className="mb-3">
+                <label className="form-label">Select New Status</label>
+                <select
+                  className="form-select"
+                  value={statusValue}
+                  onChange={(e) => handleStatusChange(e.target.value)}
+                  style={{ padding: "0.625rem 0.875rem", fontSize: "0.95rem", borderRadius: "0.75rem" }}
+                >
+                  <option value="">Select Status</option>
+                {displayStatusOptions.map((status) => (
+                  <option key={status} value={status}>
+                    {formatStatusLabel(status)}
+                  </option>
+                ))}
+                </select>
+              </div>
+              {allowedStatusOptions.length > 0 && (
+                <div className="mb-3">
+                  <label className="form-label">Available Options:</label>
+                  <div className="d-flex flex-wrap gap-2">
+                    {displayStatusOptions.map((item) => (
+                      <span
+                        key={item}
+                        className={`badge ${normalizeStatusLabelKey(item) === normalizeStatusLabelKey(statusValue) ? "bg-primary" : "bg-light text-dark"}`}
+                        style={{ padding: "0.5rem 0.75rem", fontSize: "0.875rem", cursor: "pointer" }}
+                        onClick={() => handleStatusChange(item)}
+                      >
+                        {formatStatusLabel(item)}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="card-footer d-flex justify-content-end gap-2">
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={() => setShowStatusModal(false)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                onClick={() => {
+                  saveStatus();
+                  setShowStatusModal(false);
+                }}
+                disabled={statusSaving}
+              >
+                {statusSaving ? "Updating..." : "Update Status"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Lead Log Modal */}
+      {showLeadLogModal && (
+        <div className="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center bg-dark bg-opacity-50" style={{ zIndex: 1050 }}>
+          <div className="card shadow-lg" style={{ width: "100%", maxWidth: "600px", maxHeight: "80vh", overflowY: "auto" }}>
+            <div className="card-header d-flex align-items-center justify-content-between bg-light">
+              <h5 className="mb-0">
+                <i className="ti ti-history me-2"></i>Activity Log
+              </h5>
+              <button
+                type="button"
+                className="btn-close"
+                aria-label="Close"
+                onClick={() => setShowLeadLogModal(false)}
+              />
+            </div>
+            <div className="card-body" style={{ maxHeight: "calc(80vh - 120px)", overflowY: "auto" }}>
+              {leadLogs.length === 0 ? (
+                <div className="text-muted text-center py-4">No activity log yet.</div>
+              ) : (
+                <div className="d-flex flex-column gap-3">
+                  {leadLogs.map((log, index) => (
+                    <div
+                      key={`log-${index}`}
+                      className="border-bottom pb-3"
+                      style={{ borderColor: "#eef2f7" }}
+                    >
+                      <div className="d-flex justify-content-between align-items-start">
+                        <div>
+                          <h6 className="mb-1" style={{ color: "#45597a", fontWeight: 600 }}>
+                            {log.action || "Action"}
+                          </h6>
+                          <p className="text-muted mb-2" style={{ fontSize: "0.875rem" }}>
+                            {log.actor && <span>By: <strong>{log.actor}</strong></span>}
+                            {log.actor && log.createdAt && <span className="mx-2">•</span>}
+                            {log.createdAt && <span>{formatDateTime(log.createdAt)}</span>}
+                          </p>
+                          {log.details && (
+                            <p className="mb-0" style={{ fontSize: "0.875rem", color: "#34393f" }}>
+                              {log.details}
+                            </p>
+                          )}
+                          {log.fileUrl && (
+                            <a
+                              href={log.fileUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="small"
+                              style={{ display: "inline-block", marginTop: "0.5rem" }}
+                            >
+                              <i className="ti ti-download me-1"></i>Download File
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="card-footer d-flex justify-content-end gap-2">
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={() => setShowLeadLogModal(false)}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

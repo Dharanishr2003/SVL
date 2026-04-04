@@ -16,7 +16,8 @@ public final class RolePermissionUtil {
         HIERARCHY.put(Role.SUPER_ADMIN, 4);
         HIERARCHY.put(Role.ADMIN, 3);
         HIERARCHY.put(Role.MANAGER, 2);
-        HIERARCHY.put(Role.EMPLOYEE, 1);
+        HIERARCHY.put(Role.TEAM_LEAD, 1);
+        HIERARCHY.put(Role.EMPLOYEE, 0);
         HIERARCHY.put(Role.CUSTOMER, 0);
     }
 

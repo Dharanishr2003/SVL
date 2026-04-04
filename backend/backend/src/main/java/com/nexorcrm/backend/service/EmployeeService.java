@@ -108,8 +108,6 @@ public class EmployeeService {
         e.setPhone(r.getPhone());
         e.setDept(r.getDept());
         e.setInstitution(trimToNull(r.getInstitution()));
-        e.setInstitutionCategory(trimToNull(r.getInstitutionCategory()));
-        e.setInstitutionType(trimToNull(r.getInstitutionType()));
         e.setDepartmentName(firstNonBlank(r.getUserDepartmentName(), r.getDepartmentName()));
         e.setTeam(trimToNull(r.getTeam()));
         e.setDesignation(r.getDesignation());
@@ -133,8 +131,6 @@ public class EmployeeService {
         r.setPhone(e.getPhone());
         r.setDept(e.getDept());
         r.setInstitution(e.getInstitution());
-        r.setInstitutionCategory(e.getInstitutionCategory());
-        r.setInstitutionType(e.getInstitutionType());
         r.setDepartmentName(e.getDepartmentName());
         r.setTeam(e.getTeam());
         r.setDesignation(e.getDesignation());

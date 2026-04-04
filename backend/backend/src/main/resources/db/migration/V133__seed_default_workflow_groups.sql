@@ -14,13 +14,13 @@ WHERE NOT EXISTS (
 );
 
 INSERT INTO user_groups (name, group_level, is_system_group, member_scope, page_keys_csv)
-SELECT 'Presales', 3, FALSE, 'NONE', 'leads,rejected-leads,lead-source,contacts,companies,pipeline,analytics,activity,quotation,channel-partners'
+SELECT 'Presales', 3, FALSE, 'NONE', 'leads,rejected-leads,lead-source,contacts,companies,pipeline,analytics,activity,quotation'
 WHERE NOT EXISTS (
     SELECT 1 FROM user_groups WHERE LOWER(name) = LOWER('Presales')
 );
 
 INSERT INTO user_groups (name, group_level, is_system_group, member_scope, page_keys_csv)
-SELECT 'Sales', 4, FALSE, 'NONE', 'deals,quotation,channel-partners,contacts,companies,invoices,sales'
+SELECT 'Sales', 4, FALSE, 'NONE', 'deals,quotation,contacts,companies,invoices,sales'
 WHERE NOT EXISTS (
     SELECT 1 FROM user_groups WHERE LOWER(name) = LOWER('Sales')
 );

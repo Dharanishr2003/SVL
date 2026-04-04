@@ -66,16 +66,12 @@ public class UserGroupController {
     @GetMapping("/assignable-teams")
     public List<UserGroupAssignableTeamResponse> listAssignableTeams(
             @RequestParam(value = "institutionName", required = false) String institutionName,
-            @RequestParam(value = "institutionCategory", required = false) String institutionCategory,
-            @RequestParam(value = "institutionType", required = false) String institutionType,
             @RequestParam(value = "departmentName", required = false) String departmentName,
             Authentication authentication
     ) {
         return userGroupService.listAssignableTeams(
                 authentication.getName(),
                 institutionName,
-                institutionCategory,
-                institutionType,
                 departmentName
         );
     }

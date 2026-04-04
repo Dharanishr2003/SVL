@@ -33,12 +33,6 @@ public class Employee {
     @Column(length = 150)
     private String institution;
 
-    @Column(name = "institution_category", length = 150)
-    private String institutionCategory;
-
-    @Column(name = "institution_type", length = 150)
-    private String institutionType;
-
     @Column(name = "department_name", length = 150)
     private String departmentName;
 
@@ -124,22 +118,6 @@ public class Employee {
 
 	public void setInstitution(String institution) {
 		this.institution = institution;
-	}
-
-	public String getInstitutionCategory() {
-		return institutionCategory;
-	}
-
-	public void setInstitutionCategory(String institutionCategory) {
-		this.institutionCategory = institutionCategory;
-	}
-
-	public String getInstitutionType() {
-		return institutionType;
-	}
-
-	public void setInstitutionType(String institutionType) {
-		this.institutionType = institutionType;
 	}
 
 	public String getDepartmentName() {

@@ -71,8 +71,6 @@ function userFromToken(token, fallbackEmail = "", responseData = null) {
     lastName,
     role: normalizeRole(responseData?.role || payload?.role || "EMPLOYEE"),
     institution: responseData?.institution || "",
-    institutionCategory: responseData?.institutionCategory || "",
-    institutionType: responseData?.institutionType || "",
     departmentName: responseData?.departmentName || "",
     team: responseData?.team || "",
     forcePasswordChange:
@@ -97,8 +95,6 @@ function mergeProfileIntoUser(currentUser, profileData) {
     lastName: profileData.lastName ?? currentUser?.lastName ?? "",
     role: normalizeRole(profileData.role || currentUser?.role || "EMPLOYEE"),
     institution: profileData.institutionName ?? currentUser?.institution ?? "",
-    institutionCategory: profileData.institutionCategory ?? currentUser?.institutionCategory ?? "",
-    institutionType: profileData.institutionType ?? currentUser?.institutionType ?? "",
     departmentName: profileData.departmentName ?? currentUser?.departmentName ?? "",
     team: profileData.teamName ?? currentUser?.team ?? "",
     forcePasswordChange:

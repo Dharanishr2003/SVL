@@ -10,6 +10,7 @@ public class LeadFlowResponse {
     private List<String> statuses;
     private String updatedBy;
     private LocalDateTime updatedAt;
+    private String institutionName;
 
     public Long getDefaultGroupId() {
         return defaultGroupId;
@@ -49,5 +50,13 @@ public class LeadFlowResponse {
 
     public void setUpdatedAt(LocalDateTime updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public String getInstitutionName() {
+        return institutionName;
+    }
+
+    public void setInstitutionName(String institutionName) {
+        this.institutionName = institutionName;
     }
 }

@@ -19,8 +19,6 @@ public class MyProfileResponse {
     private String registeredIp;
     private String lastActiveIp;
     private String institutionName;
-    private String institutionCategory;
-    private String institutionType;
     private String departmentName;
     private String teamName;
 
@@ -72,12 +70,6 @@ public class MyProfileResponse {
 
     public String getInstitutionName() { return institutionName; }
     public void setInstitutionName(String institutionName) { this.institutionName = institutionName; }
-
-    public String getInstitutionCategory() { return institutionCategory; }
-    public void setInstitutionCategory(String institutionCategory) { this.institutionCategory = institutionCategory; }
-
-    public String getInstitutionType() { return institutionType; }
-    public void setInstitutionType(String institutionType) { this.institutionType = institutionType; }
 
     public String getDepartmentName() { return departmentName; }
     public void setDepartmentName(String departmentName) { this.departmentName = departmentName; }

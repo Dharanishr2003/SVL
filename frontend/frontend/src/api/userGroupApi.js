@@ -4,15 +4,14 @@ function normalizeGroup(row) {
   return {
     id: row?.id,
     name: row?.name || '',
-    level: Number(row?.groupLevel ?? 0),
     members: Number(row?.members ?? 0),
     canDelete: Boolean(row?.canDelete),
+    branchName: row?.branchName || row?.institutionName || '',
     institutionName: row?.institutionName || '',
-    institutionCategory: row?.institutionCategory || '',
-    institutionType: row?.institutionType || '',
     departmentName: row?.departmentName || '',
     teamNames: Array.isArray(row?.teamNames) ? row.teamNames : [],
     pageKeys: Array.isArray(row?.pageKeys) ? row.pageKeys : [],
+    memberScope: row?.memberScope || 'NONE',
   }
 }
 
@@ -25,13 +24,11 @@ export async function getUserGroups() {
 export async function createUserGroup(payload) {
   const response = await api.post('/api/user-groups', {
     name: payload?.name,
-    groupLevel: payload?.level,
-    institutionName: payload?.institutionName,
-    institutionCategory: payload?.institutionCategory,
-    institutionType: payload?.institutionType,
+    institutionName: payload?.institutionName || payload?.branchName,
     departmentName: payload?.departmentName,
     teamNames: Array.isArray(payload?.teamNames) ? payload.teamNames : [],
     pageKeys: Array.isArray(payload?.pageKeys) ? payload.pageKeys : [],
+    memberScope: payload?.memberScope || 'NONE',
   })
   return normalizeGroup(response?.data || {})
 }
@@ -39,13 +36,11 @@ export async function createUserGroup(payload) {
 export async function updateUserGroup(groupId, payload) {
   const response = await api.put(`/api/user-groups/${groupId}`, {
     name: payload?.name,
-    groupLevel: payload?.level,
-    institutionName: payload?.institutionName,
-    institutionCategory: payload?.institutionCategory,
-    institutionType: payload?.institutionType,
+    institutionName: payload?.institutionName || payload?.branchName,
     departmentName: payload?.departmentName,
     teamNames: Array.isArray(payload?.teamNames) ? payload.teamNames : [],
     pageKeys: Array.isArray(payload?.pageKeys) ? payload.pageKeys : [],
+    memberScope: payload?.memberScope || 'NONE',
   })
   return normalizeGroup(response?.data || {})
 }
@@ -70,9 +65,9 @@ export async function getAssignableUsersForGroup({ groupId, teams } = {}) {
 
 export async function getAssignableTeamsForGroup(scope = {}) {
   const params = {}
-  if (scope?.institutionName) params.institutionName = scope.institutionName
-  if (scope?.institutionCategory) params.institutionCategory = scope.institutionCategory
-  if (scope?.institutionType) params.institutionType = scope.institutionType
+  if (scope?.institutionName || scope?.branchName) {
+    params.institutionName = scope.institutionName || scope.branchName
+  }
   if (scope?.departmentName) params.departmentName = scope.departmentName
   const response = await api.get('/api/user-groups/assignable-teams', { params })
   const rows = Array.isArray(response?.data) ? response.data : []

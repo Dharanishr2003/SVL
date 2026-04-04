@@ -82,14 +82,14 @@ public class Lead {
     @Column(name = "lead_pincode", length = 20)
     private String leadPincode;
 
+    @Column(name = "street_address", length = 500)
+    private String streetAddress;
+
     @Column(name = "project_id")
     private Long projectId;
 
     @Column(name = "lead_type", length = 160)
     private String leadType;
-
-    @Column(name = "channel_partner_id")
-    private Long channelPartnerId;
 
     @Column(name = "status", nullable = false, length = 100)
     private String status;
@@ -328,12 +328,12 @@ public class Lead {
     public void setLeadCity(String leadCity) { this.leadCity = leadCity; }
     public String getLeadPincode() { return leadPincode; }
     public void setLeadPincode(String leadPincode) { this.leadPincode = leadPincode; }
+    public String getStreetAddress() { return streetAddress; }
+    public void setStreetAddress(String streetAddress) { this.streetAddress = streetAddress; }
     public Long getProjectId() { return projectId; }
     public void setProjectId(Long projectId) { this.projectId = projectId; }
     public String getLeadType() { return leadType; }
     public void setLeadType(String leadType) { this.leadType = leadType; }
-    public Long getChannelPartnerId() { return channelPartnerId; }
-    public void setChannelPartnerId(Long channelPartnerId) { this.channelPartnerId = channelPartnerId; }
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
     public String getSvStatus() { return svStatus; }

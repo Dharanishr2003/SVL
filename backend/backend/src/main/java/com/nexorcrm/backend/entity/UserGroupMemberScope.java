@@ -3,5 +3,7 @@ package com.nexorcrm.backend.entity;
 public enum UserGroupMemberScope {
     NONE,
     ADMINS,
-    MANAGERS
+    MANAGERS,
+    TEAM_LEADS,
+    EMPLOYEES
 }

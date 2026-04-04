@@ -101,7 +101,10 @@ public class SuperAdminService {
 
     public UserResponse createPendingUser(CreateUserRequest request, String actorPrincipal) {
         User actor = resolveActor(actorPrincipal);
-        if (actor.getRole() != Role.SUPER_ADMIN && actor.getRole() != Role.ADMIN && actor.getRole() != Role.MANAGER) {
+        if (actor.getRole() != Role.SUPER_ADMIN
+                && actor.getRole() != Role.ADMIN
+                && actor.getRole() != Role.MANAGER
+                && actor.getRole() != Role.TEAM_LEAD) {
             throw new AccessDeniedException("You do not have permission to create users");
         }
 
@@ -118,30 +121,28 @@ public class SuperAdminService {
             throw new IllegalStateException("Email already exists");
         }
 
-        String institutionName = required(request.getInstitution(), "Institution is required");
-        String institutionCategory = required(request.getInstitutionCategory(), "Institution Category is required");
-        String institutionType = required(request.getInstitutionType(), "Institution Type is required");
-        String departmentName = required(request.getDepartmentName(), "Department Name is required");
+        String institutionName = required(request.getInstitution(), "Branch is required");
+        String departmentName = normalizeNullable(request.getDepartmentName());
         Role requestedRole = parseRequestedRole(request);
-        String teamName = requestedRole == Role.MANAGER
+        String teamName = (requestedRole == Role.TEAM_LEAD || requestedRole == Role.EMPLOYEE)
                 ? required(request.getTeam(), "Team is required")
                 : normalizeNullable(request.getTeam());
         assertActorCanManagePlacement(
                 actor,
                 institutionName,
-                institutionCategory,
-                institutionType,
                 departmentName,
                 teamName,
-                actor.getRole() == Role.MANAGER
+                actor.getRole() == Role.TEAM_LEAD
                         ? "You can only create users inside your team"
-                        : "You can only create users inside your department"
+                        : actor.getRole() == Role.MANAGER
+                        ? "You can only create users inside your department"
+                        : "You can only create users inside your branch"
         );
 
         if (!RolePermissionUtil.canAssign(actor.getRole(), requestedRole)) {
             throw new AccessDeniedException("You do not have permission to assign this role");
         }
-        assertRolePlacementConstraints(requestedRole, null, institutionName, institutionCategory, institutionType, departmentName, teamName);
+        assertRolePlacementConstraints(requestedRole, null, institutionName, departmentName, teamName);
 
         User user = new User();
         user.setUsername(username);
@@ -151,8 +152,6 @@ public class SuperAdminService {
         user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
         user.setRole(requestedRole);
         user.setInstitutionName(institutionName);
-        user.setInstitutionCategory(institutionCategory);
-        user.setInstitutionType(institutionType);
         user.setDepartmentName(departmentName);
         user.setTeamName(teamName);
         user.setActivationStatus(ActivationStatus.PENDING);
@@ -189,25 +188,30 @@ public class SuperAdminService {
             ).map(this::toUserResponse);
         }
         if (actor.getRole() == Role.ADMIN) {
+            assertActorHasBranchScope(actor);
+            return userRepository.findByRoleInAndActivationStatusInAndBranchScopeOrderByRoleHierarchy(
+                    visibleRoles,
+                    statuses,
+                    actor.getInstitutionName(),
+                    pageable
+            ).map(this::toUserResponse);
+        }
+        if (actor.getRole() == Role.MANAGER) {
             assertActorHasDepartmentScope(actor);
             return userRepository.findByRoleInAndActivationStatusInAndDepartmentScopeOrderByRoleHierarchy(
                     visibleRoles,
                     statuses,
                     actor.getInstitutionName(),
-                    actor.getInstitutionCategory(),
-                    actor.getInstitutionType(),
                     actor.getDepartmentName(),
                     pageable
             ).map(this::toUserResponse);
         }
-        if (actor.getRole() == Role.MANAGER) {
+        if (actor.getRole() == Role.TEAM_LEAD) {
             assertActorHasTeamScope(actor);
             return userRepository.findByRoleInAndActivationStatusInAndTeamScopeOrderByRoleHierarchy(
                     visibleRoles,
                     statuses,
                     actor.getInstitutionName(),
-                    actor.getInstitutionCategory(),
-                    actor.getInstitutionType(),
                     actor.getDepartmentName(),
                     actor.getTeamName(),
                     pageable
@@ -219,7 +223,10 @@ public class SuperAdminService {
     @Transactional(readOnly = true)
     public Page<UserResponse> getPendingUsers(Pageable pageable, String actorPrincipal) {
         User actor = resolveActor(actorPrincipal);
-        if (actor.getRole() != Role.SUPER_ADMIN && actor.getRole() != Role.ADMIN && actor.getRole() != Role.MANAGER) {
+        if (actor.getRole() != Role.SUPER_ADMIN
+                && actor.getRole() != Role.ADMIN
+                && actor.getRole() != Role.MANAGER
+                && actor.getRole() != Role.TEAM_LEAD) {
             throw new AccessDeniedException("You do not have permission to view pending users");
         }
 
@@ -232,25 +239,30 @@ public class SuperAdminService {
             ).map(this::toUserResponse);
         }
         if (actor.getRole() == Role.ADMIN) {
+            assertActorHasBranchScope(actor);
+            return userRepository.findByRoleInAndActivationStatusInAndBranchScopeOrderByRoleHierarchy(
+                    visibleRoles,
+                    List.of(ActivationStatus.PENDING),
+                    actor.getInstitutionName(),
+                    pageable
+            ).map(this::toUserResponse);
+        }
+        if (actor.getRole() == Role.MANAGER) {
             assertActorHasDepartmentScope(actor);
             return userRepository.findByRoleInAndActivationStatusInAndDepartmentScopeOrderByRoleHierarchy(
                     visibleRoles,
                     List.of(ActivationStatus.PENDING),
                     actor.getInstitutionName(),
-                    actor.getInstitutionCategory(),
-                    actor.getInstitutionType(),
                     actor.getDepartmentName(),
                     pageable
             ).map(this::toUserResponse);
         }
-        if (actor.getRole() == Role.MANAGER) {
+        if (actor.getRole() == Role.TEAM_LEAD) {
             assertActorHasTeamScope(actor);
             return userRepository.findByRoleInAndActivationStatusInAndTeamScopeOrderByRoleHierarchy(
                     visibleRoles,
                     List.of(ActivationStatus.PENDING),
                     actor.getInstitutionName(),
-                    actor.getInstitutionCategory(),
-                    actor.getInstitutionType(),
                     actor.getDepartmentName(),
                     actor.getTeamName(),
                     pageable
@@ -304,12 +316,6 @@ public class SuperAdminService {
             if (StringUtils.hasText(request.getInstitutionName())) {
                 target.setInstitutionName(request.getInstitutionName().trim());
             }
-            if (StringUtils.hasText(request.getInstitutionCategory())) {
-                target.setInstitutionCategory(request.getInstitutionCategory().trim());
-            }
-            if (StringUtils.hasText(request.getInstitutionType())) {
-                target.setInstitutionType(request.getInstitutionType().trim());
-            }
             if (StringUtils.hasText(request.getDepartmentName())) {
                 target.setDepartmentName(request.getDepartmentName().trim());
             }
@@ -319,6 +325,15 @@ public class SuperAdminService {
                 target.setTeamName(null);
             }
         } else if (actor.getRole() == Role.ADMIN) {
+            if (StringUtils.hasText(request.getDepartmentName())) {
+                target.setDepartmentName(request.getDepartmentName().trim());
+            }
+            if (StringUtils.hasText(request.getTeamName())) {
+                target.setTeamName(request.getTeamName().trim());
+            } else if (request.getTeamName() != null && request.getTeamName().isEmpty()) {
+                target.setTeamName(null);
+            }
+        } else if (actor.getRole() == Role.MANAGER) {
             if (StringUtils.hasText(request.getTeamName())) {
                 target.setTeamName(request.getTeamName().trim());
             } else if (request.getTeamName() != null && request.getTeamName().isEmpty()) {
@@ -366,8 +381,6 @@ public class SuperAdminService {
                 role,
                 target.getId(),
                 target.getInstitutionName(),
-                target.getInstitutionCategory(),
-                target.getInstitutionType(),
                 target.getDepartmentName(),
                 target.getTeamName()
         );
@@ -468,12 +481,14 @@ public class SuperAdminService {
         if (actor.getRole() != Role.SUPER_ADMIN
                 && actor.getRole() != Role.ADMIN
                 && actor.getRole() != Role.MANAGER
+                && actor.getRole() != Role.TEAM_LEAD
                 && actor.getRole() != Role.EMPLOYEE) {
             throw new AccessDeniedException("You do not have permission to view audit logs");
         }
         if (actor.getRole() == Role.SUPER_ADMIN) {
             return auditLogRepository.findAll(pageable).map(this::toAuditLogResponse);
         }
+        List<Role> visibleRoles = RolePermissionUtil.getVisibleRoles(actor.getRole());
         List<String> actorIds = List.of(
                 actor.getEmail().trim().toLowerCase(Locale.ROOT),
                 actor.getUsername().trim().toLowerCase(Locale.ROOT)
@@ -484,8 +499,20 @@ public class SuperAdminService {
         if (actor.getRole() == Role.MANAGER) {
             return auditLogRepository.findVisibleForActorIds(actorIds, pageable).map(this::toAuditLogResponse);
         }
+        if (actor.getRole() == Role.TEAM_LEAD) {
+            assertActorHasTeamScope(actor);
+            List<Role> roles = visibleRoles.stream()
+                    .filter(role -> role == Role.TEAM_LEAD || role == Role.EMPLOYEE)
+                    .toList();
+            return auditLogRepository.findVisibleForTeamScope(
+                    roles,
+                    actor.getInstitutionName(),
+                    actor.getDepartmentName(),
+                    actor.getTeamName(),
+                    pageable
+            ).map(this::toAuditLogResponse);
+        }
 
-        List<Role> visibleRoles = RolePermissionUtil.getVisibleRoles(actor.getRole());
         if (actor.getRole() == Role.ADMIN) {
             assertActorHasDepartmentScope(actor);
             List<Role> roles = visibleRoles.stream()
@@ -494,8 +521,6 @@ public class SuperAdminService {
             return auditLogRepository.findVisibleForDepartmentScopeWithActor(
                     roles,
                     actor.getInstitutionName(),
-                    actor.getInstitutionCategory(),
-                    actor.getInstitutionType(),
                     actor.getDepartmentName(),
                     actorIds,
                     pageable
@@ -505,8 +530,6 @@ public class SuperAdminService {
         return auditLogRepository.findVisibleForTeamScope(
                 visibleRoles,
                 actor.getInstitutionName(),
-                actor.getInstitutionCategory(),
-                actor.getInstitutionType(),
                 actor.getDepartmentName(),
                 actor.getTeamName(),
                 pageable
@@ -574,43 +597,48 @@ public class SuperAdminService {
     private void assertRolePlacementConstraints(Role requestedRole,
                                                 Long excludeUserId,
                                                 String institutionName,
-                                                String institutionCategory,
-                                                String institutionType,
                                                 String departmentName,
                                                 String teamName) {
-        if (requestedRole == Role.ADMIN || requestedRole == Role.MANAGER) {
-            institutionName = required(institutionName, "Institution is required for role assignment");
-            institutionCategory = required(institutionCategory, "Institution Category is required for role assignment");
-            institutionType = required(institutionType, "Institution Type is required for role assignment");
+        if (requestedRole == Role.ADMIN || requestedRole == Role.MANAGER || requestedRole == Role.TEAM_LEAD || requestedRole == Role.EMPLOYEE) {
+            institutionName = required(institutionName, "Branch is required for role assignment");
+        }
+        if (requestedRole == Role.MANAGER || requestedRole == Role.TEAM_LEAD || requestedRole == Role.EMPLOYEE) {
             departmentName = required(departmentName, "Department Name is required for role assignment");
         }
-        if (requestedRole == Role.MANAGER) {
+        if (requestedRole == Role.TEAM_LEAD || requestedRole == Role.EMPLOYEE) {
             teamName = required(teamName, "Team is required for role assignment");
         }
         if (requestedRole == Role.ADMIN) {
-            boolean departmentHasAdmin = excludeUserId == null
-                    ? userRepository.existsByRoleAndActivationStatusAndInstitutionNameIgnoreCaseAndInstitutionCategoryIgnoreCaseAndInstitutionTypeIgnoreCaseAndDepartmentNameIgnoreCaseAndIsDeletedFalse(
-                    Role.ADMIN, ActivationStatus.ACTIVE, institutionName, institutionCategory, institutionType, departmentName)
-                    : userRepository.existsByRoleAndIdNotAndActivationStatusAndInstitutionNameIgnoreCaseAndInstitutionCategoryIgnoreCaseAndInstitutionTypeIgnoreCaseAndDepartmentNameIgnoreCaseAndIsDeletedFalse(
-                    Role.ADMIN, excludeUserId, ActivationStatus.ACTIVE, institutionName, institutionCategory, institutionType, departmentName);
-            if (departmentHasAdmin) {
-                throw new IllegalStateException("Only one ADMIN is allowed per department");
+            long adminCount = excludeUserId == null
+                    ? userRepository.countActiveAdminsByBranch(institutionName)
+                    : userRepository.countActiveAdminsByBranchExcludingUser(excludeUserId, institutionName);
+            if (adminCount > 0) {
+                throw new IllegalStateException("Only one ADMIN is allowed per branch");
             }
         }
         if (requestedRole == Role.MANAGER) {
             long managerCount = excludeUserId == null
                     ? userRepository.countActiveManagersInScope(
-                    institutionName, institutionCategory, institutionType, departmentName, teamName)
+                    institutionName, departmentName, teamName)
                     : userRepository.countActiveManagersInScopeExcludingUser(
-                    excludeUserId, institutionName, institutionCategory, institutionType, departmentName, teamName);
+                    excludeUserId, institutionName, departmentName, teamName);
             if (managerCount > 0) {
                 throw new IllegalStateException(
-                        "Only one MANAGER is allowed per team. Scope checked: "
-                                + institutionName + " / "
-                                + institutionCategory + " / "
-                                + institutionType + " / "
-                                + departmentName + " / "
-                                + teamName
+                        "Only one MANAGER is allowed per department. Scope checked: "
+                                + institutionName + " / " + departmentName
+                );
+            }
+        }
+        if (requestedRole == Role.TEAM_LEAD) {
+            long teamLeadCount = excludeUserId == null
+                    ? userRepository.countActiveTeamLeadsInScope(
+                    institutionName, departmentName, teamName)
+                    : userRepository.countActiveTeamLeadsInScopeExcludingUser(
+                    excludeUserId, institutionName, departmentName, teamName);
+            if (teamLeadCount > 0) {
+                throw new IllegalStateException(
+                        "Only one TEAM_LEAD is allowed per team. Scope checked: "
+                                + institutionName + " / " + departmentName + " / " + teamName
                 );
             }
         }
@@ -618,8 +646,6 @@ public class SuperAdminService {
 
     private void assertActorCanManagePlacement(User actor,
                                                String institutionName,
-                                               String institutionCategory,
-                                               String institutionType,
                                                String departmentName,
                                                String teamName,
                                                String denyMessage) {
@@ -627,21 +653,24 @@ public class SuperAdminService {
             return;
         }
         if (actor.getRole() == Role.ADMIN) {
+            assertActorHasBranchScope(actor);
+            if (!textEquals(actor.getInstitutionName(), institutionName)) {
+                throw new AccessDeniedException(denyMessage);
+            }
+            return;
+        }
+        if (actor.getRole() == Role.MANAGER) {
             assertActorHasDepartmentScope(actor);
             boolean inSameDepartment = textEquals(actor.getInstitutionName(), institutionName)
-                    && textEquals(actor.getInstitutionCategory(), institutionCategory)
-                    && textEquals(actor.getInstitutionType(), institutionType)
                     && textEquals(actor.getDepartmentName(), departmentName);
             if (!inSameDepartment) {
                 throw new AccessDeniedException(denyMessage);
             }
             return;
         }
-        if (actor.getRole() == Role.MANAGER) {
+        if (actor.getRole() == Role.TEAM_LEAD) {
             assertActorHasTeamScope(actor);
             boolean inSameTeam = textEquals(actor.getInstitutionName(), institutionName)
-                    && textEquals(actor.getInstitutionCategory(), institutionCategory)
-                    && textEquals(actor.getInstitutionType(), institutionType)
                     && textEquals(actor.getDepartmentName(), departmentName)
                     && textEquals(actor.getTeamName(), teamName);
             if (!inSameTeam) {
@@ -660,31 +689,37 @@ public class SuperAdminService {
             return true;
         }
         if (actor.getRole() == Role.ADMIN) {
+            if (!hasBranchScope(target)) {
+                return true;
+            }
+            return textEquals(actor.getInstitutionName(), target.getInstitutionName());
+        }
+        if (actor.getRole() == Role.MANAGER) {
             if (!hasDepartmentScope(target)) {
                 return true;
             }
             return textEquals(actor.getInstitutionName(), target.getInstitutionName())
-                    && textEquals(actor.getInstitutionCategory(), target.getInstitutionCategory())
-                    && textEquals(actor.getInstitutionType(), target.getInstitutionType())
                     && textEquals(actor.getDepartmentName(), target.getDepartmentName());
         }
-        if (actor.getRole() == Role.MANAGER) {
+        if (actor.getRole() == Role.TEAM_LEAD) {
             if (!hasTeamScope(target)) {
                 return true;
             }
             return textEquals(actor.getInstitutionName(), target.getInstitutionName())
-                    && textEquals(actor.getInstitutionCategory(), target.getInstitutionCategory())
-                    && textEquals(actor.getInstitutionType(), target.getInstitutionType())
                     && textEquals(actor.getDepartmentName(), target.getDepartmentName())
                     && textEquals(actor.getTeamName(), target.getTeamName());
         }
         return false;
     }
 
+    private void assertActorHasBranchScope(User actor) {
+        if (!StringUtils.hasText(actor.getInstitutionName())) {
+            throw new AccessDeniedException("Your account is missing branch scope configuration");
+        }
+    }
+
     private void assertActorHasDepartmentScope(User actor) {
         if (!StringUtils.hasText(actor.getInstitutionName())
-                || !StringUtils.hasText(actor.getInstitutionCategory())
-                || !StringUtils.hasText(actor.getInstitutionType())
                 || !StringUtils.hasText(actor.getDepartmentName())) {
             throw new AccessDeniedException("Your account is missing department scope configuration");
         }
@@ -703,9 +738,11 @@ public class SuperAdminService {
 
     private boolean hasDepartmentScope(User user) {
         return StringUtils.hasText(user.getInstitutionName())
-                && StringUtils.hasText(user.getInstitutionCategory())
-                && StringUtils.hasText(user.getInstitutionType())
                 && StringUtils.hasText(user.getDepartmentName());
+    }
+
+    private boolean hasBranchScope(User user) {
+        return StringUtils.hasText(user.getInstitutionName());
     }
 
     private boolean hasTeamScope(User user) {
@@ -764,8 +801,6 @@ public class SuperAdminService {
         response.setRegisteredIp(user.getRegisteredIp());
         response.setLastActiveIp(user.getLastActiveIp());
         response.setInstitution(user.getInstitutionName());
-        response.setInstitutionCategory(user.getInstitutionCategory());
-        response.setInstitutionType(user.getInstitutionType());
         response.setDepartmentName(user.getDepartmentName());
         response.setTeam(user.getTeamName());
         return response;

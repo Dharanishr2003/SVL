@@ -1,215 +1,249 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  getUserGroups,
   createUserGroup,
   deleteUserGroup,
-  updateUserGroup,
-  getGroupMembers,
-  addGroupMember,
-  removeGroupMember,
-  getAssignableUsersForGroup,
+  getUserGroups,
 } from "../../api/userGroupApi";
-import { extractApiErrorMessage } from "../../utils/errorMessage";
 import {
-  getInstitutions,
-  getInstitutionCategories,
-  getInstitutionTypes,
   getDepartments,
+  getInstitutions,
   getTeams,
   getUserOrgSelection,
 } from "../../api/orgHierarchyApi";
 import { useAuth } from "../../context/AuthContext";
+import UserGroupWizardModal from "../../components/admin/UserGroupWizardModal";
 import { useToast } from "../../components/system/ToastProvider";
+import { useCreateGroupForm } from "../../hooks/useCreateGroupForm";
+import { extractApiErrorMessage } from "../../utils/errorMessage";
 
-const EMPTY_FORM = { name: "", level: 0 };
-const EMPTY_SCOPE = {
-  institutionId: "",
-  categoryId: "",
-  typeId: "",
-  departmentId: "",
-  teamIds: [],
-};
 
-function UsergroupsPage() {
+function normalize(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function findById(rows, id) {
+  return rows.find((row) => String(row.id) === String(id));
+}
+
+function findByName(rows, name) {
+  return rows.find((row) => normalize(row?.name) === normalize(name));
+}
+
+export default function UsergroupsPage() {
   const navigate = useNavigate();
   const { user: currentUser } = useAuth();
   const { showSuccess, showError } = useToast();
+
   const currentRole = String(currentUser?.role || "").toUpperCase();
   const isSuperAdmin = currentRole === "SUPER_ADMIN";
   const isAdmin = currentRole === "ADMIN";
   const isManager = currentRole === "MANAGER";
+  const isTeamLead = currentRole === "TEAM_LEAD";
 
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [showModal, setShowModal] = useState(false);
-  const [pendingDelete, setPendingDelete] = useState(null);
-  const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
-  const [createPageKeys, setCreatePageKeys] = useState([]);
-  const [editGroup, setEditGroup] = useState(null);
-  const [editForm, setEditForm] = useState(EMPTY_FORM);
-  const [editPageKeys, setEditPageKeys] = useState([]);
-  const [groupMembers, setGroupMembers] = useState([]);
-  const [assignableUsers, setAssignableUsers] = useState([]);
-  const [selectedUserId, setSelectedUserId] = useState("");
-
-  const [orgSelection, setOrgSelection] = useState(null);
-  const [createScope, setCreateScope] = useState(EMPTY_SCOPE);
-  const [editScope, setEditScope] = useState(EMPTY_SCOPE);
-  const [createInstitutions, setCreateInstitutions] = useState([]);
-  const [createCategories, setCreateCategories] = useState([]);
-  const [createTypes, setCreateTypes] = useState([]);
-  const [createDepartments, setCreateDepartments] = useState([]);
-  const [createTeams, setCreateTeams] = useState([]);
-  const [editInstitutions, setEditInstitutions] = useState([]);
-  const [editCategories, setEditCategories] = useState([]);
-  const [editTypes, setEditTypes] = useState([]);
-  const [editDepartments, setEditDepartments] = useState([]);
-  const [editTeams, setEditTeams] = useState([]);
   const [orgLoading, setOrgLoading] = useState(false);
 
-  const normalizeName = (value) =>
-    String(value || "").trim().toLowerCase();
+  const [pendingDelete, setPendingDelete] = useState(null);
 
-  const findById = (list, id) =>
-    list.find((item) => String(item.id) === String(id));
+  const [createPageKeys, setCreatePageKeys] = useState([]);
 
-  const findByName = (list, name) =>
-    list.find((item) => normalizeName(item.name) === normalizeName(name));
+  const [orgSelection, setOrgSelection] = useState(null);
+  const [institutions, setInstitutions] = useState([]);
+  const [createDepartments, setCreateDepartments] = useState([]);
+  const [createTeams, setCreateTeams] = useState([]);
+  const {
+    form,
+    createScope,
+    showModal: showCreateModal,
+    formError,
+    setFormError,
+    selectedTeamId,
+    updateFormField,
+    updateScope,
+    validateForm,
+    handleTeamSelect,
+    removeTeam,
+    openModal,
+    closeModal,
+    setCreateScope,
+  } = useCreateGroupForm();
+
+  const ordered = useMemo(() => [...rows].sort((a, b) => a.name.localeCompare(b.name)), [rows]);
 
   const load = async () => {
     setLoading(true);
     try {
-      setRows(await getUserGroups());
+      const data = await getUserGroups();
+      setRows(Array.isArray(data) ? data : []);
     } catch (e) {
-      showError(extractApiErrorMessage(e, "Failed to load user groups"));
       setRows([]);
+      showError(extractApiErrorMessage(e, "Failed to load user groups"));
     } finally {
       setLoading(false);
     }
   };
+
   useEffect(() => {
     load();
   }, []);
 
   useEffect(() => {
     let isMounted = true;
-    const loadOrg = async () => {
+    const loadOrgData = async () => {
       setOrgLoading(true);
       try {
-        const institutions = await getInstitutions();
+        const [institutionRows, selection] = await Promise.all([
+          getInstitutions(),
+          currentUser?.id ? getUserOrgSelection(currentUser.id) : Promise.resolve(null),
+        ]);
         if (!isMounted) return;
-        setCreateInstitutions(Array.isArray(institutions) ? institutions : []);
-        setEditInstitutions(Array.isArray(institutions) ? institutions : []);
+        setInstitutions(Array.isArray(institutionRows) ? institutionRows : []);
+        setOrgSelection(selection || null);
       } catch (e) {
         if (isMounted) {
-          showError(extractApiErrorMessage(e, "Failed to load institutions"));
+          showError(extractApiErrorMessage(e, "Failed to load organization data"));
         }
       } finally {
         if (isMounted) setOrgLoading(false);
       }
     };
-    loadOrg();
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    let isMounted = true;
-    const loadSelection = async () => {
-      if (!currentUser?.id) return;
-      try {
-        const selection = await getUserOrgSelection(currentUser.id);
-        if (!isMounted) return;
-        setOrgSelection(selection || null);
-      } catch (e) {
-        if (isMounted) {
-          showError(extractApiErrorMessage(e, "Failed to load user scope"));
-        }
-      }
-    };
-    loadSelection();
+    loadOrgData();
     return () => {
       isMounted = false;
     };
   }, [currentUser?.id]);
-  const ordered = useMemo(
-    () => [...rows].sort((a, b) => (a.level || 0) - (b.level || 0)),
-    [rows],
-  );
 
-  const initCreateScope = () => {
-    if (isSuperAdmin) {
-      setCreateScope(EMPTY_SCOPE);
-      return;
-    }
-    const selection = orgSelection || {};
-    const nextScope = {
-      institutionId: selection.institutionId
-        ? String(selection.institutionId)
-        : "",
-      categoryId: selection.categoryId ? String(selection.categoryId) : "",
-      typeId: selection.typeId ? String(selection.typeId) : "",
-      departmentId: selection.departmentId
-        ? String(selection.departmentId)
-        : "",
-      teamIds: selection.teamId ? [String(selection.teamId)] : [],
+  useEffect(() => {
+    let isMounted = true;
+    const run = async () => {
+      if (!createScope.institutionId) {
+        setCreateDepartments([]);
+        return;
+      }
+      try {
+        const data = await getDepartments(createScope.institutionId);
+        if (isMounted) setCreateDepartments(Array.isArray(data) ? data : []);
+      } catch (e) {
+        if (isMounted) {
+          showError(extractApiErrorMessage(e, "Failed to load departments"));
+        }
+      }
     };
-    setCreateScope(nextScope);
+    run();
+    return () => {
+      isMounted = false;
+    };
+  }, [createScope.institutionId]);
+
+  useEffect(() => {
+    let isMounted = true;
+    const run = async () => {
+      if (!createScope.institutionId || !createScope.departmentId) {
+        setCreateTeams([]);
+        return;
+      }
+      try {
+        const data = await getTeams(createScope.institutionId, createScope.departmentId);
+        if (isMounted) setCreateTeams(Array.isArray(data) ? data : []);
+      } catch (e) {
+        if (isMounted) {
+          showError(extractApiErrorMessage(e, "Failed to load teams"));
+        }
+      }
+    };
+    run();
+    return () => {
+      isMounted = false;
+    };
+  }, [createScope.institutionId, createScope.departmentId]);
+
+
+  const applyActorScopeDefaults = (scope) => {
+    if (isSuperAdmin || !orgSelection) {
+      return scope;
+    }
+    return {
+      institutionId: String(orgSelection.institutionId || scope.institutionId || ""),
+      departmentId: String(orgSelection.departmentId || scope.departmentId || ""),
+      teamIds:
+        (isManager || isTeamLead) && orgSelection.teamId
+          ? [String(orgSelection.teamId)]
+          : scope.teamIds,
+    };
+  };
+
+  const openCreate = () => {
+    setCreatePageKeys([]);
+    openModal();
+    setCreateScope(applyActorScopeDefaults({ ...EMPTY_SCOPE, memberScope: "NONE" }));
+  };
+
+  const handleCreateMemberScopeChange = (nextScope) => {
+    const scopeKey = String(nextScope || "NONE").toUpperCase();
+    setCreateScope((prev) => {
+      const next = {
+        ...prev,
+        memberScope: scopeKey,
+      };
+      if (scopeKey === "ADMINS") {
+        next.departmentId = "";
+        next.teamIds = [];
+      } else if (scopeKey === "MANAGERS") {
+        next.teamIds = [];
+      }
+      return next;
+    });
   };
 
   const handleSave = async () => {
-    if (!form.name.trim()) {
-      showError("Group name is required");
+    if (!validateForm()) {
       return;
     }
-    const selectedInstitution = findById(
-      createInstitutions,
-      createScope.institutionId,
-    );
-    const selectedCategory = findById(
-      createCategories,
-      createScope.categoryId,
-    );
-    const selectedType = findById(createTypes, createScope.typeId);
-    const selectedDepartment = findById(
-      createDepartments,
-      createScope.departmentId,
-    );
+    const memberScope = String(createScope.memberScope || "NONE").toUpperCase();
+    const selectedInstitution = findById(institutions, createScope.institutionId);
+    const selectedDepartment = findById(createDepartments, createScope.departmentId);
     const selectedTeams = createTeams.filter((team) =>
-      createScope.teamIds.some((id) => String(id) === String(team.id)),
+      createScope.teamIds.some((teamId) => String(teamId) === String(team.id)),
     );
-    if (
-      !selectedInstitution ||
-      !selectedCategory ||
-      !selectedType ||
-      !selectedDepartment
-    ) {
-      showError("Institution, category, type, and department are required");
-      return;
+    if (!selectedInstitution || !selectedDepartment) {
+      if (memberScope === "ADMINS") {
+        if (!selectedInstitution) {
+          setFormError("Branch is required");
+          return;
+        }
+      } else if (memberScope === "MANAGERS") {
+        if (!selectedInstitution || !selectedDepartment) {
+          setFormError("Branch and department are required");
+          return;
+        }
+      } else {
+        setFormError("Branch and department are required");
+        return;
+      }
     }
-    if (!selectedTeams.length) {
-      showError("At least one team is required");
+    if (memberScope === "ADMINS") {
+      // no team required
+    } else if (memberScope === "MANAGERS") {
+      // no team required
+    } else if (!selectedTeams.length) {
+      setFormError("At least one team is required");
       return;
     }
     setSaving(true);
     try {
       await createUserGroup({
         name: form.name.trim(),
-        level: Number(form.level) || 0,
         institutionName: selectedInstitution.name,
-        institutionCategory: selectedCategory.name,
-        institutionType: selectedType.name,
-        departmentName: selectedDepartment.name,
-        teamNames: selectedTeams.map((team) => team.name),
+        departmentName: selectedDepartment?.name || "",
+        teamNames: memberScope === "ADMINS" || memberScope === "MANAGERS" ? [] : selectedTeams.map((team) => team.name),
         pageKeys: createPageKeys,
+        memberScope,
       });
       showSuccess("User group created");
-      setShowModal(false);
-      setForm(EMPTY_FORM);
-      setCreateScope(EMPTY_SCOPE);
+      closeModal();
       await load();
     } catch (e) {
       showError(extractApiErrorMessage(e, "Failed to create group"));
@@ -218,7 +252,12 @@ function UsergroupsPage() {
     }
   };
 
+  const openEdit = (group) => {
+    navigate(`/usergroups/edit/${group.id}`, { state: { group } });
+  };
+
   const handleDelete = async () => {
+    if (!pendingDelete?.id) return;
     setSaving(true);
     try {
       await deleteUserGroup(pendingDelete.id);
@@ -232,759 +271,128 @@ function UsergroupsPage() {
     }
   };
 
-  const openEdit = async (group) => {
-    setEditGroup(group);
-    setEditForm({ name: group?.name || "", level: group?.level || 0 });
-    setEditPageKeys(Array.isArray(group?.pageKeys) ? group.pageKeys : []);
-    setSelectedUserId("");
-    setEditScope(EMPTY_SCOPE);
-    setSaving(true);
-    try {
-      const [members, users] = await Promise.all([
-        getGroupMembers(group.id),
-        getAssignableUsersForGroup({ groupId: group.id }),
-      ]);
-      setGroupMembers(members || []);
-      setAssignableUsers(users || []);
-      if (editInstitutions.length) {
-        const institution = findByName(
-          editInstitutions,
-          group?.institutionName,
-        );
-        const institutionId = institution?.id || "";
-        let categories = [];
-        if (institutionId) {
-          categories = await getInstitutionCategories(institutionId);
-          setEditCategories(Array.isArray(categories) ? categories : []);
-        }
-        const category = findByName(categories, group?.institutionCategory);
-        const categoryId = category?.id || "";
-        let types = [];
-        if (institutionId && categoryId) {
-          types = await getInstitutionTypes(institutionId, categoryId);
-          setEditTypes(Array.isArray(types) ? types : []);
-        }
-        const type = findByName(types, group?.institutionType);
-        const typeId = type?.id || "";
-        let departments = [];
-        if (institutionId && categoryId && typeId) {
-          departments = await getDepartments(institutionId, categoryId, typeId);
-          setEditDepartments(Array.isArray(departments) ? departments : []);
-        }
-        const department = findByName(
-          departments,
-          group?.departmentName,
-        );
-        const departmentId = department?.id || "";
-        let teams = [];
-        if (institutionId && categoryId && typeId && departmentId) {
-          teams = await getTeams(
-            institutionId,
-            categoryId,
-            typeId,
-            departmentId,
-          );
-          setEditTeams(Array.isArray(teams) ? teams : []);
-        }
-        const teamIds = Array.isArray(group?.teamNames)
-          ? teams
-              .filter((team) =>
-                group.teamNames.some(
-                  (name) => normalizeName(name) === normalizeName(team.name),
-                ),
-              )
-              .map((team) => String(team.id))
-          : [];
-        setEditScope({
-          institutionId: String(institutionId || ""),
-          categoryId: String(categoryId || ""),
-          typeId: String(typeId || ""),
-          departmentId: String(departmentId || ""),
-          teamIds,
-        });
-      } else if (orgSelection) {
-        setEditScope({
-          institutionId: String(orgSelection.institutionId || ""),
-          categoryId: String(orgSelection.categoryId || ""),
-          typeId: String(orgSelection.typeId || ""),
-          departmentId: String(orgSelection.departmentId || ""),
-          teamIds: orgSelection.teamId ? [String(orgSelection.teamId)] : [],
-        });
-      }
-    } catch (e) {
-      showError(extractApiErrorMessage(e, "Failed to load group"));
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleUpdateGroup = async () => {
-    if (!editGroup?.id) return;
-    if (!editForm.name.trim()) {
-      showError("Group name is required");
-      return;
-    }
-    const selectedInstitution = findById(
-      editInstitutions,
-      editScope.institutionId,
-    );
-    const selectedCategory = findById(editCategories, editScope.categoryId);
-    const selectedType = findById(editTypes, editScope.typeId);
-    const selectedDepartment = findById(
-      editDepartments,
-      editScope.departmentId,
-    );
-    const selectedTeams = editTeams.filter((team) =>
-      editScope.teamIds.some((id) => String(id) === String(team.id)),
-    );
-    if (
-      !selectedInstitution ||
-      !selectedCategory ||
-      !selectedType ||
-      !selectedDepartment
-    ) {
-      showError("Institution, category, type, and department are required");
-      return;
-    }
-    if (!selectedTeams.length) {
-      showError("At least one team is required");
-      return;
-    }
-    setSaving(true);
-    try {
-      await updateUserGroup(editGroup.id, {
-        name: editForm.name.trim(),
-        level: Number(editForm.level) || 0,
-        institutionName: selectedInstitution.name,
-        institutionCategory: selectedCategory.name,
-        institutionType: selectedType.name,
-        departmentName: selectedDepartment.name,
-        teamNames: selectedTeams.map((team) => team.name),
-        pageKeys: editPageKeys,
-      });
-      showSuccess("Group updated");
-      setEditGroup(null);
-      await load();
-    } catch (e) {
-      showError(extractApiErrorMessage(e, "Failed to update group"));
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleAddMember = async () => {
-    if (!editGroup?.id || !selectedUserId) return;
-    setSaving(true);
-    try {
-      await addGroupMember(editGroup.id, selectedUserId);
-      const [members, users] = await Promise.all([
-        getGroupMembers(editGroup.id),
-        getAssignableUsersForGroup({ groupId: editGroup.id }),
-      ]);
-      setGroupMembers(members || []);
-      setAssignableUsers(users || []);
-      setSelectedUserId("");
-      showSuccess("Member added");
-    } catch (e) {
-      showError(extractApiErrorMessage(e, "Failed to add member"));
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleRemoveMember = async (userId) => {
-    if (!editGroup?.id || !userId) return;
-    setSaving(true);
-    try {
-      await removeGroupMember(editGroup.id, userId);
-      const [members, users] = await Promise.all([
-        getGroupMembers(editGroup.id),
-        getAssignableUsersForGroup({ groupId: editGroup.id }),
-      ]);
-      setGroupMembers(members || []);
-      setAssignableUsers(users || []);
-      showSuccess("Member removed");
-    } catch (e) {
-      showError(extractApiErrorMessage(e, "Failed to remove member"));
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  useEffect(() => {
-    let isMounted = true;
-    const loadCategories = async () => {
-      if (!createScope.institutionId) {
-        setCreateCategories([]);
-        return;
-      }
-      try {
-        const data = await getInstitutionCategories(createScope.institutionId);
-        if (!isMounted) return;
-        setCreateCategories(Array.isArray(data) ? data : []);
-      } catch (e) {
-        if (isMounted) {
-          showError(extractApiErrorMessage(e, "Failed to load categories"));
-        }
-      }
-    };
-    loadCategories();
-    return () => {
-      isMounted = false;
-    };
-  }, [createScope.institutionId]);
-
-  useEffect(() => {
-    let isMounted = true;
-    const loadTypes = async () => {
-      if (!createScope.institutionId || !createScope.categoryId) {
-        setCreateTypes([]);
-        return;
-      }
-      try {
-        const data = await getInstitutionTypes(
-          createScope.institutionId,
-          createScope.categoryId,
-        );
-        if (!isMounted) return;
-        setCreateTypes(Array.isArray(data) ? data : []);
-      } catch (e) {
-        if (isMounted) {
-          showError(extractApiErrorMessage(e, "Failed to load types"));
-        }
-      }
-    };
-    loadTypes();
-    return () => {
-      isMounted = false;
-    };
-  }, [createScope.institutionId, createScope.categoryId]);
-
-  useEffect(() => {
-    let isMounted = true;
-    const loadDepartments = async () => {
-      if (
-        !createScope.institutionId ||
-        !createScope.categoryId ||
-        !createScope.typeId
-      ) {
-        setCreateDepartments([]);
-        return;
-      }
-      try {
-        const data = await getDepartments(
-          createScope.institutionId,
-          createScope.categoryId,
-          createScope.typeId,
-        );
-        if (!isMounted) return;
-        setCreateDepartments(Array.isArray(data) ? data : []);
-      } catch (e) {
-        if (isMounted) {
-          showError(extractApiErrorMessage(e, "Failed to load departments"));
-        }
-      }
-    };
-    loadDepartments();
-    return () => {
-      isMounted = false;
-    };
-  }, [createScope.institutionId, createScope.categoryId, createScope.typeId]);
-
-  useEffect(() => {
-    let isMounted = true;
-    const loadTeams = async () => {
-      if (
-        !createScope.institutionId ||
-        !createScope.categoryId ||
-        !createScope.typeId ||
-        !createScope.departmentId
-      ) {
-        setCreateTeams([]);
-        return;
-      }
-      try {
-        const data = await getTeams(
-          createScope.institutionId,
-          createScope.categoryId,
-          createScope.typeId,
-          createScope.departmentId,
-        );
-        if (!isMounted) return;
-        setCreateTeams(Array.isArray(data) ? data : []);
-      } catch (e) {
-        if (isMounted) {
-          showError(extractApiErrorMessage(e, "Failed to load teams"));
-        }
-      }
-    };
-    loadTeams();
-    return () => {
-      isMounted = false;
-    };
-  }, [
-    createScope.institutionId,
-    createScope.categoryId,
-    createScope.typeId,
-    createScope.departmentId,
-  ]);
-
-  useEffect(() => {
-    let isMounted = true;
-    const loadCategories = async () => {
-      if (!editScope.institutionId) {
-        setEditCategories([]);
-        return;
-      }
-      try {
-        const data = await getInstitutionCategories(editScope.institutionId);
-        if (!isMounted) return;
-        setEditCategories(Array.isArray(data) ? data : []);
-      } catch (e) {
-        if (isMounted) {
-          showError(extractApiErrorMessage(e, "Failed to load categories"));
-        }
-      }
-    };
-    loadCategories();
-    return () => {
-      isMounted = false;
-    };
-  }, [editScope.institutionId]);
-
-  useEffect(() => {
-    let isMounted = true;
-    const loadTypes = async () => {
-      if (!editScope.institutionId || !editScope.categoryId) {
-        setEditTypes([]);
-        return;
-      }
-      try {
-        const data = await getInstitutionTypes(
-          editScope.institutionId,
-          editScope.categoryId,
-        );
-        if (!isMounted) return;
-        setEditTypes(Array.isArray(data) ? data : []);
-      } catch (e) {
-        if (isMounted) {
-          showError(extractApiErrorMessage(e, "Failed to load types"));
-        }
-      }
-    };
-    loadTypes();
-    return () => {
-      isMounted = false;
-    };
-  }, [editScope.institutionId, editScope.categoryId]);
-
-  useEffect(() => {
-    let isMounted = true;
-    const loadDepartments = async () => {
-      if (
-        !editScope.institutionId ||
-        !editScope.categoryId ||
-        !editScope.typeId
-      ) {
-        setEditDepartments([]);
-        return;
-      }
-      try {
-        const data = await getDepartments(
-          editScope.institutionId,
-          editScope.categoryId,
-          editScope.typeId,
-        );
-        if (!isMounted) return;
-        setEditDepartments(Array.isArray(data) ? data : []);
-      } catch (e) {
-        if (isMounted) {
-          showError(extractApiErrorMessage(e, "Failed to load departments"));
-        }
-      }
-    };
-    loadDepartments();
-    return () => {
-      isMounted = false;
-    };
-  }, [editScope.institutionId, editScope.categoryId, editScope.typeId]);
-
-  useEffect(() => {
-    let isMounted = true;
-    const loadTeams = async () => {
-      if (
-        !editScope.institutionId ||
-        !editScope.categoryId ||
-        !editScope.typeId ||
-        !editScope.departmentId
-      ) {
-        setEditTeams([]);
-        return;
-      }
-      try {
-        const data = await getTeams(
-          editScope.institutionId,
-          editScope.categoryId,
-          editScope.typeId,
-          editScope.departmentId,
-        );
-        if (!isMounted) return;
-        setEditTeams(Array.isArray(data) ? data : []);
-      } catch (e) {
-        if (isMounted) {
-          showError(extractApiErrorMessage(e, "Failed to load teams"));
-        }
-      }
-    };
-    loadTeams();
-    return () => {
-      isMounted = false;
-    };
-  }, [
-    editScope.institutionId,
-    editScope.categoryId,
-    editScope.typeId,
-    editScope.departmentId,
-  ]);
-
   return (
-    <div className="container-fluid">
-      <div className="card">
-        <div className="card-header">
-          <div className="row align-items-center">
-            <div className="col-8">
-              <h4 className="f-w-700 mb-0">User Groups</h4>
-            </div>
-            <div className="col-4 text-end">
-              <button
-                className="btn btn-primary"
-                onClick={() => {
-                  setForm(EMPTY_FORM);
-                  setCreatePageKeys([]);
-                  initCreateScope();
-                  setShowModal(true);
-                }}
-              >
-                + Add Group
-              </button>
-            </div>
+    <>
+      <style>{`
+        .user-groups { padding-top: 0 !important; margin-top: 0 !important; }
+        .user-groups .btn-primary { background-color: #45597a; border-color: #45597a; border-radius: 2rem; padding: 0.6rem 1.5rem; font-weight: 500; transition: all 0.3s ease; }
+        .user-groups .btn-primary:hover { background-color: #354560; border-color: #354560; }
+        .user-groups .btn-light { background-color: #f5f5f5; border-color: #d0d5dd; border-radius: 2rem; color: #34393f; }
+        .user-groups .btn-light:hover { background-color: #efefef; }
+        .user-groups .form-control, .user-groups .form-select { border-radius: 1.5rem; border: 1px solid #d0d5dd; padding: 0.6rem 1rem; font-size: 0.95rem; }
+        .user-groups .form-control:focus, .user-groups .form-select:focus { border-color: #45597a; box-shadow: 0 0 0 0.2rem rgba(69, 89, 122, 0.15); }
+        .user-groups .form-label { color: #34393f; font-weight: 500; font-size: 0.9rem; }
+        .user-groups .modal-content { border-radius: 20px; border: none; box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 15px 0 rgba(0, 0, 0, 0.12); background-color: #fcfcfc; }
+        .user-groups .modal-header { background-color: transparent; border: none; padding: 2rem 2rem 1rem 2rem; }
+        .user-groups .modal-title { color: #34393f; font-weight: 600; }
+        .user-groups .modal-body { padding: 0 2rem 1.5rem 2rem; }
+        .user-groups .modal-footer { background-color: transparent; border: none; padding: 1.5rem 2rem 2rem 2rem; }
+        .user-groups .badge { border-radius: 1rem; }
+        .user-groups .btn-sm { border-radius: 1.5rem; padding: 0.4rem 0.8rem; }
+        .user-groups .table { background-color: transparent; }
+        .user-groups .table thead th { background-color: transparent; color: #34393f; font-weight: 600; border: none; padding: 1rem; }
+        .user-groups .table tbody td { padding: 1rem; border-color: #e9ecef; color: #34393f; }
+      `}</style>
+      <div className="container-fluid user-groups">
+        <div className="d-flex justify-content-between align-items-center mb-3">
+          <div>
+            <h4 className="mb-0">User Groups</h4>
+            <small className="text-muted">Manage group scope by branch, department, and team.</small>
+          </div>
+          <div className="d-flex gap-2">
+            <button className="btn btn-light" onClick={() => navigate(-1)}>
+              Back
+            </button>
+            <button className="btn btn-primary" onClick={openCreate}>
+              Create Group
+            </button>
           </div>
         </div>
-      </div>
 
-      <div className="card">
-        <div className="card-body">
-          <h5 className="mb-3">User Groups List</h5>
-          <div className="table-responsive">
-            <table className="table table-striped table-bordered table-hover">
-              <thead className="table-dark">
-                <tr>
-                  <th>#</th>
-                  <th>Group Name</th>
-                  <th>Level</th>
-                  <th>Members</th>
-                  <th>Department</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {loading ? (
+        <div className="card">
+          <div className="card-body">
+            <div className="table-responsive">
+              <table className="table table-bordered align-middle">
+                <thead className="table-light">
                   <tr>
-                    <td colSpan={6}>Loading...</td>
+                    <th>Name</th>
+                    <th>Branch</th>
+                    <th>Department</th>
+                    <th>Teams</th>
+                    <th className="text-end">Actions</th>
                   </tr>
-                ) : ordered.length === 0 ? (
-                  <tr>
-                    <td colSpan={6}>No user groups found</td>
-                  </tr>
-                ) : (
-                  ordered.map((r, i) => (
-                    <tr key={r.id}>
-                      <td>{i + 1}</td>
-                      <td>{r.name || "-"}</td>
-                      <td>{r.level ?? "-"}</td>
-                      <td>{r.members ?? "-"}</td>
-                  <td>{r.departmentName || "-"}</td>
-                  <td>
-                        <button
-                          className="btn btn-sm btn-outline-primary me-2"
-                          onClick={() =>
-                            navigate(`/usergroups/edit/${r.id}`, {
-                              state: { group: r },
-                            })
-                          }
-                        >
-                          Edit
-                        </button>
-                        {r.canDelete !== false && (
-                          <button
-                            className="btn btn-sm btn-danger"
-                            onClick={() => setPendingDelete(r)}
-                          >
-                            Delete
-                          </button>
-                        )}
-                      </td>
+                </thead>
+                <tbody>
+                  {loading ? (
+                    <tr>
+                      <td colSpan={5}>Loading...</td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+                  ) : ordered.length === 0 ? (
+                    <tr>
+                      <td colSpan={5}>No user groups found</td>
+                    </tr>
+                  ) : (
+                    ordered.map((group) => (
+                      <tr key={group.id}>
+                        <td>{group.name || "-"}</td>
+                        <td>{group.institutionName || "-"}</td>
+                        <td>{group.departmentName || "-"}</td>
+                        <td>{Array.isArray(group.teamNames) && group.teamNames.length ? group.teamNames.join(", ") : "-"}</td>
+                        <td className="text-end">
+                          <div className="d-inline-flex gap-2">
+                            <button className="btn btn-sm btn-outline-primary" onClick={() => openEdit(group)}>
+                              Edit
+                            </button>
+                            <button className="btn btn-sm btn-outline-danger" onClick={() => setPendingDelete(group)}>
+                              Delete
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       </div>
 
-      {showModal && (
-        <>
-          <div
-            className="modal fade show"
-            style={{ display: "block" }}
-            tabIndex="-1"
-          >
-            <div className="modal-dialog">
-              <div className="modal-content">
-                <div className="modal-header">
-                  <h5 className="modal-title">Add User Group</h5>
-                  <button
-                    className="btn-close"
-                    onClick={() => setShowModal(false)}
-                  />
-                </div>
-                <div className="modal-body">
-                  <div className="mb-3">
-                    <label className="form-label">Group Name *</label>
-                    <input
-                      className="form-control"
-                      value={form.name}
-                      onChange={(e) =>
-                        setForm((f) => ({ ...f, name: e.target.value }))
-                      }
-                      placeholder="Group name"
-                    />
-                  </div>
-                  <div className="mb-3">
-                    <label className="form-label">Level</label>
-                    <input
-                      type="number"
-                      className="form-control"
-                      value={form.level}
-                      onChange={(e) =>
-                        setForm((f) => ({ ...f, level: e.target.value }))
-                      }
-                      placeholder="0"
-                    />
-                  </div>
-                  <div className="mb-3">
-                    <label className="form-label">Institution</label>
-                    <select
-                      className="form-select"
-                      value={createScope.institutionId}
-                      onChange={(e) =>
-                        setCreateScope((prev) => ({
-                          ...prev,
-                          institutionId: e.target.value,
-                          categoryId: "",
-                          typeId: "",
-                          departmentId: "",
-                          teamIds: [],
-                        }))
-                      }
-                      disabled={orgLoading || isAdmin || isManager}
-                    >
-                      <option value="">Select Institution</option>
-                      {createInstitutions.map((item) => (
-                        <option key={item.id} value={item.id}>
-                          {item.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="mb-3">
-                    <label className="form-label">Institution Category</label>
-                    <select
-                      className="form-select"
-                      value={createScope.categoryId}
-                      onChange={(e) =>
-                        setCreateScope((prev) => ({
-                          ...prev,
-                          categoryId: e.target.value,
-                          typeId: "",
-                          departmentId: "",
-                          teamIds: [],
-                        }))
-                      }
-                      disabled={
-                        orgLoading ||
-                        !createScope.institutionId ||
-                        isAdmin ||
-                        isManager
-                      }
-                    >
-                      <option value="">Select Category</option>
-                      {createCategories.map((item) => (
-                        <option key={item.id} value={item.id}>
-                          {item.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="mb-3">
-                    <label className="form-label">Institution Type</label>
-                    <select
-                      className="form-select"
-                      value={createScope.typeId}
-                      onChange={(e) =>
-                        setCreateScope((prev) => ({
-                          ...prev,
-                          typeId: e.target.value,
-                          departmentId: "",
-                          teamIds: [],
-                        }))
-                      }
-                      disabled={
-                        orgLoading ||
-                        !createScope.categoryId ||
-                        isAdmin ||
-                        isManager
-                      }
-                    >
-                      <option value="">Select Type</option>
-                      {createTypes.map((item) => (
-                        <option key={item.id} value={item.id}>
-                          {item.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="mb-3">
-                    <label className="form-label">Department</label>
-                    <select
-                      className="form-select"
-                      value={createScope.departmentId}
-                      onChange={(e) =>
-                        setCreateScope((prev) => ({
-                          ...prev,
-                          departmentId: e.target.value,
-                          teamIds: [],
-                        }))
-                      }
-                      disabled={
-                        orgLoading ||
-                        !createScope.typeId ||
-                        isAdmin ||
-                        isManager
-                      }
-                    >
-                      <option value="">Select Department</option>
-                      {createDepartments.map((item) => (
-                        <option key={item.id} value={item.id}>
-                          {item.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="mb-3">
-                    <label className="form-label">Teams</label>
-                    <div className="d-flex gap-2">
-                      <select
-                        className="form-select"
-                        value=""
-                        onChange={(e) => {
-                          const teamId = e.target.value;
-                          if (teamId && !createScope.teamIds.includes(teamId)) {
-                            setCreateScope((prev) => ({
-                              ...prev,
-                              teamIds: [...prev.teamIds, teamId],
-                            }));
-                          }
-                          e.target.value = "";
-                        }}
-                        disabled={
-                          orgLoading ||
-                          !createScope.departmentId ||
-                          isManager
-                        }
-                      >
-                        <option value="">Select Team</option>
-                        {createTeams
-                          .filter((item) => !createScope.teamIds.includes(String(item.id)))
-                          .map((item) => (
-                            <option key={item.id} value={item.id}>
-                              {item.name}
-                            </option>
-                          ))}
-                      </select>
-                    </div>
-                    {createScope.teamIds.length > 0 && (
-                      <div className="mt-2 d-flex flex-wrap gap-2">
-                        {createScope.teamIds.map((teamId) => {
-                          const team = createTeams.find((t) => String(t.id) === String(teamId));
-                          return (
-                            <span
-                              key={teamId}
-                              className="badge bg-primary d-inline-flex align-items-center gap-2"
-                              style={{ fontSize: "0.875rem", padding: "0.5rem 0.75rem" }}
-                            >
-                              {team?.name || teamId}
-                              <i
-                                className="ti ti-x"
-                                style={{ cursor: "pointer" }}
-                                onClick={() =>
-                                  setCreateScope((prev) => ({
-                                    ...prev,
-                                    teamIds: prev.teamIds.filter((id) => id !== teamId),
-                                  }))
-                                }
-                              ></i>
-                            </span>
-                          );
-                        })}
-                      </div>
-                    )}
-                    {isManager && (
-                      <small className="text-muted d-block mt-1">
-                        Manager can only create groups for their own team.
-                      </small>
-                    )}
-                  </div>
-                </div>
-                <div className="modal-footer">
-                  <button
-                    className="btn btn-light"
-                    onClick={() => setShowModal(false)}
-                    disabled={saving}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    className="btn btn-primary"
-                    onClick={handleSave}
-                    disabled={saving}
-                  >
-                    {saving ? "Saving..." : "Create"}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div className="modal-backdrop fade show" />
-        </>
+      {showCreateModal && (
+        <UserGroupWizardModal
+          title="Create Group"
+          icon="ti ti-users-group"
+          stepLabel="Group Setup"
+          formName={form.name}
+          onFormNameChange={(value) => updateFormField("name", value)}
+          scope={createScope}
+          onScopeChange={updateScope}
+          onMemberScopeChange={handleCreateMemberScopeChange}
+          institutions={institutions}
+          departments={createDepartments}
+          teams={createTeams}
+          selectedTeamId={selectedTeamId}
+          onTeamSelect={handleTeamSelect}
+          onTeamRemove={removeTeam}
+          orgLoading={orgLoading}
+          disableBranch={isAdmin || isManager || isTeamLead}
+          disableDepartment={isAdmin || isManager || isTeamLead || createScope.memberScope === "ADMINS"}
+          disableTeam={isManager || isTeamLead || createScope.memberScope === "ADMINS" || createScope.memberScope === "MANAGERS"}
+          errorMessage={formError}
+          onClose={closeModal}
+          onSubmit={handleSave}
+          submitLabel="Create"
+          saving={saving}
+        />
       )}
-
       {pendingDelete && (
         <>
-          <div
-            className="modal fade show"
-            style={{ display: "block" }}
-            tabIndex="-1"
-          >
+          <div className="modal fade show" style={{ display: "block" }} tabIndex="-1">
             <div className="modal-dialog modal-sm">
               <div className="modal-content">
                 <div className="modal-header">
                   <h5 className="modal-title">Delete Group</h5>
-                  <button
-                    className="btn-close"
-                    onClick={() => setPendingDelete(null)}
-                  />
+                  <button className="btn-close" onClick={() => setPendingDelete(null)} />
                 </div>
                 <div className="modal-body">
                   <p>
@@ -992,305 +400,19 @@ function UsergroupsPage() {
                   </p>
                 </div>
                 <div className="modal-footer">
-                  <button
-                    className="btn btn-light"
-                    onClick={() => setPendingDelete(null)}
-                    disabled={saving}
-                  >
+                  <button className="btn btn-light" onClick={() => setPendingDelete(null)} disabled={saving}>
                     Cancel
                   </button>
-                  <button
-                    className="btn btn-danger"
-                    onClick={handleDelete}
-                    disabled={saving}
-                  >
+                  <button className="btn btn-danger" onClick={handleDelete} disabled={saving}>
                     {saving ? "Deleting..." : "Delete"}
                   </button>
                 </div>
               </div>
             </div>
           </div>
-          <div className="modal-backdrop fade show" />
+          <div className="modal-backdrop fade show user-group-modal-backdrop" />
         </>
       )}
-
-      {editGroup && (
-        <>
-          <div
-            className="modal fade show"
-            style={{ display: "block" }}
-            tabIndex="-1"
-          >
-            <div className="modal-dialog modal-lg">
-              <div className="modal-content">
-                <div className="modal-header">
-                  <h5 className="modal-title">Edit Group</h5>
-                  <button
-                    className="btn-close"
-                    onClick={() => setEditGroup(null)}
-                  />
-                </div>
-                <div className="modal-body">
-                  <div className="mb-3">
-                    <label className="form-label">Group Name</label>
-                    <input
-                      className="form-control"
-                      value={editForm.name}
-                      onChange={(e) =>
-                        setEditForm((prev) => ({
-                          ...prev,
-                          name: e.target.value,
-                        }))
-                      }
-                    />
-                  </div>
-                  <div className="mb-3">
-                    <label className="form-label">Group Level</label>
-                    <input
-                      type="number"
-                      className="form-control"
-                      value={editForm.level}
-                      onChange={(e) =>
-                        setEditForm((prev) => ({
-                          ...prev,
-                          level: e.target.value,
-                        }))
-                      }
-                    />
-                  </div>
-                  <div className="mb-3">
-                    <label className="form-label">Institution</label>
-                    <select
-                      className="form-select"
-                      value={editScope.institutionId}
-                      onChange={(e) =>
-                        setEditScope((prev) => ({
-                          ...prev,
-                          institutionId: e.target.value,
-                          categoryId: "",
-                          typeId: "",
-                          departmentId: "",
-                          teamIds: [],
-                        }))
-                      }
-                      disabled={orgLoading || isAdmin || isManager}
-                    >
-                      <option value="">Select Institution</option>
-                      {editInstitutions.map((item) => (
-                        <option key={item.id} value={item.id}>
-                          {item.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="mb-3">
-                    <label className="form-label">Institution Category</label>
-                    <select
-                      className="form-select"
-                      value={editScope.categoryId}
-                      onChange={(e) =>
-                        setEditScope((prev) => ({
-                          ...prev,
-                          categoryId: e.target.value,
-                          typeId: "",
-                          departmentId: "",
-                          teamIds: [],
-                        }))
-                      }
-                      disabled={
-                        orgLoading ||
-                        !editScope.institutionId ||
-                        isAdmin ||
-                        isManager
-                      }
-                    >
-                      <option value="">Select Category</option>
-                      {editCategories.map((item) => (
-                        <option key={item.id} value={item.id}>
-                          {item.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="mb-3">
-                    <label className="form-label">Institution Type</label>
-                    <select
-                      className="form-select"
-                      value={editScope.typeId}
-                      onChange={(e) =>
-                        setEditScope((prev) => ({
-                          ...prev,
-                          typeId: e.target.value,
-                          departmentId: "",
-                          teamIds: [],
-                        }))
-                      }
-                      disabled={
-                        orgLoading ||
-                        !editScope.categoryId ||
-                        isAdmin ||
-                        isManager
-                      }
-                    >
-                      <option value="">Select Type</option>
-                      {editTypes.map((item) => (
-                        <option key={item.id} value={item.id}>
-                          {item.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="mb-3">
-                    <label className="form-label">Department</label>
-                    <select
-                      className="form-select"
-                      value={editScope.departmentId}
-                      onChange={(e) =>
-                        setEditScope((prev) => ({
-                          ...prev,
-                          departmentId: e.target.value,
-                          teamIds: [],
-                        }))
-                      }
-                      disabled={
-                        orgLoading ||
-                        !editScope.typeId ||
-                        isAdmin ||
-                        isManager
-                      }
-                    >
-                      <option value="">Select Department</option>
-                      {editDepartments.map((item) => (
-                        <option key={item.id} value={item.id}>
-                          {item.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="mb-3">
-                    <label className="form-label">Teams</label>
-                    <select
-                      className="form-select"
-                      multiple
-                      value={editScope.teamIds}
-                      onChange={(e) =>
-                        setEditScope((prev) => ({
-                          ...prev,
-                          teamIds: Array.from(
-                            e.target.selectedOptions,
-                            (opt) => opt.value,
-                          ),
-                        }))
-                      }
-                      disabled={
-                        orgLoading ||
-                        !editScope.departmentId ||
-                        isManager
-                      }
-                      style={{ minHeight: 120 }}
-                    >
-                      {editTeams.map((item) => (
-                        <option key={item.id} value={item.id}>
-                          {item.name}
-                        </option>
-                      ))}
-                    </select>
-                    {isManager && (
-                      <small className="text-muted d-block mt-1">
-                        Manager can only keep their own team.
-                      </small>
-                    )}
-                  </div>
-                  <div className="mb-3">
-                    <label className="form-label">Add Users</label>
-                    <div className="d-flex gap-2">
-                      <select
-                        className="form-select"
-                        value={selectedUserId}
-                        onChange={(e) => setSelectedUserId(e.target.value)}
-                      >
-                        <option value="">Select Add Users</option>
-                        {assignableUsers
-                          .filter(
-                            (user) =>
-                              !groupMembers.some(
-                                (member) =>
-                                  String(member.userId) === String(user.id),
-                              ),
-                          )
-                          .map((user) => (
-                            <option key={user.id} value={user.id}>
-                              {user.username}
-                            </option>
-                          ))}
-                      </select>
-                      <button
-                        className="btn btn-primary"
-                        onClick={handleAddMember}
-                        disabled={!selectedUserId || saving}
-                      >
-                        Add
-                      </button>
-                    </div>
-                  </div>
-                  <div className="table-responsive">
-                    <table className="table table-bordered">
-                      <thead className="table-light">
-                        <tr>
-                          <th>Username</th>
-                          <th className="text-end">Remove</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {groupMembers.length === 0 ? (
-                          <tr>
-                            <td colSpan={2}>No members</td>
-                          </tr>
-                        ) : (
-                          groupMembers.map((member) => (
-                            <tr key={member.userId}>
-                              <td>{member.username || "-"}</td>
-                              <td className="text-end">
-                                <button
-                                  className="btn btn-sm btn-outline-danger"
-                                  onClick={() =>
-                                    handleRemoveMember(member.userId)
-                                  }
-                                  disabled={saving}
-                                >
-                                  Remove
-                                </button>
-                              </td>
-                            </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-                <div className="modal-footer">
-                  <button
-                    className="btn btn-light"
-                    onClick={() => setEditGroup(null)}
-                    disabled={saving}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    className="btn btn-primary"
-                    onClick={handleUpdateGroup}
-                    disabled={saving}
-                  >
-                    {saving ? "Saving..." : "Edit Group"}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div className="modal-backdrop fade show" />
-        </>
-      )}
-    </div>
+    </>
   );
 }
-export default UsergroupsPage;

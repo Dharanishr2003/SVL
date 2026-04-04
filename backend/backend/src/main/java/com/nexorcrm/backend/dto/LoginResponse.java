@@ -7,8 +7,6 @@ public class LoginResponse {
     private String refreshToken;
     private String role;
     private String institution;
-    private String institutionCategory;
-    private String institutionType;
     private String departmentName;
     private String team;
     private boolean forcePasswordChange;
@@ -45,22 +43,6 @@ public class LoginResponse {
 
     public void setInstitution(String institution) {
         this.institution = institution;
-    }
-
-    public String getInstitutionCategory() {
-        return institutionCategory;
-    }
-
-    public void setInstitutionCategory(String institutionCategory) {
-        this.institutionCategory = institutionCategory;
-    }
-
-    public String getInstitutionType() {
-        return institutionType;
-    }
-
-    public void setInstitutionType(String institutionType) {
-        this.institutionType = institutionType;
     }
 
     public String getDepartmentName() {

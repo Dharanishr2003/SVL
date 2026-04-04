@@ -1,7 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
+import { Country, State, City } from "country-state-city";
 import {
   createLead,
   deleteLead,
@@ -15,13 +17,11 @@ import {
   updateLeadDetails,
 } from "../../api/leadsApi";
 import { getLeadStatuses, DEFAULT_LEAD_STATUSES } from "../../api/leadStatusApi";
-import { getPrimarySources } from "../../api/primarySourceApi";
-import { getSecondarySources } from "../../api/secondarySourceApi";
+import { getPrimarySources, createPrimarySource } from "../../api/primarySourceApi";
+import { getSecondarySources, createSecondarySource } from "../../api/secondarySourceApi";
 import { getTertiarySources } from "../../api/tertiarySourceApi";
+import { getGroupMembers, getUserGroups } from "../../api/userGroupApi";
 import { getProjects } from "../../api/projectApi";
-import { getChannelPartners } from "../../api/channelPartnerApi";
-import { getGroupMembers } from "../../api/userGroupApi";
-import { getUserGroups } from "../../api/userGroupApi";
 import { getLeadFlow } from "../../api/flowApi";
 import { updateCustomerLeadStatus } from "../../api/customerApi";
 import { extractApiErrorMessage } from "../../utils/errorMessage";
@@ -40,8 +40,10 @@ import { CRM_PAGE_OPTIONS } from "../../constants/crmPages";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../components/system/ToastProvider";
 import useConfirmDialog from "../../components/system/useConfirmDialog";
+import { useCountryCodePicker } from "../../hooks/useCountryCodePicker";
 import ProductionModal from "./ProductionModal";
 import { saveProductionRequirement, getProductionRequirement } from "../../api/productionRequirementApi";
+import "./LeadsPage.css";
 
 const EMPTY_CREATE_FORM = {
   projectName: "",
@@ -53,9 +55,12 @@ const EMPTY_CREATE_FORM = {
   secondarySource: "",
   tertiarySource: "",
   leadGroupId: "",
-  channelPartnerId: "",
   countryCode: defaultCountryOption.value,
   assignedUserId: "",
+  state: "",
+  district: "",
+  streetAddress: "",
+  companyName: "",
 };
 
 const DESIGN_THREAD_MARKER = "[[design-thread]]";
@@ -162,6 +167,28 @@ function formatDateTime(value) {
   }
 }
 
+function getCountryIsoFromPhoneCode(countryCode) {
+  const option = getCountryOptionByValue(countryCode);
+  if (option?.country) return option.country;
+
+  const phone = String(countryCode || "").replace("+", "").trim();
+  if (!phone) return "";
+
+  const matched = Country.getAllCountries().find((country) => country.phonecode === phone);
+  return matched?.isoCode || "";
+}
+
+function findStateByValue(countryIso, stateValue) {
+  const raw = String(stateValue || "").trim();
+  if (!countryIso || !raw) return null;
+
+  return State.getStatesOfCountry(countryIso).find(
+    (state) =>
+      String(state.isoCode || "").toUpperCase() === raw.toUpperCase() ||
+      String(state.name || "").toLowerCase() === raw.toLowerCase(),
+  ) || null;
+}
+
 function EditGlyph({ size = 14, className = "" }) {
   return (
     <svg
@@ -226,7 +253,29 @@ function NoteGlyph({ size = 14, className = "" }) {
   );
 }
 
+function PlusGlyph({ size = 14, className = "" }) {
+  return (
+    <svg
+      className={className}
+      xmlns="http://www.w3.org/2000/svg"
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M12 5v14" />
+      <path d="M5 12h14" />
+    </svg>
+  );
+}
+
 export default function LeadsPage() {
+  const shouldReduceMotion = useReducedMotion();
   const navigate = useNavigate();
   const { user } = useAuth();
   const role = String(user?.role || "").toUpperCase();
@@ -235,7 +284,6 @@ export default function LeadsPage() {
   const [rows, setRows] = useState([]);
   const [filters, setFilters] = useState({
     search: "",
-    project: "",
     primary: "",
     status: "",
     svStatus: "",
@@ -250,7 +298,6 @@ export default function LeadsPage() {
   const [secondaryOptions, setSecondaryOptions] = useState([]);
   const [tertiaryOptions, setTertiaryOptions] = useState([]);
   const [projectOptions, setProjectOptions] = useState([]);
-  const [channelPartners, setChannelPartners] = useState([]);
   const [groupOptions, setGroupOptions] = useState([]);
   const [leadFilters, setLeadFilters] = useState({
     projects: [],
@@ -262,10 +309,65 @@ export default function LeadsPage() {
   const [leadStatusOptions, setLeadStatusOptions] = useState([]);
 
   const [showCreate, setShowCreate] = useState(false);
+  const [createWizardStep, setCreateWizardStep] = useState(0);
   const [createForm, setCreateForm] = useState(EMPTY_CREATE_FORM);
   const [createGroupMembers, setCreateGroupMembers] = useState([]);
   const [createMobileError, setCreateMobileError] = useState("");
   const [flowRules, setFlowRules] = useState([]);
+  const [showAddPrimarySource, setShowAddPrimarySource] = useState(false);
+  const [showAddSecondarySource, setShowAddSecondarySource] = useState(false);
+  const [newPrimarySource, setNewPrimarySource] = useState("");
+  const [newSecondarySource, setNewSecondarySource] = useState("");
+  const [addSourceLoading, setAddSourceLoading] = useState(false);
+  const createNameInputRef = useRef(null);
+  const createStateInputRef = useRef(null);
+
+  const handleAddPrimarySource = async () => {
+    const value = String(newPrimarySource || "").trim();
+    if (!value) {
+      showError("Enter a primary source name");
+      return;
+    }
+    setAddSourceLoading(true);
+    try {
+      await createPrimarySource(value);
+      const freshRows = await getPrimarySources();
+      const names = toOptionNames(freshRows, ["primarySource", "name", "title"]);
+      setPrimaryOptions(names);
+      setCreateForm((prev) => ({ ...prev, primarySource: value }));
+      setNewPrimarySource("");
+      setShowAddPrimarySource(false);
+      showSuccess("Primary source added");
+    } catch (error) {
+      showError(extractApiErrorMessage(error, "Failed to add primary source"));
+    } finally {
+      setAddSourceLoading(false);
+    }
+  };
+
+  const handleAddSecondarySource = async () => {
+    const value = String(newSecondarySource || "").trim();
+    if (!value) {
+      showError("Enter a secondary source name");
+      return;
+    }
+    setAddSourceLoading(true);
+    try {
+      await createSecondarySource(value);
+      const freshRows = await getSecondarySources();
+      const names = toOptionNames(freshRows, ["secondarySource", "name", "title"]);
+      setSecondaryOptions(names);
+      setCreateForm((prev) => ({ ...prev, secondarySource: value }));
+      setNewSecondarySource("");
+      setShowAddSecondarySource(false);
+      showSuccess("Secondary source added");
+    } catch (error) {
+      showError(extractApiErrorMessage(error, "Failed to add secondary source"));
+    } finally {
+      setAddSourceLoading(false);
+    }
+  };
+
   const handleCreateCountryCodeChange = (value) => {
     setCreateForm((p) => ({
       ...p,
@@ -275,6 +377,64 @@ export default function LeadsPage() {
     setCreateMobileError("");
     setError("");
   };
+
+  function handleCreateCountryEnter() {
+    if (!filteredCountryOptions.length) return;
+    handleCreateCountryCodeChange(filteredCountryOptions[0].value);
+    closeCreateCountryPicker();
+  }
+
+  const {
+    isOpen: createCountryPickerOpen,
+    pickerRef: createCountryPickerRef,
+    closePicker: closeCreateCountryPicker,
+    togglePicker: toggleCreateCountryPicker,
+    searchQuery: createCountrySearch,
+  } = useCountryCodePicker({ onEnter: handleCreateCountryEnter });
+
+  const filteredCountryOptions = useMemo(() => {
+    if (!createCountrySearch.trim()) return COUNTRY_CODE_OPTIONS;
+    const searchLower = createCountrySearch.toLowerCase();
+    return COUNTRY_CODE_OPTIONS.filter(
+      (option) =>
+        option.label.toLowerCase().includes(searchLower) ||
+        option.callingCode.includes(searchLower)
+    );
+  }, [createCountrySearch]);
+
+  const createCountryIso = useMemo(
+    () => getCountryIsoFromPhoneCode(createForm.countryCode),
+    [createForm.countryCode],
+  );
+
+  const createStateOptions = useMemo(
+    () => (createCountryIso ? State.getStatesOfCountry(createCountryIso) : []),
+    [createCountryIso],
+  );
+
+  const createSelectedState = useMemo(
+    () => findStateByValue(createCountryIso, createForm.state),
+    [createCountryIso, createForm.state],
+  );
+
+  const createDistrictOptions = useMemo(
+    () =>
+      createCountryIso && createSelectedState?.isoCode
+        ? City.getCitiesOfState(createCountryIso, createSelectedState.isoCode)
+        : [],
+    [createCountryIso, createSelectedState],
+  );
+
+  useEffect(() => {
+    if (!showCreate) return;
+
+    const targetRef = createWizardStep === 0 ? createNameInputRef : createStateInputRef;
+    const timer = window.setTimeout(() => {
+      targetRef.current?.focus();
+    }, shouldReduceMotion ? 0 : 160);
+
+    return () => window.clearTimeout(timer);
+  }, [createWizardStep, shouldReduceMotion, showCreate]);
 
   const handleCreateMobileChange = (value) => {
     const option = getCountryOptionByValue(createForm.countryCode);
@@ -350,28 +510,35 @@ export default function LeadsPage() {
     let isMounted = true;
     const loadOptions = async () => {
       try {
+        const canLoadGroupDirectory = role === "SUPER_ADMIN" || role === "ADMIN" || role === "MANAGER";
+        const canLoadFlowConfig = role === "SUPER_ADMIN" || role === "ADMIN" || role === "MANAGER";
+        const safeLoad = async (loader, fallback) => {
+          try {
+            return await loader();
+          } catch {
+            return fallback;
+          }
+        };
         const [
           primaries,
           secondaries,
           tertiaries,
           projects,
-          cpRows,
           groups,
           allGroups,
           filterPayload,
           leadStatuses,
           flowPayload,
         ] = await Promise.all([
-          getPrimarySources(),
-          getSecondarySources(),
-          getTertiarySources(),
-          getProjects(),
-          getChannelPartners(),
-          getAssignableLeadGroups(),
-          role === "EMPLOYEE" ? Promise.resolve([]) : getUserGroups(),
-          getLeadFilters(),
-          getLeadStatuses(),
-          getLeadFlow(),
+          safeLoad(() => getPrimarySources(), []),
+          safeLoad(() => getSecondarySources(), []),
+          safeLoad(() => getTertiarySources(), []),
+          safeLoad(() => getProjects(), []),
+          safeLoad(() => getAssignableLeadGroups(), []),
+          canLoadGroupDirectory ? safeLoad(() => getUserGroups(), []) : Promise.resolve([]),
+          safeLoad(() => getLeadFilters(), {}),
+          safeLoad(() => getLeadStatuses(), []),
+          canLoadFlowConfig ? safeLoad(() => getLeadFlow(), {}) : Promise.resolve({}),
         ]);
         if (!isMounted) return;
         setPrimaryOptions(
@@ -384,7 +551,6 @@ export default function LeadsPage() {
           toOptionNames(tertiaries, ["tertiarySource", "name", "label"]),
         );
         setProjectOptions(toProjectNames(projects));
-        setChannelPartners(Array.isArray(cpRows) ? cpRows : []);
         const assignable = Array.isArray(groups) ? groups : [];
         if (role === "EMPLOYEE") {
           setGroupOptions(assignable);
@@ -408,9 +574,6 @@ export default function LeadsPage() {
           setGroupOptions(mergedGroups);
         }
         setLeadFilters({
-          projects: Array.isArray(filterPayload?.projects)
-            ? filterPayload.projects
-            : [],
           primarySources: Array.isArray(filterPayload?.primarySources)
             ? filterPayload.primarySources
             : [],
@@ -501,7 +664,6 @@ export default function LeadsPage() {
   const resetFilters = async () => {
     const cleared = {
       search: "",
-      project: "",
       primary: "",
       status: "",
       svStatus: "",
@@ -524,14 +686,9 @@ export default function LeadsPage() {
     () =>
       (Array.isArray(createGroupMembers) ? createGroupMembers : []).filter((member) => {
         const roleName = String(member?.role || "").toUpperCase();
-        const pageKeys = Array.isArray(member?.pageKeys)
-          ? member.pageKeys
-              .map((key) => String(key || "").trim().toLowerCase())
-              .filter(Boolean)
-          : [];
-        return roleName === "EMPLOYEE" && (pageKeys.length === 0 || pageKeys.includes(String(leadPageKey).toLowerCase()));
+        return roleName === "EMPLOYEE";
       }),
-    [createGroupMembers, leadPageKey],
+    [createGroupMembers],
   );
   const newLeadFlowGroupId = useMemo(() => {
     const rule = Array.isArray(flowRules)
@@ -550,18 +707,39 @@ export default function LeadsPage() {
         : null,
     [leadEligibleGroups, newLeadFlowGroupId],
   );
+  const fallbackCreateGroup = useMemo(
+    () => (leadEligibleGroups.length > 0 ? leadEligibleGroups[0] : null),
+    [leadEligibleGroups],
+  );
+  const defaultCreateLeadGroupId = createAllowedGroup?.id
+    ? String(createAllowedGroup.id)
+    : newLeadFlowGroupId || (fallbackCreateGroup?.id ? String(fallbackCreateGroup.id) : "");
   const canCreateNewLead = role === "SUPER_ADMIN" || !newLeadFlowGroupId || !!createAllowedGroup;
   const createCountryDisplayMaxLength = getCountryDisplayMaxLength(createForm.countryCode);
 
   const openCreateModal = () => {
     setCreateForm({
       ...EMPTY_CREATE_FORM,
-      leadGroupId: createAllowedGroup?.id ? String(createAllowedGroup.id) : "",
+      leadGroupId: defaultCreateLeadGroupId,
     });
     setCreateGroupMembers([]);
     setShowCreate(true);
+    setCreateWizardStep(0);
     setError("");
     setCreateMobileError("");
+  };
+
+  useEffect(() => {
+    if (!showCreate) return;
+    if (createForm.leadGroupId || !defaultCreateLeadGroupId) return;
+    setCreateForm((prev) => ({
+      ...prev,
+      leadGroupId: defaultCreateLeadGroupId,
+    }));
+  }, [showCreate, createForm.leadGroupId, defaultCreateLeadGroupId]);
+
+  const goToNextCreateStep = () => {
+    setCreateWizardStep((step) => Math.min(step + 1, 1));
   };
 
   const handleCreateLead = async () => {
@@ -578,14 +756,6 @@ export default function LeadsPage() {
       setError("Primary source is required");
       return;
     }
-    if (
-      createForm.primarySource.toLowerCase() === "channel partner" &&
-      !createForm.channelPartnerId
-    ) {
-      setError("Channel Partner is required for Channel Partner source");
-      return;
-    }
-
     setSaving(true);
     setError("");
     try {
@@ -594,26 +764,22 @@ export default function LeadsPage() {
         email: createForm.email.trim() || null,
         countryCode: createForm.countryCode,
         mobile: createForm.mobile.trim(),
+        companyName: createForm.companyName.trim() || null,
         productType: createForm.productType.trim() || null,
         primarySource: createForm.primarySource.trim(),
         secondarySource: createForm.secondarySource.trim() || null,
         tertiarySource: createForm.tertiarySource.trim() || null,
         projectName: createForm.projectName.trim() || null,
-        leadGroupId: createForm.leadGroupId
-          ? Number(createForm.leadGroupId)
-          : null,
-        assignedUserId: createForm.assignedUserId
-          ? Number(createForm.assignedUserId)
-          : null,
+        leadGroupId: createForm.leadGroupId ? Number(createForm.leadGroupId) : null,
+        assignedUserId: createForm.assignedUserId ? Number(createForm.assignedUserId) : null,
       };
-      if (createForm.channelPartnerId) {
-        payload.channelPartnerId = Number(createForm.channelPartnerId);
-      }
+
       const created = await createLead(payload);
       setRows((prev) => [created, ...prev]);
       setShowCreate(false);
       setCreateForm(EMPTY_CREATE_FORM);
       setCreateMobileError("");
+      setCreateWizardStep(0);
       showSuccess("Lead created successfully");
     } catch (e) {
       setError(extractApiErrorMessage(e, "Failed to create lead"));
@@ -1007,7 +1173,6 @@ export default function LeadsPage() {
       "Email",
       "Primary",
       "Secondary",
-      "Project",
       "Status",
       "Group",
       "Owner",
@@ -1020,7 +1185,6 @@ export default function LeadsPage() {
       row.email || "",
       row.primarySource || "",
       row.secondarySource || "",
-      row.projectName || "",
       row.status || "",
       row.leadGroupName || "",
       row.owner || "",
@@ -1056,7 +1220,6 @@ export default function LeadsPage() {
       "Email",
       "Primary",
       "Secondary",
-      "Project",
       "Status",
       "Group",
       "Owner",
@@ -1070,7 +1233,6 @@ export default function LeadsPage() {
       row.email || "",
       row.primarySource || "",
       row.secondarySource || "",
-      row.projectName || "",
       row.status || "",
       row.leadGroupName || "",
       row.owner || "",
@@ -1091,43 +1253,44 @@ export default function LeadsPage() {
   };
 
   return (
-    <div className="container-fluid">
-
-      <div className="card">
-        <div className="card-header border-0">
+    <div className="container-fluid leads-page-shell">
+      <div className="leads-page-header">
+        <div>
           <h3 className="mb-2">Leads</h3>
           <p className="text-muted mb-0">Add & Manage Leads</p>
         </div>
-        <div className="card-body">
-          <div className="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
-            <div className="d-flex gap-2">
-              <button className="btn btn-outline-primary" onClick={exportExcel}>
+        
+      </div>
+      <div className="leads-page-body">
+          <div className="leads-toolbar">
+            <div className="d-flex flex-wrap gap-2">
+              <button className="btn btn-outline-primary leads-toolbar-btn" onClick={exportExcel}>
                 Excel
               </button>
-              <button className="btn btn-outline-primary" onClick={exportCsv}>
+              <button className="btn btn-outline-primary leads-toolbar-btn" onClick={exportCsv}>
                 CSV
               </button>
-              <button className="btn btn-outline-primary" onClick={exportPdf}>
+              <button className="btn btn-outline-primary leads-toolbar-btn" onClick={exportPdf}>
                 PDF
               </button>
             </div>
-            <div className="d-flex gap-2 align-items-center">
+            <div className="d-flex flex-wrap gap-2 align-items-center">
               <button
-                className="btn btn-outline-warning"
+                className="btn btn-outline-warning leads-toolbar-btn"
                 onClick={() => setFilterOpen((prev) => !prev)}
               >
                 <i className="ti ti-filter me-1" />
                 Filter
               </button>
               <button
-                className="btn btn-outline-info"
+                className="btn btn-outline-info leads-toolbar-btn"
                 onClick={() => navigate('/leads/import')}
               >
                 <i className="ti ti-upload me-1" />
                 Import Leads
               </button>
               <button
-                className="btn btn-success"
+                className="btn btn-success leads-toolbar-btn leads-primary-action"
                 onClick={openCreateModal}
               >
                 <i className="ti ti-plus me-1" />
@@ -1136,12 +1299,11 @@ export default function LeadsPage() {
             </div>
           </div>
 
-          <div className="d-flex justify-content-end mb-3">
-            <div className="d-flex align-items-center gap-2">
-              <label className="mb-0">Search:</label>
+          <div className="leads-search-row">
+            <div className="leads-search-box">
+              <label className="mb-0 leads-search-label">Search</label>
               <input
-                className="form-control"
-                style={{ width: 240 }}
+                className="form-control leads-search-input"
                 value={filters.search}
                 onChange={(e) =>
                   setFilters((prev) => ({ ...prev, search: e.target.value }))
@@ -1157,25 +1319,6 @@ export default function LeadsPage() {
             <div className="card border mb-3">
               <div className="card-body">
                 <div className="row g-3">
-                  <div className="col-md-3">
-                    <label className="form-label">Project</label>
-                    <select
-                      className="form-select"
-                      value={filters.project}
-                      onChange={(e) =>
-                        setFilters((prev) => ({ ...prev, project: e.target.value }))
-                      }
-                    >
-                      <option value="">All</option>
-                      {[...new Set([...projectOptions, ...leadFilters.projects])]
-                        .filter(Boolean)
-                        .map((item) => (
-                          <option key={item} value={item}>
-                            {item}
-                          </option>
-                        ))}
-                    </select>
-                  </div>
                   <div className="col-md-3">
                     <label className="form-label">Primary</label>
                     <select
@@ -1274,8 +1417,8 @@ export default function LeadsPage() {
             </div>
           )}
 
-          <div className="table-responsive">
-            <table className="table table-hover align-middle">
+          <div className="table-responsive leads-table-wrap">
+            <table className="table table-hover align-middle leads-table">
               <thead>
                 <tr>
                   <th style={{ width: 36 }}>
@@ -1298,7 +1441,6 @@ export default function LeadsPage() {
                   <th>Mobile</th>
                   <th>Primary</th>
                   <th>Secondary</th>
-                  <th>Projects</th>
                   <th className="text-nowrap">
                     Status
                     <span className="ms-1 d-inline-flex align-items-center" style={{ color: "#6f65d6" }}>
@@ -1313,11 +1455,11 @@ export default function LeadsPage() {
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={11}>Loading...</td>
+                    <td colSpan={10}>Loading...</td>
                   </tr>
                 ) : visibleRows.length === 0 ? (
                   <tr>
-                    <td colSpan={11}>No leads found</td>
+                    <td colSpan={10}>No leads found</td>
                   </tr>
                 ) : (
                   visibleRows.map((row, index) => {
@@ -1429,7 +1571,6 @@ export default function LeadsPage() {
                       </td>
                       <td>{row.primarySource || "-"}</td>
                       <td>{row.secondarySource || "-"}</td>
-                      <td>{row.projectName || "-"}</td>
                       <td>
                         <div className="d-inline-flex align-items-center gap-2">
                           <span>{row.status || "-"}</span>
@@ -1483,232 +1624,397 @@ export default function LeadsPage() {
               </tbody>
             </table>
           </div>
-        </div>
       </div>
 
       {showCreate && (
         <>
-          <div className="modal fade show" style={{ display: "block" }} tabIndex="-1">
+          <div className="modal fade show lead-create-modal" style={{ display: "block" }} tabIndex="-1">
             <div className="modal-dialog modal-lg">
               <div className="modal-content">
                 <div className="modal-header">
                   <h5 className="modal-title">Create New Lead</h5>
-                  <button className="btn-close" onClick={() => setShowCreate(false)} />
+                  <button type="button" className="btn-close" onClick={() => setShowCreate(false)} />
                 </div>
-                <div className="modal-body">
-                  <div className="mb-3">
-                    <label className="form-label">Project  / Company Name</label>
-                    <select
-                      className="form-select"
-                      value={createForm.projectName}
-                      onChange={(e) =>
-                        setCreateForm((prev) => ({ ...prev, projectName: e.target.value }))
-                      }
-                    >
-                      <option value="">Select Project / Company Name</option>
-                      {projectOptions.map((item) => (
-                        <option key={item} value={item}>
-                          {item}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="row g-3">
-                    <div className="col-md-6">
-                      <label className="form-label">Full Name</label>
-                      <input
-                        className="form-control"
-                        value={createForm.name}
-                        onChange={(e) =>
-                          setCreateForm((prev) => ({ ...prev, name: e.target.value }))
-                        }
-                        placeholder="Full Name"
-                      />
-                    </div>
-                    <div className="col-md-6">
-                      <label className="form-label">Primary Source</label>
-                      <select
-                        className="form-select"
-                        value={createForm.primarySource}
-                        onChange={(e) =>
-                          setCreateForm((prev) => ({
-                            ...prev,
-                            primarySource: e.target.value,
-                            channelPartnerId: "",
-                          }))
-                        }
-                      >
-                        <option value="">Select Primary Source</option>
-                        {primaryOptions.map((item) => (
-                          <option key={item} value={item}>
-                            {item}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="col-md-6">
-                      <label className="form-label">Email Address</label>
-                      <input
-                        className="form-control"
-                        value={createForm.email}
-                        onChange={(e) =>
-                          setCreateForm((prev) => ({ ...prev, email: e.target.value }))
-                        }
-                        placeholder="E-mail Id"
-                      />
-                    </div>
-                    <div className="col-md-6">
-                      <label className="form-label">Type of Product</label>
-                      <input
-                        className="form-control"
-                        value={createForm.productType}
-                        onChange={(e) =>
-                          setCreateForm((prev) => ({ ...prev, productType: e.target.value }))
-                        }
-                        placeholder="e.g. Software, Hardware, Service"
-                      />
-                    </div>
-                    <div className="col-md-6">
-                      <label className="form-label">Secondary Source</label>
-                      <select
-                        className="form-select"
-                        value={createForm.secondarySource}
-                        onChange={(e) =>
-                          setCreateForm((prev) => ({
-                            ...prev,
-                            secondarySource: e.target.value,
-                          }))
-                        }
-                      >
-                        <option value="">Select Secondary Source</option>
-                        {secondaryOptions.map((item) => (
-                          <option key={item} value={item}>
-                            {item}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="col-md-6">
-                      <label className="form-label">Country Code</label>
-                      <select
-                        className="form-select"
-                        value={createForm.countryCode}
-                        onChange={(e) => handleCreateCountryCodeChange(e.target.value)}
-                      >
-                        {COUNTRY_CODE_OPTIONS.map((option) => (
-                          <option key={`${option.country}-${option.callingCode}`} value={option.value}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="col-md-6">
-                      <label className="form-label">Tertiary Source</label>
-                      <select
-                        className="form-select"
-                        value={createForm.tertiarySource}
-                        onChange={(e) =>
-                          setCreateForm((prev) => ({
-                            ...prev,
-                            tertiarySource: e.target.value,
-                          }))
-                        }
-                      >
-                        <option value="">Select Tertiary Source</option>
-                        {tertiaryOptions.map((item) => (
-                          <option key={item} value={item}>
-                            {item}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="col-md-6">
-                      <label className="form-label">
-                        Mobile Number <span className="text-danger">*</span>
-                      </label>
-                      <input
-                        className="form-control"
-                        value={createForm.mobile}
-                        placeholder={`Enter ${createCountryDisplayMaxLength || ""} digit number`}
-                        inputMode="numeric"
-                        pattern="\d*"
-                        maxLength={createCountryDisplayMaxLength || undefined}
-                        onChange={(e) => handleCreateMobileChange(e.target.value)}
-                      />
-                      <div className="d-flex justify-content-between mt-1">
-                        <small className="text-muted">
-                          {createCountryDisplayMaxLength
-                            ? `${createCountryDisplayMaxLength} digits required`
-                            : "Numeric value"}
-                        </small>
-                        {createMobileError && <small className="text-danger">{createMobileError}</small>}
-                      </div>
-                    </div>
-                    <input type="hidden" value={createForm.leadGroupId} readOnly />
-                    {createForm.primarySource.toLowerCase() === "channel partner" && (
-                      <div className="col-md-6">
-                        <label className="form-label">Channel Partner</label>
-                        <select
-                          className="form-select"
-                          value={createForm.channelPartnerId}
-                          onChange={(e) =>
-                            setCreateForm((prev) => ({
-                              ...prev,
-                              channelPartnerId: e.target.value,
-                            }))
-                          }
-                        >
-                          <option value="">Select Channel Partner</option>
-                          {(channelPartners || []).map((cp) => (
-                            <option key={cp.id} value={cp.id}>
-                              {cp.companyName || cp.partnerName || cp.name || `CP ${cp.id}`}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
-                  </div>
-
-                  {role === "EMPLOYEE" ? (
-                    <div className="mt-3 alert alert-info py-2 mb-0">
-                      <i className="ti ti-user-check me-1" />
-                      This lead will be assigned to you.
-                    </div>
-                  ) : createForm.leadGroupId && (
-                    <div className="mt-3">
-                      <label className="form-label">Assign To Employee</label>
-                      <select
-                        className="form-select"
-                        value={createForm.assignedUserId}
-                        onChange={(e) =>
-                          setCreateForm((prev) => ({ ...prev, assignedUserId: e.target.value }))
-                        }
-                      >
-                        <option value="">— Auto assign —</option>
-                        {eligibleCreateGroupMembers.map((member) => (
-                          <option key={member.userId} value={member.userId}>
-                            {member.username || `User ${member.userId}`}
-                          </option>
-                        ))}
-                      </select>
-                      {eligibleCreateGroupMembers.length === 0 && (
-                        <small className="text-muted">No eligible employees in selected group.</small>
-                      )}
+                <div className="modal-body lead-create-shell">
+                  <div className="lead-wizard">
+                  {error && (
+                    <div className="alert alert-danger py-2 mb-3" role="alert">
+                      {error}
                     </div>
                   )}
-                </div>
-                <div className="modal-footer">
-                  <button className="btn btn-light" onClick={() => setShowCreate(false)}>
-                    Cancel
-                  </button>
-                  <button className="btn btn-primary" onClick={handleCreateLead} disabled={saving}>
-                    {saving ? "Creating..." : "Create Leads"}
-                  </button>
+                  {/* Progress Bar */}
+                  <div className="lead-wizard-progress-bar">
+                    <motion.div
+                      className="lead-wizard-progress"
+                      initial={shouldReduceMotion ? false : { width: "0%" }}
+                      animate={shouldReduceMotion ? {} : { width: `${((createWizardStep + 1) / 2) * 100}%` }}
+                      transition={{ duration: 0.35, ease: "easeOut" }}
+                    />
+                  </div>
+
+                  {/* Step Circles */}
+                  <motion.div
+                    className="lead-wizard-circles"
+                    initial={shouldReduceMotion ? false : { opacity: 0, y: 10 }}
+                    animate={shouldReduceMotion ? {} : { opacity: 1, y: 0 }}
+                    transition={{ duration: 0.2, delay: 0.05 }}
+                  >
+                    <div className="lead-wizard-circle-item" onClick={() => setCreateWizardStep(0)}>
+                      <motion.div
+                        className={`lead-wizard-circle${createWizardStep >= 0 ? " active" : ""}`}
+                        initial={shouldReduceMotion ? false : { scale: 0.94 }}
+                        animate={shouldReduceMotion ? {} : { scale: 1 }}
+                        transition={{ duration: 0.2, delay: 0.08 }}
+                      >
+                        <i className="ti ti-user" />
+                      </motion.div>
+                      <div className="lead-wizard-circle-label">Lead Details</div>
+                    </div>
+                    <div className="lead-wizard-circle-item" onClick={() => setCreateWizardStep(1)}>
+                      <motion.div
+                        className={`lead-wizard-circle${createWizardStep >= 1 ? " active" : ""}`}
+                        initial={shouldReduceMotion ? false : { scale: 0.94 }}
+                        animate={shouldReduceMotion ? {} : { scale: 1 }}
+                        transition={{ duration: 0.2, delay: 0.1 }}
+                      >
+                        <i className="ti ti-map-pin" />
+                      </motion.div>
+                      <div className="lead-wizard-circle-label">Address</div>
+                    </div>
+                  </motion.div>
+
+                  <motion.div
+                    className="lead-create-grid"
+                    initial={shouldReduceMotion ? false : { opacity: 0, y: 12 }}
+                    animate={shouldReduceMotion ? {} : { opacity: 1, y: 0 }}
+                    transition={{ duration: 0.22, delay: 0.1 }}
+                  >
+                  <AnimatePresence mode="wait">
+                    {/* Step 0: Lead Details */}
+                    {createWizardStep === 0 && (
+                      <motion.div
+                        key="step-0"
+                        initial={shouldReduceMotion ? false : { opacity: 0, x: 18, filter: "blur(4px)" }}
+                        animate={shouldReduceMotion ? {} : { opacity: 1, x: 0, filter: "blur(0px)" }}
+                        exit={shouldReduceMotion ? false : { opacity: 0, x: -18, filter: "blur(4px)" }}
+                        transition={{ duration: 0.26, ease: "easeOut" }}
+                        className="row g-3 lead-wizard-step-panel"
+                      >
+                        <div className="col-md-6">
+                          <div className="lead-form-stack">
+                          <div className="lead-form-field">
+                            <label className="form-label">Full Name</label>
+                            <input
+                              ref={createNameInputRef}
+                              className="form-control"
+                              value={createForm.name}
+                              onChange={(e) =>
+                                setCreateForm((prev) => ({ ...prev, name: e.target.value }))
+                              }
+                              placeholder="Full Name"
+                            />
+                          </div>
+
+                          <div className="lead-form-field">
+                            <label className="form-label">
+                              Mobile Number <span className="text-danger">*</span>
+                            </label>
+                            <div className="lead-phone-field" ref={createCountryPickerRef}>
+                              <div className="lead-phone-input-wrap">
+                                <button
+                                  type="button"
+                                  className="lead-phone-code-trigger"
+                                  onClick={toggleCreateCountryPicker}
+                                  aria-expanded={createCountryPickerOpen}
+                                >
+                                  <span>{createForm.countryCode}</span>
+                                  <i className="ti ti-chevron-down" />
+                                </button>
+                                <input
+                                  className="lead-phone-input"
+                                  value={createForm.mobile}
+                                  placeholder={`Enter ${createCountryDisplayMaxLength || ""} digit number`}
+                                  inputMode="numeric"
+                                  pattern="\d*"
+                                  maxLength={createCountryDisplayMaxLength || undefined}
+                                  onChange={(e) => handleCreateMobileChange(e.target.value)}
+                                />
+                              </div>
+                              {createCountryPickerOpen && (
+                                <div className="lead-phone-code-menu">
+                                  {filteredCountryOptions.length > 0 ? (
+                                    filteredCountryOptions.map((option) => (
+                                      <button
+                                        key={`${option.country}-${option.callingCode}`}
+                                        type="button"
+                                        className={`lead-phone-code-option${createForm.countryCode === option.value ? " is-active" : ""}`}
+                                        onClick={() => {
+                                          handleCreateCountryCodeChange(option.value);
+                                          closeCreateCountryPicker();
+                                        }}
+                                      >
+                                        <span>{option.label}</span>
+                                      </button>
+                                    ))
+                                  ) : (
+                                    <div className="lead-phone-code-empty">No countries found</div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                            <div className="lead-field-helper-row">
+                              <small className="text-muted">
+                                {createCountryDisplayMaxLength
+                                  ? `${createCountryDisplayMaxLength} digits required`
+                                  : "Numeric value"}
+                              </small>
+                              {createMobileError && <small className="text-danger">{createMobileError}</small>}
+                            </div>
+                          </div>
+
+                          <div className="lead-form-field">
+                            <label className="form-label">Email Address</label>
+                            <input
+                              className="form-control"
+                              value={createForm.email}
+                              onChange={(e) =>
+                                setCreateForm((prev) => ({ ...prev, email: e.target.value }))
+                              }
+                              placeholder="E-mail Id"
+                            />
+                          </div>
+                          </div>
+                        </div>
+
+                        <div className="col-md-6">
+                          <div className="lead-form-stack">
+                          <div className="lead-form-field">
+                            <div className="lead-source-label-row">
+                              <label className="form-label mb-0">Primary Source</label>
+                              <button
+                                type="button"
+                                className="lead-source-add-btn"
+                                onClick={() => setShowAddPrimarySource(true)}
+                                aria-label="Add primary source"
+                              >
+                                <PlusGlyph size={14} />
+                              </button>
+                            </div>
+                            <select
+                              className="form-select"
+                              value={createForm.primarySource}
+                              onChange={(e) =>
+                                setCreateForm((prev) => ({
+                                  ...prev,
+                                  primarySource: e.target.value,
+                                }))
+                              }
+                            >
+                              <option value="">Select Primary Source</option>
+                              {primaryOptions.map((item) => (
+                                <option key={item} value={item}>
+                                  {item}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div className="lead-form-field">
+                            <div className="lead-source-label-row">
+                              <label className="form-label mb-0">Secondary Source</label>
+                              <button
+                                type="button"
+                                className="lead-source-add-btn"
+                                onClick={() => setShowAddSecondarySource(true)}
+                                aria-label="Add secondary source"
+                              >
+                                <PlusGlyph size={14} />
+                              </button>
+                            </div>
+                            <select
+                              className="form-select"
+                              value={createForm.secondarySource}
+                              onChange={(e) =>
+                                setCreateForm((prev) => ({
+                                  ...prev,
+                                  secondarySource: e.target.value,
+                                }))
+                              }
+                            >
+                              <option value="">Select Secondary Source</option>
+                              {secondaryOptions.map((item) => (
+                                <option key={item} value={item}>
+                                  {item}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <div className="lead-form-field">
+                            <label className="form-label">Company Name</label>
+                            <input
+                              className="form-control"
+                              value={createForm.companyName}
+                              onChange={(e) =>
+                                setCreateForm((prev) => ({ ...prev, companyName: e.target.value }))
+                              }
+                              placeholder="Company Name"
+                            />
+                          </div>
+                          </div>
+                        </div>
+
+                        <div className="col-12">
+                          <label className="form-label">Type of Product</label>
+                          <textarea
+                            className="form-control"
+                            value={createForm.productType}
+                            onChange={(e) =>
+                              setCreateForm((prev) => ({ ...prev, productType: e.target.value }))
+                            }
+                            placeholder="e.g. Visiting Card, Zipper pouch, Poster, etc"
+                            rows="2"
+                            style={{ resize: "vertical" }}
+                          />
+                        </div>
+
+                        <input type="hidden" value={createForm.leadGroupId} readOnly />
+                      </motion.div>
+                    )}
+
+                    {/* Step 1: Address */}
+                    {createWizardStep === 1 && (
+                      <motion.div
+                        key="step-1"
+                        initial={shouldReduceMotion ? false : { opacity: 0, x: 18, filter: "blur(4px)" }}
+                        animate={shouldReduceMotion ? {} : { opacity: 1, x: 0, filter: "blur(0px)" }}
+                        exit={shouldReduceMotion ? false : { opacity: 0, x: -18, filter: "blur(4px)" }}
+                        transition={{ duration: 0.26, ease: "easeOut" }}
+                        className="row g-3 lead-wizard-step-panel"
+                      >
+                        <div className="col-md-6">
+                          <div className="lead-form-field">
+                            <label className="form-label">State</label>
+                            <select
+                              ref={createStateInputRef}
+                              className="form-select"
+                              value={createForm.state}
+                              onChange={(e) =>
+                                setCreateForm((prev) => ({
+                                  ...prev,
+                                  state: e.target.value,
+                                  district: "",
+                                }))
+                              }
+                              disabled={!createCountryIso || !createStateOptions.length}
+                            >
+                              <option value="">Select State</option>
+                              {createStateOptions.map((state) => (
+                                <option key={state.isoCode} value={state.isoCode}>
+                                  {state.name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+                        <div className="col-md-6">
+                          <div className="lead-form-field">
+                            <label className="form-label">District</label>
+                            <select
+                              className="form-select"
+                              value={createForm.district}
+                              onChange={(e) =>
+                                setCreateForm((prev) => ({ ...prev, district: e.target.value }))
+                              }
+                              disabled={!createSelectedState || !createDistrictOptions.length}
+                            >
+                              <option value="">Select District</option>
+                              {createDistrictOptions.map((district) => (
+                                <option key={`${district.stateCode}-${district.name}`} value={district.name}>
+                                  {district.name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+                        <div className="col-12">
+                          <label className="form-label">Street Address</label>
+                          <textarea
+                            className="form-control"
+                            value={createForm.streetAddress}
+                            onChange={(e) =>
+                              setCreateForm((prev) => ({ ...prev, streetAddress: e.target.value }))
+                            }
+                            placeholder="Enter street address"
+                            rows="2"
+                            style={{ resize: "vertical" }}
+                          />
+                        </div>
+
+                        {role === "EMPLOYEE" ? (
+                          <div className="col-12">
+                            <div className="lead-assignment-note alert alert-info py-2 mb-0">
+                              This lead will be assigned to you.
+                            </div>
+                          </div>
+                        ) : createForm.leadGroupId && (
+                          <div className="col-12">
+                            <div className="lead-assignment-box">
+                              <label className="form-label">Assign To Employee</label>
+                              <select
+                                className="form-select"
+                                value={createForm.assignedUserId}
+                                onChange={(e) =>
+                                  setCreateForm((prev) => ({ ...prev, assignedUserId: e.target.value }))
+                                }
+                              >
+                                <option value="">— Auto assign —</option>
+                                {eligibleCreateGroupMembers.map((member) => (
+                                  <option key={member.userId} value={member.userId}>
+                                    {member.username || `User ${member.userId}`}
+                                  </option>
+                                ))}
+                              </select>
+                              {eligibleCreateGroupMembers.length === 0 && (
+                                <small className="text-muted">No eligible employees in selected group.</small>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                  </motion.div>
+
+                  {/* Wizard Navigation */}
+                  <motion.div
+                    className="lead-wizard-nav"
+                    initial={shouldReduceMotion ? false : { opacity: 0, y: 8 }}
+                    animate={shouldReduceMotion ? {} : { opacity: 1, y: 0 }}
+                    transition={{ duration: 0.18, delay: 0.18 }}
+                  >
+                    {createWizardStep > 0 ? (
+                      <button type="button" className="btn btn-light" onClick={() => setCreateWizardStep((s) => s - 1)} disabled={saving}>
+                        Previous
+                      </button>
+                    ) : (
+                      <div />
+                    )}
+                    {createWizardStep < 1 ? (
+                      <button type="button" className="btn btn-primary" onClick={goToNextCreateStep}>
+                        Next
+                      </button>
+                    ) : (
+                      <button type="button" className="btn btn-primary" onClick={handleCreateLead} disabled={saving}>
+                        {saving ? "Creating..." : "Create Lead"}
+                      </button>
+                    )}
+                  </motion.div>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
-          <div className="modal-backdrop fade show" />
+          <div className="modal-backdrop fade show lead-create-backdrop" />
         </>
       )}
 
@@ -1886,6 +2192,102 @@ export default function LeadsPage() {
             </div>
           </div>
           <div className="modal-backdrop fade show" />
+        </>
+      )}
+
+      {showAddPrimarySource && (
+        <>
+          <div className="modal fade show lead-source-modal" style={{ display: "block" }} tabIndex="-1">
+            <div className="modal-dialog modal-dialog-centered">
+              <div className="modal-content">
+                <div className="modal-header">
+                  <h5 className="modal-title">Add Primary Source</h5>
+                  <button
+                    className="btn-close"
+                    onClick={() => {
+                      if (addSourceLoading) return;
+                      setShowAddPrimarySource(false);
+                      setNewPrimarySource("");
+                    }}
+                  />
+                </div>
+                <div className="modal-body">
+                  <label className="form-label">Primary Source Name</label>
+                  <input
+                    className="form-control"
+                    value={newPrimarySource}
+                    onChange={(e) => setNewPrimarySource(e.target.value)}
+                    placeholder="Enter primary source"
+                    autoFocus
+                  />
+                </div>
+                <div className="modal-footer">
+                  <button
+                    className="btn btn-light"
+                    onClick={() => {
+                      if (addSourceLoading) return;
+                      setShowAddPrimarySource(false);
+                      setNewPrimarySource("");
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button className="btn btn-primary" onClick={handleAddPrimarySource} disabled={addSourceLoading}>
+                    {addSourceLoading ? "Saving..." : "Save"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="modal-backdrop fade show lead-create-backdrop" />
+        </>
+      )}
+
+      {showAddSecondarySource && (
+        <>
+          <div className="modal fade show lead-source-modal" style={{ display: "block" }} tabIndex="-1">
+            <div className="modal-dialog modal-dialog-centered">
+              <div className="modal-content">
+                <div className="modal-header">
+                  <h5 className="modal-title">Add Secondary Source</h5>
+                  <button
+                    className="btn-close"
+                    onClick={() => {
+                      if (addSourceLoading) return;
+                      setShowAddSecondarySource(false);
+                      setNewSecondarySource("");
+                    }}
+                  />
+                </div>
+                <div className="modal-body">
+                  <label className="form-label">Secondary Source Name</label>
+                  <input
+                    className="form-control"
+                    value={newSecondarySource}
+                    onChange={(e) => setNewSecondarySource(e.target.value)}
+                    placeholder="Enter secondary source"
+                    autoFocus
+                  />
+                </div>
+                <div className="modal-footer">
+                  <button
+                    className="btn btn-light"
+                    onClick={() => {
+                      if (addSourceLoading) return;
+                      setShowAddSecondarySource(false);
+                      setNewSecondarySource("");
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button className="btn btn-primary" onClick={handleAddSecondarySource} disabled={addSourceLoading}>
+                    {addSourceLoading ? "Saving..." : "Save"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="modal-backdrop fade show lead-create-backdrop" />
         </>
       )}
 

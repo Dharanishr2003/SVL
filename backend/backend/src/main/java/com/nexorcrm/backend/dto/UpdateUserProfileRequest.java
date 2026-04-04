@@ -27,12 +27,6 @@ public class UpdateUserProfileRequest {
     @Size(max = 160)
     private String institutionName;
 
-    @Size(max = 160)
-    private String institutionCategory;
-
-    @Size(max = 160)
-    private String institutionType;
-
     @Size(min = 8, max = 100)
     private String newPassword;
 
@@ -93,22 +87,6 @@ public class UpdateUserProfileRequest {
 
     public void setInstitutionName(String institutionName) {
         this.institutionName = institutionName;
-    }
-
-    public String getInstitutionCategory() {
-        return institutionCategory;
-    }
-
-    public void setInstitutionCategory(String institutionCategory) {
-        this.institutionCategory = institutionCategory;
-    }
-
-    public String getInstitutionType() {
-        return institutionType;
-    }
-
-    public void setInstitutionType(String institutionType) {
-        this.institutionType = institutionType;
     }
 
     public String getNewPassword() {

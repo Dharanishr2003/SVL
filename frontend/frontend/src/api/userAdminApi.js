@@ -18,6 +18,7 @@ function mapRoleToStatus(role, active, activationStatus) {
   if (normalized === 'SUPER_ADMIN') return 'Super Admin'
   if (normalized === 'ADMIN') return 'Admin'
   if (normalized === 'MANAGER') return 'Manager'
+  if (normalized === 'TEAM_LEAD') return 'Team Lead'
   return 'Employee'
 }
 
@@ -39,9 +40,8 @@ function normalizeUser(user) {
     lastLoginAt: user?.lastLoginAt || null,
     registeredIp: user?.registeredIp || '',
     lastActiveIp: user?.lastActiveIp || '',
+    branch: user?.branch || user?.institution || '',
     institution: user?.institution || '',
-    institutionCategory: user?.institutionCategory || '',
-    institutionType: user?.institutionType || '',
     departmentName: user?.departmentName || '',
     team: user?.team || '',
   }
@@ -79,9 +79,7 @@ export async function updateUserProfile(userId, payload) {
     lastName: payload?.lastName,
     teamName: payload?.teamName,
     departmentName: payload?.departmentName,
-    institutionName: payload?.institutionName,
-    institutionCategory: payload?.institutionCategory,
-    institutionType: payload?.institutionType,
+    institutionName: payload?.institutionName || payload?.branchName,
   }
 
   const newPassword = String(payload?.newPassword || '').trim()
@@ -114,9 +112,7 @@ export async function createUser(payload) {
   const firstName = payload?.firstName ?? ''
   const lastName = payload?.lastName ?? ''
   const response = await api.post('/api/users', {
-    institution: payload?.institution,
-    institutionCategory: payload?.institutionCategory,
-    institutionType: payload?.institutionType,
+    institution: payload?.institution || payload?.branch,
     departmentName: payload?.departmentName,
     team: payload?.team,
     role: payload?.role,
@@ -185,6 +181,5 @@ export async function getUserGroups(userId) {
   return rows.map((row) => ({
     id: row?.id,
     name: row?.name || '',
-    groupLevel: row?.groupLevel ?? null,
   }))
 }

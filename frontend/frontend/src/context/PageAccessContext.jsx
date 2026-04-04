@@ -27,7 +27,7 @@ export function PageAccessProvider({ children }) {
   const { user, loading: authLoading } = useAuth();
   const role = String(user?.role || "").toUpperCase();
   const canUsePermissionControlledAdminRoutes =
-    role === "ADMIN" || role === "SUPER_ADMIN" || role === "MANAGER" || role === "EMPLOYEE";
+    role === "ADMIN" || role === "SUPER_ADMIN" || role === "MANAGER" || role === "TEAM_LEAD" || role === "EMPLOYEE";
   const [visiblePageKeys, setVisiblePageKeys] = useState([]);
   const [loading, setLoading] = useState(true);
   const cacheKey = useMemo(() => {

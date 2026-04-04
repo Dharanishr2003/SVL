@@ -10,7 +10,6 @@ public interface LeadRepository extends JpaRepository<Lead, Long> {
     List<Lead> findByDeletedFalseOrderByCreatedAtDesc();
     List<Lead> findByDeletedFalseAndPaymentVerificationAssignedToUserIdIsNotNullOrderByUpdatedAtDesc();
     List<Lead> findByDeletedFalseAndBudgetVerificationAssignedToUserIdIsNotNullOrderByUpdatedAtDesc();
-    List<Lead> findByDeletedFalseAndChannelPartnerIdOrderByCreatedAtDesc(Long channelPartnerId);
     List<Lead> findByDeletedFalseAndAssignedGroupIdOrderByCreatedAtDesc(Long assignedGroupId);
     List<Lead> findByDeletedFalseAndOwnerUserIdOrderByCreatedAtDesc(Long ownerUserId);
 

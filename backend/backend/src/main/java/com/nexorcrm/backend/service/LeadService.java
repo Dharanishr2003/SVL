@@ -17,7 +17,6 @@ import com.nexorcrm.backend.dto.PaymentRequest;
 import com.nexorcrm.backend.dto.DesignRequirementRequest;
 import com.nexorcrm.backend.dto.ProductionRequirementRequest;
 import com.nexorcrm.backend.entity.ActivationStatus;
-import com.nexorcrm.backend.entity.ChannelPartner;
 import com.nexorcrm.backend.entity.Deal;
 import com.nexorcrm.backend.entity.Lead;
 import com.nexorcrm.backend.entity.LeadLog;
@@ -26,7 +25,6 @@ import com.nexorcrm.backend.entity.Role;
 import com.nexorcrm.backend.entity.User;
 import com.nexorcrm.backend.entity.UserGroup;
 import com.nexorcrm.backend.entity.UserGroupMember;
-import com.nexorcrm.backend.repo.ChannelPartnerRepository;
 import com.nexorcrm.backend.repo.DealRepository;
 import com.nexorcrm.backend.repo.LeadRepository;
 import com.nexorcrm.backend.repo.LeadLogRepository;
@@ -92,13 +90,11 @@ public class LeadService {
             "stocks"
     );
     private static final Comparator<UserGroup> GROUP_ORDER_COMPARATOR =
-            Comparator.comparing((UserGroup g) -> g.getGroupLevel() == null ? Integer.MAX_VALUE : g.getGroupLevel())
-                    .thenComparing(g -> StringUtils.hasText(g.getName()) ? g.getName().toLowerCase(Locale.ROOT) : "")
+            Comparator.comparing((UserGroup g) -> StringUtils.hasText(g.getName()) ? g.getName().toLowerCase(Locale.ROOT) : "")
                     .thenComparing(g -> g.getId() == null ? Long.MAX_VALUE : g.getId());
 
     private final LeadRepository leadRepository;
     private final LeadLogRepository leadLogRepository;
-    private final ChannelPartnerRepository channelPartnerRepository;
     private final DealRepository dealRepository;
     private final LeadStatusRepository leadStatusRepository;
     private final LeadTypeRepository leadTypeRepository;
@@ -123,7 +119,6 @@ public class LeadService {
 
     public LeadService(LeadRepository leadRepository,
                        LeadLogRepository leadLogRepository,
-                       ChannelPartnerRepository channelPartnerRepository,
                        DealRepository dealRepository,
                        LeadStatusRepository leadStatusRepository,
                        LeadTypeRepository leadTypeRepository,
@@ -141,7 +136,6 @@ public class LeadService {
                        ProductionRequirementService productionRequirementService) {
         this.leadRepository = leadRepository;
         this.leadLogRepository = leadLogRepository;
-        this.channelPartnerRepository = channelPartnerRepository;
         this.dealRepository = dealRepository;
         this.leadStatusRepository = leadStatusRepository;
         this.leadTypeRepository = leadTypeRepository;
@@ -204,14 +198,9 @@ public class LeadService {
         }
 
         Lead saved = leadRepository.save(row);
-        Map<Long, String> cpNameMap = new HashMap<>();
-        if (saved.getChannelPartnerId() != null) {
-            channelPartnerRepository.findByIdAndDeletedFalse(saved.getChannelPartnerId()).ifPresent(cp ->
-                    cpNameMap.put(cp.getId(), StringUtils.hasText(cp.getCompanyName()) ? cp.getCompanyName() : cp.getPartnerName()));
-        }
         Map<Long, String> groupNameMap = loadGroupNameMap(List.of(saved));
         Map<Long, String> userNameMap = loadUserNameMap(List.of(saved));
-        return toResponse(saved, cpNameMap, groupNameMap, userNameMap);
+        return toResponse(saved, groupNameMap, userNameMap);
     }
 
     @Transactional(readOnly = true)
@@ -254,34 +243,12 @@ public class LeadService {
                 .filter(row -> matchQuickDate(row.getCreatedAt(), quickDate))
                 .toList();
 
-        Map<Long, String> cpNameMap = loadChannelPartnerNameMap(rows);
         Map<Long, String> groupNameMap = loadGroupNameMap(rows);
         Map<Long, String> userNameMap = loadUserNameMap(rows);
 
         return rows.stream()
-                .map(row -> toResponse(row, cpNameMap, groupNameMap, userNameMap))
-                .collect(Collectors.toList());
-    }
-
-    @Transactional(readOnly = true)
-    public List<LeadResponse> listByChannelPartner(String actorPrincipal, Long channelPartnerId) {
-        User actor = assertLeadAccess(actorPrincipal);
-        Set<Long> visibleGroupIds = resolveVisibleLeadGroupIds(actor);
-        channelPartnerRepository.findByIdAndDeletedFalse(channelPartnerId)
-                .orElseThrow(() -> new EntityNotFoundException("Channel partner not found"));
-
-        List<Lead> rows = leadRepository.findByDeletedFalseAndChannelPartnerIdOrderByCreatedAtDesc(channelPartnerId)
-                .stream()
-                .filter(row -> canViewLead(actor, row, visibleGroupIds))
+                .map(row -> toResponse(row, groupNameMap, userNameMap))
                 .toList();
-
-        Map<Long, String> cpNameMap = loadChannelPartnerNameMap(rows);
-        Map<Long, String> groupNameMap = loadGroupNameMap(rows);
-        Map<Long, String> userNameMap = loadUserNameMap(rows);
-
-        return rows.stream()
-                .map(row -> toResponse(row, cpNameMap, groupNameMap, userNameMap))
-                .collect(Collectors.toList());
     }
 
     @Transactional(readOnly = true)
@@ -292,12 +259,6 @@ public class LeadService {
                 .orElseThrow(() -> new EntityNotFoundException("Lead not found"));
         if (!canViewLead(actor, row, visibleGroupIds)) {
             throw new AccessDeniedException("You do not have permission to access this lead");
-        }
-
-        Map<Long, String> cpNameMap = new HashMap<>();
-        if (row.getChannelPartnerId() != null) {
-            channelPartnerRepository.findByIdAndDeletedFalse(row.getChannelPartnerId()).ifPresent(cp ->
-                    cpNameMap.put(cp.getId(), StringUtils.hasText(cp.getCompanyName()) ? cp.getCompanyName() : cp.getPartnerName()));
         }
 
         Map<Long, String> groupNameMap = new HashMap<>();
@@ -313,13 +274,13 @@ public class LeadService {
             userRepository.findById(row.getOwnerUserId()).ifPresent(user -> userNameMap.put(user.getId(), user.getUsername()));
         }
 
-        return toResponse(row, cpNameMap, groupNameMap, userNameMap);
+        return toResponse(row, groupNameMap, userNameMap);
     }
 
     @Transactional(readOnly = true)
     public List<LeadAllocatorOptionResponse> getImportableEmployees(String actorPrincipal) {
         User actor = assertLeadAccess(actorPrincipal);
-        Long flowGroupId = resolveFlowGroupForStatus("New Lead");
+        Long flowGroupId = resolveFlowGroupForStatus(actor, "New Lead");
         List<UserGroup> groups = flowGroupId != null
                 ? java.util.List.of(resolveLeadGroupForCreate(actor, flowGroupId))
                 : findLeadVisibleGroupsForActor(actor);
@@ -349,7 +310,7 @@ public class LeadService {
             throw new AccessDeniedException("Employees cannot use bulk import");
         }
 
-        Long flowGroupId = resolveFlowGroupForStatus("New Lead");
+        Long flowGroupId = resolveFlowGroupForStatus(actor, "New Lead");
 
         java.util.ArrayList<String> errors = new java.util.ArrayList<>();
         java.util.ArrayList<Lead> toSave = new java.util.ArrayList<>();
@@ -471,7 +432,7 @@ public class LeadService {
             // itself not yet marked as lead-visible.  previously the call
             // delegated to findLeadVisibleGroupsForActor which filtered out such
             // groups, causing freshly created groups to disappear from the dropdown.
-            groups = userGroupRepository.findAllByOrderByGroupLevelAscNameAsc();
+            groups = userGroupRepository.findAllByOrderByNameAsc();
         } else {
             groups = findLeadVisibleGroupsForActor(actor);
         }
@@ -482,7 +443,7 @@ public class LeadService {
 
     public LeadResponse create(LeadCreateRequest request, String actorPrincipal) {
         User actor = assertLeadAccess(actorPrincipal);
-        Long flowGroupId = resolveFlowGroupForStatus("New Lead");
+        Long flowGroupId = resolveFlowGroupForStatus(actor, "New Lead");
         Long groupId = flowGroupId != null ? flowGroupId : request.getLeadGroupId();
         UserGroup selectedGroup = resolveLeadGroupForCreate(actor, groupId);
         User ownerUser;
@@ -509,7 +470,6 @@ public class LeadService {
             ownerUser = resolveLeadOwnerForCreate(actor, selectedGroup);
         }
 
-        String projectName = normalizeNullable(request.getProjectName());
         String email = normalizeNullable(request.getEmail());
         String emailNormalized = normalizeEmail(email);
         String countryCode = normalizeNullable(request.getCountryCode());
@@ -518,16 +478,6 @@ public class LeadService {
         String mobileNormalized = normalizeMobile(mobile);
         if (!StringUtils.hasText(mobileNormalized)) {
             throw new IllegalStateException("Mobile is required");
-        }
-
-        Long channelPartnerId = null;
-        if ("channel partner".equalsIgnoreCase(primarySource)) {
-            if (request.getChannelPartnerId() == null) {
-                throw new IllegalStateException("Channel Partner is required when Primary Source is Channel Partner");
-            }
-            ChannelPartner channelPartner = channelPartnerRepository.findByIdAndDeletedFalse(request.getChannelPartnerId())
-                    .orElseThrow(() -> new EntityNotFoundException("Channel partner not found"));
-            channelPartnerId = channelPartner.getId();
         }
 
         Lead row = new Lead();
@@ -542,8 +492,12 @@ public class LeadService {
         row.setPrimarySource(primarySource);
         row.setSecondarySource(normalizeNullable(request.getSecondarySource()));
         row.setTertiarySource(normalizeNullable(request.getTertiarySource()));
-        row.setProjectName(projectName);
-        row.setChannelPartnerId(channelPartnerId);
+        row.setCompanyName(normalizeNullable(request.getCompanyName()));
+        row.setProductType(normalizeNullable(request.getProductType()));
+        row.setLeadCountry(normalizeNullable(request.getLeadCountry()));
+        row.setLeadState(normalizeNullable(request.getLeadState()));
+        row.setLeadCity(normalizeNullable(request.getLeadCity()));
+        row.setLeadPincode(normalizeNullable(request.getLeadPincode()));
         row.setStatus("New Lead");
         row.setSvStatus(null);
         row.setAssignedGroupId(selectedGroup.getId());
@@ -555,12 +509,6 @@ public class LeadService {
         auditService.log("LEAD_CREATE", "Created lead with status " + saved.getStatus(), actor.getEmail());
         createLeadLog(saved.getId(), "Call Log Created", actor);
 
-        Map<Long, String> cpNameMap = new HashMap<>();
-        if (channelPartnerId != null) {
-            channelPartnerRepository.findByIdAndDeletedFalse(channelPartnerId).ifPresent(cp ->
-                    cpNameMap.put(cp.getId(), StringUtils.hasText(cp.getCompanyName()) ? cp.getCompanyName() : cp.getPartnerName()));
-        }
-
         Map<Long, String> groupNameMap = new HashMap<>();
         groupNameMap.put(selectedGroup.getId(), selectedGroup.getName());
 
@@ -568,7 +516,7 @@ public class LeadService {
         userNameMap.put(actor.getId(), actor.getUsername());
         userNameMap.put(ownerUser.getId(), ownerUser.getUsername());
 
-        return toResponse(saved, cpNameMap, groupNameMap, userNameMap);
+        return toResponse(saved, groupNameMap, userNameMap);
     }
 
     public LeadResponse updateStatus(Long id, LeadUpdateStatusRequest request, String actorPrincipal) {
@@ -592,7 +540,7 @@ public class LeadService {
                 && row.getPreDealOwnerUserId() == null) {
             row.setPreDealOwnerUserId(row.getOwnerUserId());
         }
-        applyFlowStatusTransition(row, status, request.getNextGroupId());
+        applyFlowStatusTransition(actor, row, status, request.getNextGroupId());
         // when moving to Budget, set budget verification status PENDING and assign round-robin
         // NOTE: lead ownership is intentionally NOT changed; only budgetVerificationAssignedToUserId is set
         if ("budget".equalsIgnoreCase(status)) {
@@ -621,16 +569,10 @@ public class LeadService {
             dealService.deleteBySourceLeadId(saved.getId());
         }
 
-        Map<Long, String> cpNameMap = new HashMap<>();
-        if (saved.getChannelPartnerId() != null) {
-            channelPartnerRepository.findByIdAndDeletedFalse(saved.getChannelPartnerId()).ifPresent(cp ->
-                    cpNameMap.put(cp.getId(), StringUtils.hasText(cp.getCompanyName()) ? cp.getCompanyName() : cp.getPartnerName()));
-        }
-
         Map<Long, String> groupNameMap = loadGroupNameMap(List.of(saved));
         Map<Long, String> userNameMap = loadUserNameMap(List.of(saved));
 
-        return toResponse(saved, cpNameMap, groupNameMap, userNameMap);
+        return toResponse(saved, groupNameMap, userNameMap);
     }
 
     @Transactional(readOnly = true)
@@ -645,7 +587,7 @@ public class LeadService {
 
         Long effectiveGroupId = lead.getAssignedGroupId();
         if (targetGroupId != null) {
-            Long allowedGroupId = resolveFlowNextGroupId(lead.getStatus(), "Allocate");
+            Long allowedGroupId = resolveFlowNextGroupId(actor, lead, lead.getStatus(), "Allocate");
             if (allowedGroupId == null || !allowedGroupId.equals(targetGroupId)) {
                 throw new AccessDeniedException("You do not have permission to assign this allocator");
             }
@@ -856,7 +798,7 @@ public class LeadService {
         }
 
         if (request.getTargetGroupId() != null) {
-            Long allowedGroupId = resolveFlowNextGroupId(row.getStatus(), "Allocate");
+            Long allowedGroupId = resolveFlowNextGroupId(actor, row, row.getStatus(), "Allocate");
             if (allowedGroupId == null || !allowedGroupId.equals(request.getTargetGroupId())) {
                 throw new AccessDeniedException("You do not have permission to assign this allocator");
             }
@@ -932,16 +874,10 @@ public class LeadService {
         auditService.log("LEAD_ALLOCATOR_UPDATE", "Updated lead allocator", actor.getEmail());
         createLeadLog(saved.getId(), "Owner changed to " + ownerUser.getUsername(), actor);
 
-        Map<Long, String> cpNameMap = new HashMap<>();
-        if (saved.getChannelPartnerId() != null) {
-            channelPartnerRepository.findByIdAndDeletedFalse(saved.getChannelPartnerId()).ifPresent(cp ->
-                    cpNameMap.put(cp.getId(), StringUtils.hasText(cp.getCompanyName()) ? cp.getCompanyName() : cp.getPartnerName()));
-        }
-
         Map<Long, String> groupNameMap = loadGroupNameMap(List.of(saved));
         Map<Long, String> userNameMap = loadUserNameMap(List.of(saved));
 
-        return toResponse(saved, cpNameMap, groupNameMap, userNameMap);
+        return toResponse(saved, groupNameMap, userNameMap);
     }
 
     public LeadResponse updateDetails(Long id, LeadUpdateDetailsRequest request, String actorPrincipal) {
@@ -970,9 +906,6 @@ public class LeadService {
         if (request.getFollowUpDate() != null) {
             row.setFollowUpDate(request.getFollowUpDate());
         }
-        if (request.getOccupation() != null) {
-            row.setOccupation(normalizeNullable(request.getOccupation()));
-        }
         if (request.getCompanyName() != null) {
             row.setCompanyName(normalizeNullable(request.getCompanyName()));
         }
@@ -994,8 +927,8 @@ public class LeadService {
         if (request.getLeadPincode() != null) {
             row.setLeadPincode(normalizeNullable(request.getLeadPincode()));
         }
-        if (request.getProjectId() != null) {
-            row.setProjectId(request.getProjectId());
+        if (request.getStreetAddress() != null) {
+            row.setStreetAddress(normalizeNullable(request.getStreetAddress()));
         }
         if (request.getLeadType() != null) {
             String leadType = normalizeNullable(request.getLeadType());
@@ -1403,15 +1336,10 @@ public class LeadService {
         auditService.log("LEAD_DETAILS_UPDATE", "Updated lead details", actor.getEmail());
         createLeadLog(saved.getId(), "Lead details updated", actor);
 
-        Map<Long, String> cpNameMap = new HashMap<>();
-        if (saved.getChannelPartnerId() != null) {
-            channelPartnerRepository.findByIdAndDeletedFalse(saved.getChannelPartnerId()).ifPresent(cp ->
-                    cpNameMap.put(cp.getId(), StringUtils.hasText(cp.getCompanyName()) ? cp.getCompanyName() : cp.getPartnerName()));
-        }
         Map<Long, String> groupNameMap = loadGroupNameMap(List.of(saved));
         Map<Long, String> userNameMap = loadUserNameMap(List.of(saved));
 
-        return toResponse(saved, cpNameMap, groupNameMap, userNameMap);
+        return toResponse(saved, groupNameMap, userNameMap);
     }
 
     @Transactional(readOnly = true)
@@ -1620,14 +1548,9 @@ public class LeadService {
                 .findTopByDeletedFalseAndEmailNormalizedOrderByCreatedAtDesc(email)
                 .orElseThrow(() -> new EntityNotFoundException("Lead not found"));
 
-        Map<Long, String> cpNameMap = new HashMap<>();
-        if (lead.getChannelPartnerId() != null) {
-            channelPartnerRepository.findByIdAndDeletedFalse(lead.getChannelPartnerId()).ifPresent(cp ->
-                    cpNameMap.put(cp.getId(), StringUtils.hasText(cp.getCompanyName()) ? cp.getCompanyName() : cp.getPartnerName()));
-        }
         Map<Long, String> groupNameMap = loadGroupNameMap(List.of(lead));
         Map<Long, String> userNameMap = loadUserNameMap(List.of(lead));
-        return toResponse(lead, cpNameMap, groupNameMap, userNameMap);
+        return toResponse(lead, groupNameMap, userNameMap);
     }
 
     public LeadResponse updateCustomerLeadStatus(LeadUpdateStatusRequest request, String actorPrincipal) {
@@ -1650,7 +1573,7 @@ public class LeadService {
         }
 
         Lead lead = findCustomerLead(actor);
-        applyFlowStatusTransition(lead, status, null);
+        applyFlowStatusTransition(actor, lead, status, null);
         if ("rejected".equalsIgnoreCase(status)) {
             lead.setRejectedReason(normalizeNullable(request.getRejectedReason()));
             lead.setRejectedReasonSubtype(normalizeNullable(request.getRejectedReasonSubtype()));
@@ -1662,10 +1585,9 @@ public class LeadService {
         auditService.log("LEAD_STATUS_UPDATE", "Customer updated lead status to " + status, actor.getEmail());
         createLeadLog(saved.getId(), "Status changed to " + saved.getStatus(), actor);
 
-        Map<Long, String> cpNameMap = loadChannelPartnerNameMap(List.of(saved));
         Map<Long, String> groupNameMap = loadGroupNameMap(List.of(saved));
         Map<Long, String> userNameMap = loadUserNameMap(List.of(saved));
-        return toResponse(saved, cpNameMap, groupNameMap, userNameMap);
+        return toResponse(saved, groupNameMap, userNameMap);
     }
 
     private Lead findCustomerLead(User actor) {
@@ -1683,6 +1605,7 @@ public class LeadService {
         if (actor.getRole() != Role.SUPER_ADMIN
                 && actor.getRole() != Role.ADMIN
                 && actor.getRole() != Role.MANAGER
+                && actor.getRole() != Role.TEAM_LEAD
                 && actor.getRole() != Role.EMPLOYEE) {
             throw new AccessDeniedException("You do not have permission to access leads");
         }
@@ -1706,33 +1629,32 @@ public class LeadService {
 
     private List<UserGroup> findLeadVisibleGroupsForActor(User actor) {
         if (actor.getRole() == Role.SUPER_ADMIN) {
-            return userGroupRepository.findAllByOrderByGroupLevelAscNameAsc().stream()
+            return userGroupRepository.findAllByOrderByNameAsc().stream()
                     .filter(this::hasLeadVisibility)
                     .toList();
         }
 
         if (actor.getRole() == Role.ADMIN) {
-            assertActorHasDepartmentScope(actor);
             return userGroupRepository
-                    .findByInstitutionNameIgnoreCaseAndInstitutionCategoryIgnoreCaseAndInstitutionTypeIgnoreCaseAndDepartmentNameIgnoreCaseOrderByGroupLevelAscNameAsc(
-                            actor.getInstitutionName(),
-                            actor.getInstitutionCategory(),
-                            actor.getInstitutionType(),
-                            actor.getDepartmentName()
-                    ).stream()
+                    .findByInstitutionNameIgnoreCaseOrderByNameAsc(actor.getInstitutionName())
+                    .stream()
                     .filter(this::hasLeadVisibility)
                     .toList();
         }
 
         if (actor.getRole() == Role.MANAGER) {
-            assertActorHasTeamScope(actor);
             return userGroupRepository
-                    .findByInstitutionNameIgnoreCaseAndInstitutionCategoryIgnoreCaseAndInstitutionTypeIgnoreCaseAndDepartmentNameIgnoreCaseOrderByGroupLevelAscNameAsc(
-                            actor.getInstitutionName(),
-                            actor.getInstitutionCategory(),
-                            actor.getInstitutionType(),
-                            actor.getDepartmentName()
-                    ).stream()
+                    .findByInstitutionNameIgnoreCaseOrderByNameAsc(actor.getInstitutionName())
+                    .stream()
+                    .filter(this::hasLeadVisibility)
+                    .filter(group -> groupIncludesTeam(group, actor.getTeamName()))
+                    .toList();
+        }
+
+        if (actor.getRole() == Role.TEAM_LEAD) {
+            return userGroupRepository
+                    .findByInstitutionNameIgnoreCaseOrderByNameAsc(actor.getInstitutionName())
+                    .stream()
                     .filter(this::hasLeadVisibility)
                     .filter(group -> groupIncludesTeam(group, actor.getTeamName()))
                     .toList();
@@ -1759,33 +1681,32 @@ public class LeadService {
 
     private List<UserGroup> findLeadRecordVisibleGroupsForActor(User actor) {
         if (actor.getRole() == Role.SUPER_ADMIN) {
-            return userGroupRepository.findAllByOrderByGroupLevelAscNameAsc().stream()
+            return userGroupRepository.findAllByOrderByNameAsc().stream()
                     .filter(this::hasLeadRecordVisibility)
                     .toList();
         }
 
         if (actor.getRole() == Role.ADMIN) {
-            assertActorHasDepartmentScope(actor);
             return userGroupRepository
-                    .findByInstitutionNameIgnoreCaseAndInstitutionCategoryIgnoreCaseAndInstitutionTypeIgnoreCaseAndDepartmentNameIgnoreCaseOrderByGroupLevelAscNameAsc(
-                            actor.getInstitutionName(),
-                            actor.getInstitutionCategory(),
-                            actor.getInstitutionType(),
-                            actor.getDepartmentName()
-                    ).stream()
+                    .findByInstitutionNameIgnoreCaseOrderByNameAsc(actor.getInstitutionName())
+                    .stream()
                     .filter(this::hasLeadRecordVisibility)
                     .toList();
         }
 
         if (actor.getRole() == Role.MANAGER) {
-            assertActorHasTeamScope(actor);
             return userGroupRepository
-                    .findByInstitutionNameIgnoreCaseAndInstitutionCategoryIgnoreCaseAndInstitutionTypeIgnoreCaseAndDepartmentNameIgnoreCaseOrderByGroupLevelAscNameAsc(
-                            actor.getInstitutionName(),
-                            actor.getInstitutionCategory(),
-                            actor.getInstitutionType(),
-                            actor.getDepartmentName()
-                    ).stream()
+                    .findByInstitutionNameIgnoreCaseOrderByNameAsc(actor.getInstitutionName())
+                    .stream()
+                    .filter(this::hasLeadRecordVisibility)
+                    .filter(group -> groupIncludesTeam(group, actor.getTeamName()))
+                    .toList();
+        }
+
+        if (actor.getRole() == Role.TEAM_LEAD) {
+            return userGroupRepository
+                    .findByInstitutionNameIgnoreCaseOrderByNameAsc(actor.getInstitutionName())
+                    .stream()
                     .filter(this::hasLeadRecordVisibility)
                     .filter(group -> groupIncludesTeam(group, actor.getTeamName()))
                     .toList();
@@ -1821,9 +1742,7 @@ public class LeadService {
     }
 
     private boolean canViewLead(User actor, Lead row, Set<Long> visibleGroupIds) {
-        if (actor.getRole() == Role.SUPER_ADMIN
-                || actor.getRole() == Role.ADMIN
-                || actor.getRole() == Role.MANAGER) {
+        if (actor.getRole() == Role.SUPER_ADMIN) {
             return true;
         }
         if (actor.getRole() == Role.EMPLOYEE) {
@@ -1859,41 +1778,112 @@ public class LeadService {
             }
             return false;
         }
-        if (row.getAssignedGroupId() != null && visibleGroupIds.contains(row.getAssignedGroupId())) {
-            return true;
-        }
-        // manager can see if the lead owner (employee) is in one of their visible groups
-        if (row.getOwnerUserId() != null && !visibleGroupIds.isEmpty()) {
-            List<UserGroupMember> ownerMemberships = userGroupMemberRepository.findByUser_IdOrderByIdAsc(row.getOwnerUserId());
-            if (ownerMemberships.stream().anyMatch(m -> m.getGroup() != null && visibleGroupIds.contains(m.getGroup().getId()))) {
+        if (actor.getRole() == Role.ADMIN) {
+            if (row.getAssignedGroupId() != null && visibleGroupIds.contains(row.getAssignedGroupId())) {
                 return true;
             }
+            if (row.getOwnerUserId() != null) {
+                List<UserGroupMember> ownerMemberships = userGroupMemberRepository.findByUser_IdOrderByIdAsc(row.getOwnerUserId());
+                if (ownerMemberships.stream().anyMatch(m -> m.getGroup() != null && visibleGroupIds.contains(m.getGroup().getId()))) {
+                    return true;
+                }
+            }
+            if (row.getBudgetVerificationAssignedToUserId() != null && !visibleGroupIds.isEmpty()) {
+                List<UserGroupMember> memberships = userGroupMemberRepository.findByUser_IdOrderByIdAsc(row.getBudgetVerificationAssignedToUserId());
+                if (memberships.stream().anyMatch(m -> m.getGroup() != null && visibleGroupIds.contains(m.getGroup().getId()))) {
+                    return true;
+                }
+            }
+            if (row.getPaymentVerificationAssignedToUserId() != null && !visibleGroupIds.isEmpty()) {
+                List<UserGroupMember> memberships = userGroupMemberRepository.findByUser_IdOrderByIdAsc(row.getPaymentVerificationAssignedToUserId());
+                if (memberships.stream().anyMatch(m -> m.getGroup() != null && visibleGroupIds.contains(m.getGroup().getId()))) {
+                    return true;
+                }
+            }
+            if (row.getOwnerUserId() != null) {
+                return Objects.equals(row.getOwnerUserId(), actor.getId())
+                        || textEquals(row.getOwner(), actor.getUsername());
+            }
+            return textEquals(row.getOwner(), actor.getUsername());
         }
-        // when lead is converted to a deal, also check past workflow owners (payment/design/production)
-        // so the manager retains visibility even though ownerUserId shifts to the deal-group employee
-        if ("deal".equalsIgnoreCase(row.getStatus()) && !visibleGroupIds.isEmpty()) {
-            for (Long pastOwnerId : new Long[]{row.getPaymentOwnerId(), row.getDesignOwnerId(), row.getProductionOwnerId()}) {
-                if (pastOwnerId != null) {
-                    List<UserGroupMember> memberships = userGroupMemberRepository.findByUser_IdOrderByIdAsc(pastOwnerId);
-                    if (memberships.stream().anyMatch(m -> m.getGroup() != null && visibleGroupIds.contains(m.getGroup().getId()))) {
-                        return true;
+        if (actor.getRole() == Role.MANAGER) {
+            if (row.getAssignedGroupId() != null && visibleGroupIds.contains(row.getAssignedGroupId())) {
+                return true;
+            }
+            if (row.getOwnerUserId() != null && !visibleGroupIds.isEmpty()) {
+                List<UserGroupMember> ownerMemberships = userGroupMemberRepository.findByUser_IdOrderByIdAsc(row.getOwnerUserId());
+                if (ownerMemberships.stream().anyMatch(m -> m.getGroup() != null && visibleGroupIds.contains(m.getGroup().getId()))) {
+                    return true;
+                }
+            }
+            if ("deal".equalsIgnoreCase(row.getStatus()) && !visibleGroupIds.isEmpty()) {
+                for (Long pastOwnerId : new Long[]{row.getPaymentOwnerId(), row.getDesignOwnerId(), row.getProductionOwnerId()}) {
+                    if (pastOwnerId != null) {
+                        List<UserGroupMember> memberships = userGroupMemberRepository.findByUser_IdOrderByIdAsc(pastOwnerId);
+                        if (memberships.stream().anyMatch(m -> m.getGroup() != null && visibleGroupIds.contains(m.getGroup().getId()))) {
+                            return true;
+                        }
                     }
                 }
             }
+            if (row.getBudgetVerificationAssignedToUserId() != null && !visibleGroupIds.isEmpty()) {
+                List<UserGroupMember> memberships = userGroupMemberRepository.findByUser_IdOrderByIdAsc(row.getBudgetVerificationAssignedToUserId());
+                if (memberships.stream().anyMatch(m -> m.getGroup() != null && visibleGroupIds.contains(m.getGroup().getId()))) {
+                    return true;
+                }
+            }
+            if (row.getPaymentVerificationAssignedToUserId() != null && !visibleGroupIds.isEmpty()) {
+                List<UserGroupMember> memberships = userGroupMemberRepository.findByUser_IdOrderByIdAsc(row.getPaymentVerificationAssignedToUserId());
+                if (memberships.stream().anyMatch(m -> m.getGroup() != null && visibleGroupIds.contains(m.getGroup().getId()))) {
+                    return true;
+                }
+            }
+            if (row.getOwnerUserId() != null) {
+                return Objects.equals(row.getOwnerUserId(), actor.getId())
+                        || textEquals(row.getOwner(), actor.getUsername());
+            }
+            return textEquals(row.getOwner(), actor.getUsername());
         }
-        // budget verification: manager can see if assigned employee is in their visible groups
-        if (row.getBudgetVerificationAssignedToUserId() != null && !visibleGroupIds.isEmpty()) {
-            List<UserGroupMember> memberships = userGroupMemberRepository.findByUser_IdOrderByIdAsc(row.getBudgetVerificationAssignedToUserId());
-            if (memberships.stream().anyMatch(m -> m.getGroup() != null && visibleGroupIds.contains(m.getGroup().getId()))) {
+        if (actor.getRole() == Role.TEAM_LEAD) {
+            if (row.getAssignedGroupId() != null && visibleGroupIds.contains(row.getAssignedGroupId())) {
                 return true;
             }
-        }
-        // payment verification: manager can see if assigned employee is in their visible groups
-        if (row.getPaymentVerificationAssignedToUserId() != null && !visibleGroupIds.isEmpty()) {
-            List<UserGroupMember> memberships = userGroupMemberRepository.findByUser_IdOrderByIdAsc(row.getPaymentVerificationAssignedToUserId());
-            if (memberships.stream().anyMatch(m -> m.getGroup() != null && visibleGroupIds.contains(m.getGroup().getId()))) {
-                return true;
+            if (row.getOwnerUserId() != null && !visibleGroupIds.isEmpty()) {
+                List<UserGroupMember> ownerMemberships = userGroupMemberRepository.findByUser_IdOrderByIdAsc(row.getOwnerUserId());
+                if (ownerMemberships.stream().anyMatch(m -> m.getGroup() != null && visibleGroupIds.contains(m.getGroup().getId()))) {
+                    return true;
+                }
             }
+            if ("deal".equalsIgnoreCase(row.getStatus()) && !visibleGroupIds.isEmpty()) {
+                for (Long pastOwnerId : new Long[]{row.getPaymentOwnerId(), row.getDesignOwnerId(), row.getProductionOwnerId()}) {
+                    if (pastOwnerId != null) {
+                        List<UserGroupMember> memberships = userGroupMemberRepository.findByUser_IdOrderByIdAsc(pastOwnerId);
+                        if (memberships.stream().anyMatch(m -> m.getGroup() != null && visibleGroupIds.contains(m.getGroup().getId()))) {
+                            return true;
+                        }
+                    }
+                }
+            }
+            if (row.getBudgetVerificationAssignedToUserId() != null && !visibleGroupIds.isEmpty()) {
+                List<UserGroupMember> memberships = userGroupMemberRepository.findByUser_IdOrderByIdAsc(row.getBudgetVerificationAssignedToUserId());
+                if (memberships.stream().anyMatch(m -> m.getGroup() != null && visibleGroupIds.contains(m.getGroup().getId()))) {
+                    return true;
+                }
+            }
+            if (row.getPaymentVerificationAssignedToUserId() != null && !visibleGroupIds.isEmpty()) {
+                List<UserGroupMember> memberships = userGroupMemberRepository.findByUser_IdOrderByIdAsc(row.getPaymentVerificationAssignedToUserId());
+                if (memberships.stream().anyMatch(m -> m.getGroup() != null && visibleGroupIds.contains(m.getGroup().getId()))) {
+                    return true;
+                }
+            }
+            if (row.getOwnerUserId() != null) {
+                return Objects.equals(row.getOwnerUserId(), actor.getId())
+                        || textEquals(row.getOwner(), actor.getUsername());
+            }
+            return textEquals(row.getOwner(), actor.getUsername());
+        }
+        if (row.getAssignedGroupId() != null && visibleGroupIds.contains(row.getAssignedGroupId())) {
+            return true;
         }
         if (row.getOwnerUserId() != null) {
             return Objects.equals(row.getOwnerUserId(), actor.getId());
@@ -2050,9 +2040,9 @@ public class LeadService {
         return groupEmployees.stream().anyMatch(emp -> isSameDepartmentScope(emp, admin));
     }
 
-    private Long resolveFlowGroupForStatus(String status) {
+    private Long resolveFlowGroupForStatus(User actor, String status) {
         try {
-            List<Map<String, Object>> rules = leadFlowService.getFlow().getRules();
+            List<Map<String, Object>> rules = leadFlowService.getFlowForActor(actor).getRules();
             FlowRule rule = findFlowRule(rules, status);
             return rule == null ? null : rule.handledByGroupId;
         } catch (Exception e) {
@@ -2070,17 +2060,17 @@ public class LeadService {
         }
     }
 
-    private Long resolvePreferredDealGroupForStatus(String status) {
-        Long leadFlowGroupId = resolveFlowGroupForStatus(status);
+    private Long resolvePreferredDealGroupForStatus(User actor, Lead row, String status) {
+        Long leadFlowGroupId = resolveFlowGroupForStatus(actor, status);
         if (leadFlowGroupId != null) {
             return leadFlowGroupId;
         }
         return resolveDealFlowGroupForStatus(status);
     }
 
-    private Long resolveFlowNextGroupId(String currentStatus, String nextStatus) {
+    private Long resolveFlowNextGroupId(User actor, Lead row, String currentStatus, String nextStatus) {
         try {
-            List<Map<String, Object>> rules = leadFlowService.getFlow().getRules();
+            List<Map<String, Object>> rules = getFlowRulesForLeadScope(actor, row);
             FlowRule currentRule = findFlowRule(rules, currentStatus);
             FlowRule targetRule = findFlowRule(rules, nextStatus);
             Long nextGroupId = currentRule != null ? currentRule.nextGroupIdFor(nextStatus) : null;
@@ -2097,16 +2087,11 @@ public class LeadService {
         }
     }
 
-    private void applyFlowStatusTransition(Lead row, String nextStatus, Long forcedNextGroupId) {
+    private void applyFlowStatusTransition(User actor, Lead row, String nextStatus, Long forcedNextGroupId) {
         if (row == null || !StringUtils.hasText(nextStatus)) {
             return;
         }
-        List<Map<String, Object>> rules = null;
-        try {
-            rules = leadFlowService.getFlow().getRules();
-        } catch (Exception ignored) {
-            rules = null;
-        }
+        List<Map<String, Object>> rules = getFlowRulesForLeadScope(actor, row);
         if (rules == null || rules.isEmpty()) {
             row.setStatus(nextStatus);
             return;
@@ -2141,7 +2126,7 @@ public class LeadService {
         // Prefer the Lead flow's Deal rule because the lead is still transitioning
         // inside the lead pipeline at this point, then fall back to the Deal flow tab.
         if ("deal".equalsIgnoreCase(nextStatus)) {
-            Long dealGroupId = resolvePreferredDealGroupForStatus(nextStatus);
+            Long dealGroupId = resolvePreferredDealGroupForStatus(actor, row, nextStatus);
             if (dealGroupId != null) {
                 nextGroupId = dealGroupId;
             }
@@ -2593,8 +2578,6 @@ public class LeadService {
             return false;
         }
         return textEquals(actor.getInstitutionName(), target.getInstitutionName())
-                && textEquals(actor.getInstitutionCategory(), target.getInstitutionCategory())
-                && textEquals(actor.getInstitutionType(), target.getInstitutionType())
                 && textEquals(actor.getDepartmentName(), target.getDepartmentName())
                 && textEquals(actor.getTeamName(), target.getTeamName());
     }
@@ -2607,8 +2590,6 @@ public class LeadService {
             return false;
         }
         return textEquals(actor.getInstitutionName(), target.getInstitutionName())
-                && textEquals(actor.getInstitutionCategory(), target.getInstitutionCategory())
-                && textEquals(actor.getInstitutionType(), target.getInstitutionType())
                 && textEquals(actor.getDepartmentName(), target.getDepartmentName());
     }
 
@@ -2704,8 +2685,6 @@ public class LeadService {
 
     private void assertActorHasDepartmentScope(User actor) {
         if (!StringUtils.hasText(actor.getInstitutionName())
-                || !StringUtils.hasText(actor.getInstitutionCategory())
-                || !StringUtils.hasText(actor.getInstitutionType())
                 || !StringUtils.hasText(actor.getDepartmentName())) {
             throw new AccessDeniedException("Your account is missing department scope configuration");
         }
@@ -2726,10 +2705,8 @@ public class LeadService {
             if (lead == null) {
                 return;
             }
-            
-        // Get flow configuration to find the group handling "Budget" status
-        com.nexorcrm.backend.dto.LeadFlowResponse flowResponse = leadFlowService.getFlow();
-        List<Map<String, Object>> rules = flowResponse.getRules();
+
+            List<Map<String, Object>> rules = getFlowRulesForLeadScope(lead);
             
             if (rules == null || rules.isEmpty()) {
                 return; // No flow rules configured, skip assignment
@@ -2814,8 +2791,7 @@ public class LeadService {
     private void assignBudgetRoundRobin(Lead lead) {
         try {
             if (lead == null) return;
-            com.nexorcrm.backend.dto.LeadFlowResponse flowResponse = leadFlowService.getFlow();
-            List<Map<String, Object>> rules = flowResponse.getRules();
+            List<Map<String, Object>> rules = getFlowRulesForLeadScope(lead);
             if (rules == null || rules.isEmpty()) return;
 
             Long handledByGroupId = null;
@@ -2869,6 +2845,32 @@ public class LeadService {
         }
     }
 
+    private List<Map<String, Object>> getFlowRulesForLeadScope(User actor, Lead lead) {
+        try {
+            if (lead != null && lead.getAssignedGroupId() != null) {
+                return userGroupRepository.findById(lead.getAssignedGroupId())
+                        .map(group -> leadFlowService.getFlowForScope(group.getInstitutionName()).getRules())
+                        .orElseGet(() -> leadFlowService.getFlowForActor(actor).getRules());
+            }
+            return leadFlowService.getFlowForActor(actor).getRules();
+        } catch (Exception e) {
+            return leadFlowService.getFlow().getRules();
+        }
+    }
+
+    private List<Map<String, Object>> getFlowRulesForLeadScope(Lead lead) {
+        try {
+            if (lead == null || lead.getAssignedGroupId() == null) {
+                return leadFlowService.getFlow().getRules();
+            }
+            return userGroupRepository.findById(lead.getAssignedGroupId())
+                    .map(group -> leadFlowService.getFlowForScope(group.getInstitutionName()).getRules())
+                    .orElseGet(() -> leadFlowService.getFlow().getRules());
+        } catch (Exception e) {
+            return leadFlowService.getFlow().getRules();
+        }
+    }
+
     private boolean hasLeadVisibility(UserGroup group) {
         return hasAnyPageAccess(group == null ? null : group.getPageKeysCsv(), Set.of(LEADS_PAGE_KEY));
     }
@@ -2913,7 +2915,6 @@ public class LeadService {
     }
 
     private LeadResponse toResponse(Lead row,
-                                    Map<Long, String> cpNameMap,
                                     Map<Long, String> groupNameMap,
                                     Map<Long, String> userNameMap) {
         LeadResponse res = new LeadResponse();
@@ -2937,10 +2938,9 @@ public class LeadService {
         res.setLeadState(row.getLeadState());
         res.setLeadCity(row.getLeadCity());
         res.setLeadPincode(row.getLeadPincode());
+        res.setStreetAddress(row.getStreetAddress());
         res.setProjectId(row.getProjectId());
         res.setLeadType(row.getLeadType());
-        res.setChannelPartnerId(row.getChannelPartnerId());
-        res.setChannelPartnerName(cpNameMap.get(row.getChannelPartnerId()));
         res.setStatus(row.getStatus());
         res.setSvStatus(row.getSvStatus());
         res.setLeadGroupId(row.getAssignedGroupId());
@@ -3109,26 +3109,6 @@ public class LeadService {
         return "User-" + user.getId();
     }
 
-    private Map<Long, String> loadChannelPartnerNameMap(List<Lead> leads) {
-        Map<Long, String> out = new HashMap<>();
-        List<Long> ids = leads.stream()
-                .map(Lead::getChannelPartnerId)
-                .filter(Objects::nonNull)
-                .distinct()
-                .toList();
-        if (ids.isEmpty()) {
-            return out;
-        }
-
-        channelPartnerRepository.findAllById(ids).stream()
-                .filter(row -> !row.isDeleted())
-                .forEach(row -> {
-                    String name = StringUtils.hasText(row.getCompanyName()) ? row.getCompanyName() : row.getPartnerName();
-                    out.put(row.getId(), name);
-                });
-        return out;
-    }
-
     private Map<Long, String> loadGroupNameMap(List<Lead> leads) {
         Map<Long, String> out = new HashMap<>();
         List<Long> ids = leads.stream()
@@ -3194,8 +3174,6 @@ public class LeadService {
                 return true;
             }
             return textEquals(actor.getInstitutionName(), target.getInstitutionName())
-                    && textEquals(actor.getInstitutionCategory(), target.getInstitutionCategory())
-                    && textEquals(actor.getInstitutionType(), target.getInstitutionType())
                     && textEquals(actor.getDepartmentName(), target.getDepartmentName());
         }
         if (actor.getRole() == Role.MANAGER) {
@@ -3203,8 +3181,6 @@ public class LeadService {
                 return true;
             }
             return textEquals(actor.getInstitutionName(), target.getInstitutionName())
-                    && textEquals(actor.getInstitutionCategory(), target.getInstitutionCategory())
-                    && textEquals(actor.getInstitutionType(), target.getInstitutionType())
                     && textEquals(actor.getDepartmentName(), target.getDepartmentName())
                     && textEquals(actor.getTeamName(), target.getTeamName());
         }
@@ -3217,8 +3193,6 @@ public class LeadService {
 
     private boolean hasDepartmentScope(User user) {
         return StringUtils.hasText(user.getInstitutionName())
-                && StringUtils.hasText(user.getInstitutionCategory())
-                && StringUtils.hasText(user.getInstitutionType())
                 && StringUtils.hasText(user.getDepartmentName());
     }
 
@@ -3238,6 +3212,10 @@ public class LeadService {
         LeadAssignableGroupResponse response = new LeadAssignableGroupResponse();
         response.setId(group.getId());
         response.setName(group.getName());
+        response.setInstitutionName(group.getInstitutionName());
+        response.setDepartmentName(group.getDepartmentName());
+        response.setTeamNames(parseCsv(group.getTeamNamesCsv()));
+        response.setPageKeys(parseCsv(group.getPageKeysCsv()));
         return response;
     }
 

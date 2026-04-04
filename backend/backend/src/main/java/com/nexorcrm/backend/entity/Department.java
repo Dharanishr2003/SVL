@@ -14,14 +14,6 @@ public class Department {
     @JoinColumn(name = "institution_id")
     private Institution institution;
 
-    @ManyToOne(optional = false, fetch = FetchType.LAZY)
-    @JoinColumn(name = "category_id")
-    private InstitutionCategory category;
-
-    @ManyToOne(optional = false, fetch = FetchType.LAZY)
-    @JoinColumn(name = "type_id")
-    private InstitutionType type;
-
     @Column(nullable = false, length = 160)
     private String name;
 
@@ -46,10 +38,6 @@ public class Department {
     public Long getId() { return id; }
     public Institution getInstitution() { return institution; }
     public void setInstitution(Institution institution) { this.institution = institution; }
-    public InstitutionCategory getCategory() { return category; }
-    public void setCategory(InstitutionCategory category) { this.category = category; }
-    public InstitutionType getType() { return type; }
-    public void setType(InstitutionType type) { this.type = type; }
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
     public String getStatus() { return status; }

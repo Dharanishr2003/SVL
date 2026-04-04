@@ -179,10 +179,7 @@ export default function GroupAccessPage() {
       const sanitizedDraftPageKeys = normalizePageKeys(draftPageKeys, allowedPageKeys);
       const updated = await updateUserGroup(selectedGroup.id, {
         name: selectedGroup.name,
-        level: selectedGroup.level,
         institutionName: selectedGroup.institutionName,
-        institutionCategory: selectedGroup.institutionCategory,
-        institutionType: selectedGroup.institutionType,
         departmentName: selectedGroup.departmentName,
         teamNames: selectedGroup.teamNames,
         pageKeys: sanitizedDraftPageKeys,

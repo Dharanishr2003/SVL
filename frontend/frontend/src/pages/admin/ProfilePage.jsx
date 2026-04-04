@@ -299,8 +299,6 @@ export default function ProfilePage() {
                 <InfoField icon="ti-building" label="Department" value={profile?.departmentName} />
                 <InfoField icon="ti-users" label="Team" value={profile?.teamName} />
                 <InfoField icon="ti-school" label="Institution" value={profile?.institutionName} />
-                <InfoField icon="ti-category" label="Inst. Category" value={profile?.institutionCategory} />
-                <InfoField icon="ti-tag" label="Inst. Type" value={profile?.institutionType} />
               </div>
             </div>
           </div>
@@ -447,4 +445,3 @@ function formatDate(value) {
     return value;
   }
 }
-

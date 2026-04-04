@@ -6,16 +6,16 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.List;
 
 public interface UserGroupRepository extends JpaRepository<UserGroup, Long> {
-    List<UserGroup> findAllByOrderByGroupLevelAscNameAsc();
+    List<UserGroup> findAllByOrderByNameAsc();
 
     boolean existsByNameIgnoreCase(String name);
 
-    List<UserGroup> findByInstitutionNameIgnoreCaseAndInstitutionCategoryIgnoreCaseAndInstitutionTypeIgnoreCaseAndDepartmentNameIgnoreCaseOrderByGroupLevelAscNameAsc(
+    List<UserGroup> findByInstitutionNameIgnoreCaseAndDepartmentNameIgnoreCaseOrderByNameAsc(
             String institutionName,
-            String institutionCategory,
-            String institutionType,
             String departmentName
     );
+
+    List<UserGroup> findByInstitutionNameIgnoreCaseOrderByNameAsc(String institutionName);
 
     java.util.Optional<UserGroup> findByNameIgnoreCase(String name);
 }

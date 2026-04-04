@@ -44,7 +44,7 @@ public class BootstrapConfig implements ApplicationListener<ApplicationReadyEven
             return;
         }
 
-        if (userRepository.existsByRole(Role.SUPER_ADMIN)) {
+        if (userRepository.existsByRoleAndIsDeletedFalse(Role.SUPER_ADMIN)) {
             log.info("Super Admin exists, skipping");
             return;
         }

@@ -18,8 +18,6 @@ import {
 } from "../../api/userGroupApi";
 import {
   getInstitutions,
-  getInstitutionCategories,
-  getInstitutionTypes,
   getDepartments,
   getTeams,
 } from "../../api/orgHierarchyApi";
@@ -31,7 +29,8 @@ const ROLE_RANK = {
   SUPER_ADMIN: 4,
   ADMIN: 3,
   MANAGER: 2,
-  EMPLOYEE: 1,
+  TEAM_LEAD: 1,
+  EMPLOYEE: 0,
 };
 
 async function findUserById(targetId) {
@@ -75,25 +74,21 @@ export default function UserEditPage() {
     teamName: "",
     departmentName: "",
     institutionName: "",
-    institutionCategory: "",
-    institutionType: "",
   });
   const [orgTeams, setOrgTeams] = useState([]);
   const [orgDepartments, setOrgDepartments] = useState([]);
   const [orgInstitutions, setOrgInstitutions] = useState([]);
-  const [orgCategories, setOrgCategories] = useState([]);
-  const [orgTypes, setOrgTypes] = useState([]);
   const [orgInstId, setOrgInstId] = useState("");
-  const [orgCatId, setOrgCatId] = useState("");
-  const [orgTypeId, setOrgTypeId] = useState("");
   const [orgDeptId, setOrgDeptId] = useState("");
 
   const currentRole = String(currentUser?.role || "").toUpperCase();
   const isAdmin = currentRole === "ADMIN";
+  const isManager = currentRole === "MANAGER";
+  const isTeamLead = currentRole === "TEAM_LEAD";
   const isSuperAdmin = currentRole === "SUPER_ADMIN";
   const canManageRole = isAdmin || isSuperAdmin;
-  const canEditTeam = isAdmin || isSuperAdmin;
-  const canEditDepartment = isSuperAdmin;
+  const canEditTeam = isAdmin || isSuperAdmin || isManager;
+  const canEditDepartment = isSuperAdmin || isAdmin;
   const canEditOrgScope = isSuperAdmin;
 
   const canSeeUser = (row) => {
@@ -101,11 +96,18 @@ export default function UserEditPage() {
     if (currentRole === "SUPER_ADMIN") return true;
     if (currentRole === "ADMIN") {
       return (
-        !currentUser?.institutionType ||
-        row.institutionType === currentUser?.institutionType
+        !currentUser?.institution ||
+        row.institution === currentUser?.institution
       );
     }
     if (currentRole === "MANAGER") {
+      return (
+        (!currentUser?.departmentName ||
+          row.departmentName === currentUser?.departmentName) &&
+        ["TEAM_LEAD", "EMPLOYEE"].includes(String(row.role || "").toUpperCase())
+      );
+    }
+    if (currentRole === "TEAM_LEAD") {
       return (
         (!currentUser?.team || row.team === currentUser?.team) &&
         String(row.role || "").toUpperCase() === "EMPLOYEE"
@@ -135,8 +137,6 @@ export default function UserEditPage() {
           teamName: user.team || "",
           departmentName: user.departmentName || "",
           institutionName: user.institution || "",
-          institutionCategory: user.institutionCategory || "",
-          institutionType: user.institutionType || "",
         });
         return;
       }
@@ -153,8 +153,6 @@ export default function UserEditPage() {
             teamName: found?.team || "",
             departmentName: found?.departmentName || "",
             institutionName: found?.institution || "",
-            institutionCategory: found?.institutionCategory || "",
-            institutionType: found?.institutionType || "",
           });
         }
       } catch (e) {
@@ -192,44 +190,32 @@ export default function UserEditPage() {
     loadDetails();
   }, [user?.id]);
 
-  // Load org hierarchy for ADMIN (teams only) and SUPER_ADMIN (full)
   useEffect(() => {
-    if (!isAdmin && !isSuperAdmin) return;
+    if (!isAdmin && !isSuperAdmin && !isManager) return;
     const load = async () => {
       try {
+        const insts = await getInstitutions();
+        const institutionRows = Array.isArray(insts) ? insts : [];
         if (isSuperAdmin) {
-          const insts = await getInstitutions();
-          setOrgInstitutions(Array.isArray(insts) ? insts : []);
+          setOrgInstitutions(institutionRows);
         }
-        // For ADMIN: use currentUser's own org scope to load teams
-        if (isAdmin && currentUser) {
-          const insts = await getInstitutions();
-          const instMatch = (Array.isArray(insts) ? insts : []).find(
+        if ((isAdmin || isManager) && currentUser) {
+          const instMatch = institutionRows.find(
             (i) => String(i.name || "").toLowerCase() === String(currentUser.institution || "").toLowerCase()
           );
           const instId = instMatch ? String(instMatch.id) : "";
           if (!instId) return;
-          const cats = await getInstitutionCategories(instId);
-          const catMatch = (Array.isArray(cats) ? cats : []).find(
-            (c) => String(c.name || "").toLowerCase() === String(currentUser.institutionCategory || "").toLowerCase()
-          );
-          const catId = catMatch ? String(catMatch.id) : "";
-          if (!catId) return;
-          const types = await getInstitutionTypes(instId, catId);
-          const typeMatch = (Array.isArray(types) ? types : []).find(
-            (t) => String(t.name || "").toLowerCase() === String(currentUser.institutionType || "").toLowerCase()
-          );
-          const typeId = typeMatch ? String(typeMatch.id) : "";
-          if (!typeId) return;
-          const depts = await getDepartments(instId, catId, typeId);
-          const deptMatch = (Array.isArray(depts) ? depts : []).find(
+          setOrgInstId(instId);
+          const depts = await getDepartments(instId);
+          const departmentRows = Array.isArray(depts) ? depts : [];
+          setOrgDepartments(departmentRows);
+          const deptMatch = departmentRows.find(
             (d) => String(d.name || "").toLowerCase() === String(currentUser.departmentName || "").toLowerCase()
           );
           const deptId = deptMatch ? String(deptMatch.id) : "";
           if (!deptId) return;
           setOrgDeptId(deptId);
-          setOrgTypeId(typeId);
-          const teams = await getTeams(instId, catId, typeId, deptId);
+          const teams = await getTeams(instId, deptId);
           setOrgTeams(Array.isArray(teams) ? teams : []);
         }
       } catch (e) {
@@ -237,28 +223,17 @@ export default function UserEditPage() {
       }
     };
     load();
-  }, [isAdmin, isSuperAdmin, currentUser]);
+  }, [isAdmin, isSuperAdmin, isManager, currentUser]);
 
-  // For SUPER_ADMIN: cascade load categories/types/depts/teams based on selections
   useEffect(() => {
-    if (!isSuperAdmin || !orgInstId) { setOrgCategories([]); return; }
-    getInstitutionCategories(orgInstId).then((d) => setOrgCategories(Array.isArray(d) ? d : [])).catch(() => {});
+    if (!isSuperAdmin || !orgInstId) { setOrgDepartments([]); return; }
+    getDepartments(orgInstId).then((d) => setOrgDepartments(Array.isArray(d) ? d : [])).catch(() => {});
   }, [isSuperAdmin, orgInstId]);
 
   useEffect(() => {
-    if (!isSuperAdmin || !orgInstId || !orgCatId) { setOrgTypes([]); return; }
-    getInstitutionTypes(orgInstId, orgCatId).then((d) => setOrgTypes(Array.isArray(d) ? d : [])).catch(() => {});
-  }, [isSuperAdmin, orgInstId, orgCatId]);
-
-  useEffect(() => {
-    if (!isSuperAdmin || !orgInstId || !orgCatId || !orgTypeId) { setOrgDepartments([]); return; }
-    getDepartments(orgInstId, orgCatId, orgTypeId).then((d) => setOrgDepartments(Array.isArray(d) ? d : [])).catch(() => {});
-  }, [isSuperAdmin, orgInstId, orgCatId, orgTypeId]);
-
-  useEffect(() => {
-    if (!orgInstId || !orgCatId || !orgTypeId || !orgDeptId) { setOrgTeams([]); return; }
-    getTeams(orgInstId, orgCatId, orgTypeId, orgDeptId).then((d) => setOrgTeams(Array.isArray(d) ? d : [])).catch(() => {});
-  }, [orgInstId, orgCatId, orgTypeId, orgDeptId]);
+    if (!orgInstId || !orgDeptId) { setOrgTeams([]); return; }
+    getTeams(orgInstId, orgDeptId).then((d) => setOrgTeams(Array.isArray(d) ? d : [])).catch(() => {});
+  }, [orgInstId, orgDeptId]);
 
   useEffect(() => {
     if (!isSuperAdmin || orgInstId || !form.institutionName || orgInstitutions.length === 0) return;
@@ -271,34 +246,14 @@ export default function UserEditPage() {
   }, [isSuperAdmin, orgInstId, form.institutionName, orgInstitutions]);
 
   useEffect(() => {
-    if (!isSuperAdmin || !orgInstId || orgCatId || !form.institutionCategory || orgCategories.length === 0) return;
-    const match = orgCategories.find(
-      (item) => String(item.name || "").toLowerCase() === String(form.institutionCategory || "").toLowerCase(),
-    );
-    if (match?.id != null) {
-      setOrgCatId(String(match.id));
-    }
-  }, [isSuperAdmin, orgInstId, orgCatId, form.institutionCategory, orgCategories]);
-
-  useEffect(() => {
-    if (!isSuperAdmin || !orgCatId || orgTypeId || !form.institutionType || orgTypes.length === 0) return;
-    const match = orgTypes.find(
-      (item) => String(item.name || "").toLowerCase() === String(form.institutionType || "").toLowerCase(),
-    );
-    if (match?.id != null) {
-      setOrgTypeId(String(match.id));
-    }
-  }, [isSuperAdmin, orgCatId, orgTypeId, form.institutionType, orgTypes]);
-
-  useEffect(() => {
-    if (!isSuperAdmin || !orgTypeId || orgDeptId || !form.departmentName || orgDepartments.length === 0) return;
+    if (!isSuperAdmin || orgDeptId || !form.departmentName || orgDepartments.length === 0) return;
     const match = orgDepartments.find(
       (item) => String(item.name || "").toLowerCase() === String(form.departmentName || "").toLowerCase(),
     );
     if (match?.id != null) {
       setOrgDeptId(String(match.id));
     }
-  }, [isSuperAdmin, orgTypeId, orgDeptId, form.departmentName, orgDepartments]);
+  }, [isSuperAdmin, orgDeptId, form.departmentName, orgDepartments]);
 
   const handleSave = async () => {
     if (!user?.id) return;
@@ -320,8 +275,6 @@ export default function UserEditPage() {
         teamName: canEditTeam ? form.teamName : undefined,
         departmentName: canEditDepartment ? form.departmentName : undefined,
         institutionName: canEditOrgScope ? form.institutionName : undefined,
-        institutionCategory: canEditOrgScope ? form.institutionCategory : undefined,
-        institutionType: canEditOrgScope ? form.institutionType : undefined,
         newPassword: form.newPassword,
         confirmPassword: form.confirmPassword,
       });
@@ -489,7 +442,106 @@ export default function UserEditPage() {
   }
 
   return (
-    <div className="content">
+    <div className="content user-edit-page">
+      <style>{`
+        .user-edit-page .btn-primary {
+          background-color: #45597a;
+          border-color: #45597a;
+          border-radius: 2rem;
+          padding: 0.6rem 1.5rem;
+          font-weight: 500;
+          transition: all 0.3s ease;
+        }
+        .user-edit-page .btn-primary:hover {
+          background-color: #354560;
+          border-color: #354560;
+        }
+        .user-edit-page .btn-light {
+          background-color: #f5f5f5;
+          border-color: #d0d5dd;
+          border-radius: 2rem;
+          color: #34393f;
+        }
+        .user-edit-page .btn-light:hover {
+          background-color: #efefef;
+        }
+        .user-edit-page .btn-outline-warning,
+        .user-edit-page .btn-danger {
+          border-radius: 2rem;
+        }
+        .user-edit-page .card {
+          border: none;
+          border-radius: 1.5rem;
+          box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+          overflow: hidden;
+        }
+        .user-edit-page .card-header {
+          background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+          border-bottom: 1px solid #eef2f7;
+          padding: 1rem 1.25rem;
+        }
+        .user-edit-page .card-body {
+          padding: 1.25rem;
+        }
+        .user-edit-page .nav.nav-underline {
+          gap: 0.5rem;
+          border-bottom: 0;
+        }
+        .user-edit-page .nav.nav-underline .nav-link {
+          border: 1px solid #dbe2ea;
+          border-radius: 999px;
+          color: #45597a;
+          font-weight: 500;
+          padding: 0.55rem 1rem;
+          background-color: #fff;
+        }
+        .user-edit-page .nav.nav-underline .nav-link.active {
+          background-color: #45597a;
+          color: #fff;
+          border-color: #45597a;
+        }
+        .user-edit-page .edit-form-panel {
+          max-width: 32rem;
+          margin-left: auto;
+          margin-right: auto;
+        }
+        .user-edit-page .edit-form-panel .form-label {
+          color: #34393f;
+          font-weight: 500;
+          font-size: 0.9rem;
+        }
+        .user-edit-page .edit-form-panel .form-control,
+        .user-edit-page .edit-form-panel .form-select,
+        .user-edit-page .profile-role-select {
+          border-radius: 1.5rem;
+          border: 1px solid #d0d5dd;
+          padding: 0.6rem 1rem;
+          font-size: 0.95rem;
+          background-color: #fff;
+          color: #34393f;
+          transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+        }
+        .user-edit-page .edit-form-panel .form-control:hover,
+        .user-edit-page .edit-form-panel .form-select:hover,
+        .user-edit-page .profile-role-select:hover {
+          border-color: #45597a;
+          background-color: #f8fafc;
+        }
+        .user-edit-page .edit-form-panel .form-control:focus,
+        .user-edit-page .edit-form-panel .form-select:focus,
+        .user-edit-page .profile-role-select:focus {
+          border-color: #45597a;
+          box-shadow: 0 0 0 0.2rem rgba(69, 89, 122, 0.15);
+          background-color: #fff;
+        }
+        .user-edit-page .profile-meta-row {
+          padding: 0.65rem 0;
+          border-bottom: 1px solid #eef2f7;
+        }
+        .user-edit-page .profile-meta-row:last-child {
+          border-bottom: 0;
+        }
+      `}</style>
       <div className="d-flex align-items-center justify-content-between flex-wrap mb-3">
         <div>
           <h4 className="mb-1">User Edit</h4>
@@ -574,15 +626,15 @@ export default function UserEditPage() {
                         <h6 className="mb-0">My Profile</h6>
                       </div>
                       <div className="card-body">
-                        <div className="mb-2 d-flex justify-content-between">
+                        <div className="mb-2 d-flex justify-content-between profile-meta-row">
                           <span>Username:</span>
                           <span className="fw-medium">{user.username || "-"}</span>
                         </div>
-                        <div className="mb-2 d-flex justify-content-between align-items-center">
+                        <div className="mb-2 d-flex justify-content-between align-items-center profile-meta-row">
                           <span>Status:</span>
                           {canManageRole ? (
                             <select
-                              className="form-select form-select-sm"
+                              className="form-select form-select-sm profile-role-select"
                               style={{ width: 180 }}
                               value={allowedRoleOptions.includes(user.role) ? user.role : ""}
                               onChange={(e) => handleRoleChange(e.target.value)}
@@ -600,39 +652,39 @@ export default function UserEditPage() {
                             <span className="fw-medium">{user.role || "-"}</span>
                           )}
                         </div>
-                        <div className="mb-2 d-flex justify-content-between">
+                        <div className="mb-2 d-flex justify-content-between profile-meta-row">
                           <span>Registered:</span>
                           <span className="fw-medium">{user.registeredAt || "-"}</span>
                         </div>
-                        <div className="mb-2 d-flex justify-content-between">
+                        <div className="mb-2 d-flex justify-content-between profile-meta-row">
                           <span>Last Active:</span>
                           <span className="fw-medium">{user.lastLoginAt || "-"}</span>
                         </div>
-                        <div className="mb-2 d-flex justify-content-between">
+                        <div className="mb-2 d-flex justify-content-between profile-meta-row">
                           <span>Registered IP:</span>
                           <span className="fw-medium">{user.registeredIp || "-"}</span>
                         </div>
-                        <div className="mb-2 d-flex justify-content-between">
+                        <div className="mb-2 d-flex justify-content-between profile-meta-row">
                           <span>Last Active IP:</span>
                           <span className="fw-medium">{user.lastActiveIp || "-"}</span>
                         </div>
-                        <div className="mb-2 d-flex justify-content-between">
+                        <div className="mb-2 d-flex justify-content-between profile-meta-row">
                           <span>First Name:</span>
                           <span className="fw-medium">{user.firstName || "-"}</span>
                         </div>
-                        <div className="mb-2 d-flex justify-content-between">
+                        <div className="mb-2 d-flex justify-content-between profile-meta-row">
                           <span>Last Name:</span>
                           <span className="fw-medium">{user.lastName || "-"}</span>
                         </div>
-                        <div className="mb-2 d-flex justify-content-between">
+                        <div className="mb-2 d-flex justify-content-between profile-meta-row">
                           <span>Email:</span>
                           <span className="fw-medium">{user.email || "-"}</span>
                         </div>
-                        <div className="mb-2 d-flex justify-content-between">
+                        <div className="mb-2 d-flex justify-content-between profile-meta-row">
                           <span>Department:</span>
                           <span className="fw-medium">{user.departmentName || "-"}</span>
                         </div>
-                        <div className="mb-2 d-flex justify-content-between">
+                        <div className="mb-2 d-flex justify-content-between profile-meta-row">
                           <span>Team:</span>
                           <span className="fw-medium">{user.team || "-"}</span>
                         </div>
@@ -646,6 +698,7 @@ export default function UserEditPage() {
                         <h6 className="mb-0">Edit Account</h6>
                       </div>
                       <div className="card-body">
+                        <div className="edit-form-panel">
                         <div className="mb-3">
                           <label className="form-label">First Name</label>
                           <input
@@ -676,22 +729,47 @@ export default function UserEditPage() {
                           <>
                             <div className="mb-3">
                               <label className="form-label">Department</label>
-                              <input
-                                className="form-control"
-                                value={form.departmentName}
-                                onChange={(e) =>
-                                  setForm((prev) => ({
-                                    ...prev,
-                                    departmentName: e.target.value,
-                                  }))
-                                }
-                                disabled={!canEditDepartment}
-                                readOnly={!canEditDepartment}
-                              />
+                              {canEditDepartment && orgDepartments.length > 0 ? (
+                                <select
+                                  className="form-select"
+                                  value={orgDeptId}
+                                  onChange={(e) => {
+                                    const nextId = e.target.value;
+                                    const selected = orgDepartments.find((item) => String(item.id) === String(nextId));
+                                    setOrgDeptId(nextId);
+                                    setForm((prev) => ({
+                                      ...prev,
+                                      departmentName: selected?.name || "",
+                                      teamName: "",
+                                    }));
+                                  }}
+                                  disabled={!canEditDepartment}
+                                >
+                                  <option value="">Select Department</option>
+                                  {orgDepartments.map((item) => (
+                                    <option key={item.id} value={item.id}>
+                                      {item.name}
+                                    </option>
+                                  ))}
+                                </select>
+                              ) : (
+                                <input
+                                  className="form-control"
+                                  value={form.departmentName}
+                                  onChange={(e) =>
+                                    setForm((prev) => ({
+                                      ...prev,
+                                      departmentName: e.target.value,
+                                    }))
+                                  }
+                                  disabled={!canEditDepartment}
+                                  readOnly={!canEditDepartment}
+                                />
+                              )}
                             </div>
                             <div className="mb-3">
                               <label className="form-label">Team</label>
-                              {isAdmin && orgTeams.length > 0 ? (
+                              {canEditTeam && orgTeams.length > 0 ? (
                                 <select
                                   className="form-select"
                                   value={form.teamName}
@@ -730,7 +808,7 @@ export default function UserEditPage() {
                         {canEditOrgScope && (
                           <>
                             <div className="mb-3">
-                              <label className="form-label">Institution</label>
+                              <label className="form-label">Branch</label>
                               <select
                                 className="form-select"
                                 value={orgInstId}
@@ -739,82 +817,18 @@ export default function UserEditPage() {
                                     const nextId = e.target.value;
                                     const selected = orgInstitutions.find((item) => String(item.id) === String(nextId));
                                     setOrgInstId(nextId);
-                                    setOrgCatId("");
-                                    setOrgTypeId("");
                                     setOrgDeptId("");
                                     setForm((prev) => ({
                                       ...prev,
                                       institutionName: selected?.name || "",
-                                      institutionCategory: "",
-                                      institutionType: "",
                                       departmentName: "",
                                       teamName: "",
                                     }));
                                   }
                                 }
                             >
-                                <option value="">Select Institution</option>
+                                <option value="">Select Branch</option>
                                 {orgInstitutions.map((item) => (
-                                  <option key={item.id} value={item.id}>
-                                    {item.name}
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
-                            <div className="mb-3">
-                              <label className="form-label">Institution Category</label>
-                              <select
-                                className="form-select"
-                                value={orgCatId}
-                                onChange={(e) =>
-                                  {
-                                    const nextId = e.target.value;
-                                    const selected = orgCategories.find((item) => String(item.id) === String(nextId));
-                                    setOrgCatId(nextId);
-                                    setOrgTypeId("");
-                                    setOrgDeptId("");
-                                    setForm((prev) => ({
-                                      ...prev,
-                                      institutionCategory: selected?.name || "",
-                                      institutionType: "",
-                                      departmentName: "",
-                                      teamName: "",
-                                    }));
-                                  }
-                                }
-                                disabled={!orgInstId}
-                              >
-                                <option value="">Select Institution Category</option>
-                                {orgCategories.map((item) => (
-                                  <option key={item.id} value={item.id}>
-                                    {item.name}
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
-                            <div className="mb-3">
-                              <label className="form-label">Institution Type</label>
-                              <select
-                                className="form-select"
-                                value={orgTypeId}
-                                onChange={(e) =>
-                                  {
-                                    const nextId = e.target.value;
-                                    const selected = orgTypes.find((item) => String(item.id) === String(nextId));
-                                    setOrgTypeId(nextId);
-                                    setOrgDeptId("");
-                                    setForm((prev) => ({
-                                      ...prev,
-                                      institutionType: selected?.name || "",
-                                      departmentName: "",
-                                      teamName: "",
-                                    }));
-                                  }
-                                }
-                                disabled={!orgCatId}
-                              >
-                                <option value="">Select Institution Type</option>
-                                {orgTypes.map((item) => (
                                   <option key={item.id} value={item.id}>
                                     {item.name}
                                   </option>
@@ -836,7 +850,7 @@ export default function UserEditPage() {
                                     teamName: "",
                                   }));
                                 }}
-                                disabled={!orgTypeId}
+                                disabled={!orgInstId}
                               >
                                 <option value="">Select Department</option>
                                 {orgDepartments.map((item) => (
@@ -954,8 +968,6 @@ export default function UserEditPage() {
                                 teamName: user.team || "",
                                 departmentName: user.departmentName || "",
                                 institutionName: user.institution || "",
-                                institutionCategory: user.institutionCategory || "",
-                                institutionType: user.institutionType || "",
                                 newPassword: "",
                                 confirmPassword: "",
                               })
@@ -963,6 +975,7 @@ export default function UserEditPage() {
                           >
                             Reset
                           </button>
+                        </div>
                         </div>
                       </div>
                     </div>
@@ -1113,7 +1126,6 @@ export default function UserEditPage() {
                         userGroups.map((group) => (
                           <tr key={group.id}>
                             <td>{group.name || "-"}</td>
-                            <td>{group.groupLevel ?? "-"}</td>
                             <td className="text-end">
                               <button
                                 className="btn btn-sm btn-outline-danger"

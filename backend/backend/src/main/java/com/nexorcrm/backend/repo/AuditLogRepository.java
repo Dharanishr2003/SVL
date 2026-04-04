@@ -43,8 +43,6 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
                               AND lower(u.email) = lower(a.performedBy)
                               AND u.role IN :roles
                               AND lower(coalesce(u.institutionName, '')) = lower(:institutionName)
-                              AND lower(coalesce(u.institutionCategory, '')) = lower(:institutionCategory)
-                              AND lower(coalesce(u.institutionType, '')) = lower(:institutionType)
                               AND lower(coalesce(u.departmentName, '')) = lower(:departmentName)
                         )
                         OR EXISTS (
@@ -53,8 +51,6 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
                               AND lower(u.email) = lower(a.targetUser)
                               AND u.role IN :roles
                               AND lower(coalesce(u.institutionName, '')) = lower(:institutionName)
-                              AND lower(coalesce(u.institutionCategory, '')) = lower(:institutionCategory)
-                              AND lower(coalesce(u.institutionType, '')) = lower(:institutionType)
                               AND lower(coalesce(u.departmentName, '')) = lower(:departmentName)
                         )
                     )
@@ -69,8 +65,6 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
                               AND lower(u.email) = lower(a.performedBy)
                               AND u.role IN :roles
                               AND lower(coalesce(u.institutionName, '')) = lower(:institutionName)
-                              AND lower(coalesce(u.institutionCategory, '')) = lower(:institutionCategory)
-                              AND lower(coalesce(u.institutionType, '')) = lower(:institutionType)
                               AND lower(coalesce(u.departmentName, '')) = lower(:departmentName)
                         )
                         OR EXISTS (
@@ -79,8 +73,6 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
                               AND lower(u.email) = lower(a.targetUser)
                               AND u.role IN :roles
                               AND lower(coalesce(u.institutionName, '')) = lower(:institutionName)
-                              AND lower(coalesce(u.institutionCategory, '')) = lower(:institutionCategory)
-                              AND lower(coalesce(u.institutionType, '')) = lower(:institutionType)
                               AND lower(coalesce(u.departmentName, '')) = lower(:departmentName)
                         )
                     )
@@ -89,8 +81,6 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
     Page<AuditLog> findVisibleForDepartmentScope(
             @Param("roles") List<Role> roles,
             @Param("institutionName") String institutionName,
-            @Param("institutionCategory") String institutionCategory,
-            @Param("institutionType") String institutionType,
             @Param("departmentName") String departmentName,
             Pageable pageable
     );
@@ -105,8 +95,6 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
                               AND lower(u.email) = lower(a.performedBy)
                               AND u.role IN :roles
                               AND lower(coalesce(u.institutionName, '')) = lower(:institutionName)
-                              AND lower(coalesce(u.institutionCategory, '')) = lower(:institutionCategory)
-                              AND lower(coalesce(u.institutionType, '')) = lower(:institutionType)
                               AND lower(coalesce(u.departmentName, '')) = lower(:departmentName)
                         )
                         OR EXISTS (
@@ -115,8 +103,6 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
                               AND lower(u.email) = lower(a.targetUser)
                               AND u.role IN :roles
                               AND lower(coalesce(u.institutionName, '')) = lower(:institutionName)
-                              AND lower(coalesce(u.institutionCategory, '')) = lower(:institutionCategory)
-                              AND lower(coalesce(u.institutionType, '')) = lower(:institutionType)
                               AND lower(coalesce(u.departmentName, '')) = lower(:departmentName)
                         )
                         OR lower(coalesce(a.performedBy, '')) IN :actorIds
@@ -133,8 +119,6 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
                               AND lower(u.email) = lower(a.performedBy)
                               AND u.role IN :roles
                               AND lower(coalesce(u.institutionName, '')) = lower(:institutionName)
-                              AND lower(coalesce(u.institutionCategory, '')) = lower(:institutionCategory)
-                              AND lower(coalesce(u.institutionType, '')) = lower(:institutionType)
                               AND lower(coalesce(u.departmentName, '')) = lower(:departmentName)
                         )
                         OR EXISTS (
@@ -143,8 +127,6 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
                               AND lower(u.email) = lower(a.targetUser)
                               AND u.role IN :roles
                               AND lower(coalesce(u.institutionName, '')) = lower(:institutionName)
-                              AND lower(coalesce(u.institutionCategory, '')) = lower(:institutionCategory)
-                              AND lower(coalesce(u.institutionType, '')) = lower(:institutionType)
                               AND lower(coalesce(u.departmentName, '')) = lower(:departmentName)
                         )
                         OR lower(coalesce(a.performedBy, '')) IN :actorIds
@@ -155,8 +137,6 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
     Page<AuditLog> findVisibleForDepartmentScopeWithActor(
             @Param("roles") List<Role> roles,
             @Param("institutionName") String institutionName,
-            @Param("institutionCategory") String institutionCategory,
-            @Param("institutionType") String institutionType,
             @Param("departmentName") String departmentName,
             @Param("actorIds") List<String> actorIds,
             Pageable pageable
@@ -172,8 +152,6 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
                               AND lower(u.email) = lower(a.performedBy)
                               AND u.role IN :roles
                               AND lower(coalesce(u.institutionName, '')) = lower(:institutionName)
-                              AND lower(coalesce(u.institutionCategory, '')) = lower(:institutionCategory)
-                              AND lower(coalesce(u.institutionType, '')) = lower(:institutionType)
                               AND lower(coalesce(u.departmentName, '')) = lower(:departmentName)
                               AND lower(coalesce(u.teamName, '')) = lower(:teamName)
                         )
@@ -183,8 +161,6 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
                               AND lower(u.email) = lower(a.targetUser)
                               AND u.role IN :roles
                               AND lower(coalesce(u.institutionName, '')) = lower(:institutionName)
-                              AND lower(coalesce(u.institutionCategory, '')) = lower(:institutionCategory)
-                              AND lower(coalesce(u.institutionType, '')) = lower(:institutionType)
                               AND lower(coalesce(u.departmentName, '')) = lower(:departmentName)
                               AND lower(coalesce(u.teamName, '')) = lower(:teamName)
                         )
@@ -200,8 +176,6 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
                               AND lower(u.email) = lower(a.performedBy)
                               AND u.role IN :roles
                               AND lower(coalesce(u.institutionName, '')) = lower(:institutionName)
-                              AND lower(coalesce(u.institutionCategory, '')) = lower(:institutionCategory)
-                              AND lower(coalesce(u.institutionType, '')) = lower(:institutionType)
                               AND lower(coalesce(u.departmentName, '')) = lower(:departmentName)
                               AND lower(coalesce(u.teamName, '')) = lower(:teamName)
                         )
@@ -211,8 +185,6 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
                               AND lower(u.email) = lower(a.targetUser)
                               AND u.role IN :roles
                               AND lower(coalesce(u.institutionName, '')) = lower(:institutionName)
-                              AND lower(coalesce(u.institutionCategory, '')) = lower(:institutionCategory)
-                              AND lower(coalesce(u.institutionType, '')) = lower(:institutionType)
                               AND lower(coalesce(u.departmentName, '')) = lower(:departmentName)
                               AND lower(coalesce(u.teamName, '')) = lower(:teamName)
                         )
@@ -222,8 +194,6 @@ public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
     Page<AuditLog> findVisibleForTeamScope(
             @Param("roles") List<Role> roles,
             @Param("institutionName") String institutionName,
-            @Param("institutionCategory") String institutionCategory,
-            @Param("institutionType") String institutionType,
             @Param("departmentName") String departmentName,
             @Param("teamName") String teamName,
             Pageable pageable

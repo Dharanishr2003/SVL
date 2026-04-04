@@ -1,12 +1,22 @@
 import api from "../utils/api";
 
-export async function getLeadFlow() {
-  const response = await api.get("/api/flow");
+function buildScopeQuery(scope = {}) {
+  const params = new URLSearchParams();
+  if (scope?.institutionName) params.set("institutionName", scope.institutionName);
+  const query = params.toString();
+  return query ? `?${query}` : "";
+}
+
+export async function getLeadFlow(scope = {}) {
+  const response = await api.get(`/api/flow${buildScopeQuery(scope)}`);
   return response?.data || {};
 }
 
-export async function updateLeadFlow(payload) {
-  const response = await api.put("/api/flow", payload);
+export async function updateLeadFlow(payload, scope = {}) {
+  const response = await api.put("/api/flow", {
+    ...payload,
+    institutionName: scope?.institutionName || payload?.institutionName || null,
+  });
   return response?.data || {};
 }
 

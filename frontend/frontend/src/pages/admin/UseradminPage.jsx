@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { AnimatePresence } from "motion/react";
 import {
   changeUserRole,
   createUser,
@@ -17,8 +18,6 @@ import { useAuth } from "../../context/AuthContext";
 import {
   createDepartment,
   createInstitution,
-  createInstitutionCategory,
-  createInstitutionType,
   createTeam,
   getDepartments,
   getInstitutionCategories,
@@ -29,8 +28,10 @@ import {
 } from "../../api/orgHierarchyApi";
 import { useToast } from "../../components/system/ToastProvider";
 import ConfirmDialog from "../../components/system/ConfirmDialog";
+import UserWizardModal from "../../components/admin/UserWizardModal";
+import { useCreateUserWizard } from "../../hooks/useCreateUserWizard";
 
-const FALLBACK_ROLES = ["SUPER_ADMIN", "ADMIN", "MANAGER", "EMPLOYEE"];
+const FALLBACK_ROLES = ["SUPER_ADMIN", "ADMIN", "MANAGER", "TEAM_LEAD", "EMPLOYEE"];
 const ENV_ROLE_OPTIONS = String(
   import.meta.env.VITE_ROLE_OPTIONS || "",
 ).trim();
@@ -42,24 +43,8 @@ const ROLE_RANK = {
   SUPER_ADMIN: 4,
   ADMIN: 3,
   MANAGER: 2,
-  EMPLOYEE: 1,
-};
-
-const EMPTY_FORM = {
-  username: "",
-  email: "",
-  firstName: "",
-  lastName: "",
-  phone: "",
-  role: "EMPLOYEE",
-  institution: "",
-  institutionCategory: "",
-  institutionType: "",
-  departmentName: "",
-  team: "",
-  password: "",
-  newPassword: "",
-  confirmPassword: "",
+  TEAM_LEAD: 1,
+  EMPLOYEE: 0,
 };
 
 function UseradminPage() {
@@ -72,8 +57,33 @@ function UseradminPage() {
   const [size, setSize] = useState(10);
   const [totalPages, setTotalPages] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [showModal, setShowModal] = useState(false);
-  const [form, setForm] = useState(EMPTY_FORM);
+  const {
+    form,
+    setForm,
+    wizardStep,
+    setWizardStep,
+    phoneCountryCode,
+    setPhoneCountryCode,
+    phoneError,
+    setPhoneError,
+    showCreatePassword,
+    setShowCreatePassword,
+    showModal,
+    setShowModal,
+    updateFormField,
+    handlePhoneInput,
+    handlePhoneBlur,
+    validatePhoneForSubmit,
+    nextStep,
+    prevStep,
+    openModal,
+    closeModal,
+    resetForm,
+    getPhoneMaxLength,
+    getFormattedPhone,
+    COUNTRY_CODE_OPTIONS,
+  } = useCreateUserWizard();
+
   const [saving, setSaving] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
   const [sessions, setSessions] = useState([]);
@@ -85,7 +95,6 @@ function UseradminPage() {
   const [pendingTotalPages, setPendingTotalPages] = useState(0);
   const [pendingLoading, setPendingLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("users");
-  const [showCreatePassword, setShowCreatePassword] = useState(false);
   const [showOrgModal, setShowOrgModal] = useState(false);
   const [orgModalLevel, setOrgModalLevel] = useState("");
   const [orgModalName, setOrgModalName] = useState("");
@@ -94,8 +103,6 @@ function UseradminPage() {
     role: "",
     status: "",
     institution: "",
-    category: "",
-    type: "",
     department: "",
     team: "",
   });
@@ -318,13 +325,13 @@ function UseradminPage() {
   useEffect(() => {
     let isMounted = true;
     const loadDepartmentRows = async () => {
-      if (!institutionId || !categoryId || !typeId) {
+      if (!institutionId) {
         setDepartments([]);
         return;
       }
       setOrgLoading(true);
       try {
-        const data = await getDepartments(institutionId, categoryId, typeId);
+        const data = await getDepartments(institutionId);
         if (!isMounted) return;
         setDepartments(Array.isArray(data) ? data : []);
 
@@ -351,23 +358,18 @@ function UseradminPage() {
     return () => {
       isMounted = false;
     };
-  }, [institutionId, categoryId, typeId, currentUser?.departmentName, departmentId]);
+  }, [institutionId, currentUser?.departmentName, departmentId]);
 
   useEffect(() => {
     let isMounted = true;
     const loadTeamRows = async () => {
-      if (!institutionId || !categoryId || !typeId || !departmentId) {
+      if (!institutionId || !departmentId) {
         setTeams([]);
         return;
       }
       setOrgLoading(true);
       try {
-        const data = await getTeams(
-          institutionId,
-          categoryId,
-          typeId,
-          departmentId,
-        );
+        const data = await getTeams(institutionId, departmentId);
         if (!isMounted) return;
         setTeams(Array.isArray(data) ? data : []);
 
@@ -394,15 +396,18 @@ function UseradminPage() {
     return () => {
       isMounted = false;
     };
-  }, [institutionId, categoryId, typeId, departmentId, currentUser?.team, currentRole, teamId]);
+  }, [institutionId, departmentId, currentUser?.team, currentRole, teamId]);
 
   const canAccessPage = useMemo(() => {
     return currentRole && currentRole !== "EMPLOYEE";
   }, [currentRole]);
 
-  const isSameInstitutionType = (row) =>
-    !currentUser?.institutionType ||
-    row?.institutionType === currentUser?.institutionType;
+  const isSameBranch = (row) =>
+    !currentUser?.institution || row?.institution === currentUser?.institution;
+
+  const isSameDepartment = (row) =>
+    !currentUser?.departmentName ||
+    row?.departmentName === currentUser?.departmentName;
 
   const isSameTeam = (row) =>
     !currentUser?.team || row?.team === currentUser?.team;
@@ -410,8 +415,14 @@ function UseradminPage() {
   const canSeeUser = (row) => {
     const role = String(currentUser?.role || "").toUpperCase();
     if (role === "SUPER_ADMIN") return true;
-    if (role === "ADMIN") return isSameInstitutionType(row);
+    if (role === "ADMIN") return isSameBranch(row);
     if (role === "MANAGER") {
+      return (
+        isSameDepartment(row) &&
+        ["TEAM_LEAD", "EMPLOYEE"].includes(String(row?.role || "").toUpperCase())
+      );
+    }
+    if (role === "TEAM_LEAD") {
       return isSameTeam(row) && String(row?.role || "").toUpperCase() === "EMPLOYEE";
     }
     return false;
@@ -419,12 +430,12 @@ function UseradminPage() {
 
   const visibleRows = useMemo(
     () => rows.filter(canSeeUser),
-    [rows, currentUser?.role, currentUser?.institutionType, currentUser?.team],
+    [rows, currentUser?.role, currentUser?.institution, currentUser?.departmentName, currentUser?.team],
   );
 
   const visiblePendingRows = useMemo(
     () => pendingRows.filter(canSeeUser),
-    [pendingRows, currentUser?.role, currentUser?.institutionType, currentUser?.team],
+    [pendingRows, currentUser?.role, currentUser?.institution, currentUser?.departmentName, currentUser?.team],
   );
 
   const ordered = useMemo(
@@ -476,10 +487,6 @@ function UseradminPage() {
 
       if (currentRole === "SUPER_ADMIN" || currentRole === "ADMIN") {
         if (filters.institution && row.institution !== filters.institution)
-          return false;
-        if (filters.category && row.institutionCategory !== filters.category)
-          return false;
-        if (filters.type && row.institutionType !== filters.type)
           return false;
         if (filters.role && row.role !== filters.role) return false;
         if (filters.department && row.departmentName !== filters.department)
@@ -536,8 +543,10 @@ function UseradminPage() {
   const selectedTeam = teams.find(
     (item) => String(item.id) === String(teamId),
   );
+  const selectedRole = String(form.role || "EMPLOYEE").toUpperCase();
+  const roleRequiresDepartment = selectedRole !== "ADMIN";
   const roleRequiresTeam =
-    currentRole !== "SUPER_ADMIN" || String(form.role || "").toUpperCase() === "MANAGER";
+    selectedRole === "TEAM_LEAD" || selectedRole === "EMPLOYEE";
 
   useEffect(() => {
     if (!form.institution || institutionId) return;
@@ -550,6 +559,10 @@ function UseradminPage() {
   }, [form.institution, institutionId, institutions]);
 
   useEffect(() => {
+    if (!categoryId && categories.length > 0) {
+      setCategoryId(String(categories[0].id));
+      return;
+    }
     if (!form.institutionCategory || categoryId) return;
     const match = categories.find(
       (item) =>
@@ -560,6 +573,10 @@ function UseradminPage() {
   }, [form.institutionCategory, categoryId, categories]);
 
   useEffect(() => {
+    if (!typeId && types.length > 0) {
+      setTypeId(String(types[0].id));
+      return;
+    }
     if (!form.institutionType || typeId) return;
     const match = types.find(
       (item) =>
@@ -590,9 +607,8 @@ function UseradminPage() {
   }, [form.team, teamId, teams]);
 
   const openCreate = () => {
-    setForm(EMPTY_FORM);
     setSelectedEmployeeId("");
-    setShowModal(true);
+    openModal();
     loadAvailableEmployees();
 
     if (currentRole === "SUPER_ADMIN") {
@@ -691,29 +707,9 @@ function UseradminPage() {
     setShowOrgModal(true);
   };
 
-  const handleAddCategory = async () => {
-    if (!institutionId) {
-      showError("Select institution first");
-      return;
-    }
-    setOrgModalLevel("category");
-    setOrgModalName("");
-    setShowOrgModal(true);
-  };
-
-  const handleAddType = async () => {
-    if (!institutionId || !categoryId) {
-      showError("Select institution and category first");
-      return;
-    }
-    setOrgModalLevel("type");
-    setOrgModalName("");
-    setShowOrgModal(true);
-  };
-
   const handleAddDepartment = async () => {
-    if (!institutionId || !categoryId || !typeId) {
-      showError("Select institution, category and type first");
+    if (!institutionId) {
+      showError("Select a branch first");
       return;
     }
     setOrgModalLevel("department");
@@ -722,8 +718,8 @@ function UseradminPage() {
   };
 
   const handleAddTeam = async () => {
-    if (!institutionId || !categoryId || !typeId || !departmentId) {
-      showError("Select institution, category, type and department first");
+    if (!institutionId || !departmentId) {
+      showError("Select a branch and department first");
       return;
     }
     setOrgModalLevel("team");
@@ -745,34 +741,16 @@ function UseradminPage() {
         const data = await getInstitutions();
         setInstitutions(Array.isArray(data) ? data : []);
         if (created?.id) setInstitutionId(String(created.id));
-        showSuccess("Institution created");
-      } else if (orgModalLevel === "category") {
-        const created = await createInstitutionCategory(institutionId, name);
-        const data = await getInstitutionCategories(institutionId);
-        setCategories(Array.isArray(data) ? data : []);
-        if (created?.id) setCategoryId(String(created.id));
-        showSuccess("Category created");
-      } else if (orgModalLevel === "type") {
-        const created = await createInstitutionType(institutionId, categoryId, name);
-        const data = await getInstitutionTypes(institutionId, categoryId);
-        setTypes(Array.isArray(data) ? data : []);
-        if (created?.id) setTypeId(String(created.id));
-        showSuccess("Type created");
+        showSuccess("Branch created");
       } else if (orgModalLevel === "department") {
-        const created = await createDepartment(institutionId, categoryId, typeId, name);
-        const data = await getDepartments(institutionId, categoryId, typeId);
+        const created = await createDepartment(institutionId, name);
+        const data = await getDepartments(institutionId);
         setDepartments(Array.isArray(data) ? data : []);
         if (created?.id) setDepartmentId(String(created.id));
         showSuccess("Department created");
       } else if (orgModalLevel === "team") {
-        const created = await createTeam(
-          institutionId,
-          categoryId,
-          typeId,
-          departmentId,
-          name,
-        );
-        const data = await getTeams(institutionId, categoryId, typeId, departmentId);
+        const created = await createTeam(institutionId, departmentId, name);
+        const data = await getTeams(institutionId, departmentId);
         setTeams(Array.isArray(data) ? data : []);
         if (created?.id) setTeamId(String(created.id));
         showSuccess("Team created");
@@ -796,6 +774,13 @@ function UseradminPage() {
       showError("Email is required");
       return;
     }
+
+    const phoneValidation = validatePhoneForSubmit();
+    if (!phoneValidation.isValid) {
+      showError(phoneValidation.message);
+      return;
+    }
+
     setSaving(true);
     try {
       if (!form.password.trim()) {
@@ -804,21 +789,11 @@ function UseradminPage() {
         return;
       }
       if (!selectedInstitution?.name) {
-        showError("Institution is required");
+        showError("Branch is required");
         setSaving(false);
         return;
       }
-      if (!selectedCategory?.name) {
-        showError("Category is required");
-        setSaving(false);
-        return;
-      }
-      if (!selectedType?.name) {
-        showError("Type is required");
-        setSaving(false);
-        return;
-      }
-      if (!selectedDepartment?.name) {
+      if (roleRequiresDepartment && !selectedDepartment?.name) {
         showError("Department is required");
         setSaving(false);
         return;
@@ -831,27 +806,36 @@ function UseradminPage() {
 
       const payload = {
         ...form,
-        role:
-          currentRole === "SUPER_ADMIN"
-            ? String(form.role || "EMPLOYEE").toUpperCase()
-            : "EMPLOYEE",
+        phone: getFormattedPhone(),
+        role: String(form.role || "EMPLOYEE").toUpperCase(),
         institution: selectedInstitution.name,
-        institutionCategory: selectedCategory.name,
-        institutionType: selectedType.name,
-        departmentName: selectedDepartment.name,
-        team: selectedTeam?.name || "",
+        institutionCategory: selectedCategory?.name || "",
+        institutionType: selectedType?.name || "",
+        departmentName: selectedRole === "ADMIN" ? "" : selectedDepartment?.name || "",
+        team: selectedRole === "ADMIN" ? "" : selectedTeam?.name || "",
       };
       if (String(currentUser?.role || "").toUpperCase() === "ADMIN") {
-        payload.institutionType = currentUser?.institutionType || payload.institutionType;
+        if (payload.role === "ADMIN" || payload.role === "SUPER_ADMIN") {
+          payload.role = "EMPLOYEE";
+        }
+        payload.institution = currentUser?.institution || payload.institution;
       }
       if (String(currentUser?.role || "").toUpperCase() === "MANAGER") {
-        payload.institutionType = currentUser?.institutionType || payload.institutionType;
+        if (["SUPER_ADMIN", "ADMIN", "MANAGER"].includes(payload.role)) {
+          payload.role = "EMPLOYEE";
+        }
+        payload.institution = currentUser?.institution || payload.institution;
+        payload.departmentName = currentUser?.departmentName || payload.departmentName;
+      }
+      if (String(currentUser?.role || "").toUpperCase() === "TEAM_LEAD") {
+        payload.role = "EMPLOYEE";
+        payload.institution = currentUser?.institution || payload.institution;
+        payload.departmentName = currentUser?.departmentName || payload.departmentName;
         payload.team = currentUser?.team || payload.team;
       }
       await createUser(payload);
       showSuccess("User created");
-      setShowModal(false);
-      setForm(EMPTY_FORM);
+      closeModal();
       await loadAvailableEmployees();
       await load();
       await loadPending();
@@ -981,9 +965,101 @@ function UseradminPage() {
   }
 
   return (
-    <div className="content">
-      <div className="card">
-        <div className="card-header d-flex align-items-center justify-content-between flex-wrap gap-2">
+    <div className="content user-admin-page">
+      <style>{`
+        .user-admin-page .btn-primary {
+          background-color: #45597a;
+          border-color: #45597a;
+          border-radius: 2rem;
+          padding: 0.6rem 1.5rem;
+          font-weight: 500;
+          transition: all 0.3s ease;
+        }
+        .user-admin-page .btn-primary:hover {
+          background-color: #354560;
+          border-color: #354560;
+        }
+        .user-admin-page .form-control,
+        .user-admin-page .form-select {
+          border-radius: 1.5rem;
+          border: 1px solid #d0d5dd;
+          padding: 0.6rem 1rem;
+          font-size: 0.95rem;
+        }
+        .user-admin-page .form-control:focus,
+        .user-admin-page .form-select:focus {
+          border-color: #45597a;
+          box-shadow: 0 0 0 0.2rem rgba(69, 89, 122, 0.15);
+        }
+        .user-admin-page .form-label {
+          color: #34393f;
+          font-weight: 500;
+          font-size: 0.9rem;
+        }
+        .user-admin-page .btn-light {
+          background-color: #f5f5f5;
+          border-color: #d0d5dd;
+          border-radius: 2rem;
+          color: #34393f;
+        }
+        .user-admin-page .btn-light:hover {
+          background-color: #efefef;
+        }
+        .user-admin-page .btn-outline-secondary {
+          border-radius: 2rem;
+          border-color: #d0d5dd;
+          color: #45597a;
+        }
+        .user-admin-page .btn-outline-secondary:hover {
+          background-color: #f5f5f5;
+          border-color: #45597a;
+        }
+        .user-admin-page .nav-underline .nav-link {
+          color: #34393f;
+          border-bottom: 2px solid transparent;
+          font-weight: 500;
+        }
+        .user-admin-page .nav-underline .nav-link.active {
+          color: #45597a;
+          border-bottom-color: #45597a;
+        }
+        .user-admin-page .table {
+          background-color: transparent;
+        }
+        .user-admin-page .table thead th {
+          background-color: transparent;
+          color: #34393f;
+          font-weight: 600;
+          border: none;
+          padding: 1rem;
+        }
+        .user-admin-page .table tbody td {
+          padding: 1rem;
+          border-color: #e9ecef;
+          color: #34393f;
+        }
+        .user-admin-page .badge {
+          border-radius: 1.5rem;
+          padding: 0.4rem 0.8rem;
+          font-weight: 500;
+        }
+        .user-admin-page .btn-sm {
+          border-radius: 1.5rem;
+          padding: 0.4rem 0.8rem;
+        }
+        .create-user-wizard .form-select {
+          border-radius: 1.5rem !important;
+          border: 1px solid #d0d5dd !important;
+          padding: 0.6rem 1rem !important;
+          font-size: 0.95rem !important;
+        }
+        .create-user-wizard .form-select:focus {
+          border-color: #45597a !important;
+          box-shadow: 0 0 0 0.2rem rgba(69, 89, 122, 0.15) !important;
+        }
+      `}</style>
+      <div>
+        <div className="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-4">
           <div>
             <h4 className="mb-1">User Admin</h4>
             <p className="mb-0 text-muted">
@@ -994,7 +1070,7 @@ function UseradminPage() {
             + Add User
           </button>
         </div>
-        <div className="card-body">
+        <div>
           <div className="d-flex align-items-end justify-content-between flex-wrap gap-2 mb-3">
             <div className="d-flex align-items-end flex-wrap gap-2">
               <div>
@@ -1025,13 +1101,13 @@ function UseradminPage() {
               {currentRole === "SUPER_ADMIN" && (
                 <>
                   <div>
-                    <label className="form-label">Institution *</label>
+                    <label className="form-label">Branch</label>
                     <select
                       className="form-select"
                       value={filters.institution}
                       onChange={(e) => {
                         const val = e.target.value;
-                        setFilters((prev) => ({ ...prev, institution: val, category: "", type: "", department: "", team: "" }));
+                        setFilters((prev) => ({ ...prev, institution: val, department: "", team: "" }));
                         if (val) {
                           const inst = institutions.find((i) => i.name === val);
                           if (inst) setInstitutionId(String(inst.id));
@@ -1048,61 +1124,6 @@ function UseradminPage() {
                       {institutions.map((inst) => (
                         <option key={inst.id} value={inst.name}>
                           {inst.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="form-label">Category *</label>
-                    <select
-                      className="form-select"
-                      value={filters.category}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setFilters((prev) => ({ ...prev, category: val, type: "", department: "", team: "" }));
-                        if (val) {
-                          const cat = categories.find((c) => c.name === val);
-                          if (cat) setCategoryId(String(cat.id));
-                        } else {
-                          setCategoryId("");
-                        }
-                        setTypeId("");
-                        setDepartmentId("");
-                        setTeamId("");
-                      }}
-                      disabled={!filters.institution}
-                    >
-                      <option value="">Select</option>
-                      {categories.map((cat) => (
-                        <option key={cat.id} value={cat.name}>
-                          {cat.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="form-label">Type *</label>
-                    <select
-                      className="form-select"
-                      value={filters.type}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setFilters((prev) => ({ ...prev, type: val, department: "", team: "" }));
-                        if (val) {
-                          const t = types.find((ty) => ty.name === val);
-                          if (t) setTypeId(String(t.id));
-                        } else {
-                          setTypeId("");
-                        }
-                        setDepartmentId("");
-                        setTeamId("");
-                      }}
-                      disabled={!filters.category}
-                    >
-                      <option value="">Select</option>
-                      {types.map((t) => (
-                        <option key={t.id} value={t.name}>
-                          {t.name}
                         </option>
                       ))}
                     </select>
@@ -1129,7 +1150,12 @@ function UseradminPage() {
                     }
                     setTeamId("");
                   }}
-                  disabled={currentRole === "MANAGER" || (currentRole === "SUPER_ADMIN" ? !filters.type : !typeId)}
+                  disabled={
+                    currentRole === "MANAGER" ||
+                    (currentRole === "SUPER_ADMIN"
+                      ? !filters.institution || !categoryId || !typeId
+                      : !institutionId || !categoryId || !typeId)
+                  }
                 >
                   <option value="">Select</option>
                   {departments.map((dept) => (
@@ -1633,347 +1659,56 @@ function UseradminPage() {
         </div>
       </div>
 
-      {showModal && (
-        <>
-          <div
-            className="modal fade show"
-            style={{ display: "block" }}
-            tabIndex="-1"
-          >
-            <div className="modal-dialog modal-lg">
-            <div className="modal-content">
-              <div className="modal-header">
-                <h5 className="modal-title">
-                  Create User
-                </h5>
-                  <button
-                    className="btn-close"
-                    onClick={() => setShowModal(false)}
-                  />
-                </div>
-                <div className="modal-body">
-                  <div className="row g-3">
-                    <div className="col-md-6">
-                      <label className="form-label">Username *</label>
-                      <input
-                        className="form-control"
-                        value={form.username}
-                        onChange={(e) =>
-                          setForm((f) => ({ ...f, username: e.target.value }))
-                        }
-                      />
-                    </div>
-                    {currentRole === "SUPER_ADMIN" && (
-                      <div className="col-md-6">
-                        <label className="form-label">Role *</label>
-                        <select
-                          className="form-select"
-                          value={form.role}
-                          onChange={(e) =>
-                            setForm((f) => ({ ...f, role: e.target.value }))
-                          }
-                        >
-                          {allowedAssignRoles.map((role) => (
-                            <option key={role} value={role}>
-                              {role.replace(/_/g, " ")}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
-                    <div className="col-md-6">
-                      <label className="form-label">Select Employee</label>
-                      <select
-                        className="form-select"
-                        value={selectedEmployeeId}
-                        onChange={(e) => handleSelectEmployee(e.target.value)}
-                      >
-                        <option value="">-- Select Employee --</option>
-                        {availableEmployees.map((emp) => (
-                          <option key={emp.id} value={emp.id}>
-                            {emp.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="col-12">
-                      <hr className="my-2" />
-                      <h6 className="mb-2">Organization Details</h6>
-                    </div>
-                    <div className="col-md-6">
-                      <div className="d-flex align-items-center justify-content-between">
-                        <label className="form-label mb-1">Institution *</label>
-                        <button
-                          type="button"
-                          className="btn btn-sm btn-primary px-2 py-0"
-                          onClick={handleAddInstitution}
-                          disabled={saving || currentRole !== "SUPER_ADMIN"}
-                          title="Add Institution"
-                        >
-                          +
-                        </button>
-                      </div>
-                      <select
-                        className="form-select"
-                        value={institutionId}
-                        onChange={(e) => {
-                          setInstitutionId(e.target.value);
-                          setCategoryId("");
-                          setTypeId("");
-                          setDepartmentId("");
-                          setTeamId("");
-                          setCategories([]);
-                          setTypes([]);
-                          setDepartments([]);
-                          setTeams([]);
-                        }}
-                        disabled={orgLoading || isAdmin || isManager}
-                      >
-                        <option value="">Select</option>
-                        {institutions.map((item) => (
-                          <option key={item.id} value={item.id}>
-                            {item.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="col-md-6">
-                      <div className="d-flex align-items-center justify-content-between">
-                        <label className="form-label mb-1">Category *</label>
-                        <button
-                          type="button"
-                          className="btn btn-sm btn-primary px-2 py-0"
-                          onClick={handleAddCategory}
-                          disabled={saving || !institutionId || isManager}
-                          title="Add Category"
-                        >
-                          +
-                        </button>
-                      </div>
-                      <select
-                        className="form-select"
-                        value={categoryId}
-                        onChange={(e) => {
-                          setCategoryId(e.target.value);
-                          setTypeId("");
-                          setDepartmentId("");
-                          setTeamId("");
-                          setTypes([]);
-                          setDepartments([]);
-                          setTeams([]);
-                        }}
-                        disabled={orgLoading || !institutionId || isManager || isAdmin}
-                      >
-                        <option value="">Select</option>
-                        {categories.map((item) => (
-                          <option key={item.id} value={item.id}>
-                            {item.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="col-md-6">
-                      <div className="d-flex align-items-center justify-content-between">
-                        <label className="form-label mb-1">Type *</label>
-                        <button
-                          type="button"
-                          className="btn btn-sm btn-primary px-2 py-0"
-                          onClick={handleAddType}
-                          disabled={saving || !institutionId || !categoryId || isManager}
-                          title="Add Type"
-                        >
-                          +
-                        </button>
-                      </div>
-                      <select
-                        className="form-select"
-                        value={typeId}
-                        onChange={(e) => {
-                          setTypeId(e.target.value);
-                          setDepartmentId("");
-                          setTeamId("");
-                          setDepartments([]);
-                          setTeams([]);
-                        }}
-                        disabled={orgLoading || !categoryId || isManager || isAdmin}
-                      >
-                        <option value="">Select</option>
-                        {types.map((item) => (
-                          <option key={item.id} value={item.id}>
-                            {item.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="col-md-6">
-                      <div className="d-flex align-items-center justify-content-between">
-                        <label className="form-label mb-1">Department *</label>
-                        <button
-                          type="button"
-                          className="btn btn-sm btn-primary px-2 py-0"
-                          onClick={handleAddDepartment}
-                          disabled={
-                            saving ||
-                            !institutionId ||
-                            !categoryId ||
-                            !typeId ||
-                            isManager
-                          }
-                          title="Add Department"
-                        >
-                          +
-                        </button>
-                      </div>
-                      <select
-                        className="form-select"
-                        value={departmentId}
-                        onChange={(e) => {
-                          setDepartmentId(e.target.value);
-                          setTeamId("");
-                          setTeams([]);
-                        }}
-                        disabled={orgLoading || !typeId || isManager || isAdmin}
-                      >
-                        <option value="">Select</option>
-                        {departments.map((item) => (
-                          <option key={item.id} value={item.id}>
-                            {item.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="col-md-6">
-                      <div className="d-flex align-items-center justify-content-between">
-                        <label className="form-label mb-1">
-                          {roleRequiresTeam ? "Team *" : "Team (Optional)"}
-                        </label>
-                        <button
-                          type="button"
-                          className="btn btn-sm btn-primary px-2 py-0"
-                          onClick={handleAddTeam}
-                          disabled={
-                            saving ||
-                            !institutionId ||
-                            !categoryId ||
-                            !typeId ||
-                            !departmentId
-                          }
-                          title="Add Team"
-                        >
-                          +
-                        </button>
-                      </div>
-                      <select
-                        className="form-select"
-                        value={teamId}
-                        onChange={(e) => setTeamId(e.target.value)}
-                        disabled={orgLoading || !departmentId || (currentRole === "MANAGER")}
-                      >
-                        <option value="">Select</option>
-                        {teams.map((item) => (
-                          <option key={item.id} value={item.id}>
-                            {item.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="col-md-6">
-                      <label className="form-label">Email *</label>
-                      <input
-                        type="email"
-                        className="form-control"
-                        value={form.email}
-                        onChange={(e) =>
-                          setForm((f) => ({ ...f, email: e.target.value }))
-                        }
-                      />
-                    </div>
-                    <div className="col-md-6">
-                      <label className="form-label">First Name</label>
-                      <input
-                        className="form-control"
-                        value={form.firstName}
-                        onChange={(e) =>
-                          setForm((f) => ({ ...f, firstName: e.target.value }))
-                        }
-                      />
-                    </div>
-                    <div className="col-md-6">
-                      <label className="form-label">Last Name</label>
-                      <input
-                        className="form-control"
-                        value={form.lastName}
-                        onChange={(e) =>
-                          setForm((f) => ({ ...f, lastName: e.target.value }))
-                        }
-                      />
-                    </div>
-                    <div className="col-md-6">
-                      <label className="form-label">Phone</label>
-                      <input
-                        type="tel"
-                        className="form-control"
-                        value={form.phone || ""}
-                        onChange={(e) =>
-                          setForm((f) => ({ ...f, phone: e.target.value }))
-                        }
-                        placeholder="Phone number"
-                      />
-                    </div>
-                    <div className="col-md-6">
-                      <label className="form-label">Password *</label>
-                      <div className="position-relative">
-                        <input
-                          type={showCreatePassword ? "text" : "password"}
-                          className="form-control"
-                          value={form.password}
-                          onChange={(e) =>
-                            setForm((f) => ({ ...f, password: e.target.value }))
-                          }
-                        />
-                        <button
-                          type="button"
-                          className="btn btn-link p-0 text-muted"
-                          style={{ position: "absolute", right: 12, top: 8 }}
-                          onClick={() =>
-                            setShowCreatePassword((prev) => !prev)
-                          }
-                          aria-label={
-                            showCreatePassword ? "Hide password" : "Show password"
-                          }
-                        >
-                          <i
-                            className={`ti ${
-                              showCreatePassword ? "ti-eye-off" : "ti-eye"
-                            }`}
-                          />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <div className="modal-footer">
-                  <button
-                    className="btn btn-light"
-                    onClick={() => setShowModal(false)}
-                    disabled={saving}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    className="btn btn-primary"
-                    onClick={handleSave}
-                    disabled={saving}
-                  >
-                    {saving ? "Saving..." : "Create"}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div className="modal-backdrop fade show" />
-        </>
-      )}
+      <AnimatePresence>
+        {showModal && (
+          <UserWizardModal
+            wizardStep={wizardStep}
+            form={form}
+            setForm={setForm}
+            phoneCountryCode={phoneCountryCode}
+            setPhoneCountryCode={setPhoneCountryCode}
+            phoneError={phoneError}
+            handlePhoneInput={handlePhoneInput}
+            handlePhoneBlur={handlePhoneBlur}
+            getPhoneMaxLength={getPhoneMaxLength}
+            COUNTRY_CODE_OPTIONS={COUNTRY_CODE_OPTIONS}
+            showCreatePassword={showCreatePassword}
+            setShowCreatePassword={setShowCreatePassword}
+            institutionId={institutionId}
+            setInstitutionId={setInstitutionId}
+            departmentId={departmentId}
+            setDepartmentId={setDepartmentId}
+            teamId={teamId}
+            setTeamId={setTeamId}
+            institutions={institutions}
+            departments={departments}
+            teams={teams}
+            categoryId={categoryId}
+            setCategoryId={setCategoryId}
+            typeId={typeId}
+            setTypeId={setTypeId}
+            categories={categories}
+            types={types}
+            orgLoading={orgLoading}
+            currentRole={currentRole}
+            allowedAssignRoles={allowedAssignRoles}
+            availableEmployees={availableEmployees}
+            selectedEmployeeId={selectedEmployeeId}
+            handleSelectEmployee={handleSelectEmployee}
+            handleAddInstitution={handleAddInstitution}
+            handleAddDepartment={handleAddDepartment}
+            handleAddTeam={handleAddTeam}
+            roleRequiresTeam={roleRequiresTeam}
+            isAdmin={isAdmin}
+            isManager={isManager}
+            onNext={nextStep}
+            onPrev={prevStep}
+            onSubmit={handleSave}
+            onClose={closeModal}
+            saving={saving}
+          />
+        )}
+      </AnimatePresence>
 
       {showOrgModal && (
         <>

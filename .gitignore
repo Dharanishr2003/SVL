@@ -6,3 +6,5 @@ node_modules/
 *.prefs
 *.ini
 *.ser
+.vscode/
+.claude/
