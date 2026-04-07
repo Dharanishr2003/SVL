@@ -1,14 +1,11 @@
 import { Suspense, lazy, useEffect } from "react";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import AdminLayout from "./layouts/AdminLayout";
-import CustomerLayout from "./layouts/CustomerLayout";
 import { adminPhpRoutes } from "./adminPhpRoutes";
 import PageLoader from "./components/common/PageLoader";
 import ProtectedRoute from "./routes/ProtectedRoute";
 import LoginPage from "./pages/common/LoginPage";
 import UnauthorizedPage from "./pages/common/UnauthorizedPage";
-import CustomerChatPage from "./pages/customer/CustomerChatPage";
-import CustomerStatusPage from "./pages/customer/CustomerStatusPage";
 import RouteProgress, {
   beginRouteProgress,
   endRouteProgress,
@@ -20,11 +17,9 @@ import { getDefaultLandingPath } from "./constants/pageAccess";
 
 const adminPageModules = import.meta.glob("./pages/admin/*Page.jsx");
 
-const ActivityPage = lazy(() => import("./pages/admin/ActivityPage"));
 const AdminDashboardPage = lazy(
   () => import("./pages/admin/AdminDashboardPage"),
 );
-const AnalyticsPage = lazy(() => import("./pages/admin/AnalyticsPage"));
 const AttendanceAdminPage = lazy(
   () => import("./pages/admin/AttendanceAdminPage"),
 );
@@ -36,9 +31,7 @@ const DesignWorkPage = lazy(
 );
 
 const explicitLazyComponents = {
-  ActivityPage,
   AdminDashboardPage,
-  AnalyticsPage,
   AttendanceAdminPage,
   AttendanceEmployeePage,
   DesignWorkPage,
@@ -151,17 +144,6 @@ export default function App() {
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/unauthorized" element={<UnauthorizedPage />} />
-        <Route
-          path="/customer"
-          element={
-            <ProtectedRoute role="customer">
-              <CustomerLayout />
-            </ProtectedRoute>
-          }
-        >
-          <Route path="chat" element={<CustomerChatPage />} />
-          <Route path="status" element={<CustomerStatusPage />} />
-        </Route>
         <Route path="/" element={<AdminLayout />}>
           <Route index element={<RoleRedirect />} />
           {adminPhpRoutes.map((route) => (

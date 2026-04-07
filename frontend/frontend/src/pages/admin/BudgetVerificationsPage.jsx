@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { downloadLeadRequirementFile, getLeads, updateLeadDetails } from "../../api/leadsApi";
-import { getProductionRequirements } from "../../api/productionRequirementApi";
 import { getDesignRequirement } from "../../api/designRequirementApi";
 import { getUsers, getUserById } from "../../api/userAdminApi";
 import { extractApiErrorMessage } from "../../utils/errorMessage";
@@ -64,7 +63,6 @@ export default function BudgetVerificationsPage() {
   const [detailLead, setDetailLead] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailDesignRequirement, setDetailDesignRequirement] = useState(null);
-  const [detailProductionRequirements, setDetailProductionRequirements] = useState([]);
 
   const getAssignedDisplayName = (lead) => {
     const assignedUserId = lead?.budgetVerificationAssignedToUserId;
@@ -169,14 +167,9 @@ export default function BudgetVerificationsPage() {
     setDetailLead(lead);
     setDetailLoading(true);
     setDetailDesignRequirement(null);
-    setDetailProductionRequirements([]);
     try {
-      const [designReq, productionReqs] = await Promise.all([
-        getDesignRequirement(lead.id),
-        getProductionRequirements(lead.id),
-      ]);
+      const designReq = await getDesignRequirement(lead.id);
       setDetailDesignRequirement(designReq || null);
-      setDetailProductionRequirements(Array.isArray(productionReqs) ? productionReqs : []);
     } catch (e) {
       showError(extractApiErrorMessage(e, "Failed to load requirement details"));
     } finally {
@@ -187,7 +180,6 @@ export default function BudgetVerificationsPage() {
   const closeRequirementDetails = () => {
     setDetailLead(null);
     setDetailDesignRequirement(null);
-    setDetailProductionRequirements([]);
     setDetailLoading(false);
   };
 
@@ -461,44 +453,7 @@ export default function BudgetVerificationsPage() {
                         </div>
                       )}
 
-                      {detailProductionRequirements.length > 0 && (
-                        <div className="card">
-                          <div className="card-header">
-                            <h6 className="mb-0"><i className="ti ti-box me-2"></i>Production Requirement Details</h6>
-                          </div>
-                          <div className="card-body">
-                            {detailProductionRequirements.map((req, idx) => (
-                              <div key={req.id || idx} className={idx > 0 ? "border-top pt-3 mt-3" : ""}>
-                                <div className="row g-3">
-                                  <DetailField label="Requirement Type" value={req.requirementType} className="col-md-3" />
-                                  <DetailField label="Product Type" value={req.productType} className="col-md-3" />
-                                  <DetailField label="Quantity" value={req.quantity} className="col-md-3" />
-                                  <DetailField label="Paper Size" value={req.paperSize} className="col-md-3" />
-                                  <DetailField label="Paper Type" value={req.paperType} className="col-md-3" />
-                                  <DetailField label="GSM" value={req.paperGsm} className="col-md-3" />
-                                  <DetailField label="Color Type" value={req.colorType} className="col-md-3" />
-                                  <DetailField label="Print Sides" value={req.printSides} className="col-md-3" />
-                                  <DetailField label="Printing Method" value={req.printingMethod} className="col-md-6" />
-                                  <DetailField label="Finishing Options" value={req.finishingOptions} className="col-md-6" />
-                                  <DetailField label="Priority" value={req.priority} className="col-md-4" />
-                                  <DetailField label="Print Deadline" value={req.printDeadline ? formatDateTime(req.printDeadline) : "-"} className="col-md-4" />
-                                  <DetailField label="Delivery Date" value={req.deliveryDate ? formatDateTime(req.deliveryDate) : "-"} className="col-md-4" />
-                                  <DetailField label="Additional Notes" value={req.additionalNotes} className="col-md-12" />
-                                  <FileField
-                                    label="Artwork File"
-                                    fileName={req.artworkFileName}
-                                    filePath={req.artworkFilePath}
-                                    onDownload={downloadProtectedFile}
-                                    className="col-md-12"
-                                  />
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {!detailDesignRequirement && detailProductionRequirements.length === 0 && (
+                      {!detailDesignRequirement && (
                         <div className="text-muted">No submitted requirement details found for this lead.</div>
                       )}
                     </>

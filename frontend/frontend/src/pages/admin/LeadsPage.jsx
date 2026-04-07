@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+﻿import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 import { jsPDF } from "jspdf";
@@ -8,6 +8,7 @@ import {
   createLead,
   deleteLead,
   getAssignableLeadGroups,
+  getImportableEmployees,
   getLeadChatMessages,
   getLeadFilters,
   getLeads,
@@ -41,8 +42,6 @@ import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../components/system/ToastProvider";
 import useConfirmDialog from "../../components/system/useConfirmDialog";
 import { useCountryCodePicker } from "../../hooks/useCountryCodePicker";
-import ProductionModal from "./ProductionModal";
-import { saveProductionRequirement, getProductionRequirement } from "../../api/productionRequirementApi";
 import "./LeadsPage.css";
 
 const EMPTY_CREATE_FORM = {
@@ -450,6 +449,14 @@ export default function LeadsPage() {
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [statusLead, setStatusLead] = useState(null);
   const [statusValue, setStatusValue] = useState("");
+  const [attemptedOpenReason, setAttemptedOpenReason] = useState("");
+  const [attemptedCallStatus, setAttemptedCallStatus] = useState("");
+  const [attemptedCallRemarks, setAttemptedCallRemarks] = useState("");
+  const [attemptedFollowUpDate, setAttemptedFollowUpDate] = useState("");
+  const [interestedFollowUpDate, setInterestedFollowUpDate] = useState("");
+  const [interestedCallRemarks, setInterestedCallRemarks] = useState("");
+  const [rejectedReason, setRejectedReason] = useState("");
+  const [rejectedReasonSubtype, setRejectedReasonSubtype] = useState("");
   const [showDesignDurationModal, setShowDesignDurationModal] = useState(false);
   const [designStartAt, setDesignStartAt] = useState("");
   const [designEndAt, setDesignEndAt] = useState("");
@@ -457,35 +464,20 @@ export default function LeadsPage() {
   const [remarkLead, setRemarkLead] = useState(null);
   const [remarkValue, setRemarkValue] = useState("");
 
-  // Production Requirements State
-  const [showProductionModal, setShowProductionModal] = useState(false);
-  const [currentLeadId, setCurrentLeadId] = useState(null);
-  const [productType, setProductType] = useState("");
-  const [customProductType, setCustomProductType] = useState("");
-  const [quantity, setQuantity] = useState("");
-  const [numPages, setNumPages] = useState("");
-  const [paperSize, setPaperSize] = useState("");
-  const [customSizeWidth, setCustomSizeWidth] = useState("");
-  const [customSizeHeight, setCustomSizeHeight] = useState("");
-  const [customSizeUnit, setCustomSizeUnit] = useState("mm");
-  const [paperType, setPaperType] = useState("");
-  const [paperGsm, setPaperGsm] = useState("");
-  const [colorType, setColorType] = useState("");
-  const [printSides, setPrintSides] = useState("");
-  const [printingMethod, setPrintingMethod] = useState("");
-  const [finishingOptions, setFinishingOptions] = useState("");
-  const [foldingType, setFoldingType] = useState("");
-  const [artworkFileName, setArtworkFileName] = useState("");
-  const [artworkFilePath, setArtworkFilePath] = useState("");
-  const [productionAdditionalNotes, setProductionAdditionalNotes] = useState("");
-  const [printDeadline, setPrintDeadline] = useState("");
-  const [deliveryDate, setDeliveryDate] = useState("");
-  const [priority, setPriority] = useState("Normal");
-
   const [saving, setSaving] = useState(false);
   const [selectedLeadIds, setSelectedLeadIds] = useState(new Set());
 
   const visibleRows = useMemo(() => rows, [rows]);
+  const flowScopeByGroupId = useMemo(() => {
+    const map = new Map();
+    (groupOptions || []).forEach((group) => {
+      if (group?.id == null) return;
+      const institutionName = String(group?.institutionName || "").trim();
+      if (!institutionName) return;
+      map.set(String(group.id), institutionName);
+    });
+    return map;
+  }, [groupOptions]);
 
   const loadLeads = async (nextFilters = filters) => {
     setLoading(true);
@@ -640,9 +632,22 @@ export default function LeadsPage() {
         return;
       }
       try {
-        const members = await getGroupMembers(createForm.leadGroupId);
-        if (isMounted) {
-          setCreateGroupMembers(Array.isArray(members) ? members : []);
+        if (role === "TEAM_LEAD") {
+          const employees = await getImportableEmployees();
+          if (isMounted) {
+            setCreateGroupMembers(
+              (Array.isArray(employees) ? employees : []).map((e) => ({
+                userId: e.id,
+                username: e.username,
+                role: e.role,
+              }))
+            );
+          }
+        } else {
+          const members = await getGroupMembers(createForm.leadGroupId);
+          if (isMounted) {
+            setCreateGroupMembers(Array.isArray(members) ? members : []);
+          }
         }
       } catch (e) {
         if (isMounted) {
@@ -793,8 +798,26 @@ export default function LeadsPage() {
     setStatusValue("");
     setDesignStartAt(toInputDateTime(lead?.designStartAt || ""));
     setDesignEndAt(toInputDateTime(lead?.designEndAt || ""));
+    setAttemptedOpenReason("");
+    setAttemptedCallStatus("");
+    setAttemptedCallRemarks("");
+    setAttemptedFollowUpDate("");
+    setInterestedFollowUpDate("");
+    setInterestedCallRemarks("");
+    setRejectedReason("");
+    setRejectedReasonSubtype("");
     setShowStatusModal(true);
     setError("");
+
+    const groupId = lead?.leadGroupId ?? lead?.assignedGroupId ?? null;
+    const institutionName = groupId != null ? flowScopeByGroupId.get(String(groupId)) : "";
+    getLeadFlow(institutionName ? { institutionName } : {})
+      .then((flow) => {
+        setFlowRules(Array.isArray(flow?.rules) ? flow.rules : []);
+      })
+      .catch(() => {
+        setFlowRules([]);
+      });
   };
 
   const resolveNextGroupIdForStatus = (status) => {
@@ -863,7 +886,31 @@ export default function LeadsPage() {
         setSaving(false);
       }
     }
-    if (["attempted", "interested", "rejected", "requirement", "allocate"].includes(nextKey)) {
+    // Validate and handle Attempted form
+    if (nextKey === "attempted") {
+      if (!attemptedOpenReason || !attemptedCallStatus) {
+        setError("Please complete Open Reason and Call Status for Attempted status");
+        return;
+      }
+    }
+
+    // Validate and handle Interested form
+    if (nextKey === "interested") {
+      if (!interestedFollowUpDate) {
+        setError("Please select Follow Up Date for Interested status");
+        return;
+      }
+    }
+
+    // Validate and handle Rejected form
+    if (nextKey === "rejected") {
+      if (!rejectedReason) {
+        setError("Please select Rejected Reason");
+        return;
+      }
+    }
+
+    if (nextKey === "allocate") {
       setShowStatusModal(false);
       setStatusLead(null);
       navigate(`/leads/${statusLead.id}?status=${encodeURIComponent(statusValue)}`);
@@ -876,7 +923,7 @@ export default function LeadsPage() {
       return;
     }
     
-    // Handle payment/design/production status with round‑robin assignment and history
+    // Handle payment/design/production status with roundâ€‘robin assignment and history
     if (nextKey === "payment" || nextKey === "design" || nextKey === "production") {
       setSaving(true);
       setError("");
@@ -928,7 +975,7 @@ export default function LeadsPage() {
         setShowStatusModal(false);
         setStatusLead(null);
         showSuccess(
-          `✓ Lead moved to ${nextKey.charAt(0).toUpperCase() + nextKey.slice(1)} status with round-robin assignment`,
+          `âœ“ Lead moved to ${nextKey.charAt(0).toUpperCase() + nextKey.slice(1)} status with round-robin assignment`,
         );
       } catch (e) {
         setError(extractApiErrorMessage(e, "Failed to update status"));
@@ -944,14 +991,52 @@ export default function LeadsPage() {
     try {
       const nextGroupId = resolveNextGroupIdForStatus(statusValue);
       const nextLead = await updateLeadRowStatus(statusLead.id, statusValue, nextGroupId);
+
+      // Update lead details with Attempted/Interested/Rejected data
+      if (nextKey === "attempted") {
+        await updateLeadDetails(statusLead.id, {
+          attemptedOpenReason: attemptedOpenReason || null,
+          attemptedCallStatus: attemptedCallStatus || null,
+          attemptedCallRemarks: attemptedCallRemarks || null,
+          attemptedFollowUpDate:
+            attemptedCallStatus?.toLowerCase() === "follow up" && attemptedFollowUpDate
+              ? new Date(attemptedFollowUpDate).toISOString()
+              : null,
+        });
+      } else if (nextKey === "interested") {
+        await updateLeadDetails(statusLead.id, {
+          interestedFollowUpDate: interestedFollowUpDate
+            ? new Date(interestedFollowUpDate).toISOString()
+            : null,
+          interestedCallRemarks: interestedCallRemarks || null,
+        });
+      } else if (nextKey === "rejected") {
+        await updateLeadDetails(statusLead.id, {
+          rejectedReason: rejectedReason || null,
+          rejectedReasonSubtype: rejectedReasonSubtype || null,
+        });
+      }
+
       setRows((prev) =>
         prev.map((row) =>
           String(row.id) === String(statusLead.id) ? { ...row, ...nextLead } : row,
         ),
       );
       setShowStatusModal(false);
+      if (nextKey === "requirement") {
+        navigate(`/leads/${statusLead.id}?openRequirement=1`);
+      }
       setStatusLead(null);
       showSuccess("Lead status updated");
+      // Reset form fields
+      setAttemptedOpenReason("");
+      setAttemptedCallStatus("");
+      setAttemptedCallRemarks("");
+      setAttemptedFollowUpDate("");
+      setInterestedFollowUpDate("");
+      setInterestedCallRemarks("");
+      setRejectedReason("");
+      setRejectedReasonSubtype("");
     } catch (e) {
       setError(extractApiErrorMessage(e, "Failed to update status"));
     } finally {
@@ -1028,40 +1113,33 @@ export default function LeadsPage() {
   }, [flowRules, statusLead?.status]);
 
   const normalizeKey = (s) => String(s || "").trim().toLowerCase();
-  const displayStatus = (s) => {
-    return s || "";
-  };
   const allowedStatusOptions = useMemo(() => {
     const current = normalizeKey(statusLead?.status);
     if (!current) {
       return orderedLeadStatuses;
     }
-    
+
     // Find the flow rule for the current status
     const rule = Array.isArray(flowRules)
-      ? flowRules.find(
-          (r) =>
-            normalizeKey(r?.status) === current,
-        )
+      ? flowRules.find((r) => normalizeKey(r?.status) === current)
       : null;
-    
+
     // Rule exists — only show explicitly configured next statuses
     if (rule) {
       if (rule.next && typeof rule.next === "object") {
         const nextKeys = Object.keys(rule.next);
         if (nextKeys.length > 0) {
-          return nextKeys
-            .map((item) => String(item || "").trim())
-            .filter(Boolean);
+          return nextKeys.map((item) => String(item || "").trim()).filter(Boolean);
         }
       }
-      // Rule exists but no next statuses configured → block transitions
+      // Rule exists but no next statuses configured -> block transitions.
       return [];
     }
-    
-    // No flow rule at all for this status → show the configured flow statuses
+
+    // No flow rule at all for this status -> show the configured flow statuses
     return orderedLeadStatuses;
   }, [flowRules, orderedLeadStatuses, statusLead]);
+
   const displayStatusOptions = useMemo(
     () => uniqueStatusOptions(allowedStatusOptions),
     [allowedStatusOptions],
@@ -1086,63 +1164,6 @@ export default function LeadsPage() {
     setShowRemarkModal(false);
     setRemarkLead(null);
     showSuccess("Remark updated");
-  };
-
-  const submitProductionRequirement = async () => {
-    try {
-      const payload = {
-        leadId: currentLeadId,
-        requirementType: "Production",
-        productType,
-        customProductType,
-        quantity: quantity ? parseInt(quantity) : null,
-        numPages: numPages ? parseInt(numPages) : null,
-        paperSize,
-        customSizeWidth: customSizeWidth ? parseFloat(customSizeWidth) : null,
-        customSizeHeight: customSizeHeight ? parseFloat(customSizeHeight) : null,
-        customSizeUnit,
-        paperType,
-        paperGsm,
-        colorType,
-        printSides,
-        printingMethod,
-        finishingOptions,
-        foldingType,
-        artworkFileName,
-        artworkFilePath,
-        additionalNotes: productionAdditionalNotes,
-        printDeadline,
-        deliveryDate,
-        priority,
-      };
-      await saveProductionRequirement(payload);
-      showSuccess("Production requirements saved successfully");
-      setShowProductionModal(false);
-      // Reset form
-      setProductType("");
-      setCustomProductType("");
-      setQuantity("");
-      setNumPages("");
-      setPaperSize("");
-      setCustomSizeWidth("");
-      setCustomSizeHeight("");
-      setCustomSizeUnit("mm");
-      setPaperType("");
-      setPaperGsm("");
-      setColorType("");
-      setPrintSides("");
-      setPrintingMethod("");
-      setFinishingOptions("");
-      setFoldingType("");
-      setArtworkFileName("");
-      setArtworkFilePath("");
-      setProductionAdditionalNotes("");
-      setPrintDeadline("");
-      setDeliveryDate("");
-      setPriority("Normal");
-    } catch (e) {
-      showError(extractApiErrorMessage(e, "Failed to save production requirements"));
-    }
   };
 
   const toggleLeadSelection = (leadId) => {
@@ -1967,7 +1988,7 @@ export default function LeadsPage() {
                                   setCreateForm((prev) => ({ ...prev, assignedUserId: e.target.value }))
                                 }
                               >
-                                <option value="">— Auto assign —</option>
+                                <option value="">Auto assign</option>
                                 {eligibleCreateGroupMembers.map((member) => (
                                   <option key={member.userId} value={member.userId}>
                                     {member.username || `User ${member.userId}`}
@@ -2062,6 +2083,136 @@ export default function LeadsPage() {
                       ))}
                     </select>
                   </div>
+
+                  {/* Attempted Status Form */}
+                  {String(statusValue || "").trim().toLowerCase() === "attempted" && (
+                    <div className="border-top pt-3 mt-3">
+                      <h6 className="mb-3 text-primary">Attempted Details</h6>
+                      <div className="mb-3">
+                        <label className="form-label">Open Reason</label>
+                        <select
+                          className="form-select"
+                          value={attemptedOpenReason}
+                          onChange={(e) => setAttemptedOpenReason(e.target.value)}
+                        >
+                          <option value="">Select Open Reason</option>
+                          <option value="Contacted">Contacted</option>
+                          <option value="Shared Details">Shared Details</option>
+                          <option value="Retry">Retry</option>
+                        </select>
+                      </div>
+                      <div className="mb-3">
+                        <label className="form-label">Call Status</label>
+                        <select
+                          className="form-select"
+                          value={attemptedCallStatus}
+                          onChange={(e) => {
+                            const next = e.target.value;
+                            setAttemptedCallStatus(next);
+                            if (String(next || "").trim().toLowerCase() !== "follow up") {
+                              setAttemptedFollowUpDate("");
+                            }
+                          }}
+                        >
+                          <option value="">Select Call Status</option>
+                          <option value="RNR">RNR</option>
+                          <option value="Call Connected">Call Connected</option>
+                          <option value="Follow Up">Follow Up</option>
+                          <option value="Number Busy">Number Busy</option>
+                          <option value="Not Reachable">Not Reachable</option>
+                          <option value="Switched Off">Switched Off</option>
+                          <option value="Number Not In Use">Number Not In Use</option>
+                          <option value="Wrong Number">Wrong Number</option>
+                        </select>
+                      </div>
+                      {String(attemptedCallStatus || "").trim().toLowerCase() === "follow up" && (
+                        <div className="mb-3">
+                          <label className="form-label">Follow Up Date</label>
+                          <input
+                            className="form-control"
+                            type="datetime-local"
+                            value={attemptedFollowUpDate}
+                            onChange={(e) => setAttemptedFollowUpDate(e.target.value)}
+                          />
+                        </div>
+                      )}
+                      <div className="mb-3">
+                        <label className="form-label">Call Remarks</label>
+                        <textarea
+                          className="form-control"
+                          rows={3}
+                          value={attemptedCallRemarks}
+                          onChange={(e) => setAttemptedCallRemarks(e.target.value)}
+                          placeholder="Call Remarks"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Interested Status Form */}
+                  {String(statusValue || "").trim().toLowerCase() === "interested" && (
+                    <div className="border-top pt-3 mt-3">
+                      <h6 className="mb-3 text-primary">Interested Details</h6>
+                      <div className="mb-3">
+                        <label className="form-label">Follow Up Date</label>
+                        <input
+                          className="form-control"
+                          type="datetime-local"
+                          value={interestedFollowUpDate}
+                          onChange={(e) => setInterestedFollowUpDate(e.target.value)}
+                        />
+                      </div>
+                      <div className="mb-3">
+                        <label className="form-label">Call Remarks</label>
+                        <textarea
+                          className="form-control"
+                          rows={3}
+                          value={interestedCallRemarks}
+                          onChange={(e) => setInterestedCallRemarks(e.target.value)}
+                          placeholder="Call Remarks"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Rejected Status Form */}
+                  {String(statusValue || "").trim().toLowerCase() === "rejected" && (
+                    <div className="border-top pt-3 mt-3">
+                      <h6 className="mb-3 text-primary">Rejected Details</h6>
+                      <div className="mb-3">
+                        <label className="form-label">Rejected Reason</label>
+                        <select
+                          className="form-select"
+                          value={rejectedReason}
+                          onChange={(e) => setRejectedReason(e.target.value)}
+                        >
+                          <option value="">Select Reject Reason</option>
+                          <option value="Budget Too High">Budget Too High</option>
+                          <option value="Not Interested">Not Interested</option>
+                          <option value="Already Purchased">Already Purchased</option>
+                          <option value="Chose Competitor">Chose Competitor</option>
+                          <option value="Decision Postponed">Decision Postponed</option>
+                          <option value="No Requirement Now">No Requirement Now</option>
+                          <option value="Not Reachable">Not Reachable</option>
+                          <option value="Wrong Contact">Wrong Contact</option>
+                          <option value="Invalid/Incomplete Details">Invalid/Incomplete Details</option>
+                          <option value="Location Not Serviceable">Location Not Serviceable</option>
+                          <option value="Timeline Mismatch">Timeline Mismatch</option>
+                          <option value="Other">Other</option>
+                        </select>
+                      </div>
+                      <div className="mb-3">
+                        <label className="form-label">Rejected Reason Subtype</label>
+                        <textarea
+                          className="form-control"
+                          rows={3}
+                          value={rejectedReasonSubtype}
+                          onChange={(e) => setRejectedReasonSubtype(e.target.value)}
+                          placeholder="Rejected Reason Subtype / Details"
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <div className="modal-footer">
                   <button
@@ -2069,6 +2220,15 @@ export default function LeadsPage() {
                     onClick={() => {
                       setShowStatusModal(false);
                       setStatusLead(null);
+                      setStatusValue("");
+                      setAttemptedOpenReason("");
+                      setAttemptedCallStatus("");
+                      setAttemptedCallRemarks("");
+                      setAttemptedFollowUpDate("");
+                      setInterestedFollowUpDate("");
+                      setInterestedCallRemarks("");
+                      setRejectedReason("");
+                      setRejectedReasonSubtype("");
                     }}
                   >
                     Cancel
@@ -2290,54 +2450,6 @@ export default function LeadsPage() {
           <div className="modal-backdrop fade show lead-create-backdrop" />
         </>
       )}
-
-      <ProductionModal
-        showProductionModal={showProductionModal}
-        setShowProductionModal={setShowProductionModal}
-        productType={productType}
-        setProductType={setProductType}
-        customProductType={customProductType}
-        setCustomProductType={setCustomProductType}
-        quantity={quantity}
-        setQuantity={setQuantity}
-        numPages={numPages}
-        setNumPages={setNumPages}
-        paperSize={paperSize}
-        setPaperSize={setPaperSize}
-        customSizeWidth={customSizeWidth}
-        setCustomSizeWidth={setCustomSizeWidth}
-        customSizeHeight={customSizeHeight}
-        setCustomSizeHeight={setCustomSizeHeight}
-        customSizeUnit={customSizeUnit}
-        setCustomSizeUnit={setCustomSizeUnit}
-        paperType={paperType}
-        setPaperType={setPaperType}
-        paperGsm={paperGsm}
-        setPaperGsm={setPaperGsm}
-        colorType={colorType}
-        setColorType={setColorType}
-        printSides={printSides}
-        setPrintSides={setPrintSides}
-        printingMethod={printingMethod}
-        setPrintingMethod={setPrintingMethod}
-        finishingOptions={finishingOptions}
-        setFinishingOptions={setFinishingOptions}
-        foldingType={foldingType}
-        setFoldingType={setFoldingType}
-        artworkFileName={artworkFileName}
-        setArtworkFileName={setArtworkFileName}
-        artworkFilePath={artworkFilePath}
-        setArtworkFilePath={setArtworkFilePath}
-        additionalNotes={productionAdditionalNotes}
-        setAdditionalNotes={setProductionAdditionalNotes}
-        printDeadline={printDeadline}
-        setPrintDeadline={setPrintDeadline}
-        deliveryDate={deliveryDate}
-        setDeliveryDate={setDeliveryDate}
-        priority={priority}
-        setPriority={setPriority}
-        onSubmit={submitProductionRequirement}
-      />
 
       {confirmDialog}
     </div>

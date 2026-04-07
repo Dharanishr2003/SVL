@@ -1,24 +1,56 @@
 export const PAGE_ACCESS_OPTIONS = [
+  // ── Main Menu ──────────────────────────────────────────────────────────────
   {
     key: "dashboard",
     label: "Dashboard",
-    category: "CRM",
+    category: "Main Menu",
     children: [
       { key: "admin-dashboard", label: "Admin Dashboard" },
       { key: "employee-dashboard", label: "Employee Dashboard" },
       { key: "sales-dashboard", label: "Sales Dashboard" },
     ],
   },
-  { key: "leads", label: "Leads", category: "CRM" },
-  { key: "rejected-leads", label: "Rejected Leads", category: "CRM" },
-  { key: "design", label: "Design", category: "CRM" },
-  { key: "production", label: "Production", category: "CRM" },
+
+  // ── CRM ────────────────────────────────────────────────────────────────────
   { key: "contacts", label: "Contacts", category: "CRM" },
   { key: "companies", label: "Companies", category: "CRM" },
-  { key: "pipeline", label: "Pipeline", category: "CRM" },
-  { key: "analytics", label: "Analytics", category: "CRM" },
-  { key: "activity", label: "Activity", category: "CRM" },
+  { key: "design", label: "Design", category: "CRM" },
+  { key: "production", label: "Production", category: "CRM" },
+  { key: "leads", label: "Leads", category: "CRM" },
+  { key: "rejected-leads", label: "Rejected Leads", category: "CRM" },
+  { key: "customer", label: "Customers", category: "CRM" },
   { key: "quotation", label: "Quotation", category: "CRM" },
+  {
+    key: "stocks",
+    label: "Stocks",
+    category: "CRM",
+    children: [
+      { key: "stocks-dashboard", label: "Dashboard" },
+      { key: "stocks-item", label: "Add Item" },
+      { key: "stocks-categories", label: "Categories" },
+    ],
+  },
+  {
+    key: "rrq",
+    label: "RRQ",
+    category: "CRM",
+    children: [
+      { key: "rrq-overview", label: "RRQ" },
+      { key: "rrq-type", label: "RRQ Type" },
+    ],
+  },
+  {
+    key: "projects",
+    label: "Projects",
+    category: "CRM",
+    children: [
+      { key: "projects-list", label: "Projects" },
+      { key: "project-status", label: "Project Status" },
+      { key: "project-type", label: "Project Type" },
+      { key: "tasks", label: "Tasks" },
+      { key: "task-board", label: "Task Board" },
+    ],
+  },
   {
     key: "lead-source",
     label: "Lead Source",
@@ -31,42 +63,11 @@ export const PAGE_ACCESS_OPTIONS = [
       { key: "lead-type", label: "Lead Type" },
     ],
   },
-  {
-    key: "stocks",
-    label: "Stocks",
-    category: "Operations",
-    children: [
-      { key: "stocks-dashboard", label: "Dashboard" },
-      { key: "stocks-item", label: "Add Item" },
-      { key: "stocks-categories", label: "Categories" },
-    ],
-  },
-  {
-    key: "rrq",
-    label: "RRQ",
-    category: "Operations",
-    children: [
-      { key: "rrq-overview", label: "RRQ" },
-      { key: "rrq-type", label: "RRQ Type" },
-    ],
-  },
-  {
-    key: "projects",
-    label: "Projects",
-    category: "Operations",
-    children: [
-      { key: "projects-list", label: "Projects" },
-      { key: "project-status", label: "Project Status" },
-      { key: "project-type", label: "Project Type" },
-      { key: "tasks", label: "Tasks" },
-      { key: "task-board", label: "Task Board" },
-    ],
-  },
-  {
-    key: "clients",
-    label: "Clients",
-    category: "Projects",
-  },
+
+  // ── Projects (Clients) ─────────────────────────────────────────────────────
+  { key: "clients", label: "Clients", category: "Projects" },
+
+  // ── Recruitment ────────────────────────────────────────────────────────────
   {
     key: "recruitment",
     label: "Recruitment",
@@ -77,6 +78,8 @@ export const PAGE_ACCESS_OPTIONS = [
       { key: "recruitment-referrals", label: "Referrals" },
     ],
   },
+
+  // ── HRM ────────────────────────────────────────────────────────────────────
   {
     key: "employees",
     label: "Employees",
@@ -130,6 +133,8 @@ export const PAGE_ACCESS_OPTIONS = [
   { key: "promotion", label: "Promotion", category: "HRM" },
   { key: "resignation", label: "Resignation", category: "HRM" },
   { key: "termination", label: "Termination", category: "HRM" },
+
+  // ── Finance ────────────────────────────────────────────────────────────────
   {
     key: "sales",
     label: "Sales",
@@ -185,6 +190,19 @@ export const PAGE_ACCESS_OPTIONS = [
     ],
   },
   { key: "invoices", label: "Invoices", category: "Finance" },
+
+  // ── Services ───────────────────────────────────────────────────────────────
+  {
+    key: "services",
+    label: "Services",
+    category: "Services",
+    children: [
+      { key: "service-categories", label: "Service Categories" },
+      { key: "service-types", label: "Service Types" },
+    ],
+  },
+
+  // ── Reports ────────────────────────────────────────────────────────────────
   {
     key: "reports",
     label: "Reports",
@@ -201,6 +219,8 @@ export const PAGE_ACCESS_OPTIONS = [
       { key: "project-report", label: "Project Report" },
     ],
   },
+
+  // ── Admin ──────────────────────────────────────────────────────────────────
   {
     key: "settings",
     label: "Settings",
@@ -264,15 +284,13 @@ const ROUTE_ACCESS_RULES = [
   { pageKeys: ["stocks", "stocks-categories"], prefixes: ["/stocks/categories"] },
   { pageKeys: ["quotation"], prefixes: ["/quotation"] },
   { pageKeys: ["quotation"], prefixes: ["/quotation-list"] },
-  { pageKeys: ["activity"], prefixes: ["/activity"] },
-  { pageKeys: ["analytics"], prefixes: ["/analytics"] },
-  { pageKeys: ["pipeline"], prefixes: ["/pipeline"] },
   { pageKeys: ["clients"], prefixes: ["/clients", "/clients-grid"] },
   { pageKeys: ["companies"], prefixes: ["/companies", "/companies-grid"] },
   { pageKeys: ["contacts"], prefixes: ["/contacts", "/contacts-grid"] },
   { pageKeys: ["production"], prefixes: ["/production", "/production-detail"] },
   { pageKeys: ["design"], prefixes: ["/design", "/design-detail", "/design-work"] },
   { pageKeys: ["rejected-leads"], prefixes: ["/rejected-leads"] },
+  { pageKeys: ["customer"], prefixes: ["/customer"] },
   { pageKeys: ["leads"], prefixes: ["/leads", "/leads-dashboard"] },
   { pageKeys: ["employees", "employees-list"], prefixes: ["/employees"] },
   { pageKeys: ["employees", "departments"], prefixes: ["/departments"] },
@@ -310,12 +328,13 @@ const ROUTE_ACCESS_RULES = [
   { pageKeys: ["reports", "daily-report"], prefixes: ["/daily-report"] },
   { pageKeys: ["reports", "leave-report"], prefixes: ["/leave-report"] },
   { pageKeys: ["reports", "project-report"], prefixes: ["/project-report"] },
+  { pageKeys: ["services", "service-categories"], prefixes: ["/services/service-categories"] },
+  { pageKeys: ["services", "service-types"], prefixes: ["/services/service-types"] },
 ];
 
 const ALWAYS_ALLOWED_PREFIXES = [
   "/login",
   "/unauthorized",
-  "/customer",
 ];
 
 const ADMIN_ONLY_PREFIXES = [
@@ -387,7 +406,6 @@ export function canAccessPathWithPageKeys(path, pageKeys, role) {
 
 export function getDefaultLandingPath(role, pageKeys) {
   const normalizedRole = String(role || "").trim().toUpperCase();
-  if (normalizedRole === "CUSTOMER") return "/customer/chat";
   if (normalizedRole === "SUPER_ADMIN") return "/admin-dashboard";
 
   const seen = new Set();

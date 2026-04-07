@@ -297,6 +297,8 @@ public class LeadService {
                 if (!memberHasLeadVisibility(m)) continue;
                 User u = m.getUser();
                 if (u == null || u.getId() == null) continue;
+                if (actor.getRole() == Role.MANAGER && !isSameDepartmentScope(u, actor)) continue;
+                if (actor.getRole() == Role.TEAM_LEAD && !isSameTeamScope(u, actor)) continue;
                 seen.putIfAbsent(u.getId(), toAllocatorOptionResponse(u));
             }
         }
@@ -375,12 +377,7 @@ public class LeadService {
             row.setLeadPincode(normalizeNullable(item.getLeadPincode()));
             row.setEmail(normalizeNullable(item.getEmail()));
             row.setCountryCode(normalizeNullable(item.getCountryCode()));
-            row.setAlternatePhone(normalizeNullable(item.getAlternatePhone()));
-            row.setAlternateEmail(normalizeNullable(item.getAlternateEmail()));
             row.setSecondarySource(normalizeNullable(item.getSecondarySource()));
-            row.setTertiarySource(normalizeNullable(item.getTertiarySource()));
-            row.setProjectName(normalizeNullable(item.getProjectName()));
-            row.setOccupation(normalizeNullable(item.getOccupation()));
             row.setCompanyName(normalizeNullable(item.getCompanyName()));
             row.setProductType(normalizeNullable(item.getProductType()));
             row.setLeadCountry(normalizeNullable(item.getLeadCountry()));
@@ -491,7 +488,6 @@ public class LeadService {
         row.setMobileNormalized(mobileNormalized);
         row.setPrimarySource(primarySource);
         row.setSecondarySource(normalizeNullable(request.getSecondarySource()));
-        row.setTertiarySource(normalizeNullable(request.getTertiarySource()));
         row.setCompanyName(normalizeNullable(request.getCompanyName()));
         row.setProductType(normalizeNullable(request.getProductType()));
         row.setLeadCountry(normalizeNullable(request.getLeadCountry()));
@@ -2132,6 +2128,13 @@ public class LeadService {
             }
         }
 
+        // Early funnel statuses should stay with the same employee/group unless a
+        // transition explicitly forces a different group. This avoids accidental
+        // reassignment and stale flow group references for follow-up stages.
+        if (shouldPreserveCurrentAssignment(nextStatus) && forcedNextGroupId == null) {
+            nextGroupId = currentGroupId;
+        }
+
         // Treat null nextGroupId as "stay in current group" so status-only transitions
         // (for example into Payment) don't trigger unintended round-robin reassignment.
         boolean groupChanging = nextGroupId != null
@@ -2202,6 +2205,14 @@ public class LeadService {
                 || lower.equals("payment")
                 || lower.equals("design")
                 || lower.equals("production");
+    }
+
+    private boolean shouldPreserveCurrentAssignment(String status) {
+        if (!StringUtils.hasText(status)) return false;
+        String lower = status.trim().toLowerCase(Locale.ROOT);
+        return lower.equals("attempted")
+                || lower.equals("interested")
+                || lower.equals("requirement");
     }
 
     private boolean shouldKeepCurrentOwner(Lead row, String nextStatus, Long nextGroupId) {
@@ -2929,7 +2940,6 @@ public class LeadService {
         res.setAlternateEmail(row.getAlternateEmail());
         res.setPrimarySource(row.getPrimarySource());
         res.setSecondarySource(row.getSecondarySource());
-        res.setTertiarySource(row.getTertiarySource());
         res.setProjectName(row.getProjectName());
         res.setOccupation(row.getOccupation());
         res.setCompanyName(row.getCompanyName());

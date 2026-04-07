@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { getProductionRequests, updateDealStatus, getDealById } from "../../api/dealsApi";
-import { getProductionRequirements } from "../../api/productionRequirementApi";
 import { getDesignRequirement } from "../../api/designRequirementApi";
 import { getUsers } from "../../api/userAdminApi";
 import { createStockRequest, getStockItems, getStockRequests } from "../../api/stocksApi";
@@ -87,27 +86,23 @@ export default function ProductionPage() {
           const sourceLeadId = deal?.sourceLeadId;
           if (!sourceLeadId) return deal;
           try {
-            const [dealDetails, designRequirement, productionRequirements, stockRows] = await Promise.all([
+            const [dealDetails, designRequirement, stockRows] = await Promise.all([
               getDealById(deal.id).catch(() => null),
               getDesignRequirement(sourceLeadId).catch(() => null),
-              getProductionRequirements(sourceLeadId).catch(() => []),
               visibleStockRequests.filter(
                 (req) =>
                   String(req?.dealId ?? "") === String(deal.id) ||
                   String(req?.leadId ?? "") === String(sourceLeadId),
               ),
             ]);
-            const firstProduction = Array.isArray(productionRequirements) && productionRequirements.length > 0
-              ? productionRequirements[0]
-              : null;
             const stockRequests = Array.isArray(stockRows)
               ? [...stockRows].sort((a, b) => b.id - a.id)
               : [];
             const stockRequestId = stockRequests[0]?.id || null;
 
-            // Resolve assigned user name â€” prefer production requirement's assignedTo, fall back to deal's productionAssignedToUserId
-            let productionAssignedToName = pickAssignedName(firstProduction, dealDetails, deal) || "-";
-            const assignedUserId = pickAssignedUserId(firstProduction, dealDetails, deal);
+            // Resolve assigned user name
+            let productionAssignedToName = pickAssignedName(null, dealDetails, deal) || "-";
+            const assignedUserId = pickAssignedUserId(null, dealDetails, deal);
             if (assignedUserId && productionAssignedToName === "-") {
               productionAssignedToName =
                 userNameMap[assignedUserId] ||
@@ -120,13 +115,10 @@ export default function ProductionPage() {
               stockRequestId,
               productionAssignedToUserId: assignedUserId,
               requirementType:
-                firstProduction?.requirementType ||
                 designRequirement?.requirementType ||
                 deal?.requirementType ||
                 "",
               requirementNotes:
-                firstProduction?.additionalNotes ||
-                firstProduction?.requirementNotes ||
                 designRequirement?.designAdditionalNotes ||
                 designRequirement?.requirementNotes ||
                 deal?.requirementNotes ||
@@ -366,7 +358,7 @@ export default function ProductionPage() {
                       >
                         <i className="ti ti-package me-1"></i>
                         {stockReq.leadName || stockReq.leadDisplayId || `Request #${stockReq.id}`}
-                        {stockReq.status ? ` · ${stockReq.status}` : ""}
+                        {stockReq.status ? ` ï¿½ ${stockReq.status}` : ""}
                       </button>
                     ))}
                   </div>

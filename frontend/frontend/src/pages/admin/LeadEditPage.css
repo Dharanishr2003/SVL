@@ -1,16 +1,18 @@
 .lead-edit-wizard {
   position: relative;
   width: 100%;
-  max-width: 620px;
-  margin: 0 auto 0.5rem;
+  /* min-height: 500px; */
+  height: auto;
+  padding: 0rem 2rem 0rem 2rem;
+  background-color: #fcfcfc;
 }
 
 .lead-edit-wizard-progress-bar {
   width: 100%;
   height: 4px;
   background-color: #e9ecef;
+  margin-bottom: 1.5rem;
   border-radius: 2px;
-  margin-bottom: 0.75rem;
   overflow: hidden;
 }
 
@@ -26,9 +28,10 @@
   justify-content: center;
   align-items: center;
   width: 100%;
-  margin: 0 auto 0.75rem;
+  margin-bottom: 1.75rem;
+  gap: 2rem;
+  position: relative;
   flex-wrap: wrap;
-  gap: 0.45rem;
 }
 
 .lead-edit-wizard-circle-item {
@@ -36,59 +39,49 @@
   flex-direction: column;
   align-items: center;
   cursor: pointer;
-  transition: transform 0.2s ease;
-  min-width: 64px;
-}
-
-.lead-edit-wizard-circle-item:hover .lead-edit-wizard-circle {
-  transform: scale(1.05);
+  position: relative;
+  z-index: 1;
 }
 
 .lead-edit-wizard-circle {
-  width: 3.6em;
-  height: 3.6em;
-  border: 2px solid #d0d5dd;
+  width: 3em;
+  height: 3em;
+  border: 2px solid #45597a;
   background-color: #fcfcfc;
   border-radius: 50%;
   display: flex;
   justify-content: center;
   align-items: center;
-  box-shadow: 0 2px 8px rgba(69, 89, 122, 0.08);
   transition: all 0.3s ease;
+  cursor: pointer;
 }
 
 .lead-edit-wizard-circle i {
-  font-size: 1.1rem;
+  font-size: 1.75rem;
   color: #45597a;
 }
 
 .lead-edit-wizard-circle.active {
-  background-color: #45597a;
-  border-color: #45597a;
+  background-color: #45597a !important;
   box-shadow: 0 12px 28px rgba(69, 89, 122, 0.16);
 }
 
 .lead-edit-wizard-circle.active i {
-  color: #fcfcfc;
+  color: #fcfcfc !important;
 }
 
 .lead-edit-wizard-circle-label {
-  margin-top: 0.45rem;
-  font-size: 0.72rem;
+  margin-top: 0.75rem;
+  font-size: 0.875rem;
   font-weight: 500;
   color: #34393f;
   text-align: center;
-  max-width: 64px;
-  word-break: break-word;
-  line-height: 1.15;
+  max-width: 80px;
 }
 
 .lead-edit-wizard-step-panel {
-  animation: fadeIn 0.26s ease-out;
-  background-color: #fcfcfc;
-  border-radius: 1rem;
-  padding: 1rem 1.1rem;
-  border: 1px solid #eef2f7;
+  min-height: 300px;
+  margin: 2rem 0;
 }
 
 .lead-info-section {
@@ -235,12 +228,97 @@
   font-size: 0.875rem;
 }
 
+.lead-create-grid {
+  width: 100%;
+}
+
+.lead-form-stack {
+  display: grid;
+  gap: 1rem;
+  height: 100%;
+}
+
+.lead-form-field {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.lead-source-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.45rem;
+}
+
+.lead-source-add-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid #d0d5dd;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #45597a;
+  transition: border-color 0.2s ease, background-color 0.2s ease, transform 0.2s ease;
+}
+
+.lead-source-add-btn:hover {
+  border-color: #45597a;
+  background: #f8fafc;
+  transform: translateY(-1px);
+}
+
+.lead-source-modal .modal-content {
+  border: 1px solid #e6edf5;
+  border-radius: 1.25rem;
+  box-shadow: 0 24px 48px rgba(15, 23, 42, 0.12);
+}
+
+.lead-source-modal .modal-header,
+.lead-source-modal .modal-footer {
+  border-color: #eef2f7;
+}
+
+.lead-source-modal .modal-body {
+  padding-top: 1rem;
+  padding-bottom: 1rem;
+}
+
+.lead-field-helper-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.75rem;
+  min-height: 1.25rem;
+  margin-top: 0.35rem;
+}
+
+.lead-field-helper-row small:last-child {
+  text-align: right;
+}
+
 .lead-edit-wizard-step-panel .form-control,
 .lead-edit-wizard-step-panel .form-select {
-  border-radius: 0.75rem;
+  width: 100%;
+  height: 52px;
   border: 1px solid #d0d5dd;
-  font-size: 0.9375rem;
-  padding: 0.625rem 0.875rem;
+  border-radius: 2rem;
+  background-color: #ffffff;
+  font-size: 0.95rem;
+  padding: 0.7rem 1rem;
+  line-height: 1.2;
+  box-sizing: border-box;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+}
+
+.lead-edit-wizard-step-panel textarea.form-control {
+  min-height: 96px;
+  height: auto;
+  border-radius: 1.25rem;
 }
 
 .lead-edit-wizard-step-panel .form-control:hover,
@@ -257,31 +335,41 @@
 }
 
 .lead-edit-wizard-step-panel .form-label {
-  font-weight: 500;
+  font-weight: 600;
   color: #34393f;
-  margin-bottom: 0.5rem;
-  font-size: 0.9375rem;
+  margin-bottom: 0.45rem;
 }
 
-.lead-edit-wizard-step-panel .row {
-  margin-right: -0.75rem;
-  margin-left: -0.75rem;
+/* Wizard Navigation */
+.lead-wizard-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 2rem;
 }
 
-.lead-edit-wizard-step-panel .col-md-6,
-.lead-edit-wizard-step-panel .col-md-12 {
-  padding-right: 0.75rem;
-  padding-left: 0.75rem;
+.lead-wizard-nav .btn {
+  border-radius: 2rem;
+  width: 10rem;
+  min-height: 2.5rem;
+  padding: 0.5rem 1.25rem;
+  font-weight: 500;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.lead-wizard-nav .btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 18px rgba(15, 23, 42, 0.08);
 }
 
 @media (prefers-reduced-motion: reduce) {
   .lead-edit-wizard-circle,
-  .lead-edit-wizard-circle-item {
+  .lead-phone-code-trigger,
+  .lead-phone-input,
+  .lead-phone-code-option,
+  .lead-wizard-nav .btn {
     transition: none !important;
-  }
-
-  .lead-edit-wizard-circles {
-    gap: 0.5rem;
   }
 }
 
@@ -372,13 +460,19 @@
   padding: 0.25rem 0.5rem;
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767.98px) {
   .lead-edit-wizard {
-    max-width: 100%;
+    padding: 1.25rem;
+    min-height: auto;
   }
 
   .lead-edit-wizard-circles {
     gap: 0.6rem;
+  }
+
+  .lead-edit-wizard-circles::before {
+    left: 14%;
+    right: 14%;
   }
 
   .lead-edit-wizard-circle {
@@ -417,13 +511,18 @@
   }
 
   .lead-phone-code-trigger {
-    min-width: 96px;
-    max-width: 110px;
+    min-width: 104px;
+    max-width: 116px;
     padding-inline: 0.8rem;
     font-size: 0.82rem;
   }
 
   .lead-phone-input {
     font-size: 0.88rem;
+  }
+
+  .lead-wizard-nav .btn {
+    width: auto;
+    min-width: 7.5rem;
   }
 }

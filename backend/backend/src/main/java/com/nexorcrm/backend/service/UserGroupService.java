@@ -162,6 +162,12 @@ public class UserGroupService {
             "settings-security-settings",
             "settings-flow",
             "settings-logs",
+            // Services
+            "services",
+            "service-categories",
+            "service-types",
+            // Clients
+            "clients",
             // Legacy keys
             "site-visits",
             "followup-leads",
@@ -201,7 +207,11 @@ public class UserGroupService {
                     .toList();
         }
 
-        assertActorHasDepartmentScope(actor);
+        if (actor.getRole() == Role.ADMIN) {
+            assertActorHasBranchScope(actor);
+        } else {
+            assertActorHasDepartmentScope(actor);
+        }
         List<UserGroup> rows = userGroupRepository
                 .findByInstitutionNameIgnoreCaseOrderByNameAsc(actor.getInstitutionName())
                 .stream()
@@ -583,10 +593,20 @@ public class UserGroupService {
         if (!canAddRoleToGroup(scope, target.getRole(), canSuperAdminAssignAdmin)) {
             throw new AccessDeniedException("User role is not allowed for this group");
         }
-        assertUserInsideActorScope(actor, target);
+        boolean isManagerAddingManagerToAdminsGroup = actor.getRole() == Role.MANAGER
+                && target.getRole() == Role.MANAGER
+                && scope == UserGroupMemberScope.ADMINS;
+        if (!isManagerAddingManagerToAdminsGroup) {
+            assertUserInsideActorScope(actor, target);
+        } else {
+            assertUserInsideGroupDepartmentScope(group, target);
+        }
         if (actor.getRole() == Role.ADMIN) {
             appendTeamToGroupIfMissing(group, target.getTeamName());
         } else if (actor.getRole() == Role.SUPER_ADMIN && target.getRole() == Role.ADMIN) {
+            assertUserInsideGroupDepartmentScope(group, target);
+        } else if (target.getRole() == Role.MANAGER || target.getRole() == Role.ADMIN) {
+            // SUPER_ADMIN, ADMIN, MANAGER can add managers/admins from different teams in the same department
             assertUserInsideGroupDepartmentScope(group, target);
         } else {
             if (actor.getRole() == Role.SUPER_ADMIN) {
@@ -675,7 +695,11 @@ public class UserGroupService {
         if (actor.getRole() == Role.SUPER_ADMIN) {
             return;
         }
-        assertActorHasDepartmentScope(actor);
+        if (actor.getRole() == Role.ADMIN) {
+            assertActorHasBranchScope(actor);
+        } else {
+            assertActorHasDepartmentScope(actor);
+        }
         if (!isGroupVisibleToActor(actor, group)) {
             throw new AccessDeniedException("You do not have permission to access this group");
         }
@@ -700,7 +724,16 @@ public class UserGroupService {
         if (group.getMemberScope() == UserGroupMemberScope.ADMINS) {
             return actor.getRole() == Role.ADMIN || actor.getRole() == Role.SUPER_ADMIN;
         }
+        if (actor.getRole() == Role.ADMIN) {
+            return true;
+        }
         return textEquals(actor.getDepartmentName(), group.getDepartmentName());
+    }
+
+    private void assertActorHasBranchScope(User actor) {
+        if (!StringUtils.hasText(actor.getInstitutionName())) {
+            throw new AccessDeniedException("Your account is missing branch scope configuration");
+        }
     }
 
     private void assertActorHasDepartmentScope(User actor) {
@@ -1061,6 +1094,10 @@ public class UserGroupService {
                     requiredScopeValue(request.getDepartmentName(), "Department is required")
             );
         }
+        if (actor.getRole() == Role.ADMIN) {
+            assertActorHasBranchScope(actor);
+            return new GroupScope(actor.getInstitutionName().trim(), "");
+        }
         assertActorHasDepartmentScope(actor);
         return new GroupScope(
                 actor.getInstitutionName().trim(),
@@ -1082,6 +1119,10 @@ public class UserGroupService {
                     requiredScopeValue(request.getInstitutionName(), "Branch is required"),
                     requiredScopeValue(request.getDepartmentName(), "Department is required")
             );
+        }
+        if (actor.getRole() == Role.ADMIN) {
+            assertActorHasBranchScope(actor);
+            return new GroupScope(actor.getInstitutionName().trim(), "");
         }
         assertActorHasDepartmentScope(actor);
         return new GroupScope(

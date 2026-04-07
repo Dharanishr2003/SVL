@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { getDealById } from "../../api/dealsApi";
-import { getProductionRequirements } from "../../api/productionRequirementApi";
 import { getDesignRequirement } from "../../api/designRequirementApi";
 import { extractApiErrorMessage } from "../../utils/errorMessage";
 import { useToast } from "../../components/system/ToastProvider";
@@ -46,7 +45,6 @@ export default function DesignDetailPage() {
   const { showSuccess, showError } = useToast();
 
   const [deal, setDeal] = useState(null);
-  const [productionRequirements, setProductionRequirements] = useState([]);
   const [designRequirement, setDesignRequirement] = useState(null);
   const [loading, setLoading] = useState(true);
   const [previewFile, setPreviewFile] = useState(null);
@@ -59,14 +57,9 @@ export default function DesignDetailPage() {
         const data = await getDealById(dealId);
         setDeal(data);
         if (data?.sourceLeadId) {
-          const [productionRows, designRow] = await Promise.all([
-            getProductionRequirements(data.sourceLeadId).catch(() => []),
-            getDesignRequirement(data.sourceLeadId).catch(() => null),
-          ]);
-          setProductionRequirements(Array.isArray(productionRows) ? productionRows : []);
+          const designRow = await getDesignRequirement(data.sourceLeadId).catch(() => null);
           setDesignRequirement(designRow || null);
         } else {
-          setProductionRequirements([]);
           setDesignRequirement(null);
         }
       } catch (e) {
@@ -184,7 +177,7 @@ export default function DesignDetailPage() {
         </button>
       </div>
 
-      {!designRequirement && productionRequirements.length === 0 && (
+      {!designRequirement && (
       <div className="card mb-3">
         <div className="card-header">
           <h5 className="mb-0">Requirement Details</h5>
@@ -240,89 +233,6 @@ export default function DesignDetailPage() {
               </p>
             </div>
           </div>
-        </div>
-      </div>
-      )}
-
-      {productionRequirements.length > 0 && deal?.requirementType !== "Design + Production" && (
-      <div className="card mb-3">
-        <div className="card-header">
-          <h5 className="mb-0">Production Requirement Details</h5>
-        </div>
-        <div className="card-body">
-          {productionRequirements.map((req, idx) => (
-            <div key={req.id || idx} className={idx > 0 ? "border-top pt-3 mt-3" : ""}>
-              <div className="row g-3">
-                <div className="col-md-4">
-                  <label className="form-label fw-bold">Requirement Type</label>
-                  <p className="text-muted">{req.requirementType || "-"}</p>
-                </div>
-                <div className="col-md-4">
-                  <label className="form-label fw-bold">Product Type</label>
-                  <p className="text-muted">{req.productType || "-"}</p>
-                </div>
-                <div className="col-md-4">
-                  <label className="form-label fw-bold">Quantity</label>
-                  <p className="text-muted">{req.quantity || "-"}</p>
-                </div>
-                <div className="col-md-4">
-                  <label className="form-label fw-bold">Paper Size</label>
-                  <p className="text-muted">{req.paperSize || "-"}</p>
-                </div>
-                <div className="col-md-4">
-                  <label className="form-label fw-bold">Paper Type</label>
-                  <p className="text-muted">{req.paperType || "-"}</p>
-                </div>
-                <div className="col-md-4">
-                  <label className="form-label fw-bold">Color Type</label>
-                  <p className="text-muted">{req.colorType || "-"}</p>
-                </div>
-                <div className="col-md-4">
-                  <label className="form-label fw-bold">Priority</label>
-                  <p className="text-muted">{req.priority || "-"}</p>
-                </div>
-                <div className="col-md-4">
-                  <label className="form-label fw-bold">Print Deadline</label>
-                  <p className="text-muted">{req.printDeadline ? formatDateTime(req.printDeadline) : "-"}</p>
-                </div>
-                <div className="col-md-4">
-                  <label className="form-label fw-bold">Delivery Date</label>
-                  <p className="text-muted">{req.deliveryDate ? formatDateTime(req.deliveryDate) : "-"}</p>
-                </div>
-                <div className="col-12">
-                  <label className="form-label fw-bold">Additional Notes</label>
-                  <p className="text-muted" style={{ whiteSpace: "pre-wrap", wordWrap: "break-word" }}>
-                    {req.additionalNotes || "-"}
-                  </p>
-                </div>
-                {req.artworkFileName && (
-                  <div className="col-12">
-                    <label className="form-label fw-bold">Artwork File</label>
-                    <div className="d-flex flex-wrap gap-2 align-items-center">
-                      <span className="text-muted text-break">{req.artworkFileName}</span>
-                      {req.artworkFilePath && (
-                        <button
-                          type="button"
-                          className="btn btn-outline-primary btn-sm"
-                          onClick={() => setPreviewFile({ fileName: req.artworkFileName, filePath: req.artworkFilePath })}
-                        >
-                          <i className="ti ti-eye me-1"></i>View
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        className="btn btn-outline-secondary btn-sm"
-                        onClick={() => downloadProtectedFile(req.artworkFilePath, req.artworkFileName)}
-                        disabled={!req.artworkFilePath}
-                      >
-                        <i className="ti ti-download me-1"></i>Download
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          ))}
         </div>
       </div>
       )}

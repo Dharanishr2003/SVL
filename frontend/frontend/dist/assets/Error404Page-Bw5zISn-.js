@@ -1,1 +1,0 @@
-import{j as r}from"./index-Dh1f8wPJ.js";function a(){return r.jsx("div",{className:"card",children:r.jsxs("div",{className:"card-body",children:[r.jsx("h4",{className:"mb-2",children:"Error 404"}),r.jsx("p",{className:"mb-0",children:"Layout working confirmation."})]})})}export{a as default};

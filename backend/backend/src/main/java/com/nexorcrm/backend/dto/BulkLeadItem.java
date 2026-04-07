@@ -27,23 +27,8 @@ public class BulkLeadItem {
     @Size(max = 20)
     private String countryCode;
 
-    @Size(max = 40)
-    private String alternatePhone;
-
-    @Size(max = 190)
-    private String alternateEmail;
-
     @Size(max = 160)
     private String secondarySource;
-
-    @Size(max = 160)
-    private String tertiarySource;
-
-    @Size(max = 200)
-    private String projectName;
-
-    @Size(max = 200)
-    private String occupation;
 
     @Size(max = 200)
     private String companyName;
@@ -75,18 +60,8 @@ public class BulkLeadItem {
     public void setEmail(String email) { this.email = email; }
     public String getCountryCode() { return countryCode; }
     public void setCountryCode(String countryCode) { this.countryCode = countryCode; }
-    public String getAlternatePhone() { return alternatePhone; }
-    public void setAlternatePhone(String alternatePhone) { this.alternatePhone = alternatePhone; }
-    public String getAlternateEmail() { return alternateEmail; }
-    public void setAlternateEmail(String alternateEmail) { this.alternateEmail = alternateEmail; }
     public String getSecondarySource() { return secondarySource; }
     public void setSecondarySource(String secondarySource) { this.secondarySource = secondarySource; }
-    public String getTertiarySource() { return tertiarySource; }
-    public void setTertiarySource(String tertiarySource) { this.tertiarySource = tertiarySource; }
-    public String getProjectName() { return projectName; }
-    public void setProjectName(String projectName) { this.projectName = projectName; }
-    public String getOccupation() { return occupation; }
-    public void setOccupation(String occupation) { this.occupation = occupation; }
     public String getCompanyName() { return companyName; }
     public void setCompanyName(String companyName) { this.companyName = companyName; }
     public String getProductType() { return productType; }

@@ -1,5 +1,5 @@
 CREATE TABLE quotations (
-    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    id BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
     quotation_number VARCHAR(120),
     quotation_date DATE,
     customer_name VARCHAR(255),
@@ -27,7 +27,7 @@ CREATE TABLE quotations (
     created_by_role VARCHAR(40),
     created_by_team VARCHAR(160),
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX idx_quotations_created_by_id ON quotations(created_by_id);

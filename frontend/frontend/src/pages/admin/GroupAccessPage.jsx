@@ -32,7 +32,7 @@ function normalizePageKeys(pageKeys, allowedKeys) {
   );
 }
 
-const CATEGORY_ORDER = ["CRM", "Operations", "Recruitment", "Finance", "HRM", "Reports", "Admin"];
+const CATEGORY_ORDER = ["Main Menu", "CRM", "Projects", "Recruitment", "HRM", "Finance", "Services", "Reports", "Admin"];
 
 export default function GroupAccessPage() {
   const { showSuccess, showError } = useToast();
@@ -183,6 +183,7 @@ export default function GroupAccessPage() {
         departmentName: selectedGroup.departmentName,
         teamNames: selectedGroup.teamNames,
         pageKeys: sanitizedDraftPageKeys,
+        memberScope: selectedGroup.memberScope,
       });
       setGroups((current) =>
         current.map((group) =>

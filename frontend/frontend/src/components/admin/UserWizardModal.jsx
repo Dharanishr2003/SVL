@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import "./UserWizardModal.css";
 

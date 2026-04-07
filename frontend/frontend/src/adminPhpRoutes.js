@@ -1,9 +1,5 @@
 export const adminPhpRoutes = [
   {
-    path: "activity",
-    component: "ActivityPage",
-  },
-  {
     path: "admin/video-call",
     component: "VideoCallPage",
   },
@@ -22,10 +18,6 @@ export const adminPhpRoutes = [
   {
     path: "ai-settings",
     component: "AiSettingsPage",
-  },
-  {
-    path: "analytics",
-    component: "AnalyticsPage",
   },
   {
     path: "api-keys",
@@ -642,6 +634,10 @@ export const adminPhpRoutes = [
     component: "RejectedLeadsPage",
   },
   {
+    path: "customer",
+    component: "CustomerPage",
+  },
+  {
     path: "leave-report",
     component: "LeaveReportPage",
   },
@@ -776,10 +772,6 @@ export const adminPhpRoutes = [
   {
     path: "performance-indicator",
     component: "PerformanceIndicatorPage",
-  },
-  {
-    path: "pipeline",
-    component: "PipelinePage",
   },
   {
     path: "policy",
@@ -1272,5 +1264,13 @@ export const adminPhpRoutes = [
   {
     path: "usergroups/edit/:id",
     component: "UserGroupEditPage",
+  },
+  {
+    path: "services/service-categories",
+    component: "ServiceCategoriesPage",
+  },
+  {
+    path: "services/service-types",
+    component: "ServiceTypesPage",
   },
 ];

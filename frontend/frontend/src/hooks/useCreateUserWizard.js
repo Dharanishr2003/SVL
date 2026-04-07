@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { COUNTRY_CODE_OPTIONS, validatePhoneNumber, getCountryAllowedLengths, getCountryDisplayMaxLength } from "../utils/phoneUtils";
+import { COUNTRY_CODE_OPTIONS, validatePhoneNumber, getCountryAllowedLengths, getCountryDisplayMaxLength, defaultCountryOption } from "../utils/phoneUtils";
 
 const EMPTY_FORM = {
   username: "",
@@ -21,7 +21,7 @@ const EMPTY_FORM = {
 export const useCreateUserWizard = () => {
   const [form, setForm] = useState(EMPTY_FORM);
   const [wizardStep, setWizardStep] = useState(0);
-  const [phoneCountryCode, setPhoneCountryCode] = useState(COUNTRY_CODE_OPTIONS[0]?.value || "+91");
+  const [phoneCountryCode, setPhoneCountryCode] = useState(defaultCountryOption?.value || "+91");
   const [phoneError, setPhoneError] = useState("");
   const [showCreatePassword, setShowCreatePassword] = useState(false);
   const [showModal, setShowModal] = useState(false);
@@ -30,7 +30,7 @@ export const useCreateUserWizard = () => {
   const resetForm = () => {
     setForm(EMPTY_FORM);
     setWizardStep(0);
-    setPhoneCountryCode(COUNTRY_CODE_OPTIONS[0]?.value || "+91");
+    setPhoneCountryCode(defaultCountryOption?.value || "+91");
     setPhoneError("");
     setShowCreatePassword(false);
   };

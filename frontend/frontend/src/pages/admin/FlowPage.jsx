@@ -177,6 +177,10 @@ export default function FlowPage() {
             groups={filteredGroups}
             allAvailableStatuses={leadAvailableStatuses}
             selectedStatuses={leadStatuses}
+            hiddenFromTableStatuses={[]}
+            hiddenFromSelectedStatuses={[]}
+            hiddenFromAddStatuses={[]}
+            readOnlyGroupStatuses={["Attempted", "Interested", "Rejected"]}
             onStatusAdd={(status) => setLeadStatuses((prev) => [...prev, status])}
             onStatusRemove={(status) => setLeadStatuses((prev) => prev.filter((s) => s !== status))}
           />

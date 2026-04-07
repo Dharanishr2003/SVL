@@ -28,7 +28,7 @@ export const COUNTRY_CODE_OPTIONS = getCountries()
     return a.label.localeCompare(b.label);
   });
 
-export const defaultCountryOption = COUNTRY_CODE_OPTIONS[0] || {
+export const defaultCountryOption = COUNTRY_CODE_OPTIONS.find((opt) => opt.value === "+91") || COUNTRY_CODE_OPTIONS[0] || {
   value: "+91",
   maxLength: 10,
   label: "India (+91)",

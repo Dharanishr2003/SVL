@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { getDesignRequests, getDealById } from "../../api/dealsApi";
-import { getProductionRequirements } from "../../api/productionRequirementApi";
 import { getDesignRequirement } from "../../api/designRequirementApi";
 import { getUsers } from "../../api/userAdminApi";
 import { extractApiErrorMessage } from "../../utils/errorMessage";
@@ -67,27 +66,19 @@ export default function DesignPage() {
           const sourceLeadId = deal?.sourceLeadId;
           if (!sourceLeadId) return deal;
           try {
-            const [dealDetails, designRequirement, productionRequirements] = await Promise.all([
+            const [dealDetails, designRequirement] = await Promise.all([
               getDealById(deal.id).catch(() => null),
               getDesignRequirement(sourceLeadId).catch(() => null),
-              getProductionRequirements(sourceLeadId).catch(() => []),
             ]);
-
-            const firstProduction = Array.isArray(productionRequirements) && productionRequirements.length > 0
-              ? productionRequirements[0]
-              : null;
 
             const resolvedRequirementType =
               designRequirement?.requirementType ||
-              firstProduction?.requirementType ||
               deal?.requirementType ||
               "";
 
             const resolvedRequirementNotes =
               designRequirement?.designAdditionalNotes ||
               designRequirement?.requirementNotes ||
-              firstProduction?.additionalNotes ||
-              firstProduction?.requirementNotes ||
               deal?.requirementNotes ||
               "";
 

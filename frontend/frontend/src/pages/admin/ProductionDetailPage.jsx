@@ -3,7 +3,6 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { getDealById } from "../../api/dealsApi";
 import { updateProductionWorkStatus } from "../../api/dealsApi";
-import { getProductionRequirements } from "../../api/productionRequirementApi";
 import { getDesignRequirement } from "../../api/designRequirementApi";
 import { getStockRequests } from "../../api/stocksApi";
 import { extractApiErrorMessage } from "../../utils/errorMessage";
@@ -42,7 +41,6 @@ export default function ProductionDetailPage() {
   const { user } = useAuth();
   const { showSuccess, showError } = useToast();
   const [deal, setDeal] = useState(null);
-  const [productionRequirements, setProductionRequirements] = useState([]);
   const [designRequirement, setDesignRequirement] = useState(null);
   const [stockRequest, setStockRequest] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -58,12 +56,10 @@ export default function ProductionDetailPage() {
         const data = await getDealById(dealId);
         setDeal(data);
         if (data?.sourceLeadId) {
-          const [productionRows, designRow, stockRows] = await Promise.all([
-            getProductionRequirements(data.sourceLeadId).catch(() => []),
+          const [designRow, stockRows] = await Promise.all([
             getDesignRequirement(data.sourceLeadId).catch(() => null),
             getStockRequests({ leadId: data.sourceLeadId }).catch(() => []),
           ]);
-          setProductionRequirements(Array.isArray(productionRows) ? productionRows : []);
           setDesignRequirement(designRow || null);
           // use the most recent stock request for this lead
           const sortedStock = Array.isArray(stockRows)
@@ -225,42 +221,6 @@ export default function ProductionDetailPage() {
             <div className="row g-3">
               {renderDownloadFile("Requirement Details File", deal.requirementFileName, deal.requirementFilePath, "btn-outline-info")}
             </div>
-          </div>
-        </div>
-      )}
-
-      {productionRequirements.length > 0 && (
-        <div className="card mb-3">
-          <div className="card-header"><h5 className="mb-0">Production Requirement Details</h5></div>
-          <div className="card-body">
-            {productionRequirements.map((req, idx) => (
-              <div key={req.id || idx} className={idx > 0 ? "border-top pt-3 mt-3" : ""}>
-                <div className="row g-3">
-                  <DetailField label="Requirement Type" value={req.requirementType || "-"} />
-                  <DetailField label="Product Type" value={req.productType || "-"} />
-                  <DetailField label="Custom Product Type" value={req.customProductType || "-"} />
-                  <DetailField label="Quantity" value={req.quantity || "-"} />
-                  <DetailField label="Pages" value={req.numPages || "-"} />
-                  <DetailField label="Paper Size" value={req.paperSize || "-"} />
-                  <DetailField label="Custom Size Width" value={req.customSizeWidth || "-"} />
-                  <DetailField label="Custom Size Height" value={req.customSizeHeight || "-"} />
-                  <DetailField label="Custom Size Unit" value={req.customSizeUnit || "-"} />
-                  <DetailField label="Paper Type" value={req.paperType || "-"} />
-                  <DetailField label="Paper GSM" value={req.paperGsm || "-"} />
-                  <DetailField label="Color Type" value={req.colorType || "-"} />
-                  <DetailField label="Print Sides" value={req.printSides || "-"} />
-                  <DetailField label="Printing Method" value={req.printingMethod || "-"} />
-                  <DetailField label="Finishing Options" value={req.finishingOptions || "-"} className="col-12" multiline />
-                  <DetailField label="Folding Type" value={req.foldingType || "-"} />
-                  <DetailField label="Priority" value={req.priority || "-"} />
-                  <DetailField label="Print Deadline" value={req.printDeadline ? formatDateTime(req.printDeadline) : "-"} />
-                  <DetailField label="Delivery Date" value={req.deliveryDate ? formatDateTime(req.deliveryDate) : "-"} />
-                  {renderDownloadFile("Requirement File", req.requirementFileName, req.requirementFilePath, "btn-outline-info")}
-                  <DetailField label="Notes" value={req.additionalNotes || req.requirementNotes || "-"} className="col-12" multiline />
-                  {renderDownloadFile("Artwork File", req.artworkFileName, req.artworkFilePath, "btn-outline-secondary")}
-                </div>
-              </div>
-            ))}
           </div>
         </div>
       )}

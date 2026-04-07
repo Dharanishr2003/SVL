@@ -4,6 +4,8 @@ import { bulkCreateLeads, getAssignableLeadGroups } from '../../api/leadsApi';
 import { getGroupMembers, getUserGroups } from '../../api/userGroupApi';
 import { getLeadFlow } from '../../api/flowApi';
 import { CRM_PAGE_OPTIONS } from '../../constants/crmPages';
+import LeadImportEditModal from '../../components/admin/LeadImportEditModal';
+import './LeadImportPage.css';
 
 const QUICK_SELECT_OPTIONS = [
   { label: 'First 10', value: 10 },
@@ -14,10 +16,9 @@ const QUICK_SELECT_OPTIONS = [
 ];
 
 const CSV_COLUMNS = [
-  'name', 'mobile', 'primarySource', 'leadPincode',
-  'email', 'countryCode', 'alternatePhone', 'alternateEmail',
-  'secondarySource', 'tertiarySource', 'projectName',
-  'occupation', 'companyName', 'productType', 'leadCountry', 'leadState', 'leadCity',
+  'name', 'mobile', 'email', 'primarySource',
+  'secondarySource', 'productType', 'companyName',
+  'streetAddress', 'state', 'district',
 ];
 
 function parseCSV(text) {
@@ -34,11 +35,11 @@ function parseCSV(text) {
 
 function downloadSampleCSV() {
   const mandatoryNote = '# MANDATORY: name | mobile | primarySource';
-  const optionalNote = '# OPTIONAL: leadPincode | email | countryCode | alternatePhone | alternateEmail | secondarySource | tertiarySource | projectName | occupation | companyName | productType | leadCountry | leadState | leadCity';
+  const optionalNote = '# OPTIONAL: email | secondarySource | productType | companyName | streetAddress | state | district';
   const header = CSV_COLUMNS.join(',');
   const sample = [
-    'John Doe,9876543210,Facebook,110001,john@example.com,+91,,,Google,,MyProject,Engineer,Acme Corp,Software,IN,TN,Chennai',
-    'Jane Smith,9123456789,Google,560001,,,,,,,,,,,IN,KA,Bengaluru',
+    'John Doe,9876543210,john@example.com,Facebook,Google,Software,Acme Corp,123 Main St,Maharashtra,Mumbai',
+    'Jane Smith,9123456789,jane@example.com,Google,Facebook,Hardware,Tech Solutions,456 Oak Ave,Karnataka,Bengaluru',
   ].join('\n');
   const csv = mandatoryNote + '\n' + optionalNote + '\n' + header + '\n' + sample;
   const blob = new Blob([csv], { type: 'text/csv' });
@@ -63,6 +64,8 @@ export default function LeadImportPage() {
   const [successMsg, setSuccessMsg] = useState('');
   const [showCustomCount, setShowCustomCount] = useState(false);
   const [customCount, setCustomCount] = useState('');
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [selectedRowForEdit, setSelectedRowForEdit] = useState(null);
   const leadPageKey = CRM_PAGE_OPTIONS.find((item) => item.key === 'leads')?.key || 'leads';
   const [groupOptions, setGroupOptions] = useState([]);
   const [flowRules, setFlowRules] = useState([]);
@@ -220,12 +223,7 @@ export default function LeadImportPage() {
       leadPincode: row.leadPincode || null,
       email: row.email || null,
       countryCode: row.countryCode || null,
-      alternatePhone: row.alternatePhone || null,
-      alternateEmail: row.alternateEmail || null,
       secondarySource: row.secondarySource || null,
-      tertiarySource: row.tertiarySource || null,
-      projectName: row.projectName || null,
-      occupation: row.occupation || null,
       companyName: row.companyName || null,
       productType: row.productType || null,
       leadCountry: row.leadCountry || null,
@@ -372,21 +370,8 @@ export default function LeadImportPage() {
                     <th>Name</th>
                     <th>Mobile</th>
                     <th>Primary Source</th>
-                    <th>Pin Code</th>
-                    <th>Email</th>
-                    <th>Country Code</th>
-                    <th>Alt. Phone</th>
-                    <th>Alt. Email</th>
-                    <th>Sec. Source</th>
-                    <th>Ter. Source</th>
-                    <th>Project</th>
-                    <th>Occupation</th>
-                    <th>Company</th>
-                    <th>Product Type</th>
-                    <th>Country</th>
-                    <th>State</th>
-                    <th>City</th>
                     <th>Status</th>
+                    <th style={{ width: 80 }}>Action</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -405,26 +390,24 @@ export default function LeadImportPage() {
                       <td>{row.name || <span className="text-danger">-</span>}</td>
                       <td>{row.mobile || <span className="text-danger">-</span>}</td>
                       <td>{row.primarySource || <span className="text-danger">-</span>}</td>
-                      <td>{row.leadPincode || <span className="text-muted">-</span>}</td>
-                      <td>{row.email || <span className="text-muted">-</span>}</td>
-                      <td>{row.countryCode || <span className="text-muted">-</span>}</td>
-                      <td>{row.alternatePhone || <span className="text-muted">-</span>}</td>
-                      <td>{row.alternateEmail || <span className="text-muted">-</span>}</td>
-                      <td>{row.secondarySource || <span className="text-muted">-</span>}</td>
-                      <td>{row.tertiarySource || <span className="text-muted">-</span>}</td>
-                      <td>{row.projectName || <span className="text-muted">-</span>}</td>
-                      <td>{row.occupation || <span className="text-muted">-</span>}</td>
-                      <td>{row.companyName || <span className="text-muted">-</span>}</td>
-                      <td>{row.productType || <span className="text-muted">-</span>}</td>
-                      <td>{row.leadCountry || <span className="text-muted">-</span>}</td>
-                      <td>{row.leadState || <span className="text-muted">-</span>}</td>
-                      <td>{row.leadCity || <span className="text-muted">-</span>}</td>
                       <td>
                         {row._error ? (
                           <span className="badge bg-danger">{row._error}</span>
                         ) : (
                           <span className="badge bg-success">Valid</span>
                         )}
+                      </td>
+                      <td>
+                        <button
+                          className="btn btn-sm btn-outline-primary"
+                          onClick={() => {
+                            setSelectedRowForEdit(row);
+                            setEditModalOpen(true);
+                          }}
+                          title="Edit lead details"
+                        >
+                          <i className="ti ti-pencil"></i> Edit
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -513,6 +496,25 @@ export default function LeadImportPage() {
       {visibleRows.length === 0 && rows.length > 0 && successMsg && (
         <div className="alert alert-success py-2">{successMsg}</div>
       )}
+
+      <LeadImportEditModal
+        isOpen={editModalOpen}
+        onClose={() => {
+          setEditModalOpen(false);
+          setSelectedRowForEdit(null);
+        }}
+        rowData={selectedRowForEdit}
+        onSave={(updatedData) => {
+          // Update the row in the rows array
+          setRows((prevRows) =>
+            prevRows.map((row) =>
+              row._rowIndex === selectedRowForEdit._rowIndex
+                ? { ...row, ...updatedData }
+                : row
+            )
+          );
+        }}
+      />
     </div>
   );
 }

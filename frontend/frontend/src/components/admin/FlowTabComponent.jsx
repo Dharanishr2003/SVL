@@ -21,6 +21,10 @@ export default function FlowTabComponent({
   selectedStatuses,
   onStatusAdd,
   onStatusRemove,
+  hiddenFromTableStatuses = [],
+  hiddenFromSelectedStatuses = [],
+  hiddenFromAddStatuses = [],
+  readOnlyGroupStatuses = [],
 }) {
   const { showSuccess, showError } = useToast();
 
@@ -32,19 +36,41 @@ export default function FlowTabComponent({
   const [groupPickerRule, setGroupPickerRule] = useState(null);
 
   const groupOptions = useMemo(() => groups.filter((g) => g?.id != null), [groups]);
+  const hiddenFromTableSet = useMemo(() => {
+    return new Set(
+      hiddenFromTableStatuses.map((status) => String(status || "").trim().toLowerCase()).filter(Boolean),
+    );
+  }, [hiddenFromTableStatuses]);
+  const hiddenFromSelectedSet = useMemo(() => {
+    return new Set(
+      hiddenFromSelectedStatuses.map((status) => String(status || "").trim().toLowerCase()).filter(Boolean),
+    );
+  }, [hiddenFromSelectedStatuses]);
+  const hiddenFromAddSet = useMemo(() => {
+    return new Set(
+      hiddenFromAddStatuses.map((status) => String(status || "").trim().toLowerCase()).filter(Boolean),
+    );
+  }, [hiddenFromAddStatuses]);
+  const readOnlyGroupSet = useMemo(() => {
+    return new Set(
+      readOnlyGroupStatuses.map((status) => String(status || "").trim().toLowerCase()).filter(Boolean),
+    );
+  }, [readOnlyGroupStatuses]);
+  const isHiddenFromTable = (status) =>
+    hiddenFromTableSet.has(String(status || "").trim().toLowerCase());
+  const isHiddenFromSelected = (status) =>
+    hiddenFromSelectedSet.has(String(status || "").trim().toLowerCase());
+  const isHiddenFromAdd = (status) =>
+    hiddenFromAddSet.has(String(status || "").trim().toLowerCase());
+  const isReadOnlyGroup = (status) =>
+    readOnlyGroupSet.has(String(status || "").trim().toLowerCase());
 
   const allStatusOptions = useMemo(() => {
     return Array.from(new Set(defaultStatuses));
   }, [defaultStatuses]);
 
-  const applyDefaultGroup = (ruleList, groupId) => {
-    if (!groupId) return ruleList;
-    return ruleList.map((r) => ({ ...r, handledByGroupId: r.handledByGroupId || groupId }));
-  };
-
   const handleDefaultGroupChange = (nextGroupId) => {
     setDefaultGroupId(nextGroupId);
-    if (nextGroupId) setRules((prev) => applyDefaultGroup(prev, nextGroupId));
   };
 
   useEffect(() => {
@@ -79,7 +105,7 @@ export default function FlowTabComponent({
             ...emptyRule(status),
             ...found,
             status,
-            handledByGroupId: found?.handledByGroupId != null ? String(found.handledByGroupId) : fallbackGroupId,
+            handledByGroupId: found?.handledByGroupId != null ? String(found.handledByGroupId) : "",
             next: found?.next && typeof found.next === "object" ? found.next : {},
           };
         });
@@ -111,9 +137,14 @@ export default function FlowTabComponent({
     });
   }, [selectedStatuses]);
 
+  const visibleSelectedStatuses = useMemo(
+    () => selectedStatuses.filter((status) => !isHiddenFromSelected(status)),
+    [selectedStatuses, hiddenFromSelectedSet],
+  );
+
   const filteredRules = useMemo(
-    () => rules.filter((r) => selectedStatuses.includes(r.status)),
-    [rules, selectedStatuses],
+    () => rules.filter((r) => selectedStatuses.includes(r.status) && !isHiddenFromTable(r.status)),
+    [rules, selectedStatuses, hiddenFromTableSet],
   );
 
   const buildPayload = (ruleList, dgId) => ({
@@ -171,6 +202,11 @@ export default function FlowTabComponent({
 
   if (loading) return <PageLoader />;
 
+  const statusPickerOptions = (currentStatus) =>
+    selectedStatuses
+      .filter((status) => String(status || "").trim() !== String(currentStatus || "").trim())
+      .filter((status) => String(status || "").trim().toLowerCase() !== "new lead");
+
   return (
     <div>
       {/* Status Configuration Section */}
@@ -186,7 +222,7 @@ export default function FlowTabComponent({
             >
               <option value="">Choose status...</option>
               {allAvailableStatuses
-                .filter((s) => !selectedStatuses.includes(s))
+                .filter((s) => !selectedStatuses.includes(s) && !isHiddenFromAdd(s))
                 .map((status) => (
                   <option key={status} value={status}>
                     {formatStatusLabel(status)}
@@ -210,8 +246,8 @@ export default function FlowTabComponent({
           </button>
         </div>
         <div className="d-flex flex-wrap gap-2">
-          {selectedStatuses.length > 0 ? (
-            selectedStatuses.map((status) => (
+          {visibleSelectedStatuses.length > 0 ? (
+            visibleSelectedStatuses.map((status) => (
               <span
                 key={status}
                 className="badge bg-info d-inline-flex align-items-center gap-2"
@@ -288,7 +324,7 @@ export default function FlowTabComponent({
                         ),
                       )
                     }
-                    disabled={!canEdit || rule.status === "Design + Production"}
+                    disabled={!canEdit || rule.status === "Design + Production" || isReadOnlyGroup(rule.status)}
                   >
                     <option value="">Select Group</option>
                     {groupOptions.map((g) => (
@@ -315,7 +351,7 @@ export default function FlowTabComponent({
                     type="button"
                     className="btn btn-outline-secondary btn-sm"
                     onClick={() => setGroupPickerRule(rule.status)}
-                    disabled={!canEdit || selectedNextStatuses(rule).length === 0}
+                    disabled={!canEdit || selectedNextStatuses(rule).length === 0 || isReadOnlyGroup(rule.status)}
                   >
                     {selectedNextStatuses(rule).length ? "Set Next Group" : "No next status"}
                   </button>
@@ -339,7 +375,7 @@ export default function FlowTabComponent({
             </div>
             <div className="card-body">
               <div className="row g-2">
-                {allStatusOptions.filter((s) => s !== statusPickerRule).map((status) => {
+                {statusPickerOptions(statusPickerRule).map((status) => {
                   const rule = rules.find((r) => r.status === statusPickerRule);
                   return (
                     <div className="col-md-6" key={`${statusPickerRule}-${status}`}>

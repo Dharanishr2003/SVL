@@ -10,7 +10,6 @@ import {
   saveLeadInvoiceItems,
   uploadLeadLogFile,
 } from "../../api/leadsApi";
-import { getProductionRequirements } from "../../api/productionRequirementApi";
 import { getDesignRequirement } from "../../api/designRequirementApi";
 import { useToast } from "../../components/system/ToastProvider";
 import { extractApiErrorMessage } from "../../utils/errorMessage";
@@ -39,7 +38,6 @@ export default function BudgetVerificationApprovePage() {
   const [savingItems, setSavingItems] = useState(false);
   const [invoiceCgstPercent, setInvoiceCgstPercent] = useState(0);
   const [invoiceSgstPercent, setInvoiceSgstPercent] = useState(0);
-  const [productionRequirements, setProductionRequirements] = useState([]);
   const [designRequirement, setDesignRequirement] = useState(null);
   const [showRequirementDetailsModal, setShowRequirementDetailsModal] = useState(false);
 
@@ -99,12 +97,8 @@ export default function BudgetVerificationApprovePage() {
 
     const loadRequirementDetails = async () => {
       try {
-        const [productionRows, designRow] = await Promise.all([
-          getProductionRequirements(lead.id),
-          getDesignRequirement(lead.id),
-        ]);
+        const designRow = await getDesignRequirement(lead.id);
         if (!mounted) return;
-        setProductionRequirements(Array.isArray(productionRows) ? productionRows : []);
         setDesignRequirement(designRow || null);
       } catch (err) {
         if (!mounted) return;
@@ -570,38 +564,6 @@ export default function BudgetVerificationApprovePage() {
                     </div>
                   )}
 
-                  {productionRequirements.length > 0 && (
-                    <div className="card">
-                      <div className="card-header">
-                        <h6 className="mb-0"><i className="ti ti-box me-2"></i>Production Requirement Details</h6>
-                      </div>
-                      <div className="card-body">
-                        {productionRequirements.map((req, idx) => (
-                          <div key={req.id || idx} className={idx > 0 ? "border-top pt-3 mt-3" : ""}>
-                            <div className="row g-3">
-                              <div className="col-md-3"><div className="text-muted small mb-1">Requirement Type</div><div className="fw-semibold">{req.requirementType || "-"}</div></div>
-                              <div className="col-md-3"><div className="text-muted small mb-1">Product Type</div><div className="fw-semibold">{req.productType || "-"}</div></div>
-                              <div className="col-md-3"><div className="text-muted small mb-1">Quantity</div><div className="fw-semibold">{req.quantity || "-"}</div></div>
-                              <div className="col-md-3"><div className="text-muted small mb-1">Paper Size</div><div className="fw-semibold">{req.paperSize || "-"}</div></div>
-                              <div className="col-md-3"><div className="text-muted small mb-1">Paper Type</div><div className="fw-semibold">{req.paperType || "-"}</div></div>
-                              <div className="col-md-3"><div className="text-muted small mb-1">GSM</div><div className="fw-semibold">{req.paperGsm || "-"}</div></div>
-                              <div className="col-md-3"><div className="text-muted small mb-1">Color Type</div><div className="fw-semibold">{req.colorType || "-"}</div></div>
-                              <div className="col-md-3"><div className="text-muted small mb-1">Print Sides</div><div className="fw-semibold">{req.printSides || "-"}</div></div>
-                              <div className="col-md-6"><div className="text-muted small mb-1">Printing Method</div><div className="fw-semibold">{req.printingMethod || "-"}</div></div>
-                              <div className="col-md-6"><div className="text-muted small mb-1">Finishing Options</div><div className="fw-semibold">{req.finishingOptions || "-"}</div></div>
-                              <div className="col-md-4"><div className="text-muted small mb-1">Priority</div><div className="fw-semibold">{req.priority || "-"}</div></div>
-                              <div className="col-md-4"><div className="text-muted small mb-1">Print Deadline</div><div className="fw-semibold">{req.printDeadline ? formatDateTime(req.printDeadline) : "-"}</div></div>
-                              <div className="col-md-4"><div className="text-muted small mb-1">Delivery Date</div><div className="fw-semibold">{req.deliveryDate ? formatDateTime(req.deliveryDate) : "-"}</div></div>
-                              <div className="col-md-12"><div className="text-muted small mb-1">Additional Notes</div><div className="fw-semibold">{req.additionalNotes || "-"}</div></div>
-                              {req.artworkFileName && (
-                                <div className="col-md-12"><div className="text-muted small mb-1">Artwork File</div><div className="d-flex flex-wrap gap-2 align-items-center"><div className="fw-semibold text-break">{req.artworkFileName}</div>{req.artworkFilePath && <button className="btn btn-sm btn-outline-secondary" onClick={() => downloadProtectedFile(req.artworkFilePath, req.artworkFileName)}><i className="ti ti-download me-1"></i>Download</button>}</div></div>
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
                 </div>
                 <div className="modal-footer">
                   <button className="btn btn-secondary" onClick={() => setShowRequirementDetailsModal(false)}>Close</button>

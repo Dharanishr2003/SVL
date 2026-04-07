@@ -13,7 +13,7 @@ export default function Sidebar() {
   const { canAccess } = usePageAccess();
   const isEmployee = role === "EMPLOYEE";
   const isAdminEquivalent =
-    role === "ADMIN" || role === "SUPER_ADMIN" || role === "MANAGER" || role === "EMPLOYEE";
+    role === "ADMIN" || role === "SUPER_ADMIN" || role === "MANAGER" || role === "TEAM_LEAD" || role === "EMPLOYEE";
   const canAccessAny = (...keys) =>
     keys.flat().some((key) => key && canAccess(key));
 
@@ -81,6 +81,8 @@ export default function Sidebar() {
     "leave-report",
     "project-report",
   );
+
+  const hasServicesItems = canAccessAny("services", "service-categories", "service-types");
 
   const hasProjectItems = canAccess("clients");
   const canOpenEmployeeDashboard = canAccess("employee-dashboard");
@@ -188,15 +190,6 @@ export default function Sidebar() {
             <div className="me-3">
               <a href="/calendar" className="btn btn-menubar">
                 <i className="ti ti-layout-grid-remove"></i>
-              </a>
-            </div>
-            <div className="me-3 notification-item">
-              <a
-                href="/activity"
-                className="btn btn-menubar position-relative me-1"
-              >
-                <i className="ti ti-bell"></i>
-                <span className="notification-status-dot"></span>
               </a>
             </div>
             <div className="me-0">
@@ -377,29 +370,13 @@ export default function Sidebar() {
                       </a>
                     </li>
                   )}
-                  {canAccess("pipeline") && (
-                  <li className="">
-                    <a href="/pipeline">
-                      <i className="ti ti-timeline-event-text"></i>
-                      <span>Pipeline</span>
-                    </a>
-                  </li>
-                  )}
-                  {canAccess("analytics") && (
-                  <li className="">
-                    <a href="/analytics">
-                      <i className="ti ti-graph"></i>
-                      <span>Analytics</span>
-                    </a>
-                  </li>
-                  )}
-                  {canAccess("activity") && (
-                  <li className="">
-                    <a href="/activity">
-                      <i className="ti ti-activity"></i>
-                      <span>Activities</span>
-                    </a>
-                  </li>
+                  {canAccess("customer") && (
+                    <li className="">
+                      <a href="/customer">
+                        <i className="ti ti-users-group"></i>
+                        <span>Customers</span>
+                      </a>
+                    </li>
                   )}
                   {canAccess("quotation") && (
                   <li className="submenu">
@@ -808,6 +785,38 @@ export default function Sidebar() {
                   )}
                 </ul>
               </li>
+              {hasServicesItems && (
+              <li className="menu-title">
+                <span>SERVICES</span>
+              </li>
+              )}
+              {hasServicesItems && (
+              <li>
+                <ul>
+                  {canAccessAny("services", "service-categories", "service-types") && (
+                  <li className="submenu">
+                    <a href="javascript:void(0);" className="">
+                      <i className="ti ti-shopping-bag"></i>
+                      <span>Services</span>
+                      <span className="menu-arrow"></span>
+                    </a>
+                    <ul>
+                      {canAccessAny("services", "service-categories") && (
+                      <li>
+                        <a href="/services/service-categories">Service Categories</a>
+                      </li>
+                      )}
+                      {canAccessAny("services", "service-types") && (
+                      <li>
+                        <a href="/services/service-types">Service Types</a>
+                      </li>
+                      )}
+                    </ul>
+                  </li>
+                  )}
+                </ul>
+              </li>
+              )}
               {hasRecruitmentItems && (
               <li className="menu-title">
                 <span>RECRUITMENT</span>

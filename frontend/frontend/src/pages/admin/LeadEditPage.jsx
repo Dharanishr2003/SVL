@@ -15,7 +15,6 @@ import {
   getLeadChatMessages,
   sendLeadChatAttachment,
   downloadLeadChatAttachment,
-  downloadLeadRequirementFile,
   uploadLeadPaymentProof,
 } from "../../api/leadsApi";
 import { getAddressesbyLeadId, createAddress, getAddressesByLeadIdAndType, getAddressById } from "../../api/addressApi";
@@ -23,8 +22,6 @@ import { createStockRequest, getStockItems } from "../../api/stocksApi";
 import { getLeadFlow } from "../../api/flowApi";
 import { getLeadStatuses, DEFAULT_LEAD_STATUSES } from "../../api/leadStatusApi";
 import { getLeadTypes } from "../../api/leadTypeApi";
-import { getProductionRequirements, createProductionRequirement } from "../../api/productionRequirementApi";
-import { getDesignRequirement } from "../../api/designRequirementApi";
 import { createProject, getProjects } from "../../api/projectApi";
 import { getProjectStatuses } from "../../api/projectStatusApi";
 import { getProjectTypes } from "../../api/projectTypeApi";
@@ -38,10 +35,11 @@ import { useCountryCodePicker } from "../../hooks/useCountryCodePicker";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../components/system/ToastProvider";
 import StockRequestFormModal from "../../components/system/StockRequestFormModal";
-import RequirementModal from "./RequirementModal";
 import FilePreviewModal from "../../components/admin/FilePreviewModal";
 import PaymentVerificationModal from "./PaymentVerificationModal";
 import AddressFormModal from "./AddressFormModal";
+import RequirementFormModal from "./RequirementFormModal";
+import { deleteRequirement, getRequirementsByLeadId } from "../../api/requirementApi";
 import api from "../../utils/api";
 
 const CUSTOMER_CHAT_DISABLED = true;
@@ -165,18 +163,16 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
   const [leadPincode, setLeadPincode] = useState("");
   const [statusValue, setStatusValue] = useState("");
   const [flowRules, setFlowRules] = useState([]);
-  const [showAttemptedModal, setShowAttemptedModal] = useState(false);
   const [attemptedOpenReason, setAttemptedOpenReason] = useState("");
   const [attemptedCallStatus, setAttemptedCallStatus] = useState("");
   const [attemptedCallRemarks, setAttemptedCallRemarks] = useState("");
   const [attemptedFollowUpDate, setAttemptedFollowUpDate] = useState("");
-  const [showInterestedModal, setShowInterestedModal] = useState(false);
-  const [showRejectedModal, setShowRejectedModal] = useState(false);
   const [interestedFollowUpDate, setInterestedFollowUpDate] = useState("");
   const [interestedCallRemarks, setInterestedCallRemarks] = useState("");
   const [rejectedReason, setRejectedReason] = useState("");
   const [rejectedReasonSubtype, setRejectedReasonSubtype] = useState("");
   const [leadLogs, setLeadLogs] = useState([]);
+  const [leadGroupOptions, setLeadGroupOptions] = useState([]);
   const [showAllocateModal, setShowAllocateModal] = useState(false);
   const [allocateOptions, setAllocateOptions] = useState([]);
   const [allocateOwnerId, setAllocateOwnerId] = useState("");
@@ -191,15 +187,7 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
   const [designUploadFile, setDesignUploadFile] = useState(null);
   const [finalDesignMessage, setFinalDesignMessage] = useState(null);
   const [activeTab, setActiveTab] = useState("general");
-  const [showRequirementModal, setShowRequirementModal] = useState(false);
-  const [requirementSaving, setRequirementSaving] = useState(false);
-  const [productionRequirements, setProductionRequirements] = useState([]);
-  const [designRequirement, setDesignRequirement] = useState(null);
-  const [loadingDesignRequirement, setLoadingDesignRequirement] = useState(false);
-  const [loadingRequirements, setLoadingRequirements] = useState(false);
-const [showRequirementDetailsModal, setShowRequirementDetailsModal] = useState(false);
   const [previewFile, setPreviewFile] = useState(null);
-  const [selectedRequirement, setSelectedRequirement] = useState(null);
 
   const [showVerifyModal, setShowVerifyModal] = useState(false);
   const [verifyPaidAmount, setVerifyPaidAmount] = useState("");
@@ -208,6 +196,9 @@ const [showRequirementDetailsModal, setShowRequirementDetailsModal] = useState(f
   const [verifyFileName, setVerifyFileName] = useState("");
   const [showLeadLogModal, setShowLeadLogModal] = useState(false);
   const [showStatusModal, setShowStatusModal] = useState(false);
+  const [showRequirementModal, setShowRequirementModal] = useState(false);
+  const [editingRequirement, setEditingRequirement] = useState(null);
+  const [requirements, setRequirements] = useState([]);
   
   // Address-related state for payment verification
   const [billingAddresses, setBillingAddresses] = useState([]);
@@ -303,6 +294,16 @@ const [showRequirementDetailsModal, setShowRequirementDetailsModal] = useState(f
   const [saving, setSaving] = useState(false);
   const [statusSaving, setStatusSaving] = useState(false);
   const [detailsSaving, setDetailsSaving] = useState(false);
+  const flowScopeByGroupId = useMemo(() => {
+    const map = new Map();
+    (leadGroupOptions || []).forEach((group) => {
+      if (group?.id == null) return;
+      const institutionName = String(group?.institutionName || "").trim();
+      if (!institutionName) return;
+      map.set(String(group.id), institutionName);
+    });
+    return map;
+  }, [leadGroupOptions]);
 
   useEffect(() => {
     let isMounted = true;
@@ -486,88 +487,6 @@ const [showRequirementDetailsModal, setShowRequirementDetailsModal] = useState(f
   const effectiveStatus = String(lead?.status || "").trim();
   const statusLower = effectiveStatus.toLowerCase();
 
-  // Fetch production requirements when lead loads (with retry for auth errors)
-  useEffect(() => {
-    if (!lead?.id) return;
-    let isMounted = true;
-    let retryCount = 0;
-    const maxRetries = 3;
-
-    const fetchRequirements = async (retryAttempt = 0) => {
-      if (retryAttempt === 0) setLoadingRequirements(true);
-      try {
-        const requirements = await getProductionRequirements(lead.id);
-        if (isMounted) {
-          setProductionRequirements(Array.isArray(requirements) ? requirements : []);
-        }
-      } catch (err) {
-        if (!isMounted) return;
-        const status = err?.response?.status;
-        
-        // Retry on 401/403 (auth not ready) with exponential backoff
-        if ((status === 401 || status === 403) && retryAttempt < maxRetries) {
-          const delayMs = Math.pow(2, retryAttempt) * 500; // 500ms, 1s, 2s
-          setTimeout(() => {
-            if (isMounted) fetchRequirements(retryAttempt + 1);
-          }, delayMs);
-          return;
-        }
-
-        // Handle all other errors gracefully
-        if (status === 404 || status === 401 || status === 403) {
-          // Expected: 404 if no requirements exist, 401/403 if auth fails after retries
-          setProductionRequirements([]);
-        } else {
-          console.warn("Failed to fetch production requirements:", err?.message || err);
-          setProductionRequirements([]);
-        }
-      } finally {
-        if (isMounted && retryAttempt === 0) setLoadingRequirements(false);
-      }
-    };
-
-    fetchRequirements();
-    return () => {
-      isMounted = false;
-    };
-  }, [lead?.id, effectiveStatus]);
-
-  useEffect(() => {
-    if (!lead?.id) return;
-    let isMounted = true;
-    const statusKey = String(effectiveStatus || "").trim().toLowerCase();
-    const shouldLoadDesignRequirement = ["design", "production", "payment"].includes(statusKey);
-
-    if (!shouldLoadDesignRequirement) {
-      setDesignRequirement(null);
-      setLoadingDesignRequirement(false);
-      return () => {
-        isMounted = false;
-      };
-    }
-
-    const fetchDesignRequirement = async () => {
-      setLoadingDesignRequirement(true);
-      try {
-        const response = await getDesignRequirement(lead.id);
-        if (isMounted) {
-          setDesignRequirement(response || null);
-        }
-      } catch (err) {
-        if (!isMounted) return;
-        console.warn("Failed to fetch design requirement:", err?.message || err);
-        setDesignRequirement(null);
-      } finally {
-        if (isMounted) setLoadingDesignRequirement(false);
-      }
-    };
-
-    fetchDesignRequirement();
-    return () => {
-      isMounted = false;
-    };
-  }, [lead?.id, effectiveStatus]);
-
   useEffect(() => {
     if (!lead?.id || autoStatusHandled) return;
     const params = new URLSearchParams(location.search || "");
@@ -575,19 +494,26 @@ const [showRequirementDetailsModal, setShowRequirementDetailsModal] = useState(f
     if (!nextStatus) return;
     const nextKey = nextStatus.toLowerCase();
     setStatusValue(nextStatus);
-    if (nextKey === "attempted" && statusNeedsModal(nextKey)) {
-      setShowAttemptedModal(true);
-    } else if (nextKey === "interested" && statusNeedsModal(nextKey)) {
-      setShowInterestedModal(true);
-    } else if (nextKey === "rejected" && statusNeedsModal(nextKey)) {
+    if (nextKey === "rejected" && statusNeedsModal(nextKey)) {
       setShowRejectedModal(true);
-    } else if (nextKey === "requirement" && statusNeedsModal(nextKey)) {
-      setShowRequirementModal(true);
     } else if (nextKey === "allocate") {
       setShowAllocateModal(true);
     }
     setAutoStatusHandled(true);
   }, [lead?.id, location.search, autoStatusHandled]);
+
+  useEffect(() => {
+    if (!lead?.id) return;
+    const params = new URLSearchParams(location.search || "");
+    const shouldOpenRequirement = params.get("openRequirement") === "1";
+    const currentStatus = String(lead?.status || "").trim().toLowerCase();
+    if (!shouldOpenRequirement || currentStatus !== "requirement") return;
+    if (!statusNeedsModal("requirement")) return;
+    setActiveTab("requirement");
+    setEditingRequirement(null);
+    setShowRequirementModal(true);
+    navigate(location.pathname, { replace: true });
+  }, [lead?.id, lead?.status, location.pathname, location.search, navigate, requirements.length]);
 
   // Fetch addresses whenverify modal opens
   useEffect(() => {
@@ -617,6 +543,53 @@ const [showRequirementDetailsModal, setShowRequirementDetailsModal] = useState(f
     
     fetchAddresses();
   }, [showVerifyModal, lead?.id]);
+
+  // Fetch requirements for this lead
+  useEffect(() => {
+    if (!lead?.id) return;
+    const fetchReqs = async () => {
+      try {
+        const data = await getRequirementsByLeadId(lead.id);
+        setRequirements(Array.isArray(data) ? data : []);
+      } catch {
+        // silent
+      }
+    };
+    fetchReqs();
+  }, [lead?.id]);
+
+  const refreshRequirements = async () => {
+    if (!lead?.id) return;
+    try {
+      const data = await getRequirementsByLeadId(lead.id);
+      setRequirements(Array.isArray(data) ? data : []);
+    } catch {
+      // silent
+    }
+  };
+
+  const openAddRequirementModal = () => {
+    setEditingRequirement(null);
+    setShowRequirementModal(true);
+  };
+
+  const openEditRequirementModal = (requirement) => {
+    setEditingRequirement(requirement || null);
+    setShowRequirementModal(true);
+  };
+
+  const handleDeleteRequirement = async (requirement) => {
+    if (!requirement?.id) return;
+    const confirmed = window.confirm("Delete this requirement?");
+    if (!confirmed) return;
+    try {
+      await deleteRequirement(requirement.id);
+      await refreshRequirements();
+      showSuccess("Requirement deleted");
+    } catch (e) {
+      showError(extractApiErrorMessage(e, "Failed to delete requirement"));
+    }
+  };
 
   const normalizeKey = (s) => String(s || "").trim().toLowerCase();
   // include the new "requirement" stage so that when a lead is in
@@ -653,12 +626,7 @@ const [showRequirementDetailsModal, setShowRequirementDetailsModal] = useState(f
         return !lead.rejectedReason;
       case "requirement":
       case "budget":
-        // Only show requirement modal when requirement details are missing.
-        return !(
-          (lead.requirementType && String(lead.requirementType).trim()) ||
-          (lead.requirementNotes && String(lead.requirementNotes).trim()) ||
-          (lead.requirementFileName && String(lead.requirementFileName).trim())
-        );
+        return requirements.length === 0;
       default:
         return true;
     }
@@ -685,19 +653,9 @@ const [showRequirementDetailsModal, setShowRequirementDetailsModal] = useState(f
   const hasInterestedData = Boolean(
     lead?.interestedFollowUpDate || lead?.interestedCallRemarks,
   );
-  const hasRequirementData = Boolean(
-    lead?.requirementType ||
-      lead?.requirementNotes ||
-      lead?.requirementFileName ||
-      designRequirement ||
-      productionRequirements.length > 0,
-  );
-  const requirementTypeValue = String(lead?.requirementType || "").trim();
-  const requirementNotesValue = String(lead?.requirementNotes || "").trim();
-  const requirementFileNameValue = String(lead?.requirementFileName || "").trim();
-  const requirementFilePathValue = String(lead?.requirementFilePath || "").trim();
+  const hasRequirementData = requirements.length > 0;
     const hasDesignData = Boolean(
-      lead?.designStartAt || lead?.designEndAt || finalDesignMessage?.id || designRequirement,
+      lead?.designStartAt || lead?.designEndAt || finalDesignMessage?.id,
     );
   const hasPaymentData = Boolean(
     lead?.totalAmount != null ||
@@ -719,12 +677,27 @@ const [showRequirementDetailsModal, setShowRequirementDetailsModal] = useState(f
   const showAttemptedSummary = hasAttemptedData || isAttempted;
   const showInterestedSummary = hasInterestedData || isInterested;
   const showRequirementSummary =
-    hasRequirementData || statusLower === "requirement" || statusLower === "budget";
+    hasRequirementData || hasReachedStage("requirement");
   const hasReachedPaymentStage = hasReachedStage("payment");
   const showPaymentSummary =
     hasPaymentData ||
     hasPaymentVerificationData ||
     hasReachedPaymentStage;
+
+  const visibleTabs = useMemo(() => {
+    const tabs = ["general"];
+    if (showAttemptedSummary) tabs.push("attempted");
+    if (showInterestedSummary) tabs.push("interested");
+    if (showRequirementSummary) tabs.push("requirement");
+    if (isRejected) tabs.push("rejected");
+    return tabs;
+  }, [showAttemptedSummary, showInterestedSummary, showRequirementSummary, isRejected]);
+
+  const wizardProgress = useMemo(() => {
+    const idx = visibleTabs.indexOf(activeTab);
+    if (idx < 0 || visibleTabs.length <= 1) return 0;
+    return (idx / (visibleTabs.length - 1)) * 100;
+  }, [visibleTabs, activeTab]);
 
   const parsedInvoice = (() => {
     if (!lead?.invoiceData) return null;
@@ -957,12 +930,6 @@ const [showRequirementDetailsModal, setShowRequirementDetailsModal] = useState(f
       tabToActivate = "attempted";
     } else if (statusLower === "interested") {
       tabToActivate = "interested";
-    } else if (statusLower === "payment" || statusLower === "production") {
-      tabToActivate = "payment";
-    } else if (statusLower === "budget") {
-      tabToActivate = "budget";
-    } else if (statusLower === "requirement") {
-      tabToActivate = "requirement";
     } else if (statusLower === "rejected") {
       tabToActivate = "rejected";
     }
@@ -1007,11 +974,33 @@ const [showRequirementDetailsModal, setShowRequirementDetailsModal] = useState(f
 
   useEffect(() => {
     let active = true;
+    const loadGroups = async () => {
+      try {
+        const groups = await getAssignableLeadGroups();
+        if (!active) return;
+        setLeadGroupOptions(Array.isArray(groups) ? groups : []);
+      } catch (e) {
+        if (!active) return;
+        setLeadGroupOptions([]);
+      }
+    };
+    loadGroups();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
     const loadFlow = async () => {
       try {
         const canLoadFlowConfig =
           role === "SUPER_ADMIN" || role === "ADMIN" || role === "MANAGER";
-        const flow = canLoadFlowConfig ? await getLeadFlow().catch(() => ({})) : {};
+        const groupId = lead?.leadGroupId ?? lead?.assignedGroupId ?? null;
+        const institutionName = groupId != null ? flowScopeByGroupId.get(String(groupId)) : "";
+        const flow = canLoadFlowConfig
+          ? await getLeadFlow(institutionName ? { institutionName } : {}).catch(() => ({}))
+          : {};
         if (!active) return;
         setFlowRules(Array.isArray(flow?.rules) ? flow.rules : []);
       } catch (e) {
@@ -1023,7 +1012,7 @@ const [showRequirementDetailsModal, setShowRequirementDetailsModal] = useState(f
     return () => {
       active = false;
     };
-  }, [role]);
+  }, [role, lead?.leadGroupId, lead?.assignedGroupId, flowScopeByGroupId]);
 
   useEffect(() => {
     getProjects().then(setProjects).catch(() => {});
@@ -1229,11 +1218,11 @@ const [showRequirementDetailsModal, setShowRequirementDetailsModal] = useState(f
             .filter(Boolean);
         }
       }
-      // Rule exists but no next statuses configured → block transitions
+      // Rule exists but no next statuses configured -> block transitions.
       return [];
     }
     
-    // No flow rule at all for this status → show the configured flow statuses
+    // No flow rule at all for this status -> show the configured flow statuses
     return orderedLeadStatuses;
   })();
   const displayStatusOptions = useMemo(
@@ -1261,22 +1250,32 @@ const [showRequirementDetailsModal, setShowRequirementDetailsModal] = useState(f
       return;
     }
     const normalizedKey = String(statusValue || "").trim().toLowerCase();
-    // only intercept status transitions if the corresponding form needs to be filled
+
+    // Validate Attempted form fields if transitioning to Attempted
     if (normalizedKey === "attempted" && statusNeedsModal(normalizedKey)) {
-      setShowAttemptedModal(true);
-      return;
+      if (!attemptedOpenReason || !attemptedCallStatus) {
+        showError("Please complete Open Reason and Call Status for Attempted status");
+        setStatusSaving(false);
+        return;
+      }
     }
+
+    // Validate Interested form fields if transitioning to Interested
     if (normalizedKey === "interested" && statusNeedsModal(normalizedKey)) {
-      setShowInterestedModal(true);
-      return;
+      if (!interestedFollowUpDate) {
+        showError("Please select Follow Up Date for Interested status");
+        setStatusSaving(false);
+        return;
+      }
     }
+
+    // Validate Rejected form fields if transitioning to Rejected
     if (normalizedKey === "rejected" && statusNeedsModal(normalizedKey)) {
-      setShowRejectedModal(true);
-      return;
-    }
-    if ((normalizedKey === "requirement" || normalizedKey === "budget") && statusNeedsModal(normalizedKey)) {
-      setShowRequirementModal(true);
-      return;
+      if (!rejectedReason) {
+        showError("Please select Rejected Reason");
+        setStatusSaving(false);
+        return;
+      }
     }
     if (normalizedKey === "allocate") {
       setShowAllocateModal(true);
@@ -1322,15 +1321,40 @@ const [showRequirementDetailsModal, setShowRequirementDetailsModal] = useState(f
         // nothing special needed when moving to payment
       }
       const mergedLead = { ...(lead || {}), ...updated };
+
+      // Update lead details with Attempted/Interested/Rejected data
+      if (normalizedKey === "attempted") {
+        await updateLeadDetails(lead.id, {
+          attemptedOpenReason: attemptedOpenReason || null,
+          attemptedCallStatus: attemptedCallStatus || null,
+          attemptedCallRemarks: attemptedCallRemarks || null,
+          attemptedFollowUpDate:
+            attemptedCallStatus?.toLowerCase() === "follow up" && attemptedFollowUpDate
+              ? new Date(attemptedFollowUpDate).toISOString()
+              : null,
+        });
+      } else if (normalizedKey === "interested") {
+        await updateLeadDetails(lead.id, {
+          interestedFollowUpDate: interestedFollowUpDate
+            ? new Date(interestedFollowUpDate).toISOString()
+            : null,
+          interestedCallRemarks: interestedCallRemarks || null,
+        });
+      } else if (normalizedKey === "rejected") {
+        await updateLeadDetails(lead.id, {
+          rejectedReason: rejectedReason || null,
+          rejectedReasonSubtype: rejectedReasonSubtype || null,
+        });
+      }
+
       setLead(mergedLead);
       await refreshLeadLogs(lead.id);
       showSuccess("Lead status updated");
-      // open appropriate modal after save if details are still missing
-      if (statusNeedsModal(normalizedKey)) {
-        if (normalizedKey === "attempted") setShowAttemptedModal(true);
-        else if (normalizedKey === "interested") setShowInterestedModal(true);
-        else if (normalizedKey === "rejected") setShowRejectedModal(true);
-        else if (normalizedKey === "requirement" || normalizedKey === "budget") setShowRequirementModal(true);
+      setShowStatusModal(false);
+      if (normalizedKey === "requirement" && statusNeedsModal("requirement")) {
+        setActiveTab("requirement");
+        setEditingRequirement(null);
+        setShowRequirementModal(true);
       }
       if (exitEditIfOwnershipMoved(mergedLead)) return;
     } catch (e) {
@@ -1351,145 +1375,7 @@ const [showRequirementDetailsModal, setShowRequirementDetailsModal] = useState(f
     return true;
   };
 
-  const submitAttempted = async () => {
-    if (!lead?.id) return;
-    if (!attemptedOpenReason || !attemptedCallStatus) {
-      showError("Please complete Open Reason and Call Status");
-      return;
-    }
-    if (
-      String(attemptedCallStatus || "").trim().toLowerCase() === "follow up" &&
-      !attemptedFollowUpDate
-    ) {
-      showError("Please select Follow Up Date");
-      return;
-    }
-    setSaving(true);
-    try {
-      const detailsPayload = {
-        attemptedOpenReason,
-        attemptedCallStatus,
-        attemptedCallRemarks,
-        followUpDate: attemptedFollowUpDate
-          ? new Date(attemptedFollowUpDate).toISOString()
-          : null,
-      };
-      const detailsUpdated = await updateLeadDetails(lead.id, detailsPayload);
-      if (attemptedFollowUpDate) {
-        setFollowUpDate(attemptedFollowUpDate);
-      }
-      
-      // Determine nextGroupId from flow rules
-      let nextGroupId = null;
-      if (Array.isArray(flowRules)) {
-        const targetRule = flowRules.find(
-          (r) =>
-            String(r?.status || "").trim().toLowerCase() ===
-            String(statusValue || "").trim().toLowerCase(),
-        );
-        if (targetRule?.handledByGroupId != null) {
-          nextGroupId = targetRule.handledByGroupId;
-        }
-      }
-      
-      const updated = await updateLeadRowStatus(lead.id, statusValue, nextGroupId);
-      const mergedLead = { ...(lead || {}), ...detailsUpdated, ...updated };
-      setLead(mergedLead);
-      await refreshLeadLogs(lead.id);
-      showSuccess("Lead status updated");
-      setShowAttemptedModal(false);
-      if (exitEditIfOwnershipMoved(mergedLead)) return;
-    } catch (e) {
-      showError(extractApiErrorMessage(e, "Failed to update status"));
-    } finally {
-      setSaving(false);
-    }
-  };
 
-  const submitInterested = async () => {
-    if (!lead?.id) return;
-    if (!interestedFollowUpDate) {
-      showError("Please select Follow Up Date");
-      return;
-    }
-    setSaving(true);
-    try {
-      const detailsPayload = {
-        interestedFollowUpDate: new Date(interestedFollowUpDate).toISOString(),
-        interestedCallRemarks,
-      };
-      const detailsUpdated = await updateLeadDetails(lead.id, detailsPayload);
-      
-      // Determine nextGroupId from flow rules
-      let nextGroupId = null;
-      if (Array.isArray(flowRules)) {
-        const targetRule = flowRules.find(
-          (r) =>
-            String(r?.status || "").trim().toLowerCase() ===
-            String(statusValue || "").trim().toLowerCase(),
-        );
-        if (targetRule?.handledByGroupId != null) {
-          nextGroupId = targetRule.handledByGroupId;
-        }
-      }
-      
-      const updated = await updateLeadRowStatus(lead.id, statusValue, nextGroupId);
-      const mergedLead = { ...(lead || {}), ...detailsUpdated, ...updated };
-      setLead(mergedLead);
-      await refreshLeadLogs(lead.id);
-      showSuccess("Lead status updated");
-      setShowInterestedModal(false);
-      if (exitEditIfOwnershipMoved(mergedLead)) return;
-    } catch (e) {
-      showError(extractApiErrorMessage(e, "Failed to update status"));
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const submitRejected = async () => {
-    if (!lead?.id) return;
-    if (!rejectedReason) {
-      showError("Please select Rejected Reason");
-      return;
-    }
-    setSaving(true);
-    try {
-      const detailsPayload = {
-        rejectedReason,
-        rejectedReasonSubtype: rejectedReasonSubtype || null,
-      };
-      const detailsUpdated = await updateLeadDetails(lead.id, detailsPayload);
-      
-      // Determine nextGroupId from flow rules
-      let nextGroupId = null;
-      if (Array.isArray(flowRules)) {
-        const targetRule = flowRules.find(
-          (r) =>
-            String(r?.status || "").trim().toLowerCase() ===
-            String(statusValue || "").trim().toLowerCase(),
-        );
-        if (targetRule?.handledByGroupId != null) {
-          nextGroupId = targetRule.handledByGroupId;
-        }
-      }
-      
-      const updated = await updateLeadRowStatus(lead.id, statusValue, nextGroupId);
-      setLead((prev) => ({ ...(prev || {}), ...detailsUpdated, ...updated }));
-      await refreshLeadLogs(lead.id);
-      showSuccess("Lead status updated");
-      setShowRejectedModal(false);
-      if (role === "EMPLOYEE") {
-        navigate("/leads");
-      } else {
-        navigate("/rejected-leads");
-      }
-    } catch (e) {
-      showError(extractApiErrorMessage(e, "Failed to update status"));
-    } finally {
-      setSaving(false);
-    }
-  };
 
   const submitAllocate = async () => {
     if (!lead?.id) return;
@@ -1531,489 +1417,6 @@ const [showRequirementDetailsModal, setShowRequirementDetailsModal] = useState(f
     }
   };
 
-
-  const submitRequirement = async (formData) => {
-    if (!lead?.id) return;
-    const {
-      requirementType, requirementFile, requirementFileName, requirementNotes,
-      designProductType, designCustomProductType, designSize, designCustomSize,
-      designOrientation, designNumPages, designDescription, designPurpose,
-      designCustomPurpose, designTargetAudience, designStylePref,
-      designBrandColors, designFonts,
-      designBrandGuidelinesFile, designBrandGuidelinesName,
-      designLogoFile, designLogoName, designImagesFile, designImagesName,
-      designTextContent, designWebsite, designPhone, designPhoneCountryCode,
-      designAddress, designSocialMedia, designQrCode,
-      designReferenceImagesFile, designReferenceImagesName,
-      designReferenceLinks, designPreviousDesignsFile, designPreviousDesignsName,
-      designDeadline, designPriority, designCustomPriority,
-      designAdditionalNotes, designRestrictions, designColorPrefs,
-      productionProductType, productionCustomProductType, productionQuantity,
-      productionNumPages, productionPaperSize, productionCustomSizeWidth,
-      productionCustomSizeHeight, productionCustomSizeUnit,
-      productionPaperType, productionPaperGsm, productionColorType,
-      productionPrintSides, productionPrintingMethod, productionFinishingOptions,
-      productionFoldingType, productionArtworkFile, productionArtworkFileName,
-      productionAdditionalNotes, productionPrintDeadline, productionDeliveryDate,
-      productionPriority,
-    } = formData;
-
-    setRequirementSaving(true);
-    try {
-      let localDesignRequirement = null;
-      const needsDesignAssignment =
-        requirementType === "Design" || requirementType === "Design + Production";
-      const needsProductionAssignment =
-        requirementType === "Production" || requirementType === "Design + Production";
-
-      const [designAssignment, productionAssignment] = await Promise.all([
-        needsDesignAssignment
-          ? pickFlowAssignee({
-              leadId: lead.id,
-              flowRules,
-              status: "design",
-              currentAssigneeId: lead?.designAssignedToUserId ?? lead?.ownerUserId ?? null,
-            }).catch(() => ({ assigneeId: null }))
-          : Promise.resolve({ assigneeId: null }),
-        needsProductionAssignment
-          ? pickFlowAssignee({
-              leadId: lead.id,
-              flowRules,
-              status: "production",
-              currentAssigneeId: lead?.productionAssignedToUserId ?? lead?.ownerUserId ?? null,
-            }).catch(() => ({ assigneeId: null }))
-          : Promise.resolve({ assigneeId: null }),
-      ]);
-
-      let detailsPayload = {
-        requirementType,
-        requirementNotes,
-      };
-
-      if (designAssignment?.assigneeId) {
-        detailsPayload.designAssignedToUserId = Number(designAssignment.assigneeId);
-      }
-      if (productionAssignment?.assigneeId) {
-        detailsPayload.productionAssignedToUserId = Number(productionAssignment.assigneeId);
-      }
-      
-      // Handle file uploads
-      const uploadedFiles = {};
-      
-      // Upload production file if needed
-      if (requirementFile && (requirementType === "Production" || requirementType === "Design + Production")) {
-        try {
-          const fileAttachment = await sendLeadChatAttachment(lead.id, {
-            threadType: "INTERNAL",
-            message: "Requirement file",
-            file: requirementFile,
-          });
-          if (fileAttachment?.id) {
-            uploadedFiles.requirementFile = {
-              fileName: fileAttachment.attachmentName || fileAttachment.name || requirementFileName,
-              fileType: fileAttachment.attachmentType,
-              fileSize: fileAttachment.attachmentSize,
-              filePath: `/api/v1/leads/${lead.id}/chat/messages/${fileAttachment.id}/file`,
-            };
-          }
-        } catch (uploadErr) {
-          console.warn("Production file upload failed but continuing", uploadErr);
-        }
-      }
-
-      // Upload production artwork file if needed
-      if (productionArtworkFile && (requirementType === "Production" || requirementType === "Design + Production")) {
-        try {
-          const fileAttachment = await sendLeadChatAttachment(lead.id, {
-            threadType: "INTERNAL",
-            message: "Production Artwork",
-            file: productionArtworkFile,
-          });
-          if (fileAttachment?.id) {
-            uploadedFiles.productionArtwork = {
-              fileName: fileAttachment.attachmentName || fileAttachment.name || productionArtworkFileName,
-              fileType: fileAttachment.attachmentType,
-              fileSize: fileAttachment.attachmentSize,
-              filePath: `/api/v1/leads/${lead.id}/chat/messages/${fileAttachment.id}/file`,
-            };
-          }
-        } catch (uploadErr) {
-          console.warn("Production artwork upload failed but continuing", uploadErr);
-        }
-      }
-      
-      // Handle Design brief uploads if applicable
-      if (requirementType === "Design" || requirementType === "Design + Production") {
-        const designBriefFiles = [];
-        
-        // Upload brand guidelines
-        if (designBrandGuidelinesFile) {
-          try {
-            const attachment = await sendLeadChatAttachment(lead.id, {
-              threadType: "INTERNAL",
-              message: "Brand Guidelines",
-              file: designBrandGuidelinesFile,
-            });
-            if (attachment?.id) {
-              designBriefFiles.push({
-                type: "brandGuidelines",
-                fileName: attachment.attachmentName || attachment.name,
-                filePath: `/api/v1/leads/${lead.id}/chat/messages/${attachment.id}/file`,
-              });
-            }
-          } catch (e) {
-            console.warn("Brand guidelines upload failed", e);
-          }
-        }
-        
-        // Upload logo
-        if (designLogoFile) {
-          try {
-            const attachment = await sendLeadChatAttachment(lead.id, {
-              threadType: "INTERNAL",
-              message: "Logo",
-              file: designLogoFile,
-            });
-            if (attachment?.id) {
-              designBriefFiles.push({
-                type: "logo",
-                fileName: attachment.attachmentName || attachment.name,
-                filePath: `/api/v1/leads/${lead.id}/chat/messages/${attachment.id}/file`,
-              });
-            }
-          } catch (e) {
-            console.warn("Logo upload failed", e);
-          }
-        }
-        
-        // Upload client images
-        if (designImagesFile) {
-          try {
-            const attachment = await sendLeadChatAttachment(lead.id, {
-              threadType: "INTERNAL",
-              message: "Client Images",
-              file: designImagesFile,
-            });
-            if (attachment?.id) {
-              designBriefFiles.push({
-                type: "clientImages",
-                fileName: attachment.attachmentName || attachment.name,
-                filePath: `/api/v1/leads/${lead.id}/chat/messages/${attachment.id}/file`,
-              });
-            }
-          } catch (e) {
-            console.warn("Client images upload failed", e);
-          }
-        }
-        
-        // Upload reference images
-        if (designReferenceImagesFile) {
-          try {
-            const attachment = await sendLeadChatAttachment(lead.id, {
-              threadType: "INTERNAL",
-              message: "Reference Images",
-              file: designReferenceImagesFile,
-            });
-            if (attachment?.id) {
-              designBriefFiles.push({
-                type: "referenceImages",
-                fileName: attachment.attachmentName || attachment.name,
-                filePath: `/api/v1/leads/${lead.id}/chat/messages/${attachment.id}/file`,
-              });
-            }
-          } catch (e) {
-            console.warn("Reference images upload failed", e);
-          }
-        }
-        
-        // Upload previous designs
-        if (designPreviousDesignsFile) {
-          try {
-            const attachment = await sendLeadChatAttachment(lead.id, {
-              threadType: "INTERNAL",
-              message: "Previous Designs",
-              file: designPreviousDesignsFile,
-            });
-            if (attachment?.id) {
-              designBriefFiles.push({
-                type: "previousDesigns",
-                fileName: attachment.attachmentName || attachment.name,
-                filePath: `/api/v1/leads/${lead.id}/chat/messages/${attachment.id}/file`,
-              });
-            }
-          } catch (e) {
-            console.warn("Previous designs upload failed", e);
-          }
-        }
-        
-        // Serialize design brief to JSON
-        const designBrief = {
-          productDetails: {
-            type: designProductType === "Custom" ? designCustomProductType : designProductType,
-            size: designSize === "Custom" ? designCustomSize : designSize,
-            orientation: designOrientation,
-            pages: designNumPages,
-          },
-          designBrief: {
-            description: designDescription,
-            purpose: designPurpose === "Custom" ? designCustomPurpose : designPurpose,
-            targetAudience: designTargetAudience,
-            stylePreference: designStylePref,
-          },
-          brandDetails: {
-            colors: designBrandColors,
-            fonts: designFonts,
-            guidelinesFile: designBriefFiles.find(f => f.type === "brandGuidelines") || null,
-          },
-          contentFromClient: {
-            logo: designBriefFiles.find(f => f.type === "logo") || null,
-            images: designBriefFiles.find(f => f.type === "clientImages") || null,
-            textContent: designTextContent,
-            website: designWebsite,
-            phone: designPhone,
-            phoneCountryCode: designPhoneCountryCode,
-            address: designAddress,
-            socialMedia: designSocialMedia,
-            qrCode: designQrCode,
-          },
-          referenceDesigns: {
-            images: designBriefFiles.find(f => f.type === "referenceImages") || null,
-            links: designReferenceLinks,
-            previousDesigns: designBriefFiles.find(f => f.type === "previousDesigns") || null,
-          },
-          deadline: {
-            date: designDeadline,
-            priority: designPriority === "Custom" ? designCustomPriority : designPriority,
-          },
-          specialInstructions: {
-            notes: designAdditionalNotes,
-            restrictions: designRestrictions,
-            colorPreferences: designColorPrefs,
-          },
-        };
-        
-        detailsPayload.designBrief = JSON.stringify(designBrief);
-        localDesignRequirement = {
-          requirementType,
-          requirementNotes,
-          requirementFileName: uploadedFiles.requirementFile?.fileName || requirementFileName || "",
-          requirementFilePath: uploadedFiles.requirementFile?.filePath || null,
-          designProductType: designProductType === "Custom" ? designCustomProductType : designProductType,
-          designCustomProductType,
-          designSize: designSize === "Custom" ? designCustomSize : designSize,
-          designCustomSize,
-          designOrientation,
-          designNumPages,
-          designDescription,
-          designPurpose: designPurpose === "Custom" ? designCustomPurpose : designPurpose,
-          designCustomPurpose,
-          designTargetAudience,
-          designStylePref,
-          designBrandColors,
-          designFonts,
-          designBrandGuidelinesFileName: designBriefFiles.find((f) => f.type === "brandGuidelines")?.fileName || designBrandGuidelinesName || "",
-          designBrandGuidelinesFilePath: designBriefFiles.find((f) => f.type === "brandGuidelines")?.filePath || null,
-          designLogoFileName: designBriefFiles.find((f) => f.type === "logo")?.fileName || designLogoName || "",
-          designLogoFilePath: designBriefFiles.find((f) => f.type === "logo")?.filePath || null,
-          designImagesFileName: designBriefFiles.find((f) => f.type === "clientImages")?.fileName || designImagesName || "",
-          designImagesFilePath: designBriefFiles.find((f) => f.type === "clientImages")?.filePath || null,
-          designTextContent,
-          designWebsite,
-          designPhone,
-          designPhoneCountryCode,
-          designAddress,
-          designSocialMedia,
-          designQrCode,
-          designReferenceImagesFileName: designBriefFiles.find((f) => f.type === "referenceImages")?.fileName || designReferenceImagesName || "",
-          designReferenceImagesFilePath: designBriefFiles.find((f) => f.type === "referenceImages")?.filePath || null,
-          designReferenceLinks,
-          designPreviousDesignsFileName: designBriefFiles.find((f) => f.type === "previousDesigns")?.fileName || designPreviousDesignsName || "",
-          designPreviousDesignsFilePath: designBriefFiles.find((f) => f.type === "previousDesigns")?.filePath || null,
-          designDeadline,
-          designPriority: designPriority === "Custom" ? designCustomPriority : designPriority,
-          designCustomPriority,
-          designAdditionalNotes,
-          designRestrictions,
-          designColorPrefs,
-          designBrief: JSON.stringify(designBrief),
-        };
-      }
-      
-      // Handle Production brief serialization if applicable
-      if (requirementType === "Production" || requirementType === "Design + Production") {
-        const productionBrief = {
-          productDetails: {
-            type: productionProductType === "Custom" ? productionCustomProductType : productionProductType,
-            quantity: productionQuantity ? parseInt(productionQuantity) : null,
-            pages: productionNumPages ? parseInt(productionNumPages) : null,
-          },
-          sizeDetails: {
-            size: productionPaperSize === "Custom" ? "Custom" : productionPaperSize,
-            customWidth: productionPaperSize === "Custom" ? (productionCustomSizeWidth ? parseFloat(productionCustomSizeWidth) : null) : null,
-            customHeight: productionPaperSize === "Custom" ? (productionCustomSizeHeight ? parseFloat(productionCustomSizeHeight) : null) : null,
-            customUnit: productionCustomSizeUnit,
-          },
-          paperSpecifications: {
-            type: productionPaperType,
-            gsm: productionPaperGsm,
-          },
-          printingSpecifications: {
-            colorType: productionColorType,
-            printSides: productionPrintSides,
-            printingMethod: productionPrintingMethod,
-          },
-          finishingOptions: productionFinishingOptions || "[]",
-          foldingType: productionFoldingType,
-          artworkFile: uploadedFiles.productionArtwork ? uploadedFiles.productionArtwork.filePath : productionArtworkFileName,
-          additionalNotes: productionAdditionalNotes,
-          deadline: {
-            printDeadline: productionPrintDeadline,
-            deliveryDate: productionDeliveryDate,
-            priority: productionPriority,
-          },
-        };
-        
-        detailsPayload.productionBrief = JSON.stringify(productionBrief);
-        
-        // Add artwork file metadata to payload if uploaded
-        if (uploadedFiles.productionArtwork) {
-          detailsPayload.productionArtworkFileName = uploadedFiles.productionArtwork.fileName;
-          detailsPayload.productionArtworkFileType = uploadedFiles.productionArtwork.fileType;
-          detailsPayload.productionArtworkFileSize = uploadedFiles.productionArtwork.fileSize;
-          detailsPayload.productionArtworkFilePath = uploadedFiles.productionArtwork.filePath;
-        }
-      }
-      
-      // Add uploaded files to payload
-      if (uploadedFiles.requirementFile) {
-        detailsPayload.requirementFileName = uploadedFiles.requirementFile.fileName;
-        detailsPayload.requirementFileType = uploadedFiles.requirementFile.fileType;
-        detailsPayload.requirementFileSize = uploadedFiles.requirementFile.fileSize;
-        detailsPayload.requirementFilePath = uploadedFiles.requirementFile.filePath;
-      }
-      
-      const detailsUpdated = await updateLeadDetails(lead.id, detailsPayload);
-      
-      // Determine nextGroupId from flow rules
-      let nextGroupId = null;
-      if (Array.isArray(flowRules)) {
-        const targetRule = flowRules.find(
-          (r) =>
-            String(r?.status || "").trim().toLowerCase() ===
-            String(statusValue || "").trim().toLowerCase(),
-        );
-        if (targetRule?.handledByGroupId != null) {
-          nextGroupId = targetRule.handledByGroupId;
-        }
-      }
-      
-      const updated = await updateLeadRowStatus(lead.id, statusValue, nextGroupId);
-      const mergedLead = { ...(lead || {}), ...detailsUpdated, ...updated };
-      setLead(mergedLead);
-      if (localDesignRequirement) {
-        setDesignRequirement(localDesignRequirement);
-      }
-
-      if (String(statusValue || "").trim().toLowerCase() === "budget") {
-        try {
-          const budgetAssignment = await pickGroupAssignee({
-            groupId: nextGroupId,
-            currentAssigneeId: lead?.budgetVerificationAssignedToUserId ?? null,
-          }).catch(() => ({ assigneeId: null }));
-          if (budgetAssignment?.assigneeId) {
-            await updateLeadDetails(lead.id, {
-              budgetVerificationAssignedToUserId: Number(budgetAssignment.assigneeId),
-            });
-          } else {
-            console.warn("No assignable employee found for budget verification group", nextGroupId);
-          }
-        } catch (budgetErr) {
-          console.warn("Failed to assign budget verification", budgetErr);
-        }
-      }
-      
-      // Create production requirement record if applicable
-      if (requirementType === "Production" || requirementType === "Design + Production") {
-        try {
-          const productionPayload = {
-            requirementType,
-            productType: productionProductType === "Custom" ? productionCustomProductType : productionProductType,
-            quantity: Number(productionQuantity),
-            numPages: productionNumPages ? Number(productionNumPages) : null,
-            paperSize: productionPaperSize === "Custom" ? `Custom: ${productionCustomSizeWidth}${productionCustomSizeUnit}x${productionCustomSizeHeight}${productionCustomSizeUnit}` : productionPaperSize,
-            customSizeWidth: productionCustomSizeWidth,
-            customSizeHeight: productionCustomSizeHeight,
-            customSizeUnit: productionCustomSizeUnit,
-            paperType: productionPaperType,
-            paperGsm: productionPaperGsm,
-            colorType: productionColorType,
-            printSides: productionPrintSides,
-            printingMethod: productionPrintingMethod,
-            finishingOptions: productionFinishingOptions,
-            foldingType: productionFoldingType,
-            artworkFileName: uploadedFiles.productionArtwork?.fileName || productionArtworkFileName,
-            artworkFilePath: uploadedFiles.productionArtwork?.filePath || null,
-            additionalNotes: productionAdditionalNotes,
-            printDeadline: productionPrintDeadline ? new Date(productionPrintDeadline).toISOString() : null,
-            deliveryDate: productionDeliveryDate ? new Date(productionDeliveryDate).toISOString() : null,
-            priority: productionPriority,
-            leadId: lead.id,
-          };
-
-          if (productionAssignment?.assigneeId) {
-            productionPayload.assignedTo = Number(productionAssignment.assigneeId);
-          }
-          
-          const createdReq = await createProductionRequirement(lead.id, productionPayload);
-          console.log("✓ Production requirement created successfully", createdReq);
-          
-          // Add requirement to local state immediately for display
-          if (createdReq) {
-            setProductionRequirements([createdReq]);
-          } else {
-            // If no response, construct from payload
-            setProductionRequirements([productionPayload]);
-          }
-          
-          // Also try to reload from backend for consistency
-          try {
-            const requirements = await getProductionRequirements(lead.id);
-            // Only update from backend if we actually get data back
-            if (Array.isArray(requirements) && requirements.length > 0) {
-              setProductionRequirements(requirements);
-            } else {
-              console.warn("Backend returned empty requirements list, keeping local copy");
-            }
-          } catch (err) {
-            console.warn("Failed to reload requirements from backend (404), using local data", err);
-            // Keep local data if backend fetch fails
-          }
-        } catch (prodErr) {
-          console.warn("Failed to create production requirement but continuing", prodErr);
-        }
-      }
-
-      if (requirementType === "Design" || requirementType === "Design + Production") {
-        try {
-          const latestDesignRequirement = await getDesignRequirement(lead.id);
-          setDesignRequirement(latestDesignRequirement || null);
-        } catch (designErr) {
-          console.warn("Failed to reload design requirement after save", designErr);
-        }
-      }
-      
-      showSuccess("Requirement submitted successfully");
-        // Stay on the requirement tab so the saved details are visible immediately
-        setActiveTab("requirement");
-        setShowRequirementModal(false);
-      if (exitEditIfOwnershipMoved(mergedLead)) return;
-    } catch (e) {
-      showError(extractApiErrorMessage(e, "Failed to submit requirement"));
-    } finally {
-      setRequirementSaving(false);
-    }
-  };
-
   const downloadProtectedFile = async (filePath, fileName, fallbackMessage) => {
     if (!filePath || !fileName) return;
     try {
@@ -2034,51 +1437,17 @@ const [showRequirementDetailsModal, setShowRequirementDetailsModal] = useState(f
     }
   };
 
-  const downloadRequirementFile = async () => {
-    if (!lead?.id || !lead?.requirementFileName) return;
-    if (lead?.requirementFilePath) {
-      await downloadProtectedFile(
-        lead.requirementFilePath,
-        lead.requirementFileName,
-        "Failed to download requirement file",
-      );
-      return;
-    }
-    try {
-      const { blob } = await downloadLeadRequirementFile(lead.id);
-      if (!blob) {
-        showError("Requirement file not available");
-        return;
-      }
-      const blobUrl = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = blobUrl;
-      link.download = lead.requirementFileName || `requirement-${lead.id}`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(blobUrl);
-    } catch (e) {
-      showError(extractApiErrorMessage(e, "Failed to download requirement file"));
-    }
-  };
 
   const handleStatusChange = (newStatus) => {
     setStatusValue(newStatus);
-    
+
     // Open appropriate modal based on selected status
     if (!newStatus) return;
-    
+
     const normalizedStatus = String(newStatus || "").trim().toLowerCase();
-    
-    if (normalizedStatus === "attempted") {
-      setShowAttemptedModal(true);
-    } else if (normalizedStatus === "interested") {
-      setShowInterestedModal(true);
-    } else if (normalizedStatus === "rejected") {
+
+    if (normalizedStatus === "rejected") {
       setShowRejectedModal(true);
-    } else if (normalizedStatus === "requirement") {
-      setShowRequirementModal(true);
     } else if (normalizedStatus === "allocate") {
       setShowAllocateModal(true);
     }
@@ -2315,7 +1684,7 @@ const [showRequirementDetailsModal, setShowRequirementDetailsModal] = useState(f
       setLead((prev) => ({ ...(prev || {}), ...updated }));
       showSuccess("Verification sent with invoice");
       setShowVerifyModal(false);
-      setActiveTab("payment");
+      setActiveTab("general");
       // Reset form
       setShipSame(false);
       setSelectedBillingAddressId(null);
@@ -2619,13 +1988,13 @@ const [showRequirementDetailsModal, setShowRequirementDetailsModal] = useState(f
                     <motion.div
                       className="lead-edit-wizard-progress"
                       initial={{ width: "0%" }}
-                      animate={{ width: "100%" }}
+                      animate={{ width: `${wizardProgress}%` }}
                       transition={{ duration: 0.35, ease: "easeOut" }}
                     />
                   </div>
 
                   {/* Step Circles */}
-                  <motion.div className="lead-edit-wizard-circles">
+                  <motion.div className="lead-edit-wizard-circles" layoutId="circles-container">
                     <div className="lead-edit-wizard-circle-item" onClick={() => setActiveTab("general")}>
                       <motion.div className={`lead-edit-wizard-circle${activeTab === "general" ? " active" : ""}`}>
                         <i className="ti ti-user" />
@@ -2660,14 +2029,14 @@ const [showRequirementDetailsModal, setShowRequirementDetailsModal] = useState(f
                     </div>
                     )}
 
-                    {(statusLower === "budget" || lead?.budgetVerificationStatus) && (
+                    {false && ((statusLower === "budget" || lead?.budgetVerificationStatus) && (
                     <div className="lead-edit-wizard-circle-item" onClick={() => setActiveTab("budget")}>
                       <motion.div className={`lead-edit-wizard-circle${activeTab === "budget" ? " active" : ""}`}>
                         <i className="ti ti-currency-dollar" />
                       </motion.div>
                       <div className="lead-edit-wizard-circle-label">Budget</div>
                     </div>
-                    )}
+                    ))}
 
                     {isRejected && (
                     <div className="lead-edit-wizard-circle-item" onClick={() => setActiveTab("rejected")}>
@@ -2678,14 +2047,14 @@ const [showRequirementDetailsModal, setShowRequirementDetailsModal] = useState(f
                     </div>
                     )}
 
-                    {showPaymentSummary && statusLower !== "budget" && (
+                    {false && (showPaymentSummary && statusLower !== "budget" && (
                     <div className="lead-edit-wizard-circle-item" onClick={() => setActiveTab("payment")}>
                       <motion.div className={`lead-edit-wizard-circle${activeTab === "payment" ? " active" : ""}`}>
                         <i className="ti ti-receipt" />
                       </motion.div>
                       <div className="lead-edit-wizard-circle-label">{isProduction ? "Production" : "Payment"}</div>
                     </div>
-                    )}
+                    ))}
                   </motion.div>
                 </div>
 
@@ -2999,134 +2368,151 @@ const [showRequirementDetailsModal, setShowRequirementDetailsModal] = useState(f
 
                 <>
                 {activeTab === "attempted" && showAttemptedSummary && (
-                <div className="tab-pane fade show active">
-                  <div>
-                    <h5 className="mb-3">Attempted Details</h5>
-                    <div className="row g-3">
-                      {String(attemptedCallStatus || "")
-                        .trim()
-                        .toLowerCase() === "follow up" && (
-                        <div className="col-md-6">
-                          <label className="form-label">Follow Up Date</label>
-                          <input
-                            className="form-control"
-                            type="datetime-local"
-                            value={followUpDate}
-                            onChange={(e) => setFollowUpDate(e.target.value)}
-                            readOnly={!isAttempted}
-                          />
-                        </div>
-                      )}
-                      <div className="col-md-6">
-                        <label className="form-label">Open Reason</label>
-                        {isAttempted ? (
-                          <select
-                            className="form-select"
-                            value={attemptedOpenReason}
-                            onChange={(e) => setAttemptedOpenReason(e.target.value)}
-                          >
-                            <option value="">Select Open Reason</option>
-                            <option value="Contacted">Contacted</option>
-                            <option value="Shared Details">Shared Details</option>
-                            <option value="Retry">Retry</option>
-                          </select>
-                        ) : (
-                          <input
-                            className="form-control"
-                            value={attemptedOpenReason || "-"}
-                            readOnly
-                          />
-                        )}
-                      </div>
-                      <div className="col-md-6">
-                        <label className="form-label">Call Status</label>
-                        {isAttempted ? (
-                          <select
-                            className="form-select"
-                            value={attemptedCallStatus}
-                            onChange={(e) => {
-                              const next = e.target.value;
-                              setAttemptedCallStatus(next);
-                              if (String(next || "").trim().toLowerCase() !== "follow up") {
-                                setAttemptedFollowUpDate("");
-                              }
-                            }}
-                          >
-                            <option value="">Select Call Status</option>
-                            <option value="RNR">RNR</option>
-                            <option value="Call Connected">Call Connected</option>
-                            <option value="Follow Up">Follow Up</option>
-                            <option value="Number Busy">Number Busy</option>
-                            <option value="Not Reachable">Not Reachable</option>
-                            <option value="Switched Off">Switched Off</option>
-                            <option value="Number Not In Use">Number Not In Use</option>
-                            <option value="Wrong Number">Wrong Number</option>
-                          </select>
-                        ) : (
-                          <input
-                            className="form-control"
-                            value={attemptedCallStatus || "-"}
-                            readOnly
-                          />
-                        )}
-                      </div>
-                      <div className="col-md-12">
-                        <label className="form-label">Call Remarks</label>
-                        {isAttempted ? (
-                          <textarea
-                            className="form-control"
-                            rows={3}
-                            value={attemptedCallRemarks}
-                            onChange={(e) => setAttemptedCallRemarks(e.target.value)}
-                            placeholder="Call Remarks"
-                          />
-                        ) : (
-                          <textarea
-                            className="form-control"
-                            rows={3}
-                            value={attemptedCallRemarks || "-"}
-                            readOnly
-                          />
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                )}
-
-                {activeTab === "interested" && showInterestedSummary && (
-                <div className="tab-pane fade show active">
-                  <div>
-                    <h5 className="mb-3">Interested Details</h5>
-                    <div className="row g-3">
+                <motion.div
+                  key="attempted-tab"
+                  initial={{ opacity: 0, x: 18, filter: "blur(4px)" }}
+                  animate={{ opacity: 1, x: 0, filter: "blur(0px)" }}
+                  exit={{ opacity: 0, x: -18, filter: "blur(4px)" }}
+                  transition={{ duration: 0.26, ease: "easeOut" }}
+                  className="lead-edit-wizard-step-panel"
+                >
+                  <h5 className="mb-3">Attempted Details</h5>
+                  <div className="row g-3">
+                    {String(attemptedCallStatus || "")
+                      .trim()
+                      .toLowerCase() === "follow up" && (
                       <div className="col-md-6">
                         <label className="form-label">Follow Up Date</label>
                         <input
                           className="form-control"
                           type="datetime-local"
-                          value={interestedFollowUpDate}
-                          onChange={(e) => setInterestedFollowUpDate(e.target.value)}
-                          readOnly={isLeadReadOnly}
+                          value={followUpDate}
+                          onChange={(e) => setFollowUpDate(e.target.value)}
+                          readOnly={!isAttempted}
                         />
                       </div>
-                      <div className="col-md-12">
-                        <label className="form-label">Call Remarks</label>
+                    )}
+                    <div className="col-md-6">
+                      <label className="form-label">Open Reason</label>
+                      {isAttempted ? (
+                        <select
+                          className="form-select"
+                          value={attemptedOpenReason}
+                          onChange={(e) => setAttemptedOpenReason(e.target.value)}
+                        >
+                          <option value="">Select Open Reason</option>
+                          <option value="Contacted">Contacted</option>
+                          <option value="Shared Details">Shared Details</option>
+                          <option value="Retry">Retry</option>
+                        </select>
+                      ) : (
+                        <input
+                          className="form-control"
+                          value={attemptedOpenReason || "-"}
+                          readOnly
+                        />
+                      )}
+                    </div>
+                    <div className="col-md-6">
+                      <label className="form-label">Call Status</label>
+                      {isAttempted ? (
+                        <select
+                          className="form-select"
+                          value={attemptedCallStatus}
+                          onChange={(e) => {
+                            const next = e.target.value;
+                            setAttemptedCallStatus(next);
+                            if (String(next || "").trim().toLowerCase() !== "follow up") {
+                              setAttemptedFollowUpDate("");
+                            }
+                          }}
+                        >
+                          <option value="">Select Call Status</option>
+                          <option value="RNR">RNR</option>
+                          <option value="Call Connected">Call Connected</option>
+                          <option value="Follow Up">Follow Up</option>
+                          <option value="Number Busy">Number Busy</option>
+                          <option value="Not Reachable">Not Reachable</option>
+                          <option value="Switched Off">Switched Off</option>
+                          <option value="Number Not In Use">Number Not In Use</option>
+                          <option value="Wrong Number">Wrong Number</option>
+                        </select>
+                      ) : (
+                        <input
+                          className="form-control"
+                          value={attemptedCallStatus || "-"}
+                          readOnly
+                        />
+                      )}
+                    </div>
+                    <div className="col-md-12">
+                      <label className="form-label">Call Remarks</label>
+                      {isAttempted ? (
                         <textarea
                           className="form-control"
                           rows={3}
-                          value={interestedCallRemarks}
-                          onChange={(e) => setInterestedCallRemarks(e.target.value)}
+                          value={attemptedCallRemarks}
+                          onChange={(e) => setAttemptedCallRemarks(e.target.value)}
                           placeholder="Call Remarks"
-                          readOnly={isLeadReadOnly}
                         />
-                      </div>
+                      ) : (
+                        <textarea
+                          className="form-control"
+                          rows={3}
+                          value={attemptedCallRemarks || "-"}
+                          readOnly
+                        />
+                      )}
                     </div>
                   </div>
-                </div>
+                </motion.div>
+                )}
+
+                {activeTab === "interested" && showInterestedSummary && (
+                <motion.div
+                  key="interested-tab"
+                  initial={{ opacity: 0, x: 18, filter: "blur(4px)" }}
+                  animate={{ opacity: 1, x: 0, filter: "blur(0px)" }}
+                  exit={{ opacity: 0, x: -18, filter: "blur(4px)" }}
+                  transition={{ duration: 0.26, ease: "easeOut" }}
+                  className="lead-edit-wizard-step-panel"
+                >
+                  <h5 className="mb-3">Interested Details</h5>
+                  <div className="row g-3">
+                    <div className="col-md-6">
+                      <label className="form-label">Follow Up Date</label>
+                      <input
+                        className="form-control"
+                        type="datetime-local"
+                        value={interestedFollowUpDate}
+                        onChange={(e) => setInterestedFollowUpDate(e.target.value)}
+                        readOnly={isLeadReadOnly}
+                      />
+                    </div>
+                    <div className="col-md-12">
+                      <label className="form-label">Call Remarks</label>
+                      <textarea
+                        className="form-control"
+                        rows={3}
+                        value={interestedCallRemarks}
+                        onChange={(e) => setInterestedCallRemarks(e.target.value)}
+                        placeholder="Call Remarks"
+                        readOnly={isLeadReadOnly}
+                      />
+                    </div>
+                  </div>
+                </motion.div>
                 )}
 
                 {activeTab === "boq" && showBoqSummary && (
-                <div className="tab-pane fade show active">
+                <motion.div
+                  key="boq-tab"
+                  initial={{ opacity: 0, x: 18, filter: "blur(4px)" }}
+                  animate={{ opacity: 1, x: 0, filter: "blur(0px)" }}
+                  exit={{ opacity: 0, x: -18, filter: "blur(4px)" }}
+                  transition={{ duration: 0.26, ease: "easeOut" }}
+                  className="lead-edit-wizard-step-panel"
+                >
                   <div>
                     <h5 className="mb-3">Customer Login Info</h5>
                     <div className="row g-3">
@@ -3154,462 +2540,107 @@ const [showRequirementDetailsModal, setShowRequirementDetailsModal] = useState(f
                       </div>
                     </div>
                   </div>
-                </div>
+                </motion.div>
                 )}
 
                 {activeTab === "requirement" && showRequirementSummary && (
-                <div className="tab-pane fade show active">
-                  {/* General Requirement Details */}
-                  {(requirementTypeValue || requirementNotesValue || requirementFileNameValue) && (
-                    <div className="card mb-3">
-                      <div className="card-body">
-                        <div className="row g-3">
-                          <div className="col-md-4">
-                            <label className="form-label fw-semibold">Requirement Type</label>
-                            <input className="form-control form-control-sm" value={requirementTypeValue || "-"} readOnly />
-                          </div>
-                          <div className="col-md-8">
-                            <label className="form-label fw-semibold">Requirement Notes</label>
-                            <textarea className="form-control form-control-sm" value={requirementNotesValue || "-"} readOnly rows={3} />
-                          </div>
-                          {requirementFileNameValue && (
-                            <div className="col-12">
-                              <label className="form-label fw-semibold">Requirement File</label>
-                              <div className="py-2 d-flex flex-wrap gap-2 align-items-center">
-                                <span className="text-break">{requirementFileNameValue}</span>
-                                <button
-                                  type="button"
-                                  className="btn btn-sm btn-outline-info"
-                                  onClick={() => setPreviewFile({ fileName: requirementFileNameValue, filePath: requirementFilePathValue })}
-                                  disabled={!requirementFilePathValue}
-                                >
-                                  Preview
-                                </button>
-                                <button
-                                  type="button"
-                                  className="btn btn-sm btn-outline-secondary"
-                                  onClick={() => {
-                                    if (requirementFilePathValue) {
-                                      downloadRequirementFile();
-                                    }
-                                  }}
-                                  disabled={!requirementFilePathValue}
-                                >
-                                  Download
-                                </button>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </div>
+                <motion.div
+                  key="requirement-tab"
+                  initial={{ opacity: 0, x: 18, filter: "blur(4px)" }}
+                  animate={{ opacity: 1, x: 0, filter: "blur(0px)" }}
+                  exit={{ opacity: 0, x: -18, filter: "blur(4px)" }}
+                  transition={{ duration: 0.26, ease: "easeOut" }}
+                  className="tab-pane fade show active"
+                >
+                  <div className="d-flex justify-content-between align-items-center mb-3">
+                    <h6 className="mb-0">Requirements</h6>
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-primary"
+                      onClick={openAddRequirementModal}
+                    >
+                      <i className="ti ti-plus me-1" />
+                      Add Requirement
+                    </button>
+                  </div>
+
+                  {requirements.length === 0 && (
+                    <div className="alert alert-info py-2">
+                      No requirements added yet. Click &quot;Add Requirement&quot; to create one.
                     </div>
                   )}
-              
-                  {/* Production Requirements Section */}
-                  {productionRequirements.length > 0 && (
-                  <div className="mt-5">
-                    <h5 className="mb-3">
-                      <i className="ti ti-box me-2"></i>Production Requirement Details
-                    </h5>
-                    {productionRequirements.map((req, idx) => {
-                      const prodBrief = parseProductionBrief(req.productionBrief);
-                      return (
-                          <div key={req.id || idx} className="card mb-3">
-                            <div className="card-body">
-                              <div className="row g-3">
-                                {/* Type & Product */}
-                                <div className="col-md-4">
-                                  <label className="form-label fw-semibold">Requirement Type</label>
-                                  <input className="form-control form-control-sm" value={req.requirementType || "-"} readOnly />
-                                </div>
-                                <div className="col-md-4">
-                                  <label className="form-label fw-semibold">Product Type</label>
-                                  <input className="form-control form-control-sm" value={req.productType || "-"} readOnly />
-                                </div>
-                                <div className="col-md-4">
-                                  <label className="form-label fw-semibold">Quantity</label>
-                                  <input className="form-control form-control-sm" value={req.quantity || "-"} readOnly />
-                                </div>
 
-                                {/* Paper Details */}
-                                <div className="col-md-4">
-                                  <label className="form-label fw-semibold">Paper Size</label>
-                                  <input className="form-control form-control-sm" value={req.paperSize || "-"} readOnly />
-                                </div>
-                                <div className="col-md-4">
-                                  <label className="form-label fw-semibold">Paper Type</label>
-                                  <input className="form-control form-control-sm" value={req.paperType || "-"} readOnly />
-                                </div>
-                                <div className="col-md-4">
-                                  <label className="form-label fw-semibold">GSM</label>
-                                  <input className="form-control form-control-sm" value={req.paperGsm || "-"} readOnly />
-                                </div>
-
-                                {/* Color & Print */}
-                                <div className="col-md-4">
-                                  <label className="form-label fw-semibold">Color Type</label>
-                                  <input className="form-control form-control-sm" value={req.colorType || "-"} readOnly />
-                                </div>
-                                <div className="col-md-4">
-                                  <label className="form-label fw-semibold">Print Sides</label>
-                                  <input className="form-control form-control-sm" value={req.printSides || "-"} readOnly />
-                                </div>
-                                <div className="col-md-4">
-                                  <label className="form-label fw-semibold">Printing Method</label>
-                                  <input className="form-control form-control-sm" value={req.printingMethod || "-"} readOnly />
-                                </div>
-
-                                {/* Finishing Options */}
-                                <div className="col-md-6">
-                                  <label className="form-label fw-semibold">Finishing Options</label>
-                                  <textarea className="form-control form-control-sm" value={req.finishingOptions || "-"} readOnly rows={2} />
-                                </div>
-                                <div className="col-md-6">
-                                  <label className="form-label fw-semibold">Folding Type</label>
-                                  <input className="form-control form-control-sm" value={req.foldingType || "-"} readOnly />
-                                </div>
-
-                                {/* Priority & Dates */}
-                                <div className="col-md-4">
-                                  <label className="form-label fw-semibold">Priority</label>
-                                  <input className="form-control form-control-sm" value={req.priority || "-"} readOnly />
-                                </div>
-                                <div className="col-md-4">
-                                  <label className="form-label fw-semibold">Print Deadline</label>
-                                  <input className="form-control form-control-sm" value={req.printDeadline ? formatDateTime(req.printDeadline) : "-"} readOnly />
-                                </div>
-                                <div className="col-md-4">
-                                  <label className="form-label fw-semibold">Delivery Date</label>
-                                  <input className="form-control form-control-sm" value={req.deliveryDate ? formatDateTime(req.deliveryDate) : "-"} readOnly />
-                                </div>
-
-                                {/* Notes */}
-                                <div className="col-md-12">
-                                  <label className="form-label fw-semibold">Additional Notes</label>
-                                  <textarea className="form-control form-control-sm" value={req.additionalNotes || "-"} readOnly rows={3} />
-                                </div>
-
-                                {/* Artwork File */}
-                                {req.artworkFileName && (
-                                  <div className="col-md-12">
-                                    <label className="form-label fw-semibold">Artwork File</label>
-                                    <div className="py-2 d-flex flex-wrap gap-2 align-items-center">
-                                      <span className="text-break">{req.artworkFileName}</span>
-                                      {req.artworkFilePath && (
-                                        <button
-                                          type="button"
-                                          className="btn btn-sm btn-outline-info"
-                                          onClick={() => setPreviewFile({ fileName: req.artworkFileName, filePath: req.artworkFilePath })}
-                                        >
-                                          Preview
-                                        </button>
-                                      )}
-                                      {req.artworkFilePath && (
-                                        <button
-                                          type="button"
-                                          className="btn btn-sm btn-outline-secondary"
-                                          onClick={() => downloadProtectedFile(req.artworkFilePath, req.artworkFileName, "Failed to download artwork file")}
-                                        >
-                                          Download
-                                        </button>
-                                      )}
+                  {requirements.length > 0 && (
+                    <div className="table-responsive">
+                      <table className="table table-bordered table-striped align-middle">
+                        <thead className="table-light">
+                          <tr>
+                            <th>#</th>
+                            <th>Category</th>
+                            <th>Product</th>
+                            <th>Sub-type</th>
+                            <th>Quantity</th>
+                            <th>Specifications</th>
+                            <th>Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {requirements.map((req, index) => {
+                            let parsedSpecs = null;
+                            try {
+                              parsedSpecs = req.specs ? JSON.parse(req.specs) : null;
+                            } catch {
+                              parsedSpecs = null;
+                            }
+                            return (
+                              <tr key={req.id}>
+                                <td>{index + 1}</td>
+                                <td>{req.categoryName || "-"}</td>
+                                <td>{req.typeName || "-"}</td>
+                                <td>{req.subtypeName || "-"}</td>
+                                <td>{req.quantity || "-"}</td>
+                                <td style={{ minWidth: 260 }}>
+                                  {parsedSpecs && Object.keys(parsedSpecs).length > 0 ? (
+                                    <div className="d-flex flex-wrap gap-1">
+                                      {Object.entries(parsedSpecs).map(([k, v]) => (
+                                        <span key={k} className="badge bg-light text-dark border">
+                                          {k}: {String(v)}
+                                        </span>
+                                      ))}
                                     </div>
+                                  ) : (
+                                    <span className="text-muted">-</span>
+                                  )}
+                                </td>
+                                <td>
+                                  <div className="d-flex gap-2">
+                                    <button
+                                      type="button"
+                                      className="btn btn-sm btn-outline-primary"
+                                      onClick={() => openEditRequirementModal(req)}
+                                    >
+                                      Edit
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="btn btn-sm btn-outline-danger"
+                                      onClick={() => handleDeleteRequirement(req)}
+                                    >
+                                      Delete
+                                    </button>
                                   </div>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                  </div>
-                  )}
-
-                  {designRequirement && (
-                  <div className="mt-5">
-                    <h5 className="mb-3">
-                      <i className="ti ti-palette me-2"></i>Design Requirement Details
-                    </h5>
-                    <div className="card mb-3">
-                      <div className="card-body">
-                        <div className="row g-3">
-                            <div className="col-md-4">
-                              <label className="form-label fw-semibold">Requirement Type</label>
-                              <input className="form-control form-control-sm" value={designRequirement.requirementType || "-"} readOnly />
-                            </div>
-                            <div className="col-md-4">
-                              <label className="form-label fw-semibold">Product Type</label>
-                              <input className="form-control form-control-sm" value={designRequirement.designProductType || "-"} readOnly />
-                            </div>
-                            <div className="col-md-4">
-                              <label className="form-label fw-semibold">Size</label>
-                              <input className="form-control form-control-sm" value={designRequirement.designSize || "-"} readOnly />
-                            </div>
-
-                            <div className="col-md-4">
-                              <label className="form-label fw-semibold">Orientation</label>
-                              <input className="form-control form-control-sm" value={designRequirement.designOrientation || "-"} readOnly />
-                            </div>
-                            <div className="col-md-4">
-                              <label className="form-label fw-semibold">Pages</label>
-                              <input className="form-control form-control-sm" value={designRequirement.designNumPages || "-"} readOnly />
-                            </div>
-                            <div className="col-md-4">
-                              <label className="form-label fw-semibold">Purpose</label>
-                              <input className="form-control form-control-sm" value={designRequirement.designPurpose || "-"} readOnly />
-                            </div>
-
-                            <div className="col-md-6">
-                              <label className="form-label fw-semibold">Target Audience</label>
-                              <input className="form-control form-control-sm" value={designRequirement.designTargetAudience || "-"} readOnly />
-                            </div>
-                            <div className="col-md-6">
-                              <label className="form-label fw-semibold">Style Preference</label>
-                              <input className="form-control form-control-sm" value={designRequirement.designStylePref || "-"} readOnly />
-                            </div>
-
-                            <div className="col-md-6">
-                              <label className="form-label fw-semibold">Brand Colors</label>
-                              <input className="form-control form-control-sm" value={designRequirement.designBrandColors || "-"} readOnly />
-                            </div>
-                            <div className="col-md-6">
-                              <label className="form-label fw-semibold">Fonts</label>
-                              <input className="form-control form-control-sm" value={designRequirement.designFonts || "-"} readOnly />
-                            </div>
-
-                            <div className="col-md-12">
-                              <label className="form-label fw-semibold">Description</label>
-                              <textarea className="form-control form-control-sm" value={designRequirement.designDescription || "-"} readOnly rows={3} />
-                            </div>
-
-                            <div className="col-md-12">
-                              <label className="form-label fw-semibold">Additional Notes</label>
-                              <textarea
-                                className="form-control form-control-sm"
-                                value={designRequirement.designAdditionalNotes || designRequirement.requirementNotes || "-"}
-                                readOnly
-                                rows={3}
-                              />
-                            </div>
-
-                            <div className="col-md-4">
-                              <label className="form-label fw-semibold">Deadline</label>
-                              <input
-                                className="form-control form-control-sm"
-                                value={designRequirement.designDeadline ? formatDateTime(designRequirement.designDeadline) : "-"}
-                                readOnly
-                              />
-                            </div>
-                            <div className="col-md-4">
-                              <label className="form-label fw-semibold">Priority</label>
-                              <input className="form-control form-control-sm" value={designRequirement.designPriority || "-"} readOnly />
-                            </div>
-                            <div className="col-md-4">
-                              <label className="form-label fw-semibold">Reference Links</label>
-                              <input className="form-control form-control-sm" value={designRequirement.designReferenceLinks || "-"} readOnly />
-                            </div>
-{designRequirement.requirementFileName && (
-                              <div className="col-12">
-                                <label className="form-label fw-semibold">Requirement File</label>
-                                <div className="py-2 d-flex flex-wrap gap-2 align-items-center">
-                                  <span className="text-break">{designRequirement.requirementFileName}</span>
-                                  <button
-                                    type="button"
-                                    className="btn btn-sm btn-outline-info"
-                                    onClick={() => setPreviewFile({fileName: designRequirement.requirementFileName, filePath: designRequirement.requirementFilePath})}
-                                  >
-                                    Preview
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className="btn btn-sm btn-outline-secondary"
-                                    onClick={() => {
-                                      if (designRequirement.requirementFilePath) {
-                                        downloadProtectedFile(
-                                          designRequirement.requirementFilePath,
-                                          designRequirement.requirementFileName,
-                                          "Failed to download requirement file",
-                                        );
-                                        return;
-                                      }
-                                      downloadRequirementFile();
-                                    }}
-                                  >
-                                    Download
-                                  </button>
-                                </div>
-                              </div>
-                            )}
-
-                            {designRequirement.designBrandGuidelinesFileName && (
-                              <div className="col-md-6">
-                                <label className="form-label fw-semibold">Brand Guidelines</label>
-                                <div className="py-2 d-flex flex-wrap gap-2 align-items-center">
-                                  <span className="text-break">{designRequirement.designBrandGuidelinesFileName}</span>
-                                  {designRequirement.designBrandGuidelinesFilePath && (
-                                    <button
-                                      type="button"
-                                      className="btn btn-sm btn-outline-info"
-                                      onClick={() =>
-                                        setPreviewFile({
-                                          fileName: designRequirement.designBrandGuidelinesFileName,
-                                          filePath: designRequirement.designBrandGuidelinesFilePath,
-                                        })
-                                      }
-                                    >
-                                      Preview
-                                    </button>
-                                  )}
-                                  {designRequirement.designBrandGuidelinesFilePath && (
-                                    <button
-                                      type="button"
-                                      className="btn btn-sm btn-outline-secondary"
-                                      onClick={() => downloadProtectedFile(designRequirement.designBrandGuidelinesFilePath, designRequirement.designBrandGuidelinesFileName, "Failed to download brand guidelines")}
-                                    >
-                                      Download
-                                    </button>
-                                  )}
-                                </div>
-                              </div>
-                            )}
-                            {designRequirement.designLogoFileName && (
-                              <div className="col-md-6">
-                                <label className="form-label fw-semibold">Logo File</label>
-                                <div className="py-2 d-flex flex-wrap gap-2 align-items-center">
-                                  <span className="text-break">{designRequirement.designLogoFileName}</span>
-                                  {designRequirement.designLogoFilePath && (
-                                    <button
-                                      type="button"
-                                      className="btn btn-sm btn-outline-info"
-                                      onClick={() =>
-                                        setPreviewFile({
-                                          fileName: designRequirement.designLogoFileName,
-                                          filePath: designRequirement.designLogoFilePath,
-                                        })
-                                      }
-                                    >
-                                      Preview
-                                    </button>
-                                  )}
-                                  {designRequirement.designLogoFilePath && (
-                                    <button
-                                      type="button"
-                                      className="btn btn-sm btn-outline-secondary"
-                                      onClick={() => downloadProtectedFile(designRequirement.designLogoFilePath, designRequirement.designLogoFileName, "Failed to download logo file")}
-                                    >
-                                      Download
-                                    </button>
-                                  )}
-                                </div>
-                              </div>
-                            )}
-                            {designRequirement.designImagesFileName && (
-                              <div className="col-md-6">
-                                <label className="form-label fw-semibold">Client Images</label>
-                                <div className="py-2 d-flex flex-wrap gap-2 align-items-center">
-                                  <span className="text-break">{designRequirement.designImagesFileName}</span>
-                                  {designRequirement.designImagesFilePath && (
-                                    <button
-                                      type="button"
-                                      className="btn btn-sm btn-outline-info"
-                                      onClick={() =>
-                                        setPreviewFile({
-                                          fileName: designRequirement.designImagesFileName,
-                                          filePath: designRequirement.designImagesFilePath,
-                                        })
-                                      }
-                                    >
-                                      Preview
-                                    </button>
-                                  )}
-                                  {designRequirement.designImagesFilePath && (
-                                    <button
-                                      type="button"
-                                      className="btn btn-sm btn-outline-secondary"
-                                      onClick={() => downloadProtectedFile(designRequirement.designImagesFilePath, designRequirement.designImagesFileName, "Failed to download client images")}
-                                    >
-                                      Download
-                                    </button>
-                                  )}
-                                </div>
-                              </div>
-                            )}
-                            {designRequirement.designReferenceImagesFileName && (
-                              <div className="col-md-6">
-                                <label className="form-label fw-semibold">Reference Images</label>
-                                <div className="py-2 d-flex flex-wrap gap-2 align-items-center">
-                                  <span className="text-break">{designRequirement.designReferenceImagesFileName}</span>
-                                  {designRequirement.designReferenceImagesFilePath && (
-                                    <button
-                                      type="button"
-                                      className="btn btn-sm btn-outline-info"
-                                      onClick={() =>
-                                        setPreviewFile({
-                                          fileName: designRequirement.designReferenceImagesFileName,
-                                          filePath: designRequirement.designReferenceImagesFilePath,
-                                        })
-                                      }
-                                    >
-                                      Preview
-                                    </button>
-                                  )}
-                                  {designRequirement.designReferenceImagesFilePath && (
-                                    <button
-                                      type="button"
-                                      className="btn btn-sm btn-outline-secondary"
-                                      onClick={() => downloadProtectedFile(designRequirement.designReferenceImagesFilePath, designRequirement.designReferenceImagesFileName, "Failed to download reference images")}
-                                    >
-                                      Download
-                                    </button>
-                                  )}
-                                </div>
-                              </div>
-                            )}
-                            {designRequirement.designPreviousDesignsFileName && (
-                              <div className="col-md-6">
-                                <label className="form-label fw-semibold">Previous Designs</label>
-                                <div className="py-2 d-flex flex-wrap gap-2 align-items-center">
-                                  <span className="text-break">{designRequirement.designPreviousDesignsFileName}</span>
-                                  {designRequirement.designPreviousDesignsFilePath && (
-                                    <button
-                                      type="button"
-                                      className="btn btn-sm btn-outline-info"
-                                      onClick={() =>
-                                        setPreviewFile({
-                                          fileName: designRequirement.designPreviousDesignsFileName,
-                                          filePath: designRequirement.designPreviousDesignsFilePath,
-                                        })
-                                      }
-                                    >
-                                      Preview
-                                    </button>
-                                  )}
-                                  {designRequirement.designPreviousDesignsFilePath && (
-                                    <button
-                                      type="button"
-                                      className="btn btn-sm btn-outline-secondary"
-                                      onClick={() => downloadProtectedFile(designRequirement.designPreviousDesignsFilePath, designRequirement.designPreviousDesignsFileName, "Failed to download previous designs")}
-                                    >
-                                      Download
-                                    </button>
-                                  )}
-                                </div>
-                              </div>
-                            )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  )}
-
-                  {loadingRequirements && (
-                    <div className="text-center py-3">
-                      <small className="text-muted">Loading requirements...</small>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
                     </div>
                   )}
-                </div>
+                </motion.div>
                 )}
 
-                {activeTab === "budget" && (statusLower === "budget" || lead?.budgetVerificationStatus) && (
+                {false && (activeTab === "budget" && (statusLower === "budget" || lead?.budgetVerificationStatus) && (
                 <div className="tab-pane fade show active">
                     <div className="mb-4">
                       <h5 className="mb-3">Budget Verification</h5>
@@ -3640,13 +2671,13 @@ const [showRequirementDetailsModal, setShowRequirementDetailsModal] = useState(f
                         <div>{lead.budgetVerificationRejectionReason}</div>
                       </div>
                     )}
-                    </div>
                   </div>
-                  )}
+                </div>
+                  ))}
 
 {/* Design tab removed - design is managed in DealEditPage */}
 
-                {activeTab === "payment" && showPaymentSummary && statusLower !== "budget" && (
+                {false && (activeTab === "payment" && showPaymentSummary && statusLower !== "budget" && (
                 <div className="tab-pane fade show active">
                   <div>
                     <h5 className="mb-3">{isProduction ? "Production Details" : "Payment Tracker"}</h5>
@@ -4075,48 +3106,53 @@ const [showRequirementDetailsModal, setShowRequirementDetailsModal] = useState(f
                     </div>
                   </div>
                 </div>
-                )}
+                ))}
 
                 {activeTab === "rejected" && isRejected && (
-                <div className="tab-pane fade show active">
-                  <div>
-                    <h5 className="mb-3">Rejected Details</h5>
-                    <div className="row g-3">
-                      <div className="col-md-6">
-                        <label className="form-label">Rejected Reason</label>
-                        <select
-                          className="form-select"
-                          value={rejectedReason}
-                          onChange={(e) => setRejectedReason(e.target.value)}
-                        >
-                          <option value="">Reject Reason</option>
-                          <option value="Budget Too High">Budget Too High</option>
-                          <option value="Not Interested">Not Interested</option>
-                          <option value="Already Purchased">Already Purchased</option>
-                          <option value="Chose Competitor">Chose Competitor</option>
-                          <option value="Decision Postponed">Decision Postponed</option>
-                          <option value="No Requirement Now">No Requirement Now</option>
-                          <option value="Not Reachable">Not Reachable</option>
-                          <option value="Wrong Contact">Wrong Contact</option>
-                          <option value="Invalid/Incomplete Details">Invalid/Incomplete Details</option>
-                          <option value="Location Not Serviceable">Location Not Serviceable</option>
-                          <option value="Timeline Mismatch">Timeline Mismatch</option>
-                          <option value="Other">Other</option>
-                        </select>
-                      </div>
-                      <div className="col-md-12">
-                        <label className="form-label">Rejected Reason Subtype</label>
-                        <textarea
-                          className="form-control"
-                          rows={3}
-                          value={rejectedReasonSubtype}
-                          onChange={(e) => setRejectedReasonSubtype(e.target.value)}
-                          placeholder="Rejected Reason Subtype"
-                        />
-                      </div>
+                <motion.div
+                  key="rejected-tab"
+                  initial={{ opacity: 0, x: 18, filter: "blur(4px)" }}
+                  animate={{ opacity: 1, x: 0, filter: "blur(0px)" }}
+                  exit={{ opacity: 0, x: -18, filter: "blur(4px)" }}
+                  transition={{ duration: 0.26, ease: "easeOut" }}
+                  className="lead-edit-wizard-step-panel"
+                >
+                  <h5 className="mb-3">Rejected Details</h5>
+                  <div className="row g-3">
+                    <div className="col-md-6">
+                      <label className="form-label">Rejected Reason</label>
+                      <select
+                        className="form-select"
+                        value={rejectedReason}
+                        onChange={(e) => setRejectedReason(e.target.value)}
+                      >
+                        <option value="">Select Reject Reason</option>
+                        <option value="Budget Too High">Budget Too High</option>
+                        <option value="Not Interested">Not Interested</option>
+                        <option value="Already Purchased">Already Purchased</option>
+                        <option value="Chose Competitor">Chose Competitor</option>
+                        <option value="Decision Postponed">Decision Postponed</option>
+                        <option value="No Requirement Now">No Requirement Now</option>
+                        <option value="Not Reachable">Not Reachable</option>
+                        <option value="Wrong Contact">Wrong Contact</option>
+                        <option value="Invalid/Incomplete Details">Invalid/Incomplete Details</option>
+                        <option value="Location Not Serviceable">Location Not Serviceable</option>
+                        <option value="Timeline Mismatch">Timeline Mismatch</option>
+                        <option value="Other">Other</option>
+                      </select>
+                    </div>
+                    <div className="col-md-12">
+                      <label className="form-label">Rejected Reason Subtype</label>
+                      <textarea
+                        className="form-control"
+                        rows={3}
+                        value={rejectedReasonSubtype}
+                        onChange={(e) => setRejectedReasonSubtype(e.target.value)}
+                        placeholder="Rejected Reason Subtype / Details"
+                      />
                     </div>
                   </div>
-                </div>
+                </motion.div>
                 )}
                 </>
               </div>
@@ -4126,191 +3162,6 @@ const [showRequirementDetailsModal, setShowRequirementDetailsModal] = useState(f
           
         </div>
       )}
-
-      {showAttemptedModal && (
-        <div className="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center bg-dark bg-opacity-50" style={{ zIndex: 1050 }}>
-          <div className="card shadow-lg" style={{ width: "100%", maxWidth: "520px" }}>
-            <div className="card-header d-flex align-items-center justify-content-between">
-              <h5 className="mb-0">Attempted</h5>
-              <button
-                type="button"
-                className="btn-close"
-                aria-label="Close"
-                onClick={() => setShowAttemptedModal(false)}
-              />
-            </div>
-            <div className="card-body">
-              <div className="mb-3">
-                <label className="form-label">Open Reason</label>
-                <select
-                  className="form-select"
-                  value={attemptedOpenReason}
-                  onChange={(e) => setAttemptedOpenReason(e.target.value)}
-                >
-                  <option value="">Select Open Reason</option>
-                  <option value="Contacted">Contacted</option>
-                  <option value="Shared Details">Shared Details</option>
-                  <option value="Retry">Retry</option>
-                </select>
-              </div>
-              <div className="mb-3">
-                <label className="form-label">Call Status</label>
-                <select
-                  className="form-select"
-                  value={attemptedCallStatus}
-                  onChange={(e) => {
-                    const next = e.target.value;
-                    setAttemptedCallStatus(next);
-                    if (String(next || "").trim().toLowerCase() !== "follow up") {
-                      setAttemptedFollowUpDate("");
-                    }
-                  }}
-                >
-                  <option value="">Select Call Status</option>
-                  <option value="RNR">RNR</option>
-                  <option value="Call Connected">Call Connected</option>
-                  <option value="Follow Up">Follow Up</option>
-                  <option value="Number Busy">Number Busy</option>
-                  <option value="Not Reachable">Not Reachable</option>
-                  <option value="Switched Off">Switched Off</option>
-                  <option value="Number Not In Use">Number Not In Use</option>
-                  <option value="Wrong Number">Wrong Number</option>
-                </select>
-              </div>
-              {String(attemptedCallStatus || "").trim().toLowerCase() === "follow up" && (
-                <div className="mb-3">
-                  <label className="form-label">Follow Up Date</label>
-                  <input
-                    className="form-control"
-                    type="datetime-local"
-                    value={attemptedFollowUpDate}
-                    onChange={(e) => setAttemptedFollowUpDate(e.target.value)}
-                  />
-                </div>
-              )}
-              <div className="mb-3">
-                <label className="form-label">Call Remarks</label>
-                <textarea
-                  className="form-control"
-                  rows={3}
-                  value={attemptedCallRemarks}
-                  onChange={(e) => setAttemptedCallRemarks(e.target.value)}
-                  placeholder="Call Remarks"
-                />
-              </div>
-              <div className="d-flex justify-content-end">
-                <button className="btn btn-primary" onClick={submitAttempted} disabled={saving}>
-                  {saving ? "Saving..." : "Submit"}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showInterestedModal && (
-        <div className="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center bg-dark bg-opacity-50" style={{ zIndex: 1050 }}>
-          <div className="card shadow-lg" style={{ width: "100%", maxWidth: "520px" }}>
-            <div className="card-header d-flex align-items-center justify-content-between">
-              <h5 className="mb-0">Interested</h5>
-              <button
-                type="button"
-                className="btn-close"
-                aria-label="Close"
-                onClick={() => setShowInterestedModal(false)}
-              />
-            </div>
-            <div className="card-body">
-              <div className="mb-3">
-                <label className="form-label">Follow Up Date</label>
-                <input
-                  className="form-control"
-                  type="datetime-local"
-                  value={interestedFollowUpDate}
-                  onChange={(e) => setInterestedFollowUpDate(e.target.value)}
-                />
-              </div>
-              <div className="mb-3">
-                <label className="form-label">Call Remarks</label>
-                <textarea
-                  className="form-control"
-                  rows={3}
-                  value={interestedCallRemarks}
-                  onChange={(e) => setInterestedCallRemarks(e.target.value)}
-                  placeholder="Call Remarks"
-                />
-              </div>
-              <div className="d-flex justify-content-end">
-                <button className="btn btn-primary" onClick={submitInterested} disabled={saving}>
-                  {saving ? "Saving..." : "Submit"}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showRejectedModal && (
-        <div className="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center bg-dark bg-opacity-50" style={{ zIndex: 1050 }}>
-          <div className="card shadow-lg" style={{ width: "100%", maxWidth: "520px" }}>
-            <div className="card-header d-flex align-items-center justify-content-between">
-              <h5 className="mb-0">Rejected Reason</h5>
-              <button
-                type="button"
-                className="btn-close"
-                aria-label="Close"
-                onClick={() => setShowRejectedModal(false)}
-              />
-            </div>
-            <div className="card-body">
-              <div className="mb-3">
-                <label className="form-label">Rejected Reason</label>
-                <select
-                  className="form-select"
-                  value={rejectedReason}
-                  onChange={(e) => setRejectedReason(e.target.value)}
-                >
-                  <option value="">Reject Reason</option>
-                  <option value="Budget Too High">Budget Too High</option>
-                  <option value="Not Interested">Not Interested</option>
-                  <option value="Already Purchased">Already Purchased</option>
-                  <option value="Chose Competitor">Chose Competitor</option>
-                  <option value="Decision Postponed">Decision Postponed</option>
-                  <option value="No Requirement Now">No Requirement Now</option>
-                  <option value="Not Reachable">Not Reachable</option>
-                  <option value="Wrong Contact">Wrong Contact</option>
-                  <option value="Invalid/Incomplete Details">Invalid/Incomplete Details</option>
-                  <option value="Location Not Serviceable">Location Not Serviceable</option>
-                  <option value="Timeline Mismatch">Timeline Mismatch</option>
-                  <option value="Other">Other</option>
-                </select>
-              </div>
-              <div className="mb-3">
-                <label className="form-label">Rejected Reason Subtype</label>
-                <textarea
-                  className="form-control"
-                  rows={3}
-                  value={rejectedReasonSubtype}
-                  onChange={(e) => setRejectedReasonSubtype(e.target.value)}
-                  placeholder="Rejected Reason Subtype"
-                />
-              </div>
-              <div className="d-flex justify-content-end">
-                <button className="btn btn-primary" onClick={submitRejected} disabled={saving}>
-                  {saving ? "Saving..." : "Submit"}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <RequirementModal
-        showRequirementModal={showRequirementModal}
-        setShowRequirementModal={setShowRequirementModal}
-        requirementSaving={requirementSaving}
-        onSubmit={submitRequirement}
-      />
 
       {showDesignDurationModal && (
         <div className="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center bg-dark bg-opacity-50" style={{ zIndex: 1050 }}>
@@ -4387,6 +3238,17 @@ const [showRequirementDetailsModal, setShowRequirementDetailsModal] = useState(f
         onShippingAddressChange={handleShippingAddressChange}
         shippingAddresses={shippingAddresses}
         onAddShippingAddress={handleAddShippingAddress}
+      />
+
+      <RequirementFormModal
+        show={showRequirementModal}
+        onClose={() => {
+          setShowRequirementModal(false);
+          setEditingRequirement(null);
+        }}
+        leadId={lead?.id}
+        onSaved={refreshRequirements}
+        initialRequirement={editingRequirement}
       />
 
       <AddressFormModal
@@ -4509,196 +3371,6 @@ const [showRequirementDetailsModal, setShowRequirementDetailsModal] = useState(f
         </div>
       )}
 
-      {showRequirementDetailsModal && selectedRequirement && (
-        <div className="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center bg-dark bg-opacity-50" style={{ zIndex: 1050 }}>
-          <div className="card shadow-lg" style={{ width: "100%", maxWidth: "700px", maxHeight: "90vh", overflow: "auto" }}>
-            <div className="card-header d-flex align-items-center justify-content-between sticky-top bg-white">
-              <h5 className="mb-0">
-                <i className="ti ti-file-document me-2"></i>Requirement Details
-              </h5>
-              <button
-                type="button"
-                className="btn-close"
-                aria-label="Close"
-                onClick={() => {
-                  setShowRequirementDetailsModal(false);
-                  setSelectedRequirement(null);
-                }}
-              />
-            </div>
-            <div className="card-body">
-              {/* Requirement Type Badge */}
-              <div className="mb-3">
-                <span className="badge bg-info me-2">
-                  {selectedRequirement.requirementType || "Unknown"}
-                </span>
-                {selectedRequirement.priority && (
-                  <span className={`badge ${selectedRequirement.priority === "High" ? "bg-danger" : selectedRequirement.priority === "Medium" ? "bg-warning" : "bg-success"}`}>
-                    {selectedRequirement.priority}
-                  </span>
-                )}
-              </div>
-
-              {/* Production Brief Details */}
-              {selectedRequirement.productionBrief && (
-                <>
-                  <h6 className="border-bottom pb-2 mt-4"><strong>Product Specifications</strong></h6>
-                  <div className="row mb-3">
-                    <div className="col-md-6">
-                      <label className="form-label text-muted">Product Type</label>
-                      <div className="form-control" style={{ borderColor: "transparent", background: "transparent", padding: "0" }}>
-                        {selectedRequirement.productType || "-"}
-                      </div>
-                    </div>
-                    <div className="col-md-6">
-                      <label className="form-label text-muted">Quantity</label>
-                      <div className="form-control" style={{ borderColor: "transparent", background: "transparent", padding: "0" }}>
-                        {selectedRequirement.quantity || "-"}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="row mb-3">
-                    <div className="col-md-6">
-                      <label className="form-label text-muted">Paper Size</label>
-                      <div className="form-control" style={{ borderColor: "transparent", background: "transparent", padding: "0" }}>
-                        {selectedRequirement.paperSize || "-"}
-                      </div>
-                    </div>
-                    <div className="col-md-6">
-                      <label className="form-label text-muted">Paper GSM</label>
-                      <div className="form-control" style={{ borderColor: "transparent", background: "transparent", padding: "0" }}>
-                        {selectedRequirement.paperGsm || "-"}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="row mb-3">
-                    <div className="col-md-6">
-                      <label className="form-label text-muted">Color Type</label>
-                      <div className="form-control" style={{ borderColor: "transparent", background: "transparent", padding: "0" }}>
-                        {selectedRequirement.colorType || "-"}
-                      </div>
-                    </div>
-                    <div className="col-md-6">
-                      <label className="form-label text-muted">Printing Method</label>
-                      <div className="form-control" style={{ borderColor: "transparent", background: "transparent", padding: "0" }}>
-                        {selectedRequirement.printingMethod || "-"}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="row mb-3">
-                    <div className="col-md-6">
-                      <label className="form-label text-muted">Finishing Options</label>
-                      <div className="form-control" style={{ borderColor: "transparent", background: "transparent", padding: "0" }}>
-                        {selectedRequirement.finishingOptions || "-"}
-                      </div>
-                    </div>
-                    <div className="col-md-6">
-                      <label className="form-label text-muted">Print Sides</label>
-                      <div className="form-control" style={{ borderColor: "transparent", background: "transparent", padding: "0" }}>
-                        {selectedRequirement.printSides || "-"}
-                      </div>
-                    </div>
-                  </div>
-                </>
-              )}
-
-              {/* Design Brief Details */}
-              {selectedRequirement.designBrief && (
-                <>
-                  <h6 className="border-bottom pb-2 mt-4"><strong>Design Brief</strong></h6>
-                  <div className="row mb-3">
-                    <div className="col-md-6">
-                      <label className="form-label text-muted">Product Type</label>
-                      <div className="form-control" style={{ borderColor: "transparent", background: "transparent", padding: "0" }}>
-                        {selectedRequirement.designProductType || "-"}
-                      </div>
-                    </div>
-                    <div className="col-md-6">
-                      <label className="form-label text-muted">Size</label>
-                      <div className="form-control" style={{ borderColor: "transparent", background: "transparent", padding: "0" }}>
-                        {selectedRequirement.designSize || "-"}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="row mb-3">
-                    <div className="col-md-6">
-                      <label className="form-label text-muted">Orientation</label>
-                      <div className="form-control" style={{ borderColor: "transparent", background: "transparent", padding: "0" }}>
-                        {selectedRequirement.designOrientation || "-"}
-                      </div>
-                    </div>
-                    <div className="col-md-6">
-                      <label className="form-label text-muted">Purpose</label>
-                      <div className="form-control" style={{ borderColor: "transparent", background: "transparent", padding: "0" }}>
-                        {selectedRequirement.designPurpose || "-"}
-                      </div>
-                    </div>
-                  </div>
-                  {selectedRequirement.designDescription && (
-                    <div className="mb-3">
-                      <label className="form-label text-muted">Description</label>
-                      <div className="form-control" style={{ borderColor: "transparent", background: "transparent", padding: "0", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
-                        {selectedRequirement.designDescription}
-                      </div>
-                    </div>
-                  )}
-                </>
-              )}
-
-              {/* Deadlines and Dates */}
-              {(selectedRequirement.deadline || selectedRequirement.deliveryDate) && (
-                <>
-                  <h6 className="border-bottom pb-2 mt-4"><strong>Timeline</strong></h6>
-                  <div className="row mb-3">
-                    {selectedRequirement.deadline && (
-                      <div className="col-md-6">
-                        <label className="form-label text-muted">Deadline</label>
-                        <div className="form-control" style={{ borderColor: "transparent", background: "transparent", padding: "0" }}>
-                          {new Date(selectedRequirement.deadline).toLocaleDateString("en-IN")}
-                        </div>
-                      </div>
-                    )}
-                    {selectedRequirement.deliveryDate && (
-                      <div className="col-md-6">
-                        <label className="form-label text-muted">Delivery Date</label>
-                        <div className="form-control" style={{ borderColor: "transparent", background: "transparent", padding: "0" }}>
-                          {new Date(selectedRequirement.deliveryDate).toLocaleDateString("en-IN")}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </>
-              )}
-
-              {/* Notes */}
-              {selectedRequirement.notes && (
-                <>
-                  <h6 className="border-bottom pb-2 mt-4"><strong>Additional Notes</strong></h6>
-                  <div className="mb-3">
-                    <div className="form-control" style={{ borderColor: "transparent", background: "transparent", padding: "0", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
-                      {selectedRequirement.notes}
-                    </div>
-                  </div>
-                </>
-              )}
-
-              {/* Close Button */}
-              <div className="d-flex justify-content-end gap-2 mt-4">
-                <button
-                  className="btn btn-secondary"
-                  onClick={() => {
-                    setShowRequirementDetailsModal(false);
-                    setSelectedRequirement(null);
-                  }}
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
       <StockRequestFormModal
         open={showStockRequestModal}
         leadId={lead?.id}
@@ -4763,6 +3435,136 @@ const [showRequirementDetailsModal, setShowRequirementDetailsModal] = useState(f
                   </div>
                 </div>
               )}
+
+              {/* Attempted Status Form */}
+              {String(statusValue || "").trim().toLowerCase() === "attempted" && (
+                <div className="border-top pt-3 mt-3">
+                  <h6 className="mb-3 text-primary">Attempted Details</h6>
+                  <div className="mb-3">
+                    <label className="form-label">Open Reason</label>
+                    <select
+                      className="form-select"
+                      value={attemptedOpenReason}
+                      onChange={(e) => setAttemptedOpenReason(e.target.value)}
+                    >
+                      <option value="">Select Open Reason</option>
+                      <option value="Contacted">Contacted</option>
+                      <option value="Shared Details">Shared Details</option>
+                      <option value="Retry">Retry</option>
+                    </select>
+                  </div>
+                  <div className="mb-3">
+                    <label className="form-label">Call Status</label>
+                    <select
+                      className="form-select"
+                      value={attemptedCallStatus}
+                      onChange={(e) => {
+                        const next = e.target.value;
+                        setAttemptedCallStatus(next);
+                        if (String(next || "").trim().toLowerCase() !== "follow up") {
+                          setAttemptedFollowUpDate("");
+                        }
+                      }}
+                    >
+                      <option value="">Select Call Status</option>
+                      <option value="RNR">RNR</option>
+                      <option value="Call Connected">Call Connected</option>
+                      <option value="Follow Up">Follow Up</option>
+                      <option value="Number Busy">Number Busy</option>
+                      <option value="Not Reachable">Not Reachable</option>
+                      <option value="Switched Off">Switched Off</option>
+                      <option value="Number Not In Use">Number Not In Use</option>
+                      <option value="Wrong Number">Wrong Number</option>
+                    </select>
+                  </div>
+                  {String(attemptedCallStatus || "").trim().toLowerCase() === "follow up" && (
+                    <div className="mb-3">
+                      <label className="form-label">Follow Up Date</label>
+                      <input
+                        className="form-control"
+                        type="datetime-local"
+                        value={attemptedFollowUpDate}
+                        onChange={(e) => setAttemptedFollowUpDate(e.target.value)}
+                      />
+                    </div>
+                  )}
+                  <div className="mb-3">
+                    <label className="form-label">Call Remarks</label>
+                    <textarea
+                      className="form-control"
+                      rows={3}
+                      value={attemptedCallRemarks}
+                      onChange={(e) => setAttemptedCallRemarks(e.target.value)}
+                      placeholder="Call Remarks"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Interested Status Form */}
+              {String(statusValue || "").trim().toLowerCase() === "interested" && (
+                <div className="border-top pt-3 mt-3">
+                  <h6 className="mb-3 text-primary">Interested Details</h6>
+                  <div className="mb-3">
+                    <label className="form-label">Follow Up Date</label>
+                    <input
+                      className="form-control"
+                      type="datetime-local"
+                      value={interestedFollowUpDate}
+                      onChange={(e) => setInterestedFollowUpDate(e.target.value)}
+                    />
+                  </div>
+                  <div className="mb-3">
+                    <label className="form-label">Call Remarks</label>
+                    <textarea
+                      className="form-control"
+                      rows={3}
+                      value={interestedCallRemarks}
+                      onChange={(e) => setInterestedCallRemarks(e.target.value)}
+                      placeholder="Call Remarks"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Rejected Status Form */}
+              {String(statusValue || "").trim().toLowerCase() === "rejected" && (
+                <div className="border-top pt-3 mt-3">
+                  <h6 className="mb-3 text-primary">Rejected Details</h6>
+                  <div className="mb-3">
+                    <label className="form-label">Rejected Reason</label>
+                    <select
+                      className="form-select"
+                      value={rejectedReason}
+                      onChange={(e) => setRejectedReason(e.target.value)}
+                    >
+                      <option value="">Select Reject Reason</option>
+                      <option value="Budget Too High">Budget Too High</option>
+                      <option value="Not Interested">Not Interested</option>
+                      <option value="Already Purchased">Already Purchased</option>
+                      <option value="Chose Competitor">Chose Competitor</option>
+                      <option value="Decision Postponed">Decision Postponed</option>
+                      <option value="No Requirement Now">No Requirement Now</option>
+                      <option value="Not Reachable">Not Reachable</option>
+                      <option value="Wrong Contact">Wrong Contact</option>
+                      <option value="Invalid/Incomplete Details">Invalid/Incomplete Details</option>
+                      <option value="Location Not Serviceable">Location Not Serviceable</option>
+                      <option value="Timeline Mismatch">Timeline Mismatch</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+                  <div className="mb-3">
+                    <label className="form-label">Rejected Reason Subtype</label>
+                    <textarea
+                      className="form-control"
+                      rows={3}
+                      value={rejectedReasonSubtype}
+                      onChange={(e) => setRejectedReasonSubtype(e.target.value)}
+                      placeholder="Rejected Reason Subtype / Details"
+                    />
+                  </div>
+                </div>
+              )}
             </div>
             <div className="card-footer d-flex justify-content-end gap-2">
               <button
@@ -4775,10 +3577,7 @@ const [showRequirementDetailsModal, setShowRequirementDetailsModal] = useState(f
               <button
                 type="button"
                 className="btn btn-primary btn-sm"
-                onClick={() => {
-                  saveStatus();
-                  setShowStatusModal(false);
-                }}
+                onClick={saveStatus}
                 disabled={statusSaving}
               >
                 {statusSaving ? "Updating..." : "Update Status"}
@@ -4821,7 +3620,7 @@ const [showRequirementDetailsModal, setShowRequirementDetailsModal] = useState(f
                           </h6>
                           <p className="text-muted mb-2" style={{ fontSize: "0.875rem" }}>
                             {log.actor && <span>By: <strong>{log.actor}</strong></span>}
-                            {log.actor && log.createdAt && <span className="mx-2">•</span>}
+                            {log.actor && log.createdAt && <span className="mx-2">â€¢</span>}
                             {log.createdAt && <span>{formatDateTime(log.createdAt)}</span>}
                           </p>
                           {log.details && (
@@ -4862,4 +3661,5 @@ const [showRequirementDetailsModal, setShowRequirementDetailsModal] = useState(f
     </div>
   );
 }
+
 
