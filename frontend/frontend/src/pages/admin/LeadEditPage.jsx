@@ -40,6 +40,8 @@ import PaymentVerificationModal from "./PaymentVerificationModal";
 import AddressFormModal from "./AddressFormModal";
 import RequirementFormModal from "./RequirementFormModal";
 import { deleteRequirement, getRequirementsByLeadId } from "../../api/requirementApi";
+import { getPrimarySources } from "../../api/primarySourceApi";
+import { getSecondarySources } from "../../api/secondarySourceApi";
 import api from "../../utils/api";
 
 const CUSTOMER_CHAT_DISABLED = true;
@@ -146,6 +148,9 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
   const [companyName, setCompanyName] = useState("");
   const [productType, setProductType] = useState("");
   const [leadEmail, setLeadEmail] = useState("");
+  const [leadMobile, setLeadMobile] = useState("");
+  const [primarySourceOptions, setPrimarySourceOptions] = useState([]);
+  const [secondarySourceOptions, setSecondarySourceOptions] = useState([]);
   const [showAddProjectModal, setShowAddProjectModal] = useState(false);
   const [newProjectName, setNewProjectName] = useState("");
   const [newProjectType, setNewProjectType] = useState("");
@@ -370,6 +375,7 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
         );
         setProductType(pickText(leadData, ["productType", "product_type"]) || "");
         setLeadEmail(pickText(leadData, ["email"]) || "");
+        setLeadMobile(pickText(leadData, ["mobile", "phone", "phoneNumber", "phone_number"]) || "");
         setSelectedProjectId(pickText(leadData, ["projectId", "project_id"]) || "");
         const savedCountry = pickText(leadData, ["leadCountry", "country"]) || "";
         let resolvedLeadCountry = savedCountry;
@@ -515,6 +521,23 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
     navigate(location.pathname, { replace: true });
   }, [lead?.id, lead?.status, location.pathname, location.search, navigate, requirements.length]);
 
+  // Fetch primary and secondary source options on mount
+  useEffect(() => {
+    const fetchSourceOptions = async () => {
+      try {
+        const [primarySources, secondarySources] = await Promise.all([
+          getPrimarySources(),
+          getSecondarySources(),
+        ]);
+        setPrimarySourceOptions(Array.isArray(primarySources) ? primarySources : []);
+        setSecondarySourceOptions(Array.isArray(secondarySources) ? secondarySources : []);
+      } catch (error) {
+        console.error("Failed to fetch source options:", error);
+      }
+    };
+    fetchSourceOptions();
+  }, []);
+
   // Fetch addresses whenverify modal opens
   useEffect(() => {
     if (!showVerifyModal || !lead?.id || addressLoading) return;
@@ -645,8 +668,10 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
   const isEmployeeDesignView = role === "EMPLOYEE" && statusLower === "design";
   const lockAfterAttempted = hasReachedStage("interested") || isRejected;
   const canEditAllGeneralInfo =
-    role === "SUPER_ADMIN" || role === "ADMIN" || role === "MANAGER";
+    role === "SUPER_ADMIN" || role === "ADMIN" || role === "MANAGER" || role === "TEAM_LEAD";
   const isGeneralInfoReadOnly = !canEditAllGeneralInfo && (lockAfterAttempted || isLeadReadOnly);
+  // Only elevated roles can edit these fields: Mobile, Primary Source, Secondary Source
+  const isElevatedOnlyField = !["SUPER_ADMIN", "ADMIN", "MANAGER", "TEAM_LEAD"].includes(role);
   const hasAttemptedData = Boolean(
     lead?.attemptedOpenReason || lead?.attemptedCallStatus || lead?.attemptedCallRemarks,
   );
@@ -1839,6 +1864,9 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
     setDetailsSaving(true);
     try {
       const payload = {
+        mobile: leadMobile || null,
+        primarySource: lead?.primarySource || null,
+        secondarySource: lead?.secondarySource || null,
         alternatePhone: alternatePhoneValue || null,
         alternateEmail: alternateEmail || null,
         countryCode: countryCode || null,
@@ -1876,6 +1904,9 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
       setLead((prev) => ({
         ...(prev || {}),
         ...updated,
+        mobile: leadMobile || null,
+        primarySource: lead?.primarySource || null,
+        secondarySource: lead?.secondarySource || null,
         email: leadEmail || null,
         projectId: selectedProjectId || null,
         leadCountry: leadCountry || null,
@@ -2069,24 +2100,30 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
                   className="lead-edit-wizard-step-panel"
                 >
                   <div className="mb-4">
-                    <div className="d-flex justify-content-between align-items-center mb-3">
-                      <h5 className="mb-0">General Info</h5>
-                      <div className="d-flex gap-2">
-                        <button type="button" className="btn btn-sm btn-outline-success" onClick={handleExportGeneralInfoExcel}>
-                          <i className="ti ti-file-spreadsheet me-1"></i>Excel
-                        </button>
-                        <button type="button" className="btn btn-sm btn-outline-danger" onClick={handleExportGeneralInfoPDF}>
-                          <i className="ti ti-file-type-pdf me-1"></i>PDF
-                        </button>
-                      </div>
-                    </div>
+                   
                     <div className="row g-4 align-items-start">
-                      <div className="col-lg-7">
+                      <div className="col-lg-12">
                         <div className="lead-info-section h-100">
-                          <h6 className="lead-info-section-title">General Info</h6>
+                          <div className="row g-3 mb-3">
+                            <div className="col-md-8">
+                              <h6 className="lead-info-section-title">General Info</h6>
+                            </div>
+                            <div className="col-md-4">
+                              <h6 className="lead-info-section-title">Address</h6>
+                            </div>
+                          </div>
                           <div className="row g-3">
-                            <div className="col-md-6">
+                            <div className="col-md-4">
                               <div className="lead-info-column">
+                                <div>
+                                  <label className="form-label">Lead Allocator</label>
+                                  <input
+                                    className="form-control"
+                                    placeholder="Lead allocator name"
+                                    value={lead?.allocator || lead?.allocatorName || lead?.allocatedTo || lead?.assignedTo || "-"}
+                                    readOnly
+                                  />
+                                </div>
                                 <div>
                                   <label className="form-label">Enquiry Id</label>
                                   <input
@@ -2126,11 +2163,12 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
                                       </button>
                                       <input
                                         className="lead-phone-input"
-                                        value={lead.mobile || ""}
-                                        readOnly
+                                        value={leadMobile}
+                                        onChange={(e) => setLeadMobile(e.target.value)}
+                                        readOnly={isGeneralInfoReadOnly || isElevatedOnlyField}
                                       />
                                     </div>
-                                    
+
                                     {generalCountryPickerOpen && !isGeneralInfoReadOnly && (
                                       <div className="lead-phone-code-menu">
                                         {filteredGeneralCountryOptions.length > 0 ? (
@@ -2182,9 +2220,49 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
                                 </div>
                               </div>
                             </div>
-                            <div className="col-md-6">
+                            <div className="col-md-4">
                               <div className="lead-info-column">
-                              
+                                <div>
+                                  <label className="form-label">Lead Owner</label>
+                                  <input
+                                    className="form-control"
+                                    placeholder="Lead owner name"
+                                    value={lead?.ownerName || lead?.owner || "-"}
+                                    readOnly
+                                  />
+                                </div>
+                                    <div>
+                                  <label className="form-label">Primary Source</label>
+                                  <select
+                                    className="form-select"
+                                    value={lead?.primarySource || ""}
+                                    onChange={(e) => setLead((prev) => ({ ...(prev || {}), primarySource: e.target.value }))}
+                                    disabled={isGeneralInfoReadOnly || isElevatedOnlyField}
+                                  >
+                                    <option value="">Select Primary Source</option>
+                                    {primarySourceOptions.map((source) => (
+                                      <option key={source.id} value={source.primarySource || source.name || source.id}>
+                                        {source.primarySource || source.name}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+                                <div>
+                                  <label className="form-label">Secondary Source</label>
+                                  <select
+                                    className="form-select"
+                                    value={lead?.secondarySource || ""}
+                                    onChange={(e) => setLead((prev) => ({ ...(prev || {}), secondarySource: e.target.value }))}
+                                    disabled={isGeneralInfoReadOnly || isElevatedOnlyField}
+                                  >
+                                    <option value="">Select Secondary Source</option>
+                                    {secondarySourceOptions.map((source) => (
+                                      <option key={source.id} value={source.secondarySource || source.name || source.id}>
+                                        {source.secondarySource || source.name}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
                                 <div>
                                   <label className="form-label">Alternate No.</label>
                                   <input
@@ -2221,20 +2299,59 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
                                     readOnly={isGeneralInfoReadOnly}
                                   />
                                 </div>
+                            
+                              </div>
+                            </div>
+                            <div className="col-md-4">
+                              <div className="lead-info-column">
                                 <div>
-                                  <label className="form-label">Primary Source</label>
-                                  <input
+                                  <label className="form-label">Street Address</label>
+                                  <textarea
                                     className="form-control"
-                                    value={lead?.primarySource || "-"}
-                                    readOnly
+                                    value={streetAddress}
+                                    onChange={(e) => setStreetAddress(e.target.value)}
+                                    readOnly={isGeneralInfoReadOnly}
+                                    rows={2}
                                   />
                                 </div>
                                 <div>
-                                  <label className="form-label">Secondary Source</label>
+                                  <label className="form-label">State</label>
+                                  <select
+                                    className="form-select"
+                                    value={leadState}
+                                    onChange={(e) => {
+                                      setLeadState(e.target.value);
+                                      setLeadCity("");
+                                    }}
+                                    disabled={isGeneralInfoReadOnly || !leadCountry}
+                                  >
+                                    <option value="">Select State</option>
+                                    {State.getStatesOfCountry(leadCountry).map((s) => (
+                                      <option key={s.isoCode} value={s.isoCode}>{s.name}</option>
+                                    ))}
+                                  </select>
+                                </div>
+                                <div>
+                                  <label className="form-label">City</label>
+                                  <select
+                                    className="form-select"
+                                    value={leadCity}
+                                    onChange={(e) => setLeadCity(e.target.value)}
+                                    disabled={isGeneralInfoReadOnly || !leadState}
+                                  >
+                                    <option value="">Select City</option>
+                                    {City.getCitiesOfState(leadCountry, leadState).map((c) => (
+                                      <option key={c.name} value={c.name}>{c.name}</option>
+                                    ))}
+                                  </select>
+                                </div>
+                                <div>
+                                  <label className="form-label">Pin Code</label>
                                   <input
                                     className="form-control"
-                                    value={lead?.secondarySource || "-"}
-                                    readOnly
+                                    value={leadPincode}
+                                    onChange={(e) => setLeadPincode(e.target.value)}
+                                    readOnly={isGeneralInfoReadOnly}
                                   />
                                 </div>
                               </div>
@@ -2242,63 +2359,9 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
                           </div>
                         </div>
                       </div>
-                      <div className="col-lg-5">
-                        <div className="d-flex flex-column gap-3">
-                        <div className="lead-info-section">
-                          <h6 className="lead-info-section-title">Address</h6>
-                          <div className="row g-3">
-                            <div className="col-12">
-                              <label className="form-label">Street Address</label>
-                              <textarea
-                                className="form-control"
-                                value={streetAddress}
-                                onChange={(e) => setStreetAddress(e.target.value)}
-                                readOnly={isGeneralInfoReadOnly}
-                                rows={2}
-                              />
-                            </div>
-                            <div className="col-md-6">
-                              <label className="form-label">State</label>
-                              <select
-                                className="form-select"
-                                value={leadState}
-                                onChange={(e) => {
-                                  setLeadState(e.target.value);
-                                  setLeadCity("");
-                                }}
-                                disabled={isGeneralInfoReadOnly || !leadCountry}
-                              >
-                                <option value="">Select State</option>
-                                {State.getStatesOfCountry(leadCountry).map((s) => (
-                                  <option key={s.isoCode} value={s.isoCode}>{s.name}</option>
-                                ))}
-                              </select>
-                            </div>
-                            <div className="col-md-6">
-                              <label className="form-label">City</label>
-                              <select
-                                className="form-select"
-                                value={leadCity}
-                                onChange={(e) => setLeadCity(e.target.value)}
-                                disabled={isGeneralInfoReadOnly || !leadState}
-                              >
-                                <option value="">Select City</option>
-                                {City.getCitiesOfState(leadCountry, leadState).map((c) => (
-                                  <option key={c.name} value={c.name}>{c.name}</option>
-                                ))}
-                              </select>
-                            </div>
-                            <div className="col-md-6">
-                              <label className="form-label">Pin Code</label>
-                              <input
-                                className="form-control"
-                                value={leadPincode}
-                                onChange={(e) => setLeadPincode(e.target.value)}
-                                readOnly={isGeneralInfoReadOnly}
-                              />
-                            </div>
-                          </div>
-                        </div>
+                    </div>
+                    {/* <div className="row g-4 align-items-start">
+                      <div className="col-lg-12">
                         <div className="lead-info-section">
                           <h6 className="lead-info-section-title">Lead Overview</h6>
                           <div className="row g-3">
@@ -2318,15 +2381,6 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
                             {role !== "EMPLOYEE" && (
                               <>
                                 <div className="col-md-6">
-                                  <label className="form-label">Lead Owner</label>
-                                  <input
-                                    className="form-control"
-                                    placeholder="Lead owner name"
-                                    value={lead?.ownerName || lead?.owner || "-"}
-                                    readOnly
-                                  />
-                                </div>
-                                <div className="col-md-6">
                                   <label className="form-label">Lead Type / Rating</label>
                                   <select
                                     className="form-select"
@@ -2344,23 +2398,11 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
                                 </div>
                               </>
                             )}
-                          
-                          
-                            <div className="col-md-6">
-                              <label className="form-label">Lead Allocator</label>
-                              <input
-                                className="form-control"
-                                placeholder="Lead allocator name"
-                                value={lead?.allocator || lead?.allocatorName || lead?.allocatedTo || lead?.assignedTo || "-"}
-                                readOnly
-                              />
-                            </div>
                          
                             </div>
                           </div>
                         </div>
-                        </div>
-                      </div>
+                      </div> */}
                     </div>
                 </motion.div>
                 )}

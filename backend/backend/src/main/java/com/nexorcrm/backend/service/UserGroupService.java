@@ -706,7 +706,7 @@ public class UserGroupService {
         if (group.getMemberScope() == UserGroupMemberScope.ADMINS) {
             return;
         }
-        if (actor.getRole() == Role.MANAGER || actor.getRole() == Role.TEAM_LEAD) {
+        if (actor.getRole() == Role.TEAM_LEAD) {
             String actorTeamLower = normalizeLower(actor.getTeamName());
             boolean canSee = parseTeamNames(group).stream()
                     .map(this::normalizeLower)

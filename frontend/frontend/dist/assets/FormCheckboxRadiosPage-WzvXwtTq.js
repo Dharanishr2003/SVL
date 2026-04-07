@@ -1,0 +1,1 @@
+import{j as s}from"./index-DKdsXcZx.js";function o(){return s.jsx("div",{className:"card",children:s.jsxs("div",{className:"card-body",children:[s.jsx("h4",{className:"mb-2",children:"Form Checkbox Radios"}),s.jsx("p",{className:"mb-0",children:"Layout working confirmation."})]})})}export{o as default};

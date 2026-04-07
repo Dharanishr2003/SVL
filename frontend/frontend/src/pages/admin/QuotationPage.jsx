@@ -1,9 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { motion, AnimatePresence } from "motion/react";
 import { quotationCatalog } from "../../mock/quotationData";
 import { useAuth } from "../../context/AuthContext";
 import { getLeads } from "../../api/leadsApi";
 import { approveQuotation, saveQuotation } from "../../api/quotationApi";
+import "./QuotationPage.css";
 import {
   QUOTATION_STATUS_APPROVED,
   QUOTATION_STATUS_DRAFT,
@@ -93,6 +95,7 @@ export default function QuotationPage() {
   const isEmployee = userRole === "EMPLOYEE";
 
   const [partyMode, setPartyMode] = useState("lead");
+  const [activeTab, setActiveTab] = useState("lead");
   const [allLeads, setAllLeads] = useState([]);
   const [leadsLoading, setLeadsLoading] = useState(false);
   const [leadSearch, setLeadSearch] = useState("");
@@ -127,9 +130,9 @@ export default function QuotationPage() {
   const [needsDesign, setNeedsDesign] = useState(false);
   const [configError, setConfigError] = useState("");
   const [lineItems, setLineItems] = useState([]);
-  const [discountPct, setDiscountPct] = useState(0);
-  const [cgstPct, setCgstPct] = useState(0);
-  const [sgstPct, setSgstPct] = useState(0);
+  const [discountPct, setDiscountPct] = useState("0");
+  const [cgstPct, setCgstPct] = useState("0");
+  const [sgstPct, setSgstPct] = useState("0");
   const [saveMessage, setSaveMessage] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [editingItemId, setEditingItemId] = useState(null);
@@ -142,10 +145,10 @@ export default function QuotationPage() {
     () => lineItems.reduce((sum, item) => sum + Number(item.lineTotal || 0), 0),
     [lineItems],
   );
-  const discountAmt = useMemo(() => subtotal * (Number(discountPct) / 100), [subtotal, discountPct]);
+  const discountAmt = useMemo(() => subtotal * (Number(discountPct || 0) / 100), [subtotal, discountPct]);
   const afterDiscount = useMemo(() => subtotal - discountAmt, [subtotal, discountAmt]);
-  const cgstAmt = useMemo(() => afterDiscount * (Number(cgstPct) / 100), [afterDiscount, cgstPct]);
-  const sgstAmt = useMemo(() => afterDiscount * (Number(sgstPct) / 100), [afterDiscount, sgstPct]);
+  const cgstAmt = useMemo(() => afterDiscount * (Number(cgstPct || 0) / 100), [afterDiscount, cgstPct]);
+  const sgstAmt = useMemo(() => afterDiscount * (Number(sgstPct || 0) / 100), [afterDiscount, sgstPct]);
   const grandTotal = useMemo(() => afterDiscount + cgstAmt + sgstAmt, [afterDiscount, cgstAmt, sgstAmt]);
 
   const totals = {
@@ -198,9 +201,9 @@ export default function QuotationPage() {
     setSelectedLead(initial.selectedLead || null);
     setLeadSearch(initial.leadSearch || "");
     setLineItems(Array.isArray(initial.lineItems) ? initial.lineItems : []);
-    setDiscountPct(Number(initial.discountPct || 0));
-    setCgstPct(Number(initial.cgstPct || 0));
-    setSgstPct(Number(initial.sgstPct || 0));
+    setDiscountPct(String(initial.discountPct ?? "0"));
+    setCgstPct(String(initial.cgstPct ?? "0"));
+    setSgstPct(String(initial.sgstPct ?? "0"));
     clearQuotationDraft();
   }, []);
 
@@ -259,6 +262,7 @@ export default function QuotationPage() {
 
   const handlePartyModeChange = (mode) => {
     setPartyMode(mode);
+    setActiveTab(mode);
     setSelectedLead(null);
     setLeadSearch("");
     setLeadSuggestions([]);
@@ -349,11 +353,11 @@ export default function QuotationPage() {
       }
     }
     
-    setSelectedOptions(item.selectedOptions || {});
-    setQuantity(String(item.quantity));
+    setSelectedOptions(item?.selectedOptions ?? {});
+    setQuantity(item?.quantity != null ? String(item.quantity) : "");
     
     // Determine if design was selected
-    const hasDesignCost = Number(item.designCost) > 0;
+    const hasDesignCost = Number(item?.designCost ?? 0) > 0;
     setNeedsDesign(hasDesignCost);
     
     setConfigError("");
@@ -581,15 +585,43 @@ export default function QuotationPage() {
         <span className="breadcrumb-item active">Create Quotation</span>
       </div>
 
-      <div className="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
-        <div>
+      <div className="row g-2 align-items-center mb-3 text-center text-md-start">
+        <div className="col-12 col-md-3">
           <h4 className="mb-1">Create Quotation</h4>
           <p className="text-muted mb-0">Build, save, and download quotations.</p>
         </div>
-        <button type="button" className="btn btn-outline-primary" onClick={handleGoToList}>
-          <i className="ti ti-list-details me-1"></i>
-          Quotation List
-        </button>
+        <div className="col-12 col-md-6 d-flex justify-content-center">
+          <div className="quotation-wizard">
+            <div className="quotation-wizard-progress-bar">
+              <motion.div
+                className="quotation-wizard-progress"
+                initial={{ width: "0%" }}
+                animate={{ width: activeTab === "lead" ? "0%" : "100%" }}
+                transition={{ duration: 0.35, ease: "easeOut" }}
+              />
+            </div>
+            <motion.div className="quotation-wizard-circles" layoutId="circles-container">
+              <div className="quotation-wizard-circle-item" onClick={() => handlePartyModeChange("lead")}>
+                <motion.div className={`quotation-wizard-circle${activeTab === "lead" ? " active" : ""}`}>
+                  <i className="ti ti-building-community" />
+                </motion.div>
+                <div className="quotation-wizard-circle-label">Lead</div>
+              </div>
+              <div className="quotation-wizard-circle-item" onClick={() => handlePartyModeChange("customer")}>
+                <motion.div className={`quotation-wizard-circle${activeTab === "customer" ? " active" : ""}`}>
+                  <i className="ti ti-users" />
+                </motion.div>
+                <div className="quotation-wizard-circle-label">Customer</div>
+              </div>
+            </motion.div>
+          </div>
+        </div>
+        <div className="col-12 col-md-3 text-md-end">
+          <button type="button" className="btn btn-outline-primary w-100 w-md-auto" onClick={handleGoToList}>
+            <i className="ti ti-list-details me-1"></i>
+            Quotation List
+          </button>
+        </div>
       </div>
       {quotationStatus !== QUOTATION_STATUS_DRAFT && (
         <div className="alert alert-info">
@@ -605,38 +637,13 @@ export default function QuotationPage() {
 
       <fieldset disabled={!canEditQuotation}>
       <div className="card mb-3">
-        <div className="card-header d-flex align-items-center justify-content-between">
+        <div className="card-header">
           <h5 className="card-title mb-0">Customer Details</h5>
-          <div className="d-flex gap-3">
-            <div className="form-check mb-0">
-              <input
-                className="form-check-input"
-                type="radio"
-                id="partyLead"
-                checked={partyMode === "lead"}
-                onChange={() => handlePartyModeChange("lead")}
-              />
-              <label className="form-check-label fw-semibold" htmlFor="partyLead">
-                Lead
-              </label>
-            </div>
-            <div className="form-check mb-0">
-              <input
-                className="form-check-input"
-                type="radio"
-                id="partyCustomer"
-                checked={partyMode === "customer"}
-                onChange={() => handlePartyModeChange("customer")}
-              />
-              <label className="form-check-label fw-semibold" htmlFor="partyCustomer">
-                Customer
-              </label>
-            </div>
-          </div>
         </div>
+
         <div className="card-body">
           <div className="row g-3">
-            {partyMode === "lead" ? (
+            {activeTab === "lead" ? (
               <div className="col-md-4" ref={suggestionRef} style={{ position: "relative" }}>
                 <label className="form-label">Enquiry ID / Name *</label>
                 <input

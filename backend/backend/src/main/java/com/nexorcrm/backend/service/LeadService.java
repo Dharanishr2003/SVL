@@ -1643,7 +1643,7 @@ public class LeadService {
                     .findByInstitutionNameIgnoreCaseOrderByNameAsc(actor.getInstitutionName())
                     .stream()
                     .filter(this::hasLeadVisibility)
-                    .filter(group -> groupIncludesTeam(group, actor.getTeamName()))
+                    .filter(group -> isSameDepartmentScope(actor, group))
                     .toList();
         }
 
@@ -1652,6 +1652,7 @@ public class LeadService {
                     .findByInstitutionNameIgnoreCaseOrderByNameAsc(actor.getInstitutionName())
                     .stream()
                     .filter(this::hasLeadVisibility)
+                    .filter(group -> isSameDepartmentScope(actor, group))
                     .filter(group -> groupIncludesTeam(group, actor.getTeamName()))
                     .toList();
         }
@@ -2602,6 +2603,17 @@ public class LeadService {
         }
         return textEquals(actor.getInstitutionName(), target.getInstitutionName())
                 && textEquals(actor.getDepartmentName(), target.getDepartmentName());
+    }
+
+    private boolean isSameDepartmentScope(User actor, UserGroup group) {
+        if (actor == null || group == null) {
+            return false;
+        }
+        if (!hasDepartmentScope(actor)) {
+            return false;
+        }
+        return textEquals(actor.getInstitutionName(), group.getInstitutionName())
+                && textEquals(actor.getDepartmentName(), group.getDepartmentName());
     }
 
 

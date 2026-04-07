@@ -278,6 +278,7 @@ export default function LeadsPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const role = String(user?.role || "").toUpperCase();
+  const actorInstitutionName = String(user?.institutionName || user?.institution || "").trim();
   const { showSuccess, showError } = useToast();
   const { showConfirm, confirmDialog } = useConfirmDialog();
   const [rows, setRows] = useState([]);
@@ -468,6 +469,14 @@ export default function LeadsPage() {
   const [selectedLeadIds, setSelectedLeadIds] = useState(new Set());
 
   const visibleRows = useMemo(() => rows, [rows]);
+  const createFlowScope = useMemo(
+    () => (
+      role === "SUPER_ADMIN" || !actorInstitutionName
+        ? {}
+        : { institutionName: actorInstitutionName }
+    ),
+    [actorInstitutionName, role],
+  );
   const flowScopeByGroupId = useMemo(() => {
     const map = new Map();
     (groupOptions || []).forEach((group) => {
@@ -530,7 +539,7 @@ export default function LeadsPage() {
           canLoadGroupDirectory ? safeLoad(() => getUserGroups(), []) : Promise.resolve([]),
           safeLoad(() => getLeadFilters(), {}),
           safeLoad(() => getLeadStatuses(), []),
-          canLoadFlowConfig ? safeLoad(() => getLeadFlow(), {}) : Promise.resolve({}),
+          canLoadFlowConfig ? safeLoad(() => getLeadFlow(createFlowScope), {}) : Promise.resolve({}),
         ]);
         if (!isMounted) return;
         setPrimaryOptions(
@@ -618,7 +627,7 @@ export default function LeadsPage() {
     return () => {
       isMounted = false;
     };
-  }, [role]);
+  }, [createFlowScope, role]);
 
   useEffect(() => {
     let isMounted = true;
@@ -718,7 +727,7 @@ export default function LeadsPage() {
   );
   const defaultCreateLeadGroupId = createAllowedGroup?.id
     ? String(createAllowedGroup.id)
-    : newLeadFlowGroupId || (fallbackCreateGroup?.id ? String(fallbackCreateGroup.id) : "");
+    : fallbackCreateGroup?.id ? String(fallbackCreateGroup.id) : "";
   const canCreateNewLead = role === "SUPER_ADMIN" || !newLeadFlowGroupId || !!createAllowedGroup;
   const createCountryDisplayMaxLength = getCountryDisplayMaxLength(createForm.countryCode);
 
@@ -1274,7 +1283,7 @@ export default function LeadsPage() {
   };
 
   return (
-    <div className="container-fluid leads-page-shell">
+    <div className="content"><div className="container-fluid leads-page-shell">
       <div className="leads-page-header">
         <div>
           <h3 className="mb-2">Leads</h3>
@@ -1313,6 +1322,8 @@ export default function LeadsPage() {
               <button
                 className="btn btn-success leads-toolbar-btn leads-primary-action"
                 onClick={openCreateModal}
+                disabled={!canCreateNewLead}
+                title={!canCreateNewLead ? "Your branch flow is assigned to a group outside your access scope." : ""}
               >
                 <i className="ti ti-plus me-1" />
                 Create New Lead
@@ -2452,6 +2463,6 @@ export default function LeadsPage() {
       )}
 
       {confirmDialog}
-    </div>
+    </div></div>
   );
 }
