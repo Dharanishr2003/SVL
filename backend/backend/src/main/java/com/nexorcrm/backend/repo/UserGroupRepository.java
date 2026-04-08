@@ -10,6 +10,10 @@ public interface UserGroupRepository extends JpaRepository<UserGroup, Long> {
 
     boolean existsByNameIgnoreCase(String name);
 
+    boolean existsByNameIgnoreCaseAndInstitutionNameIgnoreCase(String name, String institutionName);
+
+    boolean existsByNameIgnoreCaseAndInstitutionNameIgnoreCaseAndIdNot(String name, String institutionName, Long id);
+
     List<UserGroup> findByInstitutionNameIgnoreCaseAndDepartmentNameIgnoreCaseOrderByNameAsc(
             String institutionName,
             String departmentName

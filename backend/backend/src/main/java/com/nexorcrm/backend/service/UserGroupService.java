@@ -234,12 +234,12 @@ public class UserGroupService {
         assertCanManageGroups(actor);
 
         String name = request.getName().trim();
-        if (userGroupRepository.existsByNameIgnoreCase(name)) {
-            throw new IllegalStateException("Group name already exists");
-        }
 
         UserGroupMemberScope memberScope = resolveMemberScope(request.getMemberScope());
         GroupScope targetScope = resolveScopeForCreate(actor, request, memberScope);
+        if (userGroupRepository.existsByNameIgnoreCaseAndInstitutionNameIgnoreCase(name, targetScope.institutionName())) {
+            throw new IllegalStateException("Group name already exists");
+        }
         List<String> scopedTeams = resolveScopedTeamsForActor(
                 actor,
                 request.getTeamNames(),
@@ -270,14 +270,14 @@ public class UserGroupService {
         assertCanAccessGroup(actor, group);
 
         String name = request.getName().trim();
-        if (!group.getName().equalsIgnoreCase(name) && userGroupRepository.existsByNameIgnoreCase(name)) {
-            throw new IllegalStateException("Group name already exists");
-        }
 
         List<String> oldGroupPageKeys = parseTeamNamesCsv(group.getPageKeysCsv());
         List<String> resolvedGroupPageKeys = resolveGroupPageKeysForActor(actor, request.getPageKeys(), group);
         UserGroupMemberScope memberScope = resolveMemberScope(request.getMemberScope());
         GroupScope targetScope = resolveScopeForUpdate(actor, request, memberScope);
+        if (userGroupRepository.existsByNameIgnoreCaseAndInstitutionNameIgnoreCaseAndIdNot(name, targetScope.institutionName(), id)) {
+            throw new IllegalStateException("Group name already exists");
+        }
         List<String> scopedTeams = resolveScopedTeamsForActor(
                 actor,
                 request.getTeamNames(),

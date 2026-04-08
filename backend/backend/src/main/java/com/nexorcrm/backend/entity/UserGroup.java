@@ -17,7 +17,7 @@ public class UserGroup {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "name", nullable = false, unique = true, length = 120)
+    @Column(name = "name", nullable = false, length = 120)
     private String name;
 
     @Column(name = "is_system_group", nullable = false)

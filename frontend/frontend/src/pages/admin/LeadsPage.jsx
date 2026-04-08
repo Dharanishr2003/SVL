@@ -24,6 +24,7 @@ import { getTertiarySources } from "../../api/tertiarySourceApi";
 import { getGroupMembers, getUserGroups } from "../../api/userGroupApi";
 import { getProjects } from "../../api/projectApi";
 import { getLeadFlow } from "../../api/flowApi";
+import { getInstitutions } from "../../api/orgHierarchyApi";
 import { updateCustomerLeadStatus } from "../../api/customerApi";
 import { extractApiErrorMessage } from "../../utils/errorMessage";
 import { formatStatusLabel, uniqueStatusOptions, normalizeStatusLabelKey } from "../../utils/statusLabels";
@@ -300,6 +301,7 @@ export default function LeadsPage() {
   const [tertiaryOptions, setTertiaryOptions] = useState([]);
   const [projectOptions, setProjectOptions] = useState([]);
   const [groupOptions, setGroupOptions] = useState([]);
+  const [branchOptions, setBranchOptions] = useState([]);
   const [leadFilters, setLeadFilters] = useState({
     projects: [],
     primarySources: [],
@@ -530,6 +532,7 @@ export default function LeadsPage() {
           projects,
           groups,
           allGroups,
+          institutions,
           filterPayload,
           leadStatuses,
           flowPayload,
@@ -540,6 +543,7 @@ export default function LeadsPage() {
           safeLoad(() => getProjects(), []),
           safeLoad(() => getAssignableLeadGroups(), []),
           canLoadGroupDirectory ? safeLoad(() => getUserGroups(), []) : Promise.resolve([]),
+          role === "SUPER_ADMIN" ? safeLoad(() => getInstitutions(), []) : Promise.resolve([]),
           safeLoad(() => getLeadFilters(), {}),
           safeLoad(() => getLeadStatuses(), []),
           canLoadFlowConfig ? safeLoad(() => getLeadFlow(createFlowScope), {}) : Promise.resolve({}),
@@ -555,6 +559,13 @@ export default function LeadsPage() {
           toOptionNames(tertiaries, ["tertiarySource", "name", "label"]),
         );
         setProjectOptions(toProjectNames(projects));
+        setBranchOptions(
+          Array.isArray(institutions)
+            ? institutions
+                .map((item) => String(item?.name || "").trim())
+                .filter(Boolean)
+            : [],
+        );
         const assignable = Array.isArray(groups) ? groups : [];
         if (role === "EMPLOYEE") {
           setGroupOptions(assignable);
@@ -734,14 +745,16 @@ export default function LeadsPage() {
   const shouldSelectCreateLeadGroup = role === "SUPER_ADMIN";
   const createBranchOptions = useMemo(
     () =>
-      Array.from(
-        new Set(
-          leadEligibleGroups
-            .map((group) => String(group?.institutionName || "").trim())
-            .filter(Boolean),
-        ),
-      ),
-    [leadEligibleGroups],
+      role === "SUPER_ADMIN"
+        ? Array.from(new Set(branchOptions))
+        : Array.from(
+            new Set(
+              leadEligibleGroups
+                .map((group) => String(group?.institutionName || "").trim())
+                .filter(Boolean),
+            ),
+          ),
+    [branchOptions, leadEligibleGroups, role],
   );
   const createResolvedLeadGroup = useMemo(() => {
     if (!shouldSelectCreateLeadGroup) {
