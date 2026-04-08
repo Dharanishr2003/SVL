@@ -36,6 +36,11 @@ public class BulkLeadItem {
     @Size(max = 200)
     private String productType;
 
+    @Size(max = 200)
+    private String variant;
+
+    private Integer quantity;
+
     @Size(max = 10)
     private String leadCountry;
 
@@ -66,6 +71,10 @@ public class BulkLeadItem {
     public void setCompanyName(String companyName) { this.companyName = companyName; }
     public String getProductType() { return productType; }
     public void setProductType(String productType) { this.productType = productType; }
+    public String getVariant() { return variant; }
+    public void setVariant(String variant) { this.variant = variant; }
+    public Integer getQuantity() { return quantity; }
+    public void setQuantity(Integer quantity) { this.quantity = quantity; }
     public String getLeadCountry() { return leadCountry; }
     public void setLeadCountry(String leadCountry) { this.leadCountry = leadCountry; }
     public String getLeadState() { return leadState; }

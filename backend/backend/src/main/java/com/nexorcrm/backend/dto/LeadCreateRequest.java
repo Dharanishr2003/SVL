@@ -35,6 +35,11 @@ public class LeadCreateRequest {
     @Size(max = 200, message = "Product Type must be at most 200 characters")
     private String productType;
 
+    @Size(max = 200, message = "Variant must be at most 200 characters")
+    private String variant;
+
+    private Integer quantity;
+
     @Size(max = 10, message = "Lead Country must be at most 10 characters")
     private String leadCountry;
 
@@ -121,6 +126,22 @@ public class LeadCreateRequest {
 
     public void setProductType(String productType) {
         this.productType = productType;
+    }
+
+    public String getVariant() {
+        return variant;
+    }
+
+    public void setVariant(String variant) {
+        this.variant = variant;
+    }
+
+    public Integer getQuantity() {
+        return quantity;
+    }
+
+    public void setQuantity(Integer quantity) {
+        this.quantity = quantity;
     }
 
     public String getLeadCountry() {

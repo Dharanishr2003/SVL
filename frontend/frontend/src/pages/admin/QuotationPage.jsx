@@ -534,7 +534,7 @@ export default function QuotationPage() {
   const livePrice = selectedProduct
     ? computeLineTotal(selectedProduct, selectedOptions, quantity, needsDesign)
     : null;
-  const canEditQuotation = !(isEmployee && quotationStatus !== QUOTATION_STATUS_DRAFT);
+  const canEditQuotation = !(isEmployee && quotationStatus !== QUOTATION_STATUS_DRAFT && quotationStatus !== "NEGOTIATING");
   const canApproveAsManager = ["MANAGER", "ADMIN", "SUPER_ADMIN"].includes(userRole);
   const canApproveAsTeamLead =
     userRole === "TEAM_LEAD" &&
@@ -958,10 +958,6 @@ export default function QuotationPage() {
             <button type="button" className="btn btn-primary" onClick={handleSaveQuotation} disabled={!canEditQuotation || isSaving}>
               <i className="ti ti-device-floppy me-1"></i>
               {isSaving ? "Saving..." : "Save Quotation"}
-            </button>
-            <button type="button" className="btn btn-success" onClick={handleDownloadPdf}>
-              <i className="ti ti-file-download me-1"></i>
-              Download PDF
             </button>
             <button type="button" className="btn btn-outline-secondary" onClick={handleGoToList}>
               <i className="ti ti-layout-list me-1"></i>

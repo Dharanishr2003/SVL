@@ -70,6 +70,12 @@ public class Lead {
     @Column(name = "product_type", length = 200)
     private String productType;
 
+    @Column(name = "variant", length = 200)
+    private String variant;
+
+    @Column(name = "quantity")
+    private Integer quantity;
+
     @Column(name = "lead_country", length = 10)
     private String leadCountry;
 
@@ -320,6 +326,10 @@ public class Lead {
     public void setCompanyName(String companyName) { this.companyName = companyName; }
     public String getProductType() { return productType; }
     public void setProductType(String productType) { this.productType = productType; }
+    public String getVariant() { return variant; }
+    public void setVariant(String variant) { this.variant = variant; }
+    public Integer getQuantity() { return quantity; }
+    public void setQuantity(Integer quantity) { this.quantity = quantity; }
     public String getLeadCountry() { return leadCountry; }
     public void setLeadCountry(String leadCountry) { this.leadCountry = leadCountry; }
     public String getLeadState() { return leadState; }

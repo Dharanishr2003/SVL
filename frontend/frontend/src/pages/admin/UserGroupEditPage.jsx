@@ -204,7 +204,7 @@ export default function UserGroupEditPage() {
       try {
         const params =
           selectedTeamNames.length > 0
-            ? { teams: selectedTeamNames }
+            ? { groupId: group.id, teams: selectedTeamNames }
             : { groupId: group.id };
         const rows = await getAssignableUsersForGroup(params);
         if (!isMounted) return;
@@ -297,7 +297,7 @@ export default function UserGroupEditPage() {
     if (!group?.id) return;
     const params =
       selectedTeamNames.length > 0
-        ? { teams: selectedTeamNames }
+        ? { groupId: group.id, teams: selectedTeamNames }
         : { groupId: group.id };
     const [memberRows, userRows] = await Promise.all([
       getGroupMembers(group.id),

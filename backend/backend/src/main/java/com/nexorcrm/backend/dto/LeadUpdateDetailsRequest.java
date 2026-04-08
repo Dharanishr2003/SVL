@@ -72,6 +72,8 @@ public class LeadUpdateDetailsRequest {
 
     private String email;
     private String productType;
+    private String variant;
+    private Integer quantity;
     private String leadCountry;
     private String leadState;
     private String leadCity;
@@ -445,6 +447,10 @@ public class LeadUpdateDetailsRequest {
     public void setEmail(String email) { this.email = email; }
     public String getProductType() { return productType; }
     public void setProductType(String productType) { this.productType = productType; }
+    public String getVariant() { return variant; }
+    public void setVariant(String variant) { this.variant = variant; }
+    public Integer getQuantity() { return quantity; }
+    public void setQuantity(Integer quantity) { this.quantity = quantity; }
     public String getLeadCountry() { return leadCountry; }
     public void setLeadCountry(String leadCountry) { this.leadCountry = leadCountry; }
     public String getLeadState() { return leadState; }

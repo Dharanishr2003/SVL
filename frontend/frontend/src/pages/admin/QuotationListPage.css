@@ -1,0 +1,118 @@
+.quotation-list-backdrop {
+  z-index: 1049;
+  background: rgba(15, 23, 42, 0.26);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.quotation-log-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1050;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.quotation-log-card {
+  width: min(680px, 100%);
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 20px;
+  background: #ffffff;
+  box-shadow: 0 24px 80px rgba(15, 23, 42, 0.22);
+  border: 1px solid rgba(226, 232, 240, 0.95);
+}
+
+.quotation-log-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  background: linear-gradient(180deg, #f8fbff 0%, #eef4fb 100%);
+  border-bottom: 1px solid #e7edf5;
+}
+
+.quotation-log-subtitle {
+  color: #64748b;
+  font-size: 0.9rem;
+}
+
+.quotation-log-body {
+  padding: 1rem 1.25rem;
+  overflow-y: auto;
+}
+
+.quotation-log-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.quotation-log-item {
+  padding: 0.95rem 0 1rem;
+  border-bottom: 1px solid #eef2f7;
+}
+
+.quotation-log-item:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.quotation-log-item-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.quotation-log-item h6 {
+  color: #45597a;
+  font-weight: 700;
+}
+
+.quotation-log-time {
+  color: #64748b;
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
+.quotation-log-meta {
+  color: #64748b;
+  font-size: 0.88rem;
+  margin-bottom: 0.35rem;
+}
+
+.quotation-log-details {
+  color: #334155;
+  font-size: 0.92rem;
+  white-space: pre-wrap;
+}
+
+.quotation-log-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0.9rem 1.25rem 1.1rem;
+  border-top: 1px solid #e7edf5;
+  background: #fbfdff;
+}
+
+@media (max-width: 640px) {
+  .quotation-log-card {
+    max-height: 88vh;
+    border-radius: 16px;
+  }
+
+  .quotation-log-item-head {
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+
+  .quotation-log-time {
+    white-space: normal;
+  }
+}

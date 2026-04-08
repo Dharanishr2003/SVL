@@ -6,6 +6,10 @@ export const QUOTATION_DRAFT_STORAGE_KEY = "svl_quotation_draft";
 export const QUOTATION_STATUS_DRAFT = "DRAFT";
 export const QUOTATION_STATUS_VERIFICATION_PENDING = "VERIFICATION_PENDING";
 export const QUOTATION_STATUS_APPROVED = "APPROVED";
+export const QUOTATION_STATUS_SENT = "QUOTATION_SENT";
+export const QUOTATION_STATUS_NEGOTIATING = "NEGOTIATING";
+export const QUOTATION_STATUS_REJECTED = "QUOTATION_REJECTED";
+export const QUOTATION_STATUS_ACCEPTED = "QUOTATION_ACCEPTED";
 
 export function sanitizeFilenamePart(value, fallback) {
   const normalized = String(value || "")

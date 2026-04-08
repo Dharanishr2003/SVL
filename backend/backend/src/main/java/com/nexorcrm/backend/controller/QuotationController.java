@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -71,5 +72,50 @@ public class QuotationController {
     ) {
         String principal = authentication != null ? authentication.getName() : null;
         return quotationService.approve(id, request, principal);
+    }
+
+    @PostMapping("/{id}/mark-sent")
+    public QuotationResponse markSent(
+            @PathVariable Long id,
+            Authentication authentication
+    ) {
+        String principal = authentication != null ? authentication.getName() : null;
+        return quotationService.markSent(id, principal);
+    }
+
+    @PostMapping("/{id}/mark-negotiating")
+    public QuotationResponse markNegotiating(
+            @PathVariable Long id,
+            @RequestBody(required = false) QuotationActionRequest request,
+            Authentication authentication
+    ) {
+        String principal = authentication != null ? authentication.getName() : null;
+        return quotationService.markNegotiating(id, request, principal);
+    }
+
+    @PostMapping("/{id}/mark-rejected")
+    public QuotationResponse markRejected(
+            @PathVariable Long id,
+            @RequestBody(required = false) QuotationActionRequest request,
+            Authentication authentication
+    ) {
+        String principal = authentication != null ? authentication.getName() : null;
+        return quotationService.markRejected(id, request, principal);
+    }
+
+    @PostMapping("/{id}/mark-accepted")
+    public QuotationResponse markAccepted(
+            @PathVariable Long id,
+            @RequestBody(required = false) QuotationActionRequest request,
+            Authentication authentication
+    ) {
+        String principal = authentication != null ? authentication.getName() : null;
+        return quotationService.markAccepted(id, request, principal);
+    }
+
+    @DeleteMapping("/{id}")
+    public void delete(@PathVariable Long id, Authentication authentication) {
+        String principal = authentication != null ? authentication.getName() : null;
+        quotationService.delete(id, principal);
     }
 }

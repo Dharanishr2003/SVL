@@ -19,6 +19,8 @@ export default function LeadImportEditModal({
         email: rowData.email || "",
         secondarySource: rowData.secondarySource || "",
         productType: rowData.productType || "",
+        variant: rowData.variant || "",
+        quantity: rowData.quantity != null ? String(rowData.quantity) : "",
         companyName: rowData.companyName || "",
         streetAddress: rowData.streetAddress || "",
         state: rowData.state || "",
@@ -26,6 +28,10 @@ export default function LeadImportEditModal({
       });
     }
   }, [rowData]);
+
+  const showVariantQuantityFields =
+    String(formData.variant || "").trim() !== "" ||
+    String(formData.quantity || "").trim() !== "";
 
   const handleChange = (field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -145,6 +151,34 @@ export default function LeadImportEditModal({
                             placeholder="e.g., Software, Hardware"
                           />
                         </div>
+                        {showVariantQuantityFields ? (
+                          <>
+                            <div className="col-md-6">
+                              <label className="form-label">Variant</label>
+                              <input
+                                type="text"
+                                className="form-control"
+                                value={formData.variant}
+                                onChange={(e) =>
+                                  handleChange("variant", e.target.value)
+                                }
+                                placeholder="e.g., Size, Color, Style"
+                              />
+                            </div>
+                            <div className="col-md-6">
+                              <label className="form-label">Quantity</label>
+                              <input
+                                type="number"
+                                className="form-control"
+                                value={formData.quantity}
+                                onChange={(e) =>
+                                  handleChange("quantity", e.target.value)
+                                }
+                                placeholder="e.g., 100"
+                              />
+                            </div>
+                          </>
+                        ) : null}
                         <div className="col-md-6">
                           <label className="form-label">Company Name</label>
                           <input

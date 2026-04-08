@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { getServiceCategories } from "../../api/serviceCategoriesApi";
-import { getServiceTypes } from "../../api/serviceTypesApi";
+import "./LeadsPage.css";
 import { createRequirement, updateRequirement } from "../../api/requirementApi";
 
 /* ───────── product field configs by type name ───────── */
@@ -173,14 +172,16 @@ export default function RequirementFormModal({
   leadId,
   onSaved,
   initialRequirement = null,
+  serviceCategories = [],
+  serviceTypes = [],
 }) {
   const [step, setStep] = useState(0);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  // Master data
-  const [categories, setCategories] = useState([]);
-  const [allTypes, setAllTypes] = useState([]);
+  // Master data (provided by parent, no fetch needed)
+  const categories = serviceCategories;
+  const allTypes = serviceTypes;
 
   // Selections
   const [categoryId, setCategoryId] = useState("");
@@ -208,23 +209,6 @@ export default function RequirementFormModal({
   const [files, setFiles] = useState([]);
   const isEditing = Boolean(initialRequirement?.id);
 
-  // Fetch master data
-  useEffect(() => {
-    if (!show) return;
-    const load = async () => {
-      try {
-        const [cats, types] = await Promise.all([
-          getServiceCategories(),
-          getServiceTypes(),
-        ]);
-        setCategories(Array.isArray(cats) ? cats : []);
-        setAllTypes(Array.isArray(types) ? types : []);
-      } catch {
-        // silent
-      }
-    };
-    load();
-  }, [show]);
 
   // Reset form when modal opens
   useEffect(() => {
@@ -372,7 +356,7 @@ export default function RequirementFormModal({
       case 1:
         return !!quantity && Number(quantity) > 0;
       case 2:
-        return true;
+        return !useDesignFolderUpload || files.length > 0;
       case 3:
         return true;
       default:
@@ -384,6 +368,7 @@ export default function RequirementFormModal({
     if (!canProceed(step)) {
       if (step === 0) setError("Please select category and product");
       else if (step === 1) setError("Please enter a valid quantity");
+      else if (step === 2) setError("Please upload at least one design file before proceeding");
       return;
     }
     setError("");

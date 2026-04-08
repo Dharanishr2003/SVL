@@ -40,6 +40,8 @@ import PaymentVerificationModal from "./PaymentVerificationModal";
 import AddressFormModal from "./AddressFormModal";
 import RequirementFormModal from "./RequirementFormModal";
 import { deleteRequirement, getRequirementsByLeadId } from "../../api/requirementApi";
+import { getServiceCategories } from "../../api/serviceCategoriesApi";
+import { getServiceTypes } from "../../api/serviceTypesApi";
 import { getPrimarySources } from "../../api/primarySourceApi";
 import { getSecondarySources } from "../../api/secondarySourceApi";
 import api from "../../utils/api";
@@ -147,6 +149,8 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
   const [occupation, setOccupation] = useState("");
   const [companyName, setCompanyName] = useState("");
   const [productType, setProductType] = useState("");
+  const [variant, setVariant] = useState("");
+  const [quantity, setQuantity] = useState("");
   const [leadEmail, setLeadEmail] = useState("");
   const [leadMobile, setLeadMobile] = useState("");
   const [primarySourceOptions, setPrimarySourceOptions] = useState([]);
@@ -203,7 +207,10 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [showRequirementModal, setShowRequirementModal] = useState(false);
   const [editingRequirement, setEditingRequirement] = useState(null);
+  const [requirementModalKey, setRequirementModalKey] = useState(0);
   const [requirements, setRequirements] = useState([]);
+  const [serviceCategories, setServiceCategories] = useState([]);
+  const [serviceTypes, setServiceTypes] = useState([]);
   
   // Address-related state for payment verification
   const [billingAddresses, setBillingAddresses] = useState([]);
@@ -215,6 +222,8 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
   const [addressLoading, setAddressLoading] = useState(false);
   const [newAddressType, setNewAddressType] = useState("BILLING");
   const [streetAddress, setStreetAddress] = useState("");
+  const showVariantQuantityFields =
+    String(variant || "").trim() !== "" || String(quantity || "").trim() !== "";
 
   const {
     isOpen: generalCountryPickerOpen,
@@ -374,6 +383,8 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
           pickText(leadData, ["companyName", "company", "organization", "organisation"]) || "",
         );
         setProductType(pickText(leadData, ["productType", "product_type"]) || "");
+        setVariant(pickText(leadData, ["variant"]) || "");
+        setQuantity(pickText(leadData, ["quantity"]) || "");
         setLeadEmail(pickText(leadData, ["email"]) || "");
         setLeadMobile(pickText(leadData, ["mobile", "phone", "phoneNumber", "phone_number"]) || "");
         setSelectedProjectId(pickText(leadData, ["projectId", "project_id"]) || "");
@@ -517,6 +528,7 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
     if (!statusNeedsModal("requirement")) return;
     setActiveTab("requirement");
     setEditingRequirement(null);
+    setRequirementModalKey((k) => k + 1);
     setShowRequirementModal(true);
     navigate(location.pathname, { replace: true });
   }, [lead?.id, lead?.status, location.pathname, location.search, navigate, requirements.length]);
@@ -567,6 +579,23 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
     fetchAddresses();
   }, [showVerifyModal, lead?.id]);
 
+  // Fetch service categories and types once on mount
+  useEffect(() => {
+    const fetchServiceMasterData = async () => {
+      try {
+        const [cats, types] = await Promise.all([
+          getServiceCategories(),
+          getServiceTypes(),
+        ]);
+        setServiceCategories(Array.isArray(cats) ? cats : []);
+        setServiceTypes(Array.isArray(types) ? types : []);
+      } catch {
+        // silent
+      }
+    };
+    fetchServiceMasterData();
+  }, []);
+
   // Fetch requirements for this lead
   useEffect(() => {
     if (!lead?.id) return;
@@ -593,11 +622,13 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
 
   const openAddRequirementModal = () => {
     setEditingRequirement(null);
+    setRequirementModalKey((k) => k + 1);
     setShowRequirementModal(true);
   };
 
   const openEditRequirementModal = (requirement) => {
     setEditingRequirement(requirement || null);
+    setRequirementModalKey((k) => k + 1);
     setShowRequirementModal(true);
   };
 
@@ -1379,6 +1410,7 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
       if (normalizedKey === "requirement" && statusNeedsModal("requirement")) {
         setActiveTab("requirement");
         setEditingRequirement(null);
+        setRequirementModalKey((k) => k + 1);
         setShowRequirementModal(true);
       }
       if (exitEditIfOwnershipMoved(mergedLead)) return;
@@ -1874,6 +1906,8 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
         occupation: occupation || null,
         companyName: companyName || null,
         productType: productType || null,
+        variant: variant || null,
+        quantity: quantity ? Number(quantity) : null,
         email: leadEmail || null,
         projectId: selectedProjectId || null,
         leadCountry: leadCountry || null,
@@ -2218,6 +2252,30 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
                                     readOnly={isGeneralInfoReadOnly}
                                   />
                                 </div>
+                                {showVariantQuantityFields ? (
+                                  <>
+                                    <div>
+                                      <label className="form-label">Variant</label>
+                                      <input
+                                        className="form-control"
+                                        placeholder="e.g. Size, Color, Style"
+                                        value={variant}
+                                        onChange={(e) => setVariant(e.target.value)}
+                                        readOnly={isGeneralInfoReadOnly}
+                                      />
+                                   
+                                      <label className="form-label">Quantity</label>
+                                      <input
+                                        type="number"
+                                        className="form-control"
+                                        placeholder="e.g. 100"
+                                        value={quantity}
+                                        onChange={(e) => setQuantity(e.target.value)}
+                                        readOnly={isGeneralInfoReadOnly}
+                                      />
+                                    </div>
+                                  </>
+                                ) : null}
                               </div>
                             </div>
                             <div className="col-md-4">
@@ -2299,6 +2357,7 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
                                     readOnly={isGeneralInfoReadOnly}
                                   />
                                 </div>
+                                
                             
                               </div>
                             </div>
@@ -3291,6 +3350,8 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
         leadId={lead?.id}
         onSaved={refreshRequirements}
         initialRequirement={editingRequirement}
+        serviceCategories={serviceCategories}
+        serviceTypes={serviceTypes}
       />
 
       <AddressFormModal

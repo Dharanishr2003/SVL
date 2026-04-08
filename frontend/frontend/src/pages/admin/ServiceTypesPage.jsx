@@ -4,6 +4,7 @@ import { getServiceTypes, createServiceType, updateServiceType, deleteServiceTyp
 import PageHeader from "../../components/admin/PageHeader";
 import { useToast } from "../../components/system/ToastProvider";
 import useConfirmDialog from "../../components/system/useConfirmDialog";
+import { extractApiErrorMessage } from "../../utils/errorMessage";
 import "./ServiceTypesPage.css";
 
 export default function ServiceTypesPage() {
@@ -120,11 +121,16 @@ export default function ServiceTypesPage() {
     }
     setSaving(true);
     try {
+      const payload = {
+        name: form.name.trim(),
+        categoryId: form.categoryId ? Number(form.categoryId) : null,
+        parentId: form.parentId ? Number(form.parentId) : null,
+      };
       if (editingId) {
-        await updateServiceType(editingId, form);
+        await updateServiceType(editingId, payload);
         showSuccess("Service Type updated");
       } else {
-        await createServiceType(form);
+        await createServiceType(payload);
         showSuccess("Service Type added");
       }
       setShowCreate(false);
@@ -132,7 +138,7 @@ export default function ServiceTypesPage() {
       setEditingId(null);
       await loadServiceTypes();
     } catch (e) {
-      showError("Failed to save");
+      showError(extractApiErrorMessage(e, "Failed to save service type"));
     } finally {
       setSaving(false);
     }

@@ -4,6 +4,7 @@ import { bulkCreateLeads, getAssignableLeadGroups } from '../../api/leadsApi';
 import { getGroupMembers, getUserGroups } from '../../api/userGroupApi';
 import { getLeadFlow } from '../../api/flowApi';
 import { CRM_PAGE_OPTIONS } from '../../constants/crmPages';
+import { useAuth } from '../../context/AuthContext';
 import LeadImportEditModal from '../../components/admin/LeadImportEditModal';
 import './LeadImportPage.css';
 
@@ -17,7 +18,7 @@ const QUICK_SELECT_OPTIONS = [
 
 const CSV_COLUMNS = [
   'name', 'mobile', 'email', 'primarySource',
-  'secondarySource', 'productType', 'companyName',
+  'secondarySource', 'productType', 'variant', 'quantity', 'companyName',
   'streetAddress', 'state', 'district',
 ];
 
@@ -35,11 +36,11 @@ function parseCSV(text) {
 
 function downloadSampleCSV() {
   const mandatoryNote = '# MANDATORY: name | mobile | primarySource';
-  const optionalNote = '# OPTIONAL: email | secondarySource | productType | companyName | streetAddress | state | district';
+  const optionalNote = '# OPTIONAL: email | secondarySource | productType | variant | quantity | companyName | streetAddress | state | district';
   const header = CSV_COLUMNS.join(',');
   const sample = [
-    'John Doe,9876543210,john@example.com,Facebook,Google,Software,Acme Corp,123 Main St,Maharashtra,Mumbai',
-    'Jane Smith,9123456789,jane@example.com,Google,Facebook,Hardware,Tech Solutions,456 Oak Ave,Karnataka,Bengaluru',
+    'John Doe,9876543210,john@example.com,Facebook,Google,Software,Large,100,Acme Corp,123 Main St,Maharashtra,Mumbai',
+    'Jane Smith,9123456789,jane@example.com,Google,Facebook,Hardware,Medium,50,Tech Solutions,456 Oak Ave,Karnataka,Bengaluru',
   ].join('\n');
   const csv = mandatoryNote + '\n' + optionalNote + '\n' + header + '\n' + sample;
   const blob = new Blob([csv], { type: 'text/csv' });
@@ -53,6 +54,8 @@ function downloadSampleCSV() {
 
 export default function LeadImportPage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const role = String(user?.role || '').toUpperCase();
   const fileInputRef = useRef(null);
   const [rows, setRows] = useState([]);
   const [checkedIndexes, setCheckedIndexes] = useState(new Set());
@@ -69,6 +72,7 @@ export default function LeadImportPage() {
   const leadPageKey = CRM_PAGE_OPTIONS.find((item) => item.key === 'leads')?.key || 'leads';
   const [groupOptions, setGroupOptions] = useState([]);
   const [flowRules, setFlowRules] = useState([]);
+  const [selectedBranchName, setSelectedBranchName] = useState('');
 
   const leadEligibleGroups = useMemo(
     () =>
@@ -79,6 +83,27 @@ export default function LeadImportPage() {
       ),
     [groupOptions, leadPageKey],
   );
+
+  const importBranchOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          leadEligibleGroups
+            .map((group) => String(group?.institutionName || '').trim())
+            .filter(Boolean),
+        ),
+      ),
+    [leadEligibleGroups],
+  );
+
+  const scopedLeadEligibleGroups = useMemo(() => {
+    if (role !== 'SUPER_ADMIN') return leadEligibleGroups;
+    const branchName = String(selectedBranchName || '').trim().toLowerCase();
+    if (!branchName) return [];
+    return leadEligibleGroups.filter(
+      (group) => String(group?.institutionName || '').trim().toLowerCase() === branchName,
+    );
+  }, [leadEligibleGroups, role, selectedBranchName]);
 
   const newLeadFlowGroupId = useMemo(() => {
     const rule = Array.isArray(flowRules)
@@ -92,14 +117,18 @@ export default function LeadImportPage() {
   const importGroup = useMemo(
     () =>
       newLeadFlowGroupId
-        ? leadEligibleGroups.find((group) => String(group.id) === String(newLeadFlowGroupId)) || null
-        : leadEligibleGroups[0] || null,
-    [leadEligibleGroups, newLeadFlowGroupId],
+        ? scopedLeadEligibleGroups.find((group) => String(group.id) === String(newLeadFlowGroupId)) || null
+        : scopedLeadEligibleGroups[0] || null,
+    [scopedLeadEligibleGroups, newLeadFlowGroupId],
   );
 
   useEffect(() => {
     let isMounted = true;
-    Promise.all([getAssignableLeadGroups(), getUserGroups(), getLeadFlow()])
+    const flowScope =
+      role === 'SUPER_ADMIN' && String(selectedBranchName || '').trim()
+        ? { institutionName: String(selectedBranchName || '').trim() }
+        : {};
+    Promise.all([getAssignableLeadGroups(), getUserGroups(), getLeadFlow(flowScope)])
       .then(([assignable, allGroups, flowPayload]) => {
         if (!isMounted) return;
         const byId = new Map((Array.isArray(allGroups) ? allGroups : []).map((g) => [String(g.id), g]));
@@ -122,7 +151,12 @@ export default function LeadImportPage() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [role, selectedBranchName]);
+
+  useEffect(() => {
+    setSelectedEmployeeIds([]);
+    setEmployeePickerValue('');
+  }, [selectedBranchName, importGroup?.id]);
 
   useEffect(() => {
     let isMounted = true;
@@ -226,6 +260,8 @@ export default function LeadImportPage() {
       secondarySource: row.secondarySource || null,
       companyName: row.companyName || null,
       productType: row.productType || null,
+      variant: row.variant || null,
+      quantity: row.quantity ? Number(row.quantity) : null,
       leadCountry: row.leadCountry || null,
       leadState: row.leadState || null,
       leadCity: row.leadCity || null,
@@ -422,8 +458,31 @@ export default function LeadImportPage() {
         <div className="card mb-3">
           <div className="card-body">
             <h6 className="card-title">Step 3 - Assign to Employee(s)</h6>
+            {role === 'SUPER_ADMIN' && (
+              <div className="mb-3" style={{ maxWidth: 360 }}>
+                <label className="form-label">Branch</label>
+                <select
+                  className="form-select"
+                  value={selectedBranchName}
+                  onChange={(e) => setSelectedBranchName(e.target.value)}
+                >
+                  <option value="">Select Branch</option>
+                  {importBranchOptions.map((branchName) => (
+                    <option key={branchName} value={branchName}>
+                      {branchName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
             {employees.length === 0 ? (
-              <p className="text-muted">{importGroup ? 'No active employees in this group.' : 'No group available.'}</p>
+              <p className="text-muted">
+                {role === 'SUPER_ADMIN' && !selectedBranchName
+                  ? 'Select a branch to load New Lead handlers.'
+                  : importGroup
+                    ? 'No active employees in this group.'
+                    : 'No group available.'}
+              </p>
             ) : (
               <>
                 <div className="mb-3" style={{ maxWidth: 360 }}>

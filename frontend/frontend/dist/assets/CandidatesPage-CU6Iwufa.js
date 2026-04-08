@@ -1,0 +1,1 @@
+import{m as i,n as r,j as a}from"./index-CsbPAdcE.js";import o from"./CandidatesGridPage-CnPgvKAN.js";import n from"./CandidatesListPage-DiWFnnok.js";const u=()=>{const s=i(),[t]=r(),e=t.get("view")==="grid"?"grid":"list";return(s.pathname.endsWith("/candidates-grid")?"grid":e)==="grid"?a.jsx(o,{}):a.jsx(n,{})};export{u as default};

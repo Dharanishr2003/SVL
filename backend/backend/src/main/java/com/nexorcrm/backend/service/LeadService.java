@@ -380,6 +380,8 @@ public class LeadService {
             row.setSecondarySource(normalizeNullable(item.getSecondarySource()));
             row.setCompanyName(normalizeNullable(item.getCompanyName()));
             row.setProductType(normalizeNullable(item.getProductType()));
+            row.setVariant(normalizeNullable(item.getVariant()));
+            row.setQuantity(item.getQuantity());
             row.setLeadCountry(normalizeNullable(item.getLeadCountry()));
             row.setLeadState(normalizeNullable(item.getLeadState()));
             row.setLeadCity(normalizeNullable(item.getLeadCity()));
@@ -490,6 +492,8 @@ public class LeadService {
         row.setSecondarySource(normalizeNullable(request.getSecondarySource()));
         row.setCompanyName(normalizeNullable(request.getCompanyName()));
         row.setProductType(normalizeNullable(request.getProductType()));
+        row.setVariant(normalizeNullable(request.getVariant()));
+        row.setQuantity(request.getQuantity());
         row.setLeadCountry(normalizeNullable(request.getLeadCountry()));
         row.setLeadState(normalizeNullable(request.getLeadState()));
         row.setLeadCity(normalizeNullable(request.getLeadCity()));
@@ -910,6 +914,12 @@ public class LeadService {
         }
         if (request.getProductType() != null) {
             row.setProductType(normalizeNullable(request.getProductType()));
+        }
+        if (request.getVariant() != null) {
+            row.setVariant(normalizeNullable(request.getVariant()));
+        }
+        if (request.getQuantity() != null) {
+            row.setQuantity(request.getQuantity());
         }
         if (request.getLeadCountry() != null) {
             row.setLeadCountry(normalizeNullable(request.getLeadCountry()));
@@ -2956,6 +2966,8 @@ public class LeadService {
         res.setOccupation(row.getOccupation());
         res.setCompanyName(row.getCompanyName());
         res.setProductType(row.getProductType());
+        res.setVariant(row.getVariant());
+        res.setQuantity(row.getQuantity());
         res.setLeadCountry(row.getLeadCountry());
         res.setLeadState(row.getLeadState());
         res.setLeadCity(row.getLeadCity());

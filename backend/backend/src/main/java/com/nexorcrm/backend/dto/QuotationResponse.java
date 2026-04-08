@@ -27,6 +27,17 @@ public class QuotationResponse {
     private String approvedByName;
     private String approvedByRole;
     private String approvalNotes;
+    private LocalDateTime sentAt;
+    private String sentByName;
+    private LocalDateTime negotiatingAt;
+    private String negotiatingByName;
+    private String negotiatingNotes;
+    private LocalDateTime rejectedAt;
+    private String rejectedByName;
+    private String rejectionNotes;
+    private LocalDateTime acceptedAt;
+    private String acceptedByName;
+    private String acceptanceNotes;
     private Long createdById;
     private String createdByName;
     private String createdByEmail;
@@ -266,4 +277,37 @@ public class QuotationResponse {
     public void setUpdatedAt(LocalDateTime updatedAt) {
         this.updatedAt = updatedAt;
     }
+
+    public LocalDateTime getSentAt() { return sentAt; }
+    public void setSentAt(LocalDateTime sentAt) { this.sentAt = sentAt; }
+
+    public String getSentByName() { return sentByName; }
+    public void setSentByName(String sentByName) { this.sentByName = sentByName; }
+
+    public LocalDateTime getNegotiatingAt() { return negotiatingAt; }
+    public void setNegotiatingAt(LocalDateTime negotiatingAt) { this.negotiatingAt = negotiatingAt; }
+
+    public String getNegotiatingByName() { return negotiatingByName; }
+    public void setNegotiatingByName(String negotiatingByName) { this.negotiatingByName = negotiatingByName; }
+
+    public String getNegotiatingNotes() { return negotiatingNotes; }
+    public void setNegotiatingNotes(String negotiatingNotes) { this.negotiatingNotes = negotiatingNotes; }
+
+    public LocalDateTime getRejectedAt() { return rejectedAt; }
+    public void setRejectedAt(LocalDateTime rejectedAt) { this.rejectedAt = rejectedAt; }
+
+    public String getRejectedByName() { return rejectedByName; }
+    public void setRejectedByName(String rejectedByName) { this.rejectedByName = rejectedByName; }
+
+    public String getRejectionNotes() { return rejectionNotes; }
+    public void setRejectionNotes(String rejectionNotes) { this.rejectionNotes = rejectionNotes; }
+
+    public LocalDateTime getAcceptedAt() { return acceptedAt; }
+    public void setAcceptedAt(LocalDateTime acceptedAt) { this.acceptedAt = acceptedAt; }
+
+    public String getAcceptedByName() { return acceptedByName; }
+    public void setAcceptedByName(String acceptedByName) { this.acceptedByName = acceptedByName; }
+
+    public String getAcceptanceNotes() { return acceptanceNotes; }
+    public void setAcceptanceNotes(String acceptanceNotes) { this.acceptanceNotes = acceptanceNotes; }
 }

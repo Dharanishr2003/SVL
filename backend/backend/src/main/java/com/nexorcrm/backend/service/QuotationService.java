@@ -111,8 +111,8 @@ public class QuotationService {
         if (actor.getRole() != Role.EMPLOYEE || !Objects.equals(actor.getId(), quotation.getCreatedById())) {
             throw new AccessDeniedException("Only the owning employee can send verification");
         }
-        if (quotation.getStatus() != QuotationStatus.DRAFT) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only draft quotations can be sent for verification");
+        if (quotation.getStatus() != QuotationStatus.DRAFT && quotation.getStatus() != QuotationStatus.NEGOTIATING) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only draft or negotiating quotations can be sent for verification");
         }
 
         LocalDateTime now = LocalDateTime.now();
@@ -155,6 +155,89 @@ public class QuotationService {
         return toResponse(quotationRepository.save(quotation));
     }
 
+    public QuotationResponse markSent(Long id, String principal) {
+        User actor = resolveActor(principal);
+        Quotation quotation = quotationRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Quotation not found"));
+
+        if (actor.getRole() != Role.EMPLOYEE || !Objects.equals(actor.getId(), quotation.getCreatedById())) {
+            throw new AccessDeniedException("Only the owning employee can mark this quotation as sent");
+        }
+        if (quotation.getStatus() != QuotationStatus.APPROVED) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only approved quotations can be marked as sent");
+        }
+
+        quotation.setStatus(QuotationStatus.QUOTATION_SENT);
+        quotation.setSentAt(LocalDateTime.now());
+        quotation.setSentByName(resolveDisplayName(actor));
+        return toResponse(quotationRepository.save(quotation));
+    }
+
+    public QuotationResponse markNegotiating(Long id, QuotationActionRequest request, String principal) {
+        User actor = resolveActor(principal);
+        Quotation quotation = quotationRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Quotation not found"));
+
+        if (actor.getRole() != Role.EMPLOYEE || !Objects.equals(actor.getId(), quotation.getCreatedById())) {
+            throw new AccessDeniedException("Only the owning employee can mark this quotation as negotiating");
+        }
+        if (quotation.getStatus() != QuotationStatus.QUOTATION_SENT) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only sent quotations can be marked as negotiating");
+        }
+        String notes = request != null ? trimToNull(request.getNotes()) : null;
+        if (notes == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Negotiating notes are required");
+        }
+
+        quotation.setStatus(QuotationStatus.NEGOTIATING);
+        quotation.setNegotiatingAt(LocalDateTime.now());
+        quotation.setNegotiatingByName(resolveDisplayName(actor));
+        quotation.setNegotiatingNotes(notes);
+        return toResponse(quotationRepository.save(quotation));
+    }
+
+    public QuotationResponse markRejected(Long id, QuotationActionRequest request, String principal) {
+        User actor = resolveActor(principal);
+        Quotation quotation = quotationRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Quotation not found"));
+
+        if (actor.getRole() != Role.EMPLOYEE || !Objects.equals(actor.getId(), quotation.getCreatedById())) {
+            throw new AccessDeniedException("Only the owning employee can mark this quotation as rejected");
+        }
+        if (quotation.getStatus() != QuotationStatus.QUOTATION_SENT) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only sent quotations can be marked as rejected");
+        }
+        String notes = request != null ? trimToNull(request.getNotes()) : null;
+        if (notes == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Rejection notes are required");
+        }
+
+        quotation.setStatus(QuotationStatus.QUOTATION_REJECTED);
+        quotation.setRejectedAt(LocalDateTime.now());
+        quotation.setRejectedByName(resolveDisplayName(actor));
+        quotation.setRejectionNotes(notes);
+        return toResponse(quotationRepository.save(quotation));
+    }
+
+    public QuotationResponse markAccepted(Long id, QuotationActionRequest request, String principal) {
+        User actor = resolveActor(principal);
+        Quotation quotation = quotationRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Quotation not found"));
+
+        if (actor.getRole() != Role.EMPLOYEE || !Objects.equals(actor.getId(), quotation.getCreatedById())) {
+            throw new AccessDeniedException("Only the owning employee can mark this quotation as accepted");
+        }
+        if (quotation.getStatus() != QuotationStatus.QUOTATION_SENT) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only sent quotations can be marked as accepted");
+        }
+
+        quotation.setStatus(QuotationStatus.QUOTATION_ACCEPTED);
+        quotation.setAcceptedAt(LocalDateTime.now());
+        quotation.setAcceptedByName(resolveDisplayName(actor));
+        quotation.setAcceptanceNotes(request != null ? trimToNull(request.getNotes()) : null);
+        return toResponse(quotationRepository.save(quotation));
+    }
+
     private boolean canView(Quotation quotation, User actor) {
         if (actor == null) {
             return false;
@@ -166,12 +249,22 @@ public class QuotationService {
 
         QuotationStatus status = quotation.getStatus() != null ? quotation.getStatus() : QuotationStatus.DRAFT;
         if (actor.getRole() == Role.TEAM_LEAD) {
-            return (status == QuotationStatus.VERIFICATION_PENDING || status == QuotationStatus.APPROVED)
+            return (status == QuotationStatus.VERIFICATION_PENDING
+                    || status == QuotationStatus.APPROVED
+                    || status == QuotationStatus.QUOTATION_SENT
+                    || status == QuotationStatus.NEGOTIATING
+                    || status == QuotationStatus.QUOTATION_REJECTED
+                    || status == QuotationStatus.QUOTATION_ACCEPTED)
                     && isEmployeeOwnedBySameTeam(quotation, actor);
         }
 
         if (actor.getRole() == Role.MANAGER || actor.getRole() == Role.ADMIN || actor.getRole() == Role.SUPER_ADMIN) {
-            return status == QuotationStatus.VERIFICATION_PENDING || status == QuotationStatus.APPROVED;
+            return status == QuotationStatus.VERIFICATION_PENDING
+                    || status == QuotationStatus.APPROVED
+                    || status == QuotationStatus.QUOTATION_SENT
+                    || status == QuotationStatus.NEGOTIATING
+                    || status == QuotationStatus.QUOTATION_REJECTED
+                    || status == QuotationStatus.QUOTATION_ACCEPTED;
         }
 
         return false;
@@ -186,7 +279,8 @@ public class QuotationService {
         }
         if (actor.getRole() == Role.EMPLOYEE) {
             return Objects.equals(quotation.getCreatedById(), actor.getId())
-                    && quotation.getStatus() == QuotationStatus.DRAFT;
+                    && (quotation.getStatus() == QuotationStatus.DRAFT
+                        || quotation.getStatus() == QuotationStatus.NEGOTIATING);
         }
         return true;
     }
@@ -252,6 +346,17 @@ public class QuotationService {
         response.setCreatedByTeam(quotation.getCreatedByTeam());
         response.setCreatedAt(quotation.getCreatedAt());
         response.setUpdatedAt(quotation.getUpdatedAt());
+        response.setSentAt(quotation.getSentAt());
+        response.setSentByName(quotation.getSentByName());
+        response.setNegotiatingAt(quotation.getNegotiatingAt());
+        response.setNegotiatingByName(quotation.getNegotiatingByName());
+        response.setNegotiatingNotes(quotation.getNegotiatingNotes());
+        response.setRejectedAt(quotation.getRejectedAt());
+        response.setRejectedByName(quotation.getRejectedByName());
+        response.setRejectionNotes(quotation.getRejectionNotes());
+        response.setAcceptedAt(quotation.getAcceptedAt());
+        response.setAcceptedByName(quotation.getAcceptedByName());
+        response.setAcceptanceNotes(quotation.getAcceptanceNotes());
         return response;
     }
 
@@ -319,6 +424,18 @@ public class QuotationService {
             return null;
         }
         return value.trim();
+    }
+
+    public void delete(Long id, String principal) {
+        User actor = resolveActor(principal);
+        Quotation quotation = quotationRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Quotation not found"));
+
+        if (actor.getRole() != Role.SUPER_ADMIN) {
+            throw new AccessDeniedException("Only super admins can delete quotations");
+        }
+
+        quotationRepository.deleteById(id);
     }
 
     private String normalize(String value) {

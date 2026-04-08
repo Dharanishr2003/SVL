@@ -55,3 +55,33 @@ export async function approveQuotation(id, notes) {
   });
   return response.data;
 }
+
+export async function markQuotationSent(id) {
+  const response = await api.post(`/api/quotations/${normalizeId(id)}/mark-sent`);
+  return response.data;
+}
+
+export async function markQuotationNegotiating(id, notes) {
+  const response = await api.post(`/api/quotations/${normalizeId(id)}/mark-negotiating`, {
+    notes: notes || "",
+  });
+  return response.data;
+}
+
+export async function markQuotationRejected(id, notes) {
+  const response = await api.post(`/api/quotations/${normalizeId(id)}/mark-rejected`, {
+    notes: notes || "",
+  });
+  return response.data;
+}
+
+export async function markQuotationAccepted(id, notes) {
+  const response = await api.post(`/api/quotations/${normalizeId(id)}/mark-accepted`, {
+    notes: notes || "",
+  });
+  return response.data;
+}
+
+export async function deleteQuotation(id) {
+  await api.delete(`/api/quotations/${normalizeId(id)}`);
+}

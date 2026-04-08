@@ -93,6 +93,42 @@ public class Quotation {
     @Column(name = "approval_notes", columnDefinition = "text")
     private String approvalNotes;
 
+    @Column(name = "sent_at")
+    private LocalDateTime sentAt;
+
+    @Column(name = "sent_by_name", length = 255)
+    private String sentByName;
+
+    @Column(name = "negotiating_at")
+    private LocalDateTime negotiatingAt;
+
+    @Column(name = "negotiating_by_name", length = 255)
+    private String negotiatingByName;
+
+    @Lob
+    @Column(name = "negotiating_notes", columnDefinition = "text")
+    private String negotiatingNotes;
+
+    @Column(name = "rejected_at")
+    private LocalDateTime rejectedAt;
+
+    @Column(name = "rejected_by_name", length = 255)
+    private String rejectedByName;
+
+    @Lob
+    @Column(name = "rejection_notes", columnDefinition = "text")
+    private String rejectionNotes;
+
+    @Column(name = "accepted_at")
+    private LocalDateTime acceptedAt;
+
+    @Column(name = "accepted_by_name", length = 255)
+    private String acceptedByName;
+
+    @Lob
+    @Column(name = "acceptance_notes", columnDefinition = "text")
+    private String acceptanceNotes;
+
     @Column(name = "created_by_id", nullable = false)
     private Long createdById;
 
@@ -347,4 +383,37 @@ public class Quotation {
     public LocalDateTime getUpdatedAt() {
         return updatedAt;
     }
+
+    public LocalDateTime getSentAt() { return sentAt; }
+    public void setSentAt(LocalDateTime sentAt) { this.sentAt = sentAt; }
+
+    public String getSentByName() { return sentByName; }
+    public void setSentByName(String sentByName) { this.sentByName = sentByName; }
+
+    public LocalDateTime getNegotiatingAt() { return negotiatingAt; }
+    public void setNegotiatingAt(LocalDateTime negotiatingAt) { this.negotiatingAt = negotiatingAt; }
+
+    public String getNegotiatingByName() { return negotiatingByName; }
+    public void setNegotiatingByName(String negotiatingByName) { this.negotiatingByName = negotiatingByName; }
+
+    public String getNegotiatingNotes() { return negotiatingNotes; }
+    public void setNegotiatingNotes(String negotiatingNotes) { this.negotiatingNotes = negotiatingNotes; }
+
+    public LocalDateTime getRejectedAt() { return rejectedAt; }
+    public void setRejectedAt(LocalDateTime rejectedAt) { this.rejectedAt = rejectedAt; }
+
+    public String getRejectedByName() { return rejectedByName; }
+    public void setRejectedByName(String rejectedByName) { this.rejectedByName = rejectedByName; }
+
+    public String getRejectionNotes() { return rejectionNotes; }
+    public void setRejectionNotes(String rejectionNotes) { this.rejectionNotes = rejectionNotes; }
+
+    public LocalDateTime getAcceptedAt() { return acceptedAt; }
+    public void setAcceptedAt(LocalDateTime acceptedAt) { this.acceptedAt = acceptedAt; }
+
+    public String getAcceptedByName() { return acceptedByName; }
+    public void setAcceptedByName(String acceptedByName) { this.acceptedByName = acceptedByName; }
+
+    public String getAcceptanceNotes() { return acceptanceNotes; }
+    public void setAcceptanceNotes(String acceptanceNotes) { this.acceptanceNotes = acceptanceNotes; }
 }

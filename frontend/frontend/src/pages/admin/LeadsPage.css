@@ -190,6 +190,7 @@
 }
 
 .lead-wizard-circle.active {
+  color: #fcfcfc !important;
   background-color: #45597a !important;
   box-shadow: 0 12px 28px rgba(69, 89, 122, 0.16);
 }

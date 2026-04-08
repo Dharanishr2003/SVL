@@ -45,6 +45,7 @@ import { useCountryCodePicker } from "../../hooks/useCountryCodePicker";
 import "./LeadsPage.css";
 
 const EMPTY_CREATE_FORM = {
+  createBranchName: "",
   projectName: "",
   name: "",
   email: "",
@@ -312,7 +313,9 @@ export default function LeadsPage() {
   const [createWizardStep, setCreateWizardStep] = useState(0);
   const [createForm, setCreateForm] = useState(EMPTY_CREATE_FORM);
   const [createGroupMembers, setCreateGroupMembers] = useState([]);
+  const [createBranchFlowGroupId, setCreateBranchFlowGroupId] = useState("");
   const [createMobileError, setCreateMobileError] = useState("");
+  const [createStep0Errors, setCreateStep0Errors] = useState({ name: "", primarySource: "" });
   const [flowRules, setFlowRules] = useState([]);
   const [showAddPrimarySource, setShowAddPrimarySource] = useState(false);
   const [showAddSecondarySource, setShowAddSecondarySource] = useState(false);
@@ -728,48 +731,160 @@ export default function LeadsPage() {
   const defaultCreateLeadGroupId = createAllowedGroup?.id
     ? String(createAllowedGroup.id)
     : fallbackCreateGroup?.id ? String(fallbackCreateGroup.id) : "";
+  const shouldSelectCreateLeadGroup = role === "SUPER_ADMIN";
+  const createBranchOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          leadEligibleGroups
+            .map((group) => String(group?.institutionName || "").trim())
+            .filter(Boolean),
+        ),
+      ),
+    [leadEligibleGroups],
+  );
+  const createResolvedLeadGroup = useMemo(() => {
+    if (!shouldSelectCreateLeadGroup) {
+      return leadEligibleGroups.find((group) => String(group.id) === String(createForm.leadGroupId)) || null;
+    }
+    const branchName = String(createForm.createBranchName || "").trim().toLowerCase();
+    if (!branchName || !createBranchFlowGroupId) return null;
+    return (
+      leadEligibleGroups.find(
+        (group) =>
+          String(group.id) === String(createBranchFlowGroupId) &&
+          String(group?.institutionName || "").trim().toLowerCase() === branchName,
+      ) || null
+    );
+  }, [
+    createBranchFlowGroupId,
+    createForm.createBranchName,
+    createForm.leadGroupId,
+    leadEligibleGroups,
+    shouldSelectCreateLeadGroup,
+  ]);
   const canCreateNewLead = role === "SUPER_ADMIN" || !newLeadFlowGroupId || !!createAllowedGroup;
   const createCountryDisplayMaxLength = getCountryDisplayMaxLength(createForm.countryCode);
 
   const openCreateModal = () => {
     setCreateForm({
       ...EMPTY_CREATE_FORM,
-      leadGroupId: defaultCreateLeadGroupId,
+      leadGroupId: shouldSelectCreateLeadGroup ? "" : defaultCreateLeadGroupId,
     });
+    setCreateBranchFlowGroupId("");
     setCreateGroupMembers([]);
     setShowCreate(true);
     setCreateWizardStep(0);
     setError("");
     setCreateMobileError("");
+    setCreateStep0Errors({ name: "", primarySource: "" });
   };
 
   useEffect(() => {
     if (!showCreate) return;
+    if (shouldSelectCreateLeadGroup) return;
     if (createForm.leadGroupId || !defaultCreateLeadGroupId) return;
     setCreateForm((prev) => ({
       ...prev,
       leadGroupId: defaultCreateLeadGroupId,
     }));
-  }, [showCreate, createForm.leadGroupId, defaultCreateLeadGroupId]);
+  }, [showCreate, createForm.leadGroupId, defaultCreateLeadGroupId, shouldSelectCreateLeadGroup]);
+
+  useEffect(() => {
+    if (!showCreate || !shouldSelectCreateLeadGroup) return;
+    const branchName = String(createForm.createBranchName || "").trim();
+    if (!branchName) {
+      setCreateBranchFlowGroupId("");
+      setCreateForm((prev) => ({
+        ...prev,
+        leadGroupId: "",
+        assignedUserId: "",
+      }));
+      return;
+    }
+
+    let isMounted = true;
+    const loadBranchFlow = async () => {
+      try {
+        const flowPayload = await getLeadFlow({ institutionName: branchName });
+        if (!isMounted) return;
+        const branchRules = Array.isArray(flowPayload?.rules) ? flowPayload.rules : [];
+        const newLeadRule = branchRules.find(
+          (item) => String(item?.status || "").trim().toLowerCase() === "new lead",
+        );
+        const nextGroupId =
+          newLeadRule?.handledByGroupId != null && String(newLeadRule.handledByGroupId).trim() !== ""
+            ? String(newLeadRule.handledByGroupId)
+            : "";
+        setCreateBranchFlowGroupId(nextGroupId);
+        setCreateForm((prev) => ({
+          ...prev,
+          leadGroupId: nextGroupId,
+          assignedUserId: "",
+        }));
+      } catch (e) {
+        if (!isMounted) return;
+        setCreateBranchFlowGroupId("");
+        setCreateForm((prev) => ({
+          ...prev,
+          leadGroupId: "",
+          assignedUserId: "",
+        }));
+        setError(extractApiErrorMessage(e, "Failed to load branch flow"));
+      }
+    };
+    loadBranchFlow();
+    return () => {
+      isMounted = false;
+    };
+  }, [showCreate, shouldSelectCreateLeadGroup, createForm.createBranchName]);
 
   const goToNextCreateStep = () => {
-    setCreateWizardStep((step) => Math.min(step + 1, 1));
+    const errors = { name: "", primarySource: "" };
+    let hasError = false;
+
+    if (!createForm.name.trim()) {
+      errors.name = "Full name is required";
+      hasError = true;
+    }
+
+    if (!createForm.mobile.trim()) {
+      setCreateMobileError("Mobile number is required");
+      hasError = true;
+    } else {
+      const phoneErr = validatePhoneNumber(createForm.mobile, createForm.countryCode);
+      if (phoneErr) {
+        setCreateMobileError(phoneErr);
+        hasError = true;
+      } else {
+        setCreateMobileError("");
+      }
+    }
+
+    if (!createForm.primarySource.trim()) {
+      errors.primarySource = "Primary source is required";
+      hasError = true;
+    }
+
+    setCreateStep0Errors(errors);
+    if (!hasError) {
+      setCreateWizardStep((step) => Math.min(step + 1, 1));
+    }
   };
 
   const handleCreateLead = async () => {
-    if (!createForm.name.trim() || !createForm.mobile.trim()) {
-      setError("Name and mobile are required");
-      return;
+    const step0Errors = { name: "", primarySource: "" };
+    let step0HasError = false;
+    if (!createForm.name.trim()) { step0Errors.name = "Full name is required"; step0HasError = true; }
+    if (!createForm.mobile.trim()) { setCreateMobileError("Mobile number is required"); step0HasError = true; }
+    else {
+      const phoneValidation = validatePhoneNumber(createForm.mobile, createForm.countryCode);
+      if (phoneValidation) { setCreateMobileError(phoneValidation); step0HasError = true; }
+      else { setCreateMobileError(""); }
     }
-    const phoneValidation = validatePhoneNumber(createForm.mobile, createForm.countryCode);
-    if (phoneValidation) {
-      setCreateMobileError(phoneValidation);
-      return;
-    }
-    if (!createForm.primarySource.trim()) {
-      setError("Primary source is required");
-      return;
-    }
+    if (!createForm.primarySource.trim()) { step0Errors.primarySource = "Primary source is required"; step0HasError = true; }
+    setCreateStep0Errors(step0Errors);
+    if (step0HasError) { setCreateWizardStep(0); return; }
     setSaving(true);
     setError("");
     try {
@@ -793,6 +908,7 @@ export default function LeadsPage() {
       setShowCreate(false);
       setCreateForm(EMPTY_CREATE_FORM);
       setCreateMobileError("");
+      setCreateStep0Errors({ name: "", primarySource: "" });
       setCreateWizardStep(0);
       showSuccess("Lead created successfully");
     } catch (e) {
@@ -1665,7 +1781,7 @@ export default function LeadsPage() {
               <div className="modal-content">
                 <div className="modal-header">
                   <h5 className="modal-title">Create New Lead</h5>
-                  <button type="button" className="btn-close" onClick={() => setShowCreate(false)} />
+                  <button type="button" className="btn-close" onClick={() => { setShowCreate(false); setCreateStep0Errors({ name: "", primarySource: "" }); setCreateMobileError(""); setError(""); setCreateWizardStep(0); }} />
                 </div>
                 <div className="modal-body lead-create-shell">
                   <div className="lead-wizard">
@@ -1702,7 +1818,7 @@ export default function LeadsPage() {
                       </motion.div>
                       <div className="lead-wizard-circle-label">Lead Details</div>
                     </div>
-                    <div className="lead-wizard-circle-item" onClick={() => setCreateWizardStep(1)}>
+                    <div className="lead-wizard-circle-item" onClick={() => createWizardStep >= 1 ? setCreateWizardStep(1) : goToNextCreateStep()}>
                       <motion.div
                         className={`lead-wizard-circle${createWizardStep >= 1 ? " active" : ""}`}
                         initial={shouldReduceMotion ? false : { scale: 0.94 }}
@@ -1745,6 +1861,9 @@ export default function LeadsPage() {
                               }
                               placeholder="Full Name"
                             />
+                            {createStep0Errors.name && (
+                              <small className="text-danger">{createStep0Errors.name}</small>
+                            )}
                           </div>
 
                           <div className="lead-form-field">
@@ -1849,6 +1968,9 @@ export default function LeadsPage() {
                                 </option>
                               ))}
                             </select>
+                            {createStep0Errors.primarySource && (
+                              <small className="text-danger">{createStep0Errors.primarySource}</small>
+                            )}
                           </div>
 
                           <div className="lead-form-field">
@@ -1909,7 +2031,9 @@ export default function LeadsPage() {
                           />
                         </div>
 
-                        <input type="hidden" value={createForm.leadGroupId} readOnly />
+                        {role !== "EMPLOYEE" && (
+                          <input type="hidden" value={createForm.leadGroupId} readOnly />
+                        )}
                       </motion.div>
                     )}
 
@@ -1982,6 +2106,31 @@ export default function LeadsPage() {
                           />
                         </div>
 
+                        {role !== "EMPLOYEE" && shouldSelectCreateLeadGroup && (
+                          <div className="col-md-6">
+                            <label className="form-label">Branch</label>
+                            <select
+                              className="form-select"
+                              value={createForm.createBranchName}
+                              onChange={(e) =>
+                                setCreateForm((prev) => ({
+                                  ...prev,
+                                  createBranchName: e.target.value,
+                                  leadGroupId: "",
+                                  assignedUserId: "",
+                                }))
+                              }
+                            >
+                              <option value="">Select Branch</option>
+                              {createBranchOptions.map((branchName) => (
+                                <option key={branchName} value={branchName}>
+                                  {branchName}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
+
                         {role === "EMPLOYEE" ? (
                           <div className="col-12">
                             <div className="lead-assignment-note alert alert-info py-2 mb-0">
@@ -2025,7 +2174,7 @@ export default function LeadsPage() {
                     transition={{ duration: 0.18, delay: 0.18 }}
                   >
                     {createWizardStep > 0 ? (
-                      <button type="button" className="btn btn-light" onClick={() => setCreateWizardStep((s) => s - 1)} disabled={saving}>
+                      <button type="button" className="btn btn-light" onClick={() => { setCreateWizardStep((s) => s - 1); setCreateStep0Errors({ name: "", primarySource: "" }); setCreateMobileError(""); setError(""); }} disabled={saving}>
                         Previous
                       </button>
                     ) : (
