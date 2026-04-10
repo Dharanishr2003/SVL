@@ -1,26 +1,555 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import "./LeadsPage.css";
+import "./RequirementFormModal.css";
 import { createRequirement, updateRequirement } from "../../api/requirementApi";
 
 /* ───────── product field configs by type name ───────── */
+const BOX_PACKAGING_FIELDS = [
+  { key: "lengthCm", label: "Length (cm)", type: "number" },
+  { key: "widthCm", label: "Width (cm)", type: "number" },
+  { key: "heightCm", label: "Height (cm)", type: "number" },
+  { key: "loadCapacityKg", label: "Load Capacity (kg)", type: "number" },
+  { key: "boxStyle", label: "Box Style", type: "select", options: ["RSC", "Die-cut", "Mailer", "Flap"] },
+  { key: "ply", label: "Ply", type: "select", options: ["Single", "3", "5", "7"] },
+  { key: "fluteType", label: "Flute Type", type: "select", options: ["E", "B", "C", "BC"] },
+  { key: "boardGsm", label: "Board GSM", type: "text", placeholder: "e.g. 150, 200, 300" },
+  { key: "printingMethod", label: "Printing Method", type: "select", options: ["Flexo", "Offset", "Digital"] },
+  { key: "printColours", label: "Print Colours", type: "select", options: ["Plain", "1 colour", "2 colour", "CMYK"] },
+  { key: "finish", label: "Finish", type: "select", options: ["Matte", "Glossy", "UV", "Emboss"] },
+  { key: "usageType", label: "Usage Type", type: "select", options: ["Food", "Retail", "E-commerce", "Industrial"] },
+  { key: "addons", label: "Add-ons", type: "text", placeholder: "e.g. Partition, Handle, Window" },
+  { key: "dielineAvailable", label: "Dieline Available", type: "select", options: ["Yes", "No"] },
+  { key: "foodSafe", label: "Food Safe", type: "select", options: ["Yes", "No"] },
+  { key: "greaseProof", label: "Grease Proof", type: "select", options: ["Yes", "No"] },
+];
+
+const FOOD_CUP_FIELDS = [
+  { key: "capacityMl", label: "Capacity (ml)", type: "number" },
+  { key: "material", label: "Material", type: "select", options: ["Paper", "Plastic", "Bagasse"] },
+  { key: "gsm", label: "GSM", type: "text" },
+  { key: "printingMethod", label: "Printing Method", type: "select", options: ["Screen", "Digital", "Flexo", "Offset"] },
+  { key: "printType", label: "Print Type", type: "select", options: ["Single colour", "Multicolour"] },
+  { key: "lamination", label: "Lamination", type: "select", options: ["None", "Matte", "Glossy"] },
+  { key: "lidType", label: "Lid Type", type: "select", options: ["Flat", "Dome", "Spout"] },
+  { key: "foodSafe", label: "Food Safe", type: "select", options: ["Yes", "No"] },
+  { key: "leakProof", label: "Leak Proof", type: "select", options: ["Yes", "No"] },
+];
+
+const WRAP_FIELDS = [
+  { key: "size", label: "Size (mm/cm)", type: "text", placeholder: "e.g. 200 x 150 mm" },
+  { key: "material", label: "Material", type: "select", options: ["Butter paper", "Foil", "Paper"] },
+  { key: "gsm", label: "GSM", type: "text" },
+  { key: "printing", label: "Printing", type: "select", options: ["Yes", "No"] },
+  { key: "foodSafe", label: "Food Safe", type: "select", options: ["Yes", "No"] },
+  { key: "greaseProof", label: "Grease Proof", type: "select", options: ["Yes", "No"] },
+];
+
+const ACCESSORY_FIELDS = [
+  { key: "material", label: "Material", type: "select", options: ["Wood", "Plastic"] },
+  { key: "size", label: "Size", type: "text" },
+  { key: "accessoryType", label: "Type", type: "select", options: ["Disposable", "Re-usable"] },
+  { key: "foodGrade", label: "Food Grade", type: "select", options: ["Yes", "No"] },
+];
+
+const WOOD_PLASTIC_SPOON_FIELDS = [
+  { key: "type", label: "Type", type: "select", options: ["Wood", "Plastic"] },
+  { key: "size", label: "Size", type: "text", placeholder: "Custom size" },
+];
+
+const ICE_CREAM_FIELDS = [
+  { key: "measurement", label: "Measurement", type: "select", options: ["mm", "cm", "inch", "feet"] },
+  { key: "length", label: "Length (Size)", type: "text", placeholder: "Custom" },
+  { key: "width", label: "Width (Size)", type: "text", placeholder: "Custom" },
+  { key: "height", label: "Height (Size)", type: "text", placeholder: "Custom" },
+  { key: "gsm", label: "Gsm", type: "text", placeholder: "Custom" },
+  { key: "lamination", label: "Lamination", type: "select", options: ["Matt", "Gloss"] },
+  { key: "boxOuterType", label: "Box Outer Type", type: "select", options: ["White", "Readymade Box"] },
+];
+
+const MONOCOTTON_BOX_FIELDS = [
+  { key: "measurement", label: "Measurement", type: "select", options: ["mm", "cm", "inch", "feet"] },
+  { key: "length", label: "Length (Size)", type: "text", placeholder: "Custom" },
+  { key: "width", label: "Width (Size)", type: "text", placeholder: "Custom" },
+  { key: "height", label: "Height (Size)", type: "text", placeholder: "Custom" },
+  { key: "gsm", label: "Gsm", type: "text", placeholder: "Custom" },
+  { key: "lamination", label: "Lamination", type: "select", options: ["Matt", "Glossy"] },
+];
+
+const BRANDING_BOX_FIELDS = [
+  { key: "measurement", label: "Measurement", type: "select", options: ["mm", "cm", "inch", "feet"] },
+  { key: "length", label: "Length (Size)", type: "text", placeholder: "Custom" },
+  { key: "width", label: "Width (Size)", type: "text", placeholder: "Custom" },
+  { key: "height", label: "Height (Size)", type: "text", placeholder: "Custom" },
+  { key: "gsm", label: "Gsm", type: "text", placeholder: "Custom" },
+  { key: "lamination", label: "Lamination", type: "select", options: ["Matt", "Glossy"] },
+];
+
+const PLAIN_CUSTOMIZED_BOX_FIELDS = [
+  { key: "measurement", label: "Measurement", type: "select", options: ["mm", "cm", "inch", "feet"] },
+  { key: "length", label: "Length (Size)", type: "text", placeholder: "Custom" },
+  { key: "width", label: "Width (Size)", type: "text", placeholder: "Custom" },
+  { key: "height", label: "Height (Size)", type: "text", placeholder: "Custom" },
+  { key: "gsm", label: "Gsm", type: "text", placeholder: "Custom" },
+  { key: "lamination", label: "Lamination", type: "select", options: ["Matt", "Glossy"] },
+];
+
+const FLEX_PRINTING_FIELDS = [
+  { key: "size", label: "Size", type: "select", options: ["Small (2×1 ft)", "Medium (4×2 ft)", "Large (6×3 ft)", "Extra Large (8×4 ft)", "Custom"], allowCustom: true },
+  { key: "customWidth", label: "Width (ft)", type: "number", hidden: true },
+  { key: "customHeight", label: "Height (ft)", type: "number", hidden: true },
+  { key: "orientation", label: "Orientation", type: "select", options: ["Horizontal", "Vertical"] },
+  { key: "required", label: "Required", type: "select", options: ["Flex Only", "Flex with Frame"] },
+];
+
+const FLEX_WITH_COLOUR_FIELDS = [
+  { key: "size", label: "Size", type: "select", options: ["Small (2×1 ft)", "Medium (4×2 ft)", "Large (6×3 ft)", "Extra Large (8×4 ft)", "Custom"], allowCustom: true },
+  { key: "customWidth", label: "Width (ft)", type: "number", hidden: true },
+  { key: "customHeight", label: "Height (ft)", type: "number", hidden: true },
+  { key: "orientation", label: "Orientation", type: "select", options: ["Horizontal", "Vertical"] },
+  { key: "required", label: "Required", type: "select", options: ["Flex Only", "Flex with Frame"] },
+  { key: "colour", label: "Colour", type: "select", options: ["Red", "Blue", "Green", "Yellow", "Custom"], allowCustom: true, customPlaceholder: "Enter custom colour" },
+];
+
+const FLEX_WITH_COLOUR_AND_VARIENT_FIELDS = [
+  { key: "size", label: "Size", type: "select", options: ["Small (2×1 ft)", "Medium (4×2 ft)", "Large (6×3 ft)", "Extra Large (8×4 ft)", "Custom"], allowCustom: true },
+  { key: "customWidth", label: "Width (ft)", type: "number", hidden: true },
+  { key: "customHeight", label: "Height (ft)", type: "number", hidden: true },
+  { key: "orientation", label: "Orientation", type: "select", options: ["Horizontal", "Vertical"] },
+  { key: "required", label: "Required", type: "select", options: ["Flex Only", "Flex with Frame"] },
+  { key: "colour", label: "Colour", type: "select", options: ["Red", "Blue", "Green", "Yellow", "Custom"], allowCustom: true, customPlaceholder: "Enter custom colour" },
+  { key: "bottomVarient", label: "Bottom Varient", type: "select", options: ["Stand", "Flat"] },
+];
+
+const VISITING_CARD_FIELDS = [
+  { key: "size", label: "Card Size", type: "select", options: ["3.5x2 inches", "Custom"], allowCustom: true, customPlaceholder: "Enter custom size" },
+  { key: "orientation", label: "Orientation", type: "select", options: ["Horizontal", "Vertical"] },
+  { key: "cornerType", label: "Corner Type", type: "select", options: ["Normal", "Round"] },
+  { key: "paperGsm", label: "Paper GSM", type: "select", options: ["300", "350", "400"] },
+  { key: "printType", label: "Print Type", type: "select", options: ["Front Only", "Front & Back"] },
+  { key: "color", label: "Color", type: "select", options: ["Single", "Multi"] },
+  { key: "lamination", label: "Lamination", type: "select", options: ["Matte", "Gloss", "Velvet", "Embossing", "Foil Gold", "Foil Silver"] },
+];
+
+const REFLECTOR_FLEX_FIELDS = [
+  { key: "size", label: "Size", type: "text", placeholder: "Enter custom size" },
+  { key: "orientation", label: "Orientation", type: "select", options: ["Horizontal", "Vertical"] },
+  { key: "quantity", label: "Quantity", type: "number" },
+  { key: "colour", label: "Colour", type: "select", options: ["Red", "Blue", "Yellow", "Pink", "Custom"], allowCustom: true, customPlaceholder: "Enter custom colour" },
+];
+
+const BLACK_LIGHT_FLEX_FIELDS = [
+  { key: "size", label: "Size", type: "select", options: ["Custom"], allowCustom: true },
+  { key: "customWidth", label: "Width (ft)", type: "number", hidden: true },
+  { key: "customHeight", label: "Height (ft)", type: "number", hidden: true },
+  { key: "ledType", label: "Led Type", type: "select", options: ["Box", "Flex", "Back Side Led Tubelight"] },
+];
+
+const LED_CUTTING_WITH_LIGHTING_FIELDS = [
+  { key: "size", label: "Size", type: "select", options: ["Mock Small (2×1 ft)", "Mock Medium (4×2 ft)", "Mock Large (6×3 ft)", "Custom"], allowCustom: true },
+  { key: "customWidth", label: "Width (ft)", type: "number", hidden: true },
+  { key: "customHeight", label: "Height (ft)", type: "number", hidden: true },
+  { key: "ledType", label: "Led Type", type: "select", options: ["Box", "Flex", "Back Side Led Tubelight"] },
+];
+
+const AGRALIC_2D_FIELDS = [
+  { key: "size", label: "Size", type: "select", options: ["Small (2×1 ft)", "Medium (4×2 ft)", "Large (6×3 ft)", "Extra Large (8×4 ft)", "Custom"], allowCustom: true },
+  { key: "customWidth", label: "Width (ft)", type: "number", hidden: true },
+  { key: "customHeight", label: "Height (ft)", type: "number", hidden: true },
+  { key: "requirementDetails", label: "Requirement Details", type: "text", placeholder: "Enter requirement details" },
+];
+
+const AGRALIC_3D_FIELDS = [
+  { key: "size", label: "Size", type: "select", options: ["Small (2×1×1 ft)", "Medium (4×2×1.5 ft)", "Large (6×3×2 ft)", "Extra Large (8×4×2.5 ft)", "Custom"], allowCustom: true },
+  { key: "customWidth", label: "Width (ft)", type: "number", hidden: true },
+  { key: "customHeight", label: "Height (ft)", type: "number", hidden: true },
+  { key: "customDepth", label: "Depth (ft)", type: "number", hidden: true },
+  { key: "requirementDetails", label: "Requirement Details", type: "text", placeholder: "Enter requirement details" },
+];
+
+const CUSTOM_PAPER_STICKER_FIELDS = [
+  { key: "size", label: "Size", type: "select", options: ["Small (2×1 inch)", "Medium (3×2 inch)", "Large (4×3 inch)", "Custom"], allowCustom: true, customPlaceholder: "Enter custom size" },
+  { key: "stickerShape", label: "Sticker Shape", type: "select", options: ["Square", "Round"] },
+  { key: "pastingType", label: "Pasting Type (Product)", type: "select", options: ["Custom"], allowCustom: true, customPlaceholder: "Enter custom pasting type" },
+  { key: "lamination", label: "Lamination", type: "select", options: ["Matte", "Gloss"] },
+  { key: "stickerType", label: "Sticker Type", type: "select", options: ["Roll", "Sheet"] },
+  { key: "quantity", label: "Quantity", type: "number" },
+];
+
+const VINYL_STICKER_FIELDS = [
+  { key: "size", label: "Size", type: "select", options: ["Small (2×1 inch)", "Medium (3×2 inch)", "Large (4×3 inch)", "Custom"], allowCustom: true, customPlaceholder: "Enter custom size" },
+  { key: "stickerShape", label: "Sticker Shape", type: "select", options: ["Square", "Round"] },
+  { key: "pastingType", label: "Pasting Type (Product)", type: "select", options: ["Custom"], allowCustom: true, customPlaceholder: "Enter custom pasting type" },
+  { key: "lamination", label: "Lamination", type: "select", options: ["Matte", "Gloss", "Transparent"] },
+  { key: "stickerType", label: "Sticker Type", type: "select", options: ["Roll", "Sheet"] },
+  { key: "quantity", label: "Quantity", type: "number" },
+  { key: "gummingType", label: "Gumming Type", type: "select", options: ["Normal Gum", "SunSui Gum"] },
+];
+
+const POLYCARBONATE_STICKER_FIELDS = [
+  { key: "size", label: "Size", type: "select", options: ["Small (2×1 inch)", "Medium (3×2 inch)", "Large (4×3 inch)", "Custom"], allowCustom: true, customPlaceholder: "Enter custom size" },
+  { key: "stickerShape", label: "Sticker Shape", type: "select", options: ["Square", "Round"] },
+  { key: "pastingType", label: "Pasting Type (Product)", type: "select", options: ["Custom"], allowCustom: true, customPlaceholder: "Enter custom pasting type" },
+  { key: "lamination", label: "Lamination", type: "select", options: ["Matte", "Gloss", "Transparent"] },
+  { key: "stickerType", label: "Sticker Type", type: "select", options: ["Roll", "Sheet"] },
+  { key: "quantity", label: "Quantity", type: "number" },
+  { key: "gummingType", label: "Gumming Type", type: "select", options: ["Normal Gum", "SunSui Gum"] },
+];
+
+const FOAM_STICKER_FIELDS = [
+  { key: "size", label: "Size", type: "select", options: ["Small (2×1 inch)", "Medium (3×2 inch)", "Large (4×3 inch)", "Custom"], allowCustom: true, customPlaceholder: "Enter custom size" },
+  { key: "stickerShape", label: "Sticker Shape", type: "select", options: ["Square", "Round"] },
+  { key: "pastingType", label: "Pasting Type (Product)", type: "select", options: ["Custom"], allowCustom: true, customPlaceholder: "Enter custom pasting type" },
+  { key: "lamination", label: "Lamination", type: "select", options: ["Matte", "Gloss"] },
+  { key: "stickerType", label: "Sticker Type", type: "select", options: ["Roll", "Sheet"] },
+  { key: "foamThickness", label: "Foam Thickness", type: "select", options: ["3 Mm", "4 Mm", "5 Mm", "8 Mm"] },
+  { key: "quantity", label: "Quantity", type: "number" },
+];
+
+const ZIPPER_POUCH_FIELDS = [
+  { key: "widthMm", label: "Width (mm)", type: "number" },
+  { key: "heightMm", label: "Height (mm)", type: "number" },
+  { key: "gussetMm", label: "Gusset (mm)", type: "number" },
+  { key: "material", label: "Material", type: "select", options: ["BOPP", "PET/PE", "Foil"] },
+  { key: "layers", label: "Layers", type: "select", options: ["2", "3", "4"] },
+  { key: "pouchType", label: "Type", type: "select", options: ["Fully Closed", "With Window", "One Side Open", "Both Side Transparent", "Without Zipper"] },
+  { key: "printingMethod", label: "Printing Method", type: "select", options: ["Digital", "Rotogravure", "Flexo"] },
+  { key: "printType", label: "Print Type", type: "select", options: ["Single", "Multicolour"] },
+  { key: "finish", label: "Finish", type: "select", options: ["Matte", "Glossy"] },
+  { key: "zipper", label: "Zipper", type: "select", options: ["Yes", "No"] },
+  { key: "tearNotch", label: "Tear Notch", type: "select", options: ["Yes", "No"] },
+  { key: "foodGrade", label: "Food Grade", type: "select", options: ["Yes", "No"] },
+];
+
+const ZIPPER_POUCH_PLAIN_FIELDS = [
+  { key: "measurement", label: "Measurement", type: "select", options: ["mm", "cm", "inch", "feet"] },
+  { key: "width", label: "Width", type: "text", placeholder: "Custom" },
+  { key: "height", label: "Height", type: "text", placeholder: "Custom" },
+  { key: "gusset", label: "Gusset", type: "text", placeholder: "Custom" },
+  { key: "layers", label: "Layers", type: "select", options: ["2", "3", "4"] },
+  { key: "material", label: "Material", type: "select", options: ["BOPP", "PET/PE", "FOIL"] },
+  { key: "zipperType", label: "Zipper Type", type: "select", options: ["With Zipper", "Without Zipper"] },
+  { key: "tearNotch", label: "Tear Notch", type: "select", options: ["Yes", "No"] },
+  { key: "printingMethod", label: "Printing Method", type: "select", options: ["Digital", "Rotogravure", "Flexo"] },
+  { key: "printing", label: "Printing", type: "select", options: ["Single", "Multicolour"] },
+];
+
+const BOTH_SIDE_TRANSPARENT_POUCH_FIELDS = [
+  { key: "quantity", label: "Quantity", type: "number" },
+  { key: "measurement", label: "Measurement", type: "select", options: ["mm", "cm", "inch", "feet"] },
+  { key: "width", label: "Width", type: "text", placeholder: "Custom" },
+  { key: "height", label: "Height", type: "text", placeholder: "Custom" },
+  { key: "gusset", label: "Gusset", type: "text", placeholder: "Custom" },
+  { key: "layers", label: "Layers", type: "select", options: ["2", "3", "4"] },
+  { key: "zipperType", label: "Zipper Type", type: "select", options: ["With Zipper", "Without Zipper"] },
+  { key: "windowType", label: "Window Type", type: "select", options: ["With Window", "Without Window"] },
+  { key: "tearNotch", label: "Tear Notch", type: "select", options: ["Yes", "No"] },
+  { key: "foodGrade", label: "Food Grade", type: "select", options: ["Yes", "No"] },
+];
+
+const PRINTING_ZIPPER_POUCH_FIELDS = [
+  { key: "measurement", label: "Measurement", type: "select", options: ["mm", "cm", "inch", "feet"] },
+  { key: "width", label: "Width", type: "text", placeholder: "Custom" },
+  { key: "height", label: "Height", type: "text", placeholder: "Custom" },
+  { key: "gusset", label: "Gusset", type: "text", placeholder: "Custom" },
+  { key: "layers", label: "Layers", type: "select", options: ["2", "3", "4"] },
+  { key: "zipperType", label: "Zipper Type", type: "select", options: ["With Zipper", "Without Zipper"] },
+  { key: "windowType", label: "Window Type", type: "select", options: ["With Window", "Without Window"] },
+  { key: "tearNotch", label: "Tear Notch", type: "select", options: ["Yes", "No"] },
+  { key: "printingType", label: "Printing Type", type: "select", options: ["Single", "Double", "Multicolour"] },
+  { key: "printingMethod", label: "Printing Method", type: "select", options: ["Screen Printing", "Digital", "Rotogravure", "Flexo"] },
+  { key: "printingSides", label: "Printing Sides", type: "select", options: ["Front Only", "Back", "Front & Back"] },
+  { key: "foodGrade", label: "Food Grade", type: "select", options: ["Yes", "No"] },
+];
+
+const ONE_SIDE_SILVER_ONE_SIDE_TRANSPARENT_POUCH_FIELDS = [
+  { key: "quantity", label: "Quantity", type: "number" },
+  { key: "measurement", label: "Measurement", type: "select", options: ["mm", "cm", "inch", "feet"] },
+  { key: "width", label: "Width", type: "text", placeholder: "Custom" },
+  { key: "height", label: "Height", type: "text", placeholder: "Custom" },
+  { key: "gusset", label: "Gusset", type: "text", placeholder: "Custom" },
+  { key: "layers", label: "Layers", type: "select", options: ["2", "3", "4"] },
+  { key: "zipperType", label: "Zipper Type", type: "select", options: ["With Zipper", "Without Zipper"] },
+  { key: "tearNotch", label: "Tear Notch", type: "select", options: ["Yes", "No"] },
+  { key: "printingType", label: "Printing Type", type: "select", options: ["Single", "Double", "Multicolour"] },
+  { key: "printingMethod", label: "Printing Method", type: "select", options: ["Screen Printing", "Digital", "Rotogravure", "Flexo"] },
+  { key: "foodGrade", label: "Food Grade", type: "select", options: ["Yes", "No"] },
+];
+
+const ENVELOPE_FIELDS = [
+  { key: "size", label: "Size", type: "select", options: ["DL (110×220 mm)", "C6 (114×162 mm)", "C5 (162×229 mm)", "C4 (229×324 mm)", "Custom"], allowCustom: true, customPlaceholder: "Enter custom size" },
+  { key: "colour", label: "Colour", type: "select", options: ["Single colour", "Multicolour"] },
+  { key: "printType", label: "Print Type", type: "select", options: ["Front Only", "Front & Back"] },
+];
+
+const NOTEPAD_FIELDS = [
+  { key: "size", label: "Size", type: "select", options: ["A4", "A5", "Legal"] },
+  { key: "color", label: "Color", type: "select", options: ["Single", "Multi"] },
+  { key: "gsm", label: "GSM", type: "select", options: ["70 Gsm", "80 Gsm", "100 Gsm"] },
+  { key: "requirementDetails", label: "Requirement Details", type: "text", placeholder: "Enter requirement details" },
+];
+
+const DAIRY_FIELDS = [
+  { key: "size", label: "Size", type: "select", options: ["Small (5×7 inch)", "Medium (7×10 inch)", "Large (8.5×11 inch)", "A5 (5.8×8.3 inch)", "Custom"], allowCustom: true, customPlaceholder: "Enter custom size" },
+  { key: "dairyType", label: "Dairy Type", type: "select", options: ["Readymade", "Customize"] },
+  { key: "customize", label: "Customize", type: "select", options: ["Inner Detail", "Outer Details"] },
+  { key: "dairyOuterType", label: "Dairy Outer Type", type: "select", options: ["Leather", "Art Paper"] },
+  { key: "colour", label: "Colour", type: "select", options: ["Single colour", "Multicolour"] },
+];
+
+const DAILY_CALENDAR_FIELDS = [
+  { key: "variant", label: "Variant", type: "select", options: ["Normal", "Dye Cut", "Gold Foil"] },
+  { key: "size", label: "Calendar Size", type: "select", options: ["6 x 9", "10 x 15", "12 x 18", "5 x 20", "11 x 17", "14 x 24", "20 x 30", "23 x 36", "Custom"], allowCustom: true, customPlaceholder: "Enter custom size" },
+  { key: "cakeSize", label: "Cake Size", type: "select", options: ["4 No", "5 No", "6 No", "7 No", "20 No", "Mega"] },
+  { key: "colour", label: "Colour", type: "select", options: ["Single", "Double", "Multi"] },
+];
+
+const MONTHLY_CALENDAR_FIELDS = [
+  { key: "paperVariant", label: "Paper Variant", type: "select", options: ["Maplitho Paper", "Art Paper"] },
+  { key: "gsm", label: "GSM", type: "select", options: ["70 Gsm", "80 Gsm", "100 Gsm", "120 Gsm", "180 Gsm"] },
+  { key: "size", label: "Size", type: "select", options: ["15 x 20", "17 x 27", "20 x 29", "20 x 30", "Custom"], allowCustom: true, customPlaceholder: "Enter custom size" },
+  { key: "sheet", label: "Sheet", type: "select", options: ["6 Sheet", "12 Sheet"] },
+  { key: "colour", label: "Colour", type: "select", options: ["Single", "Multi"] },
+];
+
+const POCKET_CALENDAR_FIELDS = [
+  { key: "gsm", label: "GSM", type: "text", placeholder: "Enter GSM" },
+  { key: "size", label: "Size", type: "select", options: ["3.5 x 5 inch", "4 x 6 inch", "5 x 7 inch", "6 x 8 inch", "Custom"], allowCustom: true, customPlaceholder: "Enter custom size" },
+  { key: "lamination", label: "Lamination", type: "select", options: ["Matt", "Glossy"] },
+];
+
+const TABLE_TOP_CALENDAR_FIELDS = [
+  { key: "size", label: "Size", type: "select", options: ["8.25 x 8.75 (Approx)", "9.2 x 6.1 (Approx)", "10 x 5.7 (Approx)", "Custom"], allowCustom: true, customPlaceholder: "Enter custom size" },
+  { key: "colour", label: "Colour", type: "select", options: ["Single", "Multi"] },
+  { key: "gsm", label: "GSM", type: "text", placeholder: "Enter GSM" },
+  { key: "bottomType", label: "Bottom Type", type: "select", options: ["With Square", "Without Square"] },
+];
+
+const DOCTOR_FILE_FIELDS = [
+  { key: "size", label: "Size", type: "select", options: ["19.25 x 12.20 (Inches)", "17.72 x 12.44 (Inches)", "Custom"], allowCustom: true, customPlaceholder: "Enter custom size" },
+  { key: "gsm", label: "GSM", type: "select", options: ["300 Gsm", "400 Gsm"] },
+  { key: "fileFinishing", label: "File Finishing", type: "select", options: ["Creasing", "Creasing + Punching", "Dye Cut"] },
+  { key: "lamination", label: "Lamination", type: "select", options: ["Matt", "Glossy"] },
+  { key: "paper", label: "Paper", type: "select", options: ["Synthetic", "Normal"] },
+  { key: "innerType", label: "Inner Type", type: "select", options: ["Clip", "Pouch", "Clip & Pouch"] },
+  { key: "sides", label: "Sides", type: "text", placeholder: "Enter number of sides" },
+];
+
+const PAMPHLET_FIELDS = [
+  { key: "size", label: "Size", type: "select", options: ["A4", "A5", "Legal", "Custom"], allowCustom: true, customPlaceholder: "Enter custom size" },
+  { key: "colour", label: "Colour", type: "select", options: ["Single colour", "Multicolour"] },
+  { key: "printType", label: "Print Type", type: "select", options: ["Front Only", "Front & Back"] },
+];
+
+const BROCHURE_FIELDS = [
+  { key: "size", label: "Size", type: "select", options: ["A4 (210 x 297 mm)", "A5 (148 x 210 mm)", "6 x 9 inch", "8.5 x 11 inch", "Custom"], allowCustom: true, customPlaceholder: "Enter custom size" },
+  { key: "paperVariant", label: "Paper Variant", type: "select", options: ["Maplitho Paper", "Art Paper"] },
+  { key: "lamination", label: "Lamination", type: "select", options: ["Matt", "Glossy"] },
+  { key: "gsm", label: "GSM", type: "select", options: ["70 Gsm", "80 Gsm", "100 Gsm", "120 Gsm", "150 Gsm", "Custom"], allowCustom: true, customPlaceholder: "Enter custom GSM" },
+];
+
+const CORRUGATED_ROLL_FIELDS = [
+  { key: "measurement", label: "Measurement", type: "select", options: ["mm", "cm", "inch", "feet"] },
+  { key: "length", label: "Length (Size)", type: "text", placeholder: "Enter length" },
+  { key: "height", label: "Height (Size)", type: "text", placeholder: "Enter height" },
+  { key: "ply", label: "Ply", type: "select", options: ["2"] },
+  { key: "fluteType", label: "Flute Type", type: "select", options: ["E", "B", "C", "BC"] },
+  { key: "boardGsm", label: "Board GSM", type: "text", placeholder: "Enter GSM" },
+  { key: "printingMethod", label: "Printing Method", type: "select", options: ["Offset", "Screen Printing"] },
+  { key: "printColours", label: "Print Colours", type: "select", options: ["Plain", "1 Colour", "2 Colour", "Multi Colour"] },
+]; // Measurement appears first, right after Quantity
+
+const CORRUGATED_SHEET_FIELDS = [
+  { key: "measurement", label: "Measurement", type: "select", options: ["mm", "cm", "inch", "feet"] },
+  { key: "length", label: "Length (Size)", type: "text", placeholder: "Enter length" },
+  { key: "height", label: "Height (Size)", type: "text", placeholder: "Enter height" },
+  { key: "ply", label: "Ply", type: "select", options: ["3", "5", "7"] },
+  { key: "fluteType", label: "Flute Type", type: "select", options: ["E", "B", "C", "BC"] },
+  { key: "boardGsm", label: "Board GSM", type: "text", placeholder: "Enter GSM" },
+  { key: "printingMethod", label: "Printing Method", type: "select", options: ["Offset", "Screen Printing"] },
+  { key: "printColours", label: "Print Colours", type: "select", options: ["Plain", "1 Colour", "2 Colour", "Multi Colour"] },
+];
+
+const CAKE_BOX_FIELDS = [
+  { key: "measurement", label: "Measurement", type: "select", options: ["mm", "cm", "inch", "feet"] },
+  { key: "length", label: "Length (Size)", type: "text", placeholder: "Enter length" },
+  { key: "width", label: "Width (Size)", type: "text", placeholder: "Enter width" },
+  { key: "height", label: "Height (Size)", type: "text", placeholder: "Enter height" },
+  { key: "gsm", label: "Gsm", type: "text", placeholder: "Enter GSM" },
+  { key: "lamination", label: "Lamination", type: "select", options: ["Matt", "Gloss"] },
+  { key: "boxOuterType", label: "Box Outer Type", type: "select", options: ["White", "Readymade Box"] },
+  { key: "windowType", label: "Window Type", type: "select", options: ["With Window", "Without Window"] },
+];
+
+const JAR_CAKE_FIELDS = [
+  { key: "measurement", label: "Measurement", type: "select", options: ["mm", "cm", "inch", "feet"] },
+  { key: "length", label: "Length (Size)", type: "text", placeholder: "Enter length" },
+  { key: "width", label: "Width (Size)", type: "text", placeholder: "Enter width" },
+  { key: "height", label: "Height (Size)", type: "text", placeholder: "Enter height" },
+  { key: "gsm", label: "Gsm", type: "text", placeholder: "Enter GSM" },
+  { key: "lamination", label: "Lamination", type: "select", options: ["Matt", "Gloss"] },
+  { key: "boxOuterType", label: "Box Outer Type", type: "select", options: ["White", "Readymade Box"] },
+  { key: "windowType", label: "Window Type", type: "select", options: ["With Window", "Without Window"] },
+  { key: "handleType", label: "Handle Type", type: "select", options: ["With Handle", "Without Handle"] },
+];
+
+const SANDWICH_WAFFLE_BOX_FIELDS = [
+  { key: "measurement", label: "Measurement", type: "select", options: ["mm", "cm", "inch", "feet"] },
+  { key: "length", label: "Length (Size)", type: "text", placeholder: "Enter length" },
+  { key: "width", label: "Width (Size)", type: "text", placeholder: "Enter width" },
+  { key: "height", label: "Height (Size)", type: "text", placeholder: "Enter height" },
+  { key: "boxType", label: "Box Type", type: "select", options: ["Plain", "Readymade", "Customized"] },
+  { key: "windowType", label: "Window Type", type: "select", options: ["With Window", "Without Window"] },
+  { key: "innerLamination", label: "Inner Lamination", type: "select", options: ["With Lamination", "Without Lamination"] },
+];
+
+const BURGER_BOX_FIELDS = [
+  { key: "measurement", label: "Measurement", type: "select", options: ["mm", "cm", "inch", "feet"] },
+  { key: "length", label: "Length (Size)", type: "text", placeholder: "Enter length" },
+  { key: "width", label: "Width (Size)", type: "text", placeholder: "Enter width" },
+  { key: "height", label: "Height (Size)", type: "text", placeholder: "Enter height" },
+  { key: "boxType", label: "Box Type", type: "select", options: ["Plain", "Readymade", "Customized"] },
+  { key: "windowType", label: "Window Type", type: "select", options: ["With Window", "Without Window"] },
+  { key: "innerLamination", label: "Inner Lamination", type: "select", options: ["With Lamination", "Without Lamination"] },
+  { key: "foldingType", label: "Folding Type", type: "select", options: ["Manual", "Customized"] },
+];
+
+const POPCORN_BOX_FIELDS = [
+  { key: "measurement", label: "Measurement", type: "select", options: ["mm", "cm", "inch", "feet"] },
+  { key: "length", label: "Length (Size)", type: "text", placeholder: "Enter length" },
+  { key: "width", label: "Width (Size)", type: "text", placeholder: "Enter width" },
+  { key: "height", label: "Height (Size)", type: "text", placeholder: "Enter height" },
+  { key: "innerLamination", label: "Inner Lamination", type: "select", options: ["With Lamination", "Without Lamination"] },
+  { key: "shapeType", label: "Shape Type", type: "select", options: ["Round", "Square", "Dye Cut Model"] },
+  { key: "boxType", label: "Box Type", type: "select", options: ["Plain", "Readymade", "Customized"] },
+];
+
+const BIRIYANI_BOX_FIELDS = [
+  { key: "boxType", label: "Box Type", type: "select", options: ["Plastic", "Board"] },
+  { key: "shapeType", label: "Shape Type", type: "select", options: ["Round", "Square"] },
+  { key: "handleType", label: "Handle Type", type: "select", options: ["With Handle", "Without Handle"] },
+  { key: "innerLamination", label: "Inner Lamination", type: "select", options: ["With Lamination", "Without Lamination"] },
+  { key: "colour", label: "Colour", type: "select", options: ["Plain", "Readymade", "Customized"] },
+  { key: "size", label: "Size", type: "select", options: ["Small", "Medium", "Large"] },
+];
+
+const CUP_FIELDS = [
+  { key: "measurement", label: "Measurement", type: "select", options: ["mm", "cm", "inch"] },
+  { key: "size", label: "Size", type: "select", options: ["Small", "Medium", "Large"] },
+  { key: "boxType", label: "Box Type", type: "select", options: ["Plain", "Readymade", "Customized"] },
+  { key: "innerLamination", label: "Inner Lamination", type: "select", options: ["With Lamination", "Without Lamination"] },
+  { key: "cupType", label: "Cup Type", type: "select", options: ["Plain", "Readymade", "Customized"] },
+];
+
+const JUICE_CUP_WITH_SPOUT_FIELDS = [
+  { key: "measurement", label: "Measurement", type: "select", options: ["mm", "cm", "inch"] },
+  { key: "size", label: "Size", type: "select", options: ["Small", "Medium", "Large"] },
+  { key: "boxType", label: "Box Type", type: "select", options: ["Plain", "Readymade", "Customized"] },
+  { key: "innerLamination", label: "Inner Lamination", type: "select", options: ["With Lamination", "Without Lamination"] },
+  { key: "cupType", label: "Cup Type", type: "select", options: ["Plastic", "Organic"] },
+];
+
+const TRAY_FIELDS = [
+  { key: "measurement", label: "Measurement", type: "select", options: ["mm", "cm", "inch"] },
+  { key: "size", label: "Size", type: "select", options: ["Small", "Medium", "Large"] },
+  { key: "boxType", label: "Box Type", type: "select", options: ["Plain", "Readymade", "Customized"] },
+  { key: "innerLamination", label: "Inner Lamination", type: "select", options: ["With Lamination", "Without Lamination"] },
+  { key: "cupType", label: "Cup Type", type: "select", options: ["Plain", "Readymade", "Customized"] },
+];
+
+const SWEET_BOX_FIELDS = [
+  { key: "measurement", label: "Measurement", type: "select", options: ["mm", "cm", "inch", "feet"] },
+  { key: "length", label: "Length (Size)", type: "text", placeholder: "Enter length" },
+  { key: "width", label: "Width (Size)", type: "text", placeholder: "Enter width" },
+  { key: "height", label: "Height (Size)", type: "text", placeholder: "Enter height" },
+  { key: "gsm", label: "Gsm", type: "text", placeholder: "Enter GSM" },
+  { key: "lamination", label: "Lamination", type: "select", options: ["Matt", "Gloss"] },
+  { key: "boxOuterType", label: "Box Outer Type", type: "select", options: ["White", "Readymade Box"] },
+  { key: "windowType", label: "Window Type", type: "select", options: ["With Window", "Without Window"] },
+  { key: "partition", label: "Partition", type: "select", options: ["With Partition", "Without Partition"] },
+  { key: "innerLamination", label: "Inner Lamination", type: "select", options: ["With Lamination", "Without Lamination"] },
+];
+
+const CAKE_BASE_FIELDS = [
+  { key: "size", label: "Size", type: "select", options: ["Small (6 inch)", "Medium (8 inch)", "Large (10 inch)", "Custom"], allowCustom: true },
+  { key: "customWidth", label: "Width (mm)", type: "number", hidden: true },
+  { key: "customHeight", label: "Height (mm)", type: "number", hidden: true },
+  { key: "colour", label: "Colour", type: "select", options: ["Gold", "Silver"] },
+  { key: "printingMethod", label: "Printing Method", type: "select", options: ["With Printing", "Without Printing"] },
+  { key: "shapeType", label: "Shape Type", type: "select", options: ["Round", "Square", "Dye Cut Model"] },
+];
+
+const BROWNIE_BOX_FIELDS = [
+  { key: "size", label: "Size", type: "select", options: ["Small (4×4×2 inch)", "Medium (6×6×3 inch)", "Large (8×8×4 inch)", "Custom"], allowCustom: true },
+  { key: "customWidth", label: "Width (mm)", type: "number", hidden: true },
+  { key: "customHeight", label: "Height (mm)", type: "number", hidden: true },
+  { key: "customDepth", label: "Depth (mm)", type: "number", hidden: true },
+  { key: "productQty", label: "Product Qty", type: "select", options: ["1 Pcs", "3 Pcs", "4 Pcs", "6 Pcs", "9 Pcs"] },
+  { key: "windowType", label: "Window Type", type: "select", options: ["With Window", "Without Window"] },
+  { key: "gsm", label: "Gsm", type: "text", placeholder: "Enter GSM" },
+];
+
+const CUP_CAKEE_BOX_FIELDS = [
+  { key: "size", label: "Size", type: "select", options: ["Single (3×3×3 inch)", "4 Cavity (8×4×3 inch)", "6 Cavity (8×8×3 inch)", "Custom"], allowCustom: true },
+  { key: "customWidth", label: "Width (mm)", type: "number", hidden: true },
+  { key: "customHeight", label: "Height (mm)", type: "number", hidden: true },
+  { key: "customDepth", label: "Depth (mm)", type: "number", hidden: true },
+  { key: "gsm", label: "Gsm", type: "text", placeholder: "Enter GSM" },
+  { key: "windowType", label: "Window Type", type: "select", options: ["With Window", "Without Window"] },
+  { key: "partition", label: "Partition", type: "select", options: ["With Partition", "Without Partition"] },
+  { key: "innerLamination", label: "Inner Lamination", type: "select", options: ["With Lamination", "Without Lamination"] },
+];
+
+const BENTO_BOX_FIELDS = [
+  { key: "type", label: "Type", type: "select", options: ["Plastic", "Wood", "Bambo"] },
+  { key: "size", label: "Size", type: "select", options: ["Small (6×4×3 inch)", "Medium (8×6×4 inch)", "Large (10×8×5 inch)", "Custom"], allowCustom: true },
+  { key: "customWidth", label: "Width (mm)", type: "number", hidden: true },
+  { key: "customHeight", label: "Height (mm)", type: "number", hidden: true },
+  { key: "customDepth", label: "Depth (mm)", type: "number", hidden: true },
+];
+
+const SELFLOCK_MAILER_FLAP_BOX_FIELDS = [
+  { key: "measurement", label: "Measurement", type: "select", options: ["mm", "cm", "inch", "feet"] },
+  { key: "length", label: "Length (Size)", type: "text", placeholder: "Enter length" },
+  { key: "width", label: "Width (Size)", type: "text", placeholder: "Enter width" },
+  { key: "height", label: "Height (Size)", type: "text", placeholder: "Enter height" },
+  { key: "loadCapacity", label: "Load Capacity", type: "select", options: ["Kg", "Gram", "Custom"], allowCustom: true, customPlaceholder: "Enter custom capacity" },
+  { key: "boxStyle", label: "Box Style", type: "select", options: ["Rsc", "Dye Cut"] },
+  { key: "ply", label: "Ply", type: "select", options: ["3", "5", "7"] },
+  { key: "fluteType", label: "Flute Type", type: "select", options: ["E", "B", "C", "BC"] },
+  { key: "boardGsm", label: "Board GSM", type: "text", placeholder: "Enter GSM" },
+  { key: "printingMethod", label: "Printing Method", type: "select", options: ["Offset", "Screen Printing"] },
+  { key: "printColours", label: "Print Colours", type: "select", options: ["Plain", "1 Colour", "2 Colour", "Multi Colour"] },
+  { key: "boxInnerColour", label: "Box Inner Colour Type", type: "select", options: ["White", "Golden Brown", "Normal Brown", "Ice Brown"] },
+  { key: "boxOuterColour", label: "Box Outer Colour Type", type: "select", options: ["White", "Golden Brown", "Normal Brown", "Ice Brown"] },
+  { key: "productType", label: "Product Type", type: "text", placeholder: "Enter product type" },
+];
+
 const PRODUCT_FIELDS = {
-  "visiting card": [
-    { key: "finish", label: "Finish", type: "select", options: ["Matte", "Glossy", "Spot UV", "Velvet lamination"] },
-    { key: "paperGsm", label: "Paper GSM", type: "select", options: ["300", "350", "400"] },
-    { key: "width", label: "Width (mm)", type: "number", default: "85" },
-    { key: "height", label: "Height (mm)", type: "number", default: "54" },
-    { key: "printSides", label: "Print Sides", type: "select", options: ["Front only", "Front & Back"] },
-    { key: "cornerStyle", label: "Corner Style", type: "select", options: ["Square", "Rounded", "Custom curve cut"] },
-  ],
-  "flex printing": [
-    { key: "widthFt", label: "Width (ft)", type: "number" },
-    { key: "heightFt", label: "Height (ft)", type: "number" },
-    { key: "totalSqft", label: "Total sq.ft", type: "computed", compute: (s) => ((Number(s.widthFt) || 0) * (Number(s.heightFt) || 0)).toFixed(2) },
-    { key: "printResolution", label: "Print Resolution", type: "select", options: ["720 DPI", "1440 DPI"] },
-    { key: "finishing", label: "Finishing", type: "select", options: ["Hemming", "Eyelets", "Velcro", "Pocket/sleeve"] },
-    { key: "usage", label: "Usage", type: "select", options: ["Indoor", "Outdoor"] },
-  ],
+  "visiting card": VISITING_CARD_FIELDS,
+  "normal visiting card": VISITING_CARD_FIELDS,
+  "synthetic visiting card": VISITING_CARD_FIELDS,
+  "scent card visiting card": VISITING_CARD_FIELDS,
+  "curve cutting visiting card": VISITING_CARD_FIELDS,
+  "uv visiting card": VISITING_CARD_FIELDS,
+  "flex printing": FLEX_PRINTING_FIELDS,
+  "normal flex": FLEX_PRINTING_FIELDS,
+  "black media flex": FLEX_PRINTING_FIELDS,
+  "star flex": FLEX_PRINTING_FIELDS,
+  "reflector flex": REFLECTOR_FLEX_FIELDS,
+  "roll up standee": FLEX_WITH_COLOUR_AND_VARIENT_FIELDS,
+  "promotional umbrella": FLEX_WITH_COLOUR_AND_VARIENT_FIELDS,
+  "black light flex": BLACK_LIGHT_FLEX_FIELDS,
+  "led cutting with lighting": LED_CUTTING_WITH_LIGHTING_FIELDS,
+  "2d agralic": AGRALIC_2D_FIELDS,
+  "3d agralic": AGRALIC_3D_FIELDS,
+  "normal paper sticker": CUSTOM_PAPER_STICKER_FIELDS,
+  "vinyl sticker": VINYL_STICKER_FIELDS,
+  "polycarbonate sticker": POLYCARBONATE_STICKER_FIELDS,
+  "dome sticker": CUSTOM_PAPER_STICKER_FIELDS,
+  "pvc sticker": CUSTOM_PAPER_STICKER_FIELDS,
+  "foam": FOAM_STICKER_FIELDS,
+  "sun pack board": CUSTOM_PAPER_STICKER_FIELDS,
   "sticker items": [
     { key: "shape", label: "Shape", type: "select", options: ["Rectangle", "Circle", "Square", "Custom die-cut"] },
     { key: "widthMm", label: "Width (mm)", type: "number" },
@@ -44,58 +573,218 @@ const PRODUCT_FIELDS = {
     { key: "binding", label: "Binding", type: "select", options: ["None", "Saddle stitch", "Perfect bind", "Spiral"] },
     { key: "coverFinish", label: "Cover Finish", type: "select", options: ["None", "Matte lamination", "Glossy lamination", "UV coating"] },
   ],
-  "packaging box": [
-    { key: "lengthCm", label: "Length (cm)", type: "number" },
-    { key: "widthCm", label: "Width (cm)", type: "number" },
-    { key: "heightCm", label: "Height (cm)", type: "number" },
-    { key: "ply", label: "Ply", type: "select", options: ["Single", "3 ply", "5 ply", "7 ply"] },
-    { key: "boardGsm", label: "Board GSM", type: "select", options: ["150", "200", "300", "400"] },
-    { key: "print", label: "Print", type: "select", options: ["Plain", "1 colour", "2 colour", "Full colour CMYK"] },
-    { key: "finish", label: "Finish", type: "select", options: ["None", "Matte lamination", "Glossy lamination", "Spot UV", "Emboss/Deboss"] },
-    { key: "boxStyle", label: "Box Style", type: "select", options: ["Plain", "With window cut", "Gift finish", "With insert tray"] },
-    { key: "foodSafeCoating", label: "Food Safe Coating", type: "select", options: ["Yes", "No"] },
-  ],
-  "fast food box": [
-    { key: "material", label: "Material", type: "select", options: ["Kraft paper", "White cardboard", "Food-grade plastic", "Sugarcane bagasse", "Wooden"] },
-    { key: "sizeCapacity", label: "Size / Capacity", type: "text", placeholder: "e.g. 500ml, 6 inch" },
-    { key: "print", label: "Print", type: "select", options: ["No print", "1 colour logo", "Full colour branding"] },
-    { key: "foodSafeLining", label: "Food Safe Lining", type: "select", options: ["Yes", "No"] },
-    { key: "greaseProof", label: "Grease-proof", type: "select", options: ["Yes", "No"] },
-  ],
-  "zipper pouch": [
-    { key: "printingType", label: "Printing Type", type: "select", options: ["Plain", "Single colour screen", "Multicolour digital", "Multicolour cylinder", "Multicolour flexo"] },
-    { key: "widthMm", label: "Width (mm)", type: "number" },
-    { key: "heightMm", label: "Height (mm)", type: "number" },
-    { key: "gussetMm", label: "Gusset (mm)", type: "number" },
-    { key: "material", label: "Material", type: "select", options: ["BOPP", "PET-PE", "Kraft paper", "Aluminium foil", "Transparent", "Matte finish"] },
-    { key: "zipperColour", label: "Zipper Colour", type: "text" },
-    { key: "tearNotch", label: "Tear Notch", type: "select", options: ["Yes", "No"] },
-    { key: "foodGradeRequired", label: "Food Grade Required", type: "select", options: ["Yes", "No"] },
-    { key: "colourMode", label: "Colour Mode", type: "select", options: ["CMYK", "Pantone", "Single spot colour"] },
-    { key: "productToPack", label: "Product to be Packed", type: "text", placeholder: "e.g. dry fruits, spices, jewellery" },
-  ],
+  "packaging box": BOX_PACKAGING_FIELDS,
+  "fast food box": BOX_PACKAGING_FIELDS,
+  "corrugated box": BOX_PACKAGING_FIELDS,
+  "frame box": BOX_PACKAGING_FIELDS,
+  "food box": BOX_PACKAGING_FIELDS,
+  "gift box": BOX_PACKAGING_FIELDS,
+  "cake box": CAKE_BOX_FIELDS,
+  "sweet box": SWEET_BOX_FIELDS,
+  "pastry box": CAKE_BOX_FIELDS,
+  "pizza box": CAKE_BOX_FIELDS,
+  "tier cake box": CAKE_BOX_FIELDS,
+  "plum box": CAKE_BOX_FIELDS,
+  "cake base": CAKE_BASE_FIELDS,
+  "brownie box": BROWNIE_BOX_FIELDS,
+  "cup cake box": CUP_CAKEE_BOX_FIELDS,
+  "bento box": BENTO_BOX_FIELDS,
+  "candle box": CAKE_BOX_FIELDS,
+  "jar cake": JAR_CAKE_FIELDS,
+  "sandwich box": SANDWICH_WAFFLE_BOX_FIELDS,
+  "sandwich waffle box": SANDWICH_WAFFLE_BOX_FIELDS,
+  "dosa": SANDWICH_WAFFLE_BOX_FIELDS,
+  "dosa,shawarma": SANDWICH_WAFFLE_BOX_FIELDS,
+  "shawarma": SANDWICH_WAFFLE_BOX_FIELDS,
+  "burger": BURGER_BOX_FIELDS,
+  "popcorn box": POPCORN_BOX_FIELDS,
+  "biryani box": BIRIYANI_BOX_FIELDS,
+  "biriyani box": BIRIYANI_BOX_FIELDS,
+  "cup": CUP_FIELDS,
+  "juice cup with spout": JUICE_CUP_WITH_SPOUT_FIELDS,
+  "ice cream": ICE_CREAM_FIELDS,
+  "tray": TRAY_FIELDS,
+  "monocotton box": MONOCOTTON_BOX_FIELDS,
+  "branding box": BRANDING_BOX_FIELDS,
+  "monocotton box / branding box": MONOCOTTON_BOX_FIELDS,
+  "plain and customized box": PLAIN_CUSTOMIZED_BOX_FIELDS,
+  knife: ACCESSORY_FIELDS,
+  spoon: ACCESSORY_FIELDS,
+  "wood spoon": ACCESSORY_FIELDS,
+  "plastic spoon": ACCESSORY_FIELDS,
+  "wood plastic spoon": WOOD_PLASTIC_SPOON_FIELDS,
+  "wood/plastic spoon": WOOD_PLASTIC_SPOON_FIELDS,
+  "zipper pouch": ZIPPER_POUCH_FIELDS,
+  "zipper pouch plain": ZIPPER_POUCH_PLAIN_FIELDS,
+  "both side transparent": BOTH_SIDE_TRANSPARENT_POUCH_FIELDS,
+  "printing zipper pouch": PRINTING_ZIPPER_POUCH_FIELDS,
+  "one side silver one side transparent": ONE_SIDE_SILVER_ONE_SIDE_TRANSPARENT_POUCH_FIELDS,
+  "packaging pouch": ZIPPER_POUCH_FIELDS,
+  "envelope": ENVELOPE_FIELDS,
+  "notepad": NOTEPAD_FIELDS,
+  "note pad": NOTEPAD_FIELDS,
+  "dairy": DAIRY_FIELDS,
+  "daily calendar": DAILY_CALENDAR_FIELDS,
+  "daily calender": DAILY_CALENDAR_FIELDS,
+  "monthly calendar": MONTHLY_CALENDAR_FIELDS,
+  "monthly calender": MONTHLY_CALENDAR_FIELDS,
+  "pocket calendar": POCKET_CALENDAR_FIELDS,
+  "pocket calender": POCKET_CALENDAR_FIELDS,
+  "table top calendar": TABLE_TOP_CALENDAR_FIELDS,
+  "table top calender": TABLE_TOP_CALENDAR_FIELDS,
+  "doctor file": DOCTOR_FILE_FIELDS,
+  "pamphlet": PAMPHLET_FIELDS,
+  "pamplat": PAMPHLET_FIELDS,
+  "pamplet": PAMPHLET_FIELDS,
+  "brochure": BROCHURE_FIELDS,
+  "brochura": BROCHURE_FIELDS,
+  "corrugated roll": CORRUGATED_ROLL_FIELDS,
+  "corrugated sheet": CORRUGATED_SHEET_FIELDS,
+  "corrugated board": CORRUGATED_SHEET_FIELDS,
+  "selflock mailer flap box": SELFLOCK_MAILER_FLAP_BOX_FIELDS,
+  "selflock mailore flap box": SELFLOCK_MAILER_FLAP_BOX_FIELDS,
 };
 
 const PRINTING_GENERIC_FIELDS = [
   { key: "size", label: "Size", type: "text", placeholder: "e.g. 3.5 x 2 inch, A4, 6 x 4 ft" },
   { key: "materialOrPaper", label: "Material / Paper", type: "text", placeholder: "e.g. 300 GSM art card, vinyl, acrylic" },
-  { key: "printSides", label: "Printing Sides", type: "select", options: ["Front only", "Front & Back", "Single side", "Not sure"] },
+  { key: "printSides", label: "Printing Sides", type: "select", options: ["Front only", "Front & Back"] },
   { key: "finish", label: "Finish / Lamination", type: "text", placeholder: "e.g. matte, glossy, UV, none" },
   { key: "requirementDetails", label: "Requirement Details", type: "text", placeholder: "Any important print details" },
 ];
 
+const PRODUCT_FIELD_ALIASES = {
+  "universal cotton corrugation box": "packaging box",
+  "universal box": "packaging box",
+  "corrugation box": "packaging box",
+  "selflock box": "selflock mailer flap box",
+  "self lock box": "selflock mailer flap box",
+  "mailer box": "selflock mailer flap box",
+  "flap box": "selflock mailer flap box",
+  "ice cream hole box": "packaging box",
+  "ice cream mustroom holes box": "packaging box",
+  "ice cream mushroom holes box": "packaging box",
+  "cake box": "cake box",
+  "sweet box": "sweet box",
+  "pastry box": "cake box",
+  "pasry box": "cake box",
+  "pizza box": "cake box",
+  "tier cake box": "cake box",
+  "cake base": "cake base",
+  "plum box": "cake box",
+  "brownie box": "brownie box",
+  "cupcake box": "packaging box",
+  "cup cake box": "cup cake box",
+  "bento box": "bento box",
+  "jar cake": "jar cake",
+  "candle box": "cake box",
+  "sandwich box": "sandwich waffle box",
+  "sandwich waffle box": "sandwich waffle box",
+  "burger box": "burger",
+  burger: "burger",
+  "popcorn box": "popcorn box",
+  "biryani box": "biryani box",
+  "biriyani box": "biryani box",
+  tray: "tray",
+  monocarton: "packaging box",
+  "monocotton box": "monocotton box",
+  "branding box": "branding box",
+  "monocotton box / branding box": "monocotton box",
+  "monocotton box branding box": "monocotton box",
+  "MONOCOTTON BOX / BRANDING BOX": "monocotton box",
+  "plain and customized box": "plain and customized box",
+  "one side fully close one side open": "zipper pouch",
+  "both side transparent": "both side transparent",
+  "one side silver one side transparent": "one side silver one side transparent",
+  "fully closed": "zipper pouch",
+  "without zipper": "zipper pouch",
+  "with window": "zipper pouch",
+  "zippe pouch plain": "zipper pouch",
+  cylinder: "zipper pouch",
+  digital: "zipper pouch",
+  flexo: "zipper pouch",
+  "screen printing": "zipper pouch",
+  "wood plastic spoon": "wood plastic spoon",
+  "wood/plastic spoon": "wood plastic spoon",
+  "normal flex": "flex printing",
+  "black media flex": "flex printing",
+  "star flex": "flex printing",
+  "reflector flex": "reflector flex",
+  "roll up standee": "roll up standee",
+  "promotional umbrella": "promotional umbrella",
+  "normal paper sticker": "normal paper sticker",
+  "paper sticker": "normal paper sticker",
+  "normal sticker": "normal paper sticker",
+  "vinyl": "vinyl sticker",
+  "polycarbonate": "polycarbonate sticker",
+  "dome": "dome sticker",
+  "pvc": "pvc sticker",
+  "visiting card": "visiting card",
+  "normal visiting card": "visiting card",
+  "synthetic visiting card": "visiting card",
+  "scent card visiting card": "visiting card",
+  "curve cutting visiting card": "visiting card",
+  "uv visiting card": "visiting card",
+};
+
 const STYLE_PREF_OPTIONS = ["Minimal", "Bold", "Traditional", "Corporate", "Fun"];
 
-const STEP_LABELS = ["Product", "Specifications", "Design", "Delivery"];
+function normalizeLookupKey(name) {
+  if (!name) return "";
+  return name
+    .toLowerCase()
+    .replace(/&/g, " and ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
-function matchProductFields(typeName) {
-  if (!typeName) return null;
-  const key = typeName.trim().toLowerCase();
+function resolveFieldSetByTokens(tokens) {
+  if (!tokens.length) return null;
+  const has = (word) => tokens.includes(word);
+  const hasAny = (words) => words.some((word) => has(word));
+
+  if (has("envelope")) {
+    return ENVELOPE_FIELDS;
+  }
+  if (hasAny(["pouch", "zipper", "zippe"])) {
+    return ZIPPER_POUCH_FIELDS;
+  }
+  if (hasAny(["cup", "spout"])) {
+    return FOOD_CUP_FIELDS;
+  }
+  if (hasAny(["dosa", "shawarma"])) {
+    return WRAP_FIELDS;
+  }
+  if (hasAny(["spoon", "knife"])) {
+    return ACCESSORY_FIELDS;
+  }
+  if (has("box") || hasAny(["corrugated", "corrugation", "monocarton", "tray", "burger", "biryani", "popcorn"])) {
+    return BOX_PACKAGING_FIELDS;
+  }
+  return null;
+}
+
+function resolveFieldSetByName(name) {
+  if (!name) return null;
+  const key = normalizeLookupKey(name);
+  const aliasKey = PRODUCT_FIELD_ALIASES[key];
+  if (aliasKey && PRODUCT_FIELDS[aliasKey]) return PRODUCT_FIELDS[aliasKey];
   if (PRODUCT_FIELDS[key]) return PRODUCT_FIELDS[key];
+
+  const tokenMatch = resolveFieldSetByTokens(key.split(" ").filter(Boolean));
+  if (tokenMatch) return tokenMatch;
+
   for (const [k, v] of Object.entries(PRODUCT_FIELDS)) {
     if (key.includes(k) || k.includes(key)) return v;
   }
   return null;
+}
+
+function matchProductFields(typeName, subtypeName) {
+  const subtypeMatch = resolveFieldSetByName(subtypeName);
+  if (subtypeMatch) return subtypeMatch;
+  return resolveFieldSetByName(typeName);
 }
 
 function readEntryFile(entry) {
@@ -189,6 +878,17 @@ export default function RequirementFormModal({
   const [subtypeId, setSubtypeId] = useState("");
   const [quantity, setQuantity] = useState("");
   const [specs, setSpecs] = useState({});
+  const [customSpecDialog, setCustomSpecDialog] = useState({
+    open: false,
+    field: null,
+    value: "",
+    isFlexCustomSize: false,
+    flexWidth: "",
+    flexHeight: "",
+    flexDepth: "",
+    showDepth: false,
+    sizeUnit: "mm",
+  });
 
   // Design section
   const designStatus = "full_design";
@@ -240,6 +940,7 @@ export default function RequirementFormModal({
       setDeliveryDate(initialRequirement?.deliveryDate || "");
       setSpecialInstructions(initialRequirement?.specialInstructions || "");
       setFiles([]);
+      setCustomSpecDialog({ open: false, field: null, value: "" });
     }
   }, [show, initialRequirement]);
 
@@ -271,11 +972,49 @@ export default function RequirementFormModal({
 
   const productFields = useMemo(() => {
     const categoryName = selectedCategory?.name?.trim().toLowerCase();
+    const matchedFields = matchProductFields(selectedType?.name, selectedSubtype?.name);
     if (categoryName === "printing") {
-      return PRINTING_GENERIC_FIELDS;
+      return matchedFields || PRINTING_GENERIC_FIELDS;
     }
-    return matchProductFields(selectedType?.name);
-  }, [selectedCategory, selectedType]);
+    return matchedFields;
+  }, [selectedCategory, selectedType, selectedSubtype]);
+
+  const specificationSteps = useMemo(() => {
+    if (!productFields || productFields.length === 0) {
+      return [{ section: "Specification", fields: [] }];
+    }
+    // If more than 8 fields, split into multiple tabs with smart distribution
+    if (productFields.length > 8) {
+      const numTabs = Math.ceil(productFields.length / 8);
+      const fieldsPerTab = Math.ceil(productFields.length / numTabs);
+      const chunks = [];
+      for (let i = 0; i < productFields.length; i += fieldsPerTab) {
+        chunks.push(productFields.slice(i, i + fieldsPerTab));
+      }
+      return chunks.map((chunk, idx) => ({
+        section: idx === 0 ? "Specification" : `Specification ${idx + 1}`,
+        fields: chunk,
+      }));
+    }
+    return [{ section: "Specification", fields: productFields }];
+  }, [productFields]);
+
+  const specificationStepCount = specificationSteps.length;
+  const firstSpecificationStep = 1;
+  const designStep = firstSpecificationStep + specificationStepCount;
+  const deliveryStep = designStep + 1;
+  const isSpecificationStep = step >= firstSpecificationStep && step < designStep;
+  const isFirstSpecificationStep = step === firstSpecificationStep;
+  const currentSpecification = specificationSteps[
+    Math.max(0, Math.min(step - firstSpecificationStep, specificationSteps.length - 1))
+  ] || { section: "Specification", fields: [] };
+
+  const stepLabels = useMemo(() => ([
+    "Product",
+    ...specificationSteps.map((section) => section.section || "Specification"),
+    "Design",
+    "Delivery",
+  ]), [specificationSteps]);
 
   // Breadcrumb
   const breadcrumb = useMemo(() => {
@@ -302,6 +1041,122 @@ export default function RequirementFormModal({
   const handleSpecChange = useCallback((key, value) => {
     setSpecs((prev) => ({ ...prev, [key]: value }));
   }, []);
+
+  const handleSelectSpecChange = useCallback((field, value) => {
+    // Handle custom size selection first so sticker size uses mm/inch instead of the generic custom popup.
+    if (field.key === "size" && value === "Custom") {
+      const typeName = (selectedType?.name || "").toLowerCase().trim();
+      const subtypeName = (selectedSubtype?.name || "").toLowerCase().trim();
+      const isSticker = typeName.includes("sticker") || subtypeName.includes("sticker");
+      const isCard = typeName.includes("card") || subtypeName.includes("card");
+      const is3DAgralic = typeName.includes("3d agralic") || subtypeName.includes("3d agralic");
+      const isBrownie = typeName.includes("brownie") || subtypeName.includes("brownie");
+      const isCupcake = typeName.includes("cup cake") || typeName.includes("cupcake") || subtypeName.includes("cup cake") || subtypeName.includes("cupcake");
+      const isBento = typeName.includes("bento") || subtypeName.includes("bento");
+      let unitLabel = "ft";
+      if (isSticker) unitLabel = "mm or inch";
+      else if (isCard) unitLabel = "mm";
+      else if (isBrownie || isCupcake || isBento) unitLabel = "mm";
+      
+      console.log("Custom Size Dialog - Product Type:", typeName, "SubType:", subtypeName, "isBrownie:", isBrownie, "isCupcake:", isCupcake);
+      
+      setCustomSpecDialog({
+        open: true,
+        field,
+        value: "",
+        isFlexCustomSize: true,
+        flexWidth: specs.customWidth || "",
+        flexHeight: specs.customHeight || "",
+        flexDepth: (is3DAgralic || isBrownie || isCupcake || isBento) ? (specs.customDepth || "") : "",
+        showDepth: is3DAgralic || isBrownie || isCupcake || isBento,
+        customSizeUnitLabel: unitLabel,
+        sizeUnit: "mm",
+      });
+      return;
+    }
+
+    if (field.allowCustom && value === "Custom") {
+      setCustomSpecDialog({
+        open: true,
+        field,
+        value: String(specs[`${field.key}Custom`] || "").trim(),
+        isFlexCustomSize: false,
+        flexWidth: "",
+        flexHeight: "",
+        customSizeUnitLabel: "ft",
+        sizeUnit: "mm",
+      });
+      return;
+    }
+
+    setSpecs((prev) => {
+      const next = { ...prev, [field.key]: value };
+      if (field.allowCustom && value !== "Custom") {
+        delete next[`${field.key}Custom`];
+      }
+      return next;
+    });
+  }, [specs]);
+
+  const closeCustomSpecDialog = useCallback(() => {
+    setCustomSpecDialog({ open: false, field: null, value: "", isFlexCustomSize: false, flexWidth: "", flexHeight: "", flexDepth: "", showDepth: false, customSizeUnitLabel: "ft", sizeUnit: "mm" });
+  }, []);
+
+  const saveCustomSpecDialog = useCallback(() => {
+    const field = customSpecDialog.field;
+    if (!field) return;
+
+    // Handle flex printing custom size
+    if (customSpecDialog.isFlexCustomSize) {
+      const width = String(customSpecDialog.flexWidth || "").trim();
+      const height = String(customSpecDialog.flexHeight || "").trim();
+      const depth = String(customSpecDialog.flexDepth || "").trim();
+
+      if (!width || !height) {
+        setError("Please enter both width and height");
+        return;
+      }
+
+      const specsUpdate = {
+        [field.key]: "Custom",
+        customWidth: width,
+        customHeight: height,
+        customUnit: customSpecDialog.sizeUnit,
+      };
+      
+      if (depth) {
+        specsUpdate.customDepth = depth;
+      }
+
+      setSpecs((prev) => ({
+        ...prev,
+        ...specsUpdate,
+      }));
+      closeCustomSpecDialog();
+      setError("");
+      return;
+    }
+
+    // Handle regular custom field
+    const trimmedValue = String(customSpecDialog.value || "").trim();
+    if (!trimmedValue) {
+      setSpecs((prev) => {
+        const next = { ...prev };
+        delete next[field.key];
+        delete next[`${field.key}Custom`];
+        return next;
+      });
+      closeCustomSpecDialog();
+      return;
+    }
+
+    setSpecs((prev) => ({
+      ...prev,
+      [field.key]: "Custom",
+      [`${field.key}Custom`]: trimmedValue,
+    }));
+    closeCustomSpecDialog();
+  }, [closeCustomSpecDialog, customSpecDialog]);
 
   const handleFileChange = (e) => {
     const selected = Array.from(e.target.files || []);
@@ -350,29 +1205,54 @@ export default function RequirementFormModal({
 
   // Validation per step
   const canProceed = (s) => {
-    switch (s) {
-      case 0:
-        return !!categoryId && !!typeId;
-      case 1:
-        return !!quantity && Number(quantity) > 0;
-      case 2:
-        return !useDesignFolderUpload || files.length > 0;
-      case 3:
-        return true;
-      default:
-        return true;
+    if (s === 0) {
+      if (!categoryId || !typeId) return false;
+      // If subtypes are available, must select one
+      const subtypesForSelectedType = allTypes.filter((t) => String(t.parentId) === String(typeId));
+      if (subtypesForSelectedType.length > 0) {
+        return !!subtypeId;
+      }
+      return true;
     }
+    if (s >= firstSpecificationStep && s < designStep) {
+      if (!quantity || Number(quantity) <= 0) return false;
+      
+      // For flex printing and agralic products with custom size, validate width and height
+      if (specs.size === "Custom" && (selectedType?.name?.toLowerCase().includes("flex") || selectedType?.name?.toLowerCase().includes("agralic"))) {
+        return !!specs.customWidth && !!specs.customHeight && Number(specs.customWidth) > 0 && Number(specs.customHeight) > 0;
+      }
+      
+      return true;
+    }
+    if (s === designStep) {
+      return !useDesignFolderUpload || files.length > 0;
+    }
+    return true;
   };
 
   const handleNext = () => {
     if (!canProceed(step)) {
-      if (step === 0) setError("Please select category and product");
-      else if (step === 1) setError("Please enter a valid quantity");
-      else if (step === 2) setError("Please upload at least one design file before proceeding");
+      if (step === 0) {
+        const subtypesForType = allTypes.filter((t) => String(t.parentId) === String(typeId));
+        if (subtypesForType.length > 0 && !subtypeId) {
+          setError("Please select a product subtype");
+        } else {
+          setError("Please select category and product");
+        }
+      }
+      else if (step >= firstSpecificationStep && step < designStep) {
+      if (!quantity || Number(quantity) <= 0) {
+        setError("Please enter a valid quantity");
+      } else if (specs.size === "Custom" && (selectedType?.name?.toLowerCase().includes("flex") || selectedType?.name?.toLowerCase().includes("agralic"))) {
+        setError("Please enter valid width and height for custom size");
+      } else {
+        setError("Please complete the specifications");
+      }
+      } else if (step === designStep) setError("Please upload at least one design file before proceeding");
       return;
     }
     setError("");
-    setStep((s) => Math.min(s + 1, 3));
+    setStep((s) => Math.min(s + 1, deliveryStep));
   };
 
   const handleBack = () => {
@@ -429,7 +1309,7 @@ export default function RequirementFormModal({
   return (
     <>
       <div
-        className="modal fade show"
+        className="modal fade show requirement-form-modal"
         style={{ display: "block" }}
         tabIndex="-1"
       >
@@ -479,7 +1359,7 @@ export default function RequirementFormModal({
                     animate={
                       shouldReduceMotion
                         ? {}
-                        : { width: `${((step + 1) / STEP_LABELS.length) * 100}%` }
+                        : { width: `${((step + 1) / stepLabels.length) * 100}%` }
                     }
                     transition={{ duration: 0.35, ease: "easeOut" }}
                   />
@@ -492,7 +1372,7 @@ export default function RequirementFormModal({
                   animate={shouldReduceMotion ? {} : { opacity: 1, y: 0 }}
                   transition={{ duration: 0.2, delay: 0.05 }}
                 >
-                  {STEP_LABELS.map((label, idx) => (
+                  {stepLabels.map((label, idx) => (
                     <div
                       key={label}
                       className="lead-wizard-circle-item"
@@ -581,7 +1461,7 @@ export default function RequirementFormModal({
                         {typeId && subtypeOptions.length > 0 && (
                           <div className="col-md-6">
                             <div className="lead-form-field">
-                              <label className="form-label fw-semibold">Sub-type</label>
+                              <label className="form-label fw-semibold">Sub-Product</label>
                               <select
                                 className="form-select"
                                 value={subtypeId}
@@ -611,40 +1491,28 @@ export default function RequirementFormModal({
                     )}
 
                     {/* Step 1: Product Specifications */}
-                    {step === 1 && (
+                    {isSpecificationStep && (
                       <motion.div
-                        key="step-1"
+                        key={`step-spec-${step}`}
                         initial={shouldReduceMotion ? false : { opacity: 0, x: 18, filter: "blur(4px)" }}
                         animate={shouldReduceMotion ? {} : { opacity: 1, x: 0, filter: "blur(0px)" }}
                         exit={shouldReduceMotion ? false : { opacity: 0, x: -18, filter: "blur(4px)" }}
                         transition={{ duration: 0.26, ease: "easeOut" }}
                         className="row g-3 lead-wizard-step-panel"
                       >
-                        <div className="col-md-6">
-                          <div className="lead-form-field">
-                            <label className="form-label">
-                              Quantity <span className="text-danger">*</span>
-                            </label>
-                            <input
-                              className="form-control"
-                              type="number"
-                              min="1"
-                              value={quantity}
-                              onChange={(e) => setQuantity(e.target.value)}
-                              placeholder="Enter quantity"
-                            />
-                          </div>
-                        </div>
-
-                        {/* Sub-type dropdown if present and not shown in step 0 */}
-                        {selectedSubtype && (
+                        {isFirstSpecificationStep && (
                           <div className="col-md-6">
                             <div className="lead-form-field">
-                              <label className="form-label">Selected Sub-type</label>
+                              <label className="form-label">
+                                Quantity <span className="text-danger">*</span>
+                              </label>
                               <input
                                 className="form-control"
-                                value={selectedSubtype.name}
-                                readOnly
+                                type="number"
+                                min="1"
+                                value={quantity}
+                                onChange={(e) => setQuantity(e.target.value)}
+                                placeholder="Enter quantity"
                               />
                             </div>
                           </div>
@@ -652,62 +1520,103 @@ export default function RequirementFormModal({
 
                         {/* Product-specific fields */}
                         {productFields ? (
-                          productFields.map((field) => {
-                            if (field.type === "computed") {
-                              const val = field.compute(specs);
+                          [currentSpecification].flatMap((entry, sectionIndex) => {
+                            const sectionFields = entry.fields.flatMap((field) => {
+                              // Skip hidden fields
+                              if (field.hidden) return [];
+
+                              if (field.type === "computed") {
+                                const val = field.compute(specs);
+                                return (
+                                  <div key={field.key} className="col-md-6">
+                                    <div className="lead-form-field">
+                                      <label className="form-label">{field.label}</label>
+                                      <input
+                                        className="form-control"
+                                        value={val}
+                                        readOnly
+                                      />
+                                    </div>
+                                  </div>
+                                );
+                              }
+                              if (field.type === "select") {
+                                const result = [
+                                  <div key={field.key} className="col-md-6">
+                                    <div className="lead-form-field">
+                                      <label className="form-label">{field.label}</label>
+                                      <select
+                                        className="form-select"
+                                        value={specs[field.key] || ""}
+                                        onChange={(e) => handleSelectSpecChange(field, e.target.value)}
+                                        title={field.allowCustom && specs[field.key] === "Custom" ? (field.key === "size" ? (specs.customWidth || specs.customHeight ? `Custom: ${specs.customWidth} ${specs.customUnit || "ft"} × ${specs.customHeight} ${specs.customUnit || "ft"}${specs.customDepth ? ` × ${specs.customDepth} ${specs.customUnit || "ft"}` : ""}` : "Custom") : `Custom: ${specs[`${field.key}Custom`] || ""}`) : ""}
+                                      >
+                                        <option value="">Select {field.label}</option>
+                                        {field.options.map((opt) => {
+                                          if (opt === "Custom" && field.allowCustom && specs[field.key] === "Custom") {
+                                            if (field.key === "size") {
+                                              const width = specs.customWidth;
+                                              const height = specs.customHeight;
+                                              const depth = specs.customDepth;
+                                              const unit = specs.customUnit || "ft";
+                                              return (
+                                                <option key={opt} value={opt}>
+                                                  {width || height ? `Custom: ${width} ${unit} × ${height} ${unit}${depth ? ` × ${depth} ${unit}` : ""}` : "Custom"}
+                                                </option>
+                                              );
+                                            }
+                                            const customValue = specs[`${field.key}Custom`];
+                                            return (
+                                              <option key={opt} value={opt}>
+                                                {customValue ? `Custom: ${customValue}` : "Custom"}
+                                              </option>
+                                            );
+                                          }
+                                          return (
+                                            <option key={opt} value={opt}>
+                                              {opt}
+                                            </option>
+                                          );
+                                        })}
+                                      </select>
+                                    </div>
+                                  </div>,
+                                ];
+
+                                return result;
+                              }
                               return (
                                 <div key={field.key} className="col-md-6">
                                   <div className="lead-form-field">
                                     <label className="form-label">{field.label}</label>
                                     <input
                                       className="form-control"
-                                      value={val}
-                                      readOnly
+                                      type={field.type === "number" ? "number" : "text"}
+                                      value={specs[field.key] ?? (field.default || "")}
+                                      onChange={(e) =>
+                                        handleSpecChange(field.key, e.target.value)
+                                      }
+                                      placeholder={field.placeholder || ""}
                                     />
                                   </div>
                                 </div>
                               );
+                            });
+
+                            // Don't show section header if only 1 step total, or this is the first step with no previous section
+                            if (specificationStepCount <= 1 || sectionIndex === 0) {
+                              return sectionFields;
                             }
-                            if (field.type === "select") {
-                              return (
-                                <div key={field.key} className="col-md-6">
-                                  <div className="lead-form-field">
-                                    <label className="form-label">{field.label}</label>
-                                    <select
-                                      className="form-select"
-                                      value={specs[field.key] || ""}
-                                      onChange={(e) =>
-                                        handleSpecChange(field.key, e.target.value)
-                                      }
-                                    >
-                                      <option value="">Select {field.label}</option>
-                                      {field.options.map((opt) => (
-                                        <option key={opt} value={opt}>
-                                          {opt}
-                                        </option>
-                                      ))}
-                                    </select>
-                                  </div>
+
+                            return [
+                              <div key={`section-${sectionIndex}`} className="col-12 mt-1">
+                                <div className="d-flex align-items-center justify-content-between">
+                                  <h6 className="mb-2 fw-semibold">{entry.section}</h6>
                                 </div>
-                              );
-                            }
-                            // text / number
-                            return (
-                              <div key={field.key} className="col-md-6">
-                                <div className="lead-form-field">
-                                  <label className="form-label">{field.label}</label>
-                                  <input
-                                    className="form-control"
-                                    type={field.type === "number" ? "number" : "text"}
-                                    value={specs[field.key] ?? (field.default || "")}
-                                    onChange={(e) =>
-                                      handleSpecChange(field.key, e.target.value)
-                                    }
-                                    placeholder={field.placeholder || ""}
-                                  />
-                                </div>
-                              </div>
-                            );
+                                <hr className="mt-0 mb-3" />
+                              </div>,
+                              ...sectionFields,
+                            ];
                           })
                         ) : (
                           <div className="col-12">
@@ -720,9 +1629,9 @@ export default function RequirementFormModal({
                     )}
 
                     {/* Step 2: Design */}
-                    {step === 2 && (
+                    {step === designStep && (
                       <motion.div
-                        key="step-2"
+                        key={`step-design-${step}`}
                         initial={shouldReduceMotion ? false : { opacity: 0, x: 18, filter: "blur(4px)" }}
                         animate={shouldReduceMotion ? {} : { opacity: 1, x: 0, filter: "blur(0px)" }}
                         exit={shouldReduceMotion ? false : { opacity: 0, x: -18, filter: "blur(4px)" }}
@@ -915,9 +1824,9 @@ export default function RequirementFormModal({
                     )}
 
                     {/* Step 3: Delivery */}
-                    {step === 3 && (
+                    {step === deliveryStep && (
                       <motion.div
-                        key="step-3"
+                        key={`step-delivery-${step}`}
                         initial={shouldReduceMotion ? false : { opacity: 0, x: 18, filter: "blur(4px)" }}
                         animate={shouldReduceMotion ? {} : { opacity: 1, x: 0, filter: "blur(0px)" }}
                         exit={shouldReduceMotion ? false : { opacity: 0, x: -18, filter: "blur(4px)" }}
@@ -977,7 +1886,7 @@ export default function RequirementFormModal({
                   ) : (
                     <div />
                   )}
-                  {step < 3 ? (
+                  {step < deliveryStep ? (
                     <button
                       type="button"
                       className="btn btn-primary"
@@ -1003,6 +1912,135 @@ export default function RequirementFormModal({
           </div>
         </div>
       </div>
+      {customSpecDialog.open && (
+        <div
+          className="modal fade show requirement-form-modal"
+          style={{ display: "block", backgroundColor: "rgba(0,0,0,0.35)" }}
+          tabIndex="-1"
+        >
+          <div className="modal-dialog modal-dialog-centered" style={{ maxHeight: "90vh", display: "flex", alignItems: "center" }}>
+            <div className="modal-content" style={{ maxHeight: "90vh", display: "flex", flexDirection: "column", overflowY: "auto" }}>
+              <div className="modal-header">
+                <h5 className="modal-title">
+                  {customSpecDialog.isFlexCustomSize ? "Enter Custom Size" : `Enter Custom ${customSpecDialog.field?.label}`}
+                </h5>
+                <button
+                  type="button"
+                  className="btn-close"
+                  onClick={closeCustomSpecDialog}
+                />
+              </div>
+              <div className="modal-body" style={{ overflowY: "auto", flex: 1, padding: "1.5rem" }}>
+                {customSpecDialog.isFlexCustomSize ? (
+                  <>
+                    <div className="lead-form-field mb-3">
+                      <label className="form-label">Unit <span className="text-danger">*</span></label>
+                      <select
+                        className="form-select"
+                        value={customSpecDialog.sizeUnit}
+                        onChange={(e) =>
+                          setCustomSpecDialog((prev) => ({ ...prev, sizeUnit: e.target.value }))
+                        }
+                      >
+                        <option value="mm">Millimeters (mm)</option>
+                        <option value="cm">Centimeters (cm)</option>
+                        <option value="ft">Feet (ft)</option>
+                        <option value="inch">Inches (inch)</option>
+                      </select>
+                    </div>
+                    <div className="lead-form-field mb-3">
+                      <label className="form-label">Width ({customSpecDialog.sizeUnit}) <span className="text-danger">*</span></label>
+                      <input
+                        className="form-control"
+                        type="number"
+                        autoFocus
+                        value={customSpecDialog.flexWidth}
+                        onChange={(e) =>
+                          setCustomSpecDialog((prev) => ({ ...prev, flexWidth: e.target.value }))
+                        }
+                        placeholder={`Enter width in ${customSpecDialog.sizeUnit}`}
+                      />
+                    </div>
+                    <div className="lead-form-field mb-3">
+                      <label className="form-label">Height ({customSpecDialog.sizeUnit}) <span className="text-danger">*</span></label>
+                      <input
+                        className="form-control"
+                        type="number"
+                        value={customSpecDialog.flexHeight}
+                        onChange={(e) =>
+                          setCustomSpecDialog((prev) => ({ ...prev, flexHeight: e.target.value }))
+                        }
+                        placeholder={`Enter height in ${customSpecDialog.sizeUnit}`}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            saveCustomSpecDialog();
+                          }
+                        }}
+                      />
+                    </div>
+                    {customSpecDialog.showDepth && (
+                      <div className="lead-form-field mb-3">
+                        <label className="form-label">Depth ({customSpecDialog.sizeUnit}) <span className="text-muted">(Optional)</span></label>
+                        <input
+                          className="form-control"
+                          type="number"
+                          value={customSpecDialog.flexDepth}
+                          onChange={(e) =>
+                            setCustomSpecDialog((prev) => ({ ...prev, flexDepth: e.target.value }))
+                          }
+                          placeholder={`Enter depth in ${customSpecDialog.sizeUnit}`}
+                        />
+                      </div>
+                    )}
+                    {error && <div className="alert alert-danger mt-2 py-2 mb-0">{error}</div>}
+                  </>
+                ) : (
+                  <div className="lead-form-field">
+                    <label className="form-label">
+                      {customSpecDialog.field?.label}
+                    </label>
+                    <input
+                      className="form-control"
+                      autoFocus
+                      value={customSpecDialog.value}
+                      onChange={(e) =>
+                        setCustomSpecDialog((prev) => ({ ...prev, value: e.target.value }))
+                      }
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          saveCustomSpecDialog();
+                        }
+                      }}
+                      placeholder={
+                        customSpecDialog.field?.customPlaceholder ||
+                        `Enter ${customSpecDialog.field?.label || "value"}`
+                      }
+                    />
+                  </div>
+                )}
+              </div>
+              <div className="modal-footer">
+                <button
+                  type="button"
+                  className="btn btn-light"
+                  onClick={closeCustomSpecDialog}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={saveCustomSpecDialog}
+                >
+                  Save
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="modal-backdrop fade show" />
     </>
   );

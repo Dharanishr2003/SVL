@@ -2,27 +2,15 @@ export const LEAD_FLOW_STATUSES = [
   "New Lead",
   "Attempted",
   "Interested",
-  "Budget",
   "Requirement",
   "Design",
-  "Deal",
   "Rejected",
 ];
 
 export const DEAL_FLOW_STATUSES = [
-  "Payment",
-  "Allocate",
   "Design",
   "Production",
-  "Design + Production",
-  "Stock Request",
-  "Stock Updated",
-  "Delivery",
   "Accounts",
-  "Accounts Review",
-  "Approval",
-  "Purchase",
-  "Production Resume",
 ];
 
 /**
@@ -35,9 +23,8 @@ export const DEAL_FLOW_STATUSES = [
  *   - "Production" is NOT selectable by user for this type
  */
 export const STATUS_REQUIREMENT_TYPE_MAP = {
-  "Design":                ["Design"],
-  "Production":            ["Production"],
-  "Design + Production":   ["Design + Production"],
+  "Design":      ["Design"],
+  "Production":  ["Production"],
 };
 
 /**

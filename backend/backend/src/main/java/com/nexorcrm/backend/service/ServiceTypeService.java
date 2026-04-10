@@ -7,10 +7,14 @@ import com.nexorcrm.backend.entity.ServiceCategory;
 import com.nexorcrm.backend.repo.ServiceTypeRepository;
 import com.nexorcrm.backend.repo.ServiceCategoryRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
+@Transactional
 public class ServiceTypeService {
 
     private final ServiceTypeRepository repository;
@@ -41,12 +45,13 @@ public class ServiceTypeService {
         }
 
         ServiceType entity = new ServiceType();
-        entity.setName(request.getName());
+        entity.setName(request.getName().trim());
         entity.setCategory(category);
         entity.setParent(parent);
         entity.setDeleted(false);
+        entity.setUpdatedAt(LocalDateTime.now());
 
-        ServiceType saved = repository.save(entity);
+        ServiceType saved = repository.saveAndFlush(entity);
         return new ServiceTypeResponse(saved);
     }
 
@@ -65,11 +70,12 @@ public class ServiceTypeService {
             }
         }
 
-        entity.setName(request.getName());
+        entity.setName(request.getName().trim());
         entity.setCategory(category);
         entity.setParent(parent);
+        entity.setUpdatedAt(LocalDateTime.now());
 
-        ServiceType updated = repository.save(entity);
+        ServiceType updated = repository.saveAndFlush(entity);
         return new ServiceTypeResponse(updated);
     }
 
@@ -77,6 +83,7 @@ public class ServiceTypeService {
         ServiceType entity = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Service Type not found with id: " + id));
         entity.setDeleted(true);
-        repository.save(entity);
+        entity.setUpdatedAt(LocalDateTime.now());
+        repository.saveAndFlush(entity);
     }
 }

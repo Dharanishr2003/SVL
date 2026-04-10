@@ -1,0 +1,38 @@
+.requirement-form-modal .lead-wizard-circles {
+  align-items: stretch;
+  justify-content: stretch;
+  gap: 0.5rem;
+}
+
+.requirement-form-modal .lead-wizard-circle-item {
+  display: flex;
+  flex: 1 1 0;
+  min-width: 0;
+  justify-content: flex-start;
+}
+
+.requirement-form-modal .lead-wizard-circle {
+  margin-inline: auto;
+  flex: 0 0 3em;
+}
+
+.requirement-form-modal .lead-wizard-circles::before {
+  top: 1.5em;
+}
+
+.requirement-form-modal .lead-wizard-circle-label {
+  width: 100%;
+  max-width: none;
+  font-size: 0.8rem;
+  line-height: 1.2;
+  min-height: calc(1.2em * 2);
+  max-height: calc(1.2em * 2);
+  overflow: hidden;
+  margin-top: 0.75rem;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  text-align: center;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
