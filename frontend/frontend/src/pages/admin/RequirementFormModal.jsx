@@ -6,7 +6,39 @@ import { createRequirement, updateRequirement } from "../../api/requirementApi";
 /* ───────── product field configs by type name ───────── */
 const PRODUCT_FIELDS = {
   "visiting card": [
-    { key: "finish", label: "Finish", type: "select", options: ["Matte", "Glossy", "Spot UV", "Velvet lamination"] },
+    { key: "lamination", label: "Lamination", type: "select", options: ["Matte", "Gloss", "Velvet", "Embossing", "Foil (Gold)", "Foil (Silver)"] },
+    { key: "paperGsm", label: "Paper GSM", type: "select", options: ["300", "350", "400"] },
+    { key: "width", label: "Width (mm)", type: "number", default: "85" },
+    { key: "height", label: "Height (mm)", type: "number", default: "54" },
+    { key: "printSides", label: "Print Sides", type: "select", options: ["Front only", "Front & Back"] },
+    { key: "cornerStyle", label: "Corner Style", type: "select", options: ["Square", "Rounded", "Custom curve cut"] },
+  ],
+  "synthetic visiting card": [
+    { key: "lamination", label: "Lamination", type: "select", options: ["Matte", "Gloss", "Velvet", "Embossing", "Foil (Gold)", "Foil (Silver)"] },
+    { key: "paperGsm", label: "Paper GSM", type: "select", options: ["300", "350", "400"] },
+    { key: "width", label: "Width (mm)", type: "number", default: "85" },
+    { key: "height", label: "Height (mm)", type: "number", default: "54" },
+    { key: "printSides", label: "Print Sides", type: "select", options: ["Front only", "Front & Back"] },
+    { key: "cornerStyle", label: "Corner Style", type: "select", options: ["Square", "Rounded", "Custom curve cut"] },
+  ],
+  "sent card visiting card": [
+    { key: "lamination", label: "Lamination", type: "select", options: ["Matte", "Gloss", "Velvet", "Embossing", "Foil (Gold)", "Foil (Silver)"] },
+    { key: "paperGsm", label: "Paper GSM", type: "select", options: ["300", "350", "400"] },
+    { key: "width", label: "Width (mm)", type: "number", default: "85" },
+    { key: "height", label: "Height (mm)", type: "number", default: "54" },
+    { key: "printSides", label: "Print Sides", type: "select", options: ["Front only", "Front & Back"] },
+    { key: "cornerStyle", label: "Corner Style", type: "select", options: ["Square", "Rounded", "Custom curve cut"] },
+  ],
+  "curve cutting visiting card": [
+    { key: "lamination", label: "Lamination", type: "select", options: ["Matte", "Gloss", "Velvet", "Embossing", "Foil (Gold)", "Foil (Silver)"] },
+    { key: "paperGsm", label: "Paper GSM", type: "select", options: ["300", "350", "400"] },
+    { key: "width", label: "Width (mm)", type: "number", default: "85" },
+    { key: "height", label: "Height (mm)", type: "number", default: "54" },
+    { key: "printSides", label: "Print Sides", type: "select", options: ["Front only", "Front & Back"] },
+    { key: "cornerStyle", label: "Corner Style", type: "select", options: ["Square", "Rounded", "Custom curve cut"] },
+  ],
+  "uv visiting card": [
+    { key: "lamination", label: "Lamination", type: "select", options: ["Matte", "Gloss", "Velvet", "Embossing", "Foil (Gold)", "Foil (Silver)"] },
     { key: "paperGsm", label: "Paper GSM", type: "select", options: ["300", "350", "400"] },
     { key: "width", label: "Width (mm)", type: "number", default: "85" },
     { key: "height", label: "Height (mm)", type: "number", default: "54" },
