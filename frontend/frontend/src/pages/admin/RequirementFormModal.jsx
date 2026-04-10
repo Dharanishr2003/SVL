@@ -652,20 +652,6 @@ export default function RequirementFormModal({
                           </div>
                         </div>
 
-                        {/* Sub-type dropdown if present and not shown in step 0 */}
-                        {selectedSubtype && (
-                          <div className="col-md-6">
-                            <div className="lead-form-field">
-                              <label className="form-label">Selected Sub-type</label>
-                              <input
-                                className="form-control"
-                                value={selectedSubtype.name}
-                                readOnly
-                              />
-                            </div>
-                          </div>
-                        )}
-
                         {/* Product-specific fields */}
                         {productFields ? (
                           productFields.map((field) => {
