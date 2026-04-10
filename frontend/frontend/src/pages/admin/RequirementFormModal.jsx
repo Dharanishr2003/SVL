@@ -6,39 +6,7 @@ import { createRequirement, updateRequirement } from "../../api/requirementApi";
 /* ───────── product field configs by type name ───────── */
 const PRODUCT_FIELDS = {
   "visiting card": [
-    { key: "lamination", label: "Lamination", type: "select", options: ["Matte", "Gloss", "Velvet", "Embossing", "Foil (Gold)", "Foil (Silver)"] },
-    { key: "paperGsm", label: "Paper GSM", type: "select", options: ["300", "350", "400"] },
-    { key: "width", label: "Width (mm)", type: "number", default: "85" },
-    { key: "height", label: "Height (mm)", type: "number", default: "54" },
-    { key: "printSides", label: "Print Sides", type: "select", options: ["Front only", "Front & Back"] },
-    { key: "cornerStyle", label: "Corner Style", type: "select", options: ["Square", "Rounded", "Custom curve cut"] },
-  ],
-  "synthetic visiting card": [
-    { key: "lamination", label: "Lamination", type: "select", options: ["Matte", "Gloss", "Velvet", "Embossing", "Foil (Gold)", "Foil (Silver)"] },
-    { key: "paperGsm", label: "Paper GSM", type: "select", options: ["300", "350", "400"] },
-    { key: "width", label: "Width (mm)", type: "number", default: "85" },
-    { key: "height", label: "Height (mm)", type: "number", default: "54" },
-    { key: "printSides", label: "Print Sides", type: "select", options: ["Front only", "Front & Back"] },
-    { key: "cornerStyle", label: "Corner Style", type: "select", options: ["Square", "Rounded", "Custom curve cut"] },
-  ],
-  "sent card visiting card": [
-    { key: "lamination", label: "Lamination", type: "select", options: ["Matte", "Gloss", "Velvet", "Embossing", "Foil (Gold)", "Foil (Silver)"] },
-    { key: "paperGsm", label: "Paper GSM", type: "select", options: ["300", "350", "400"] },
-    { key: "width", label: "Width (mm)", type: "number", default: "85" },
-    { key: "height", label: "Height (mm)", type: "number", default: "54" },
-    { key: "printSides", label: "Print Sides", type: "select", options: ["Front only", "Front & Back"] },
-    { key: "cornerStyle", label: "Corner Style", type: "select", options: ["Square", "Rounded", "Custom curve cut"] },
-  ],
-  "curve cutting visiting card": [
-    { key: "lamination", label: "Lamination", type: "select", options: ["Matte", "Gloss", "Velvet", "Embossing", "Foil (Gold)", "Foil (Silver)"] },
-    { key: "paperGsm", label: "Paper GSM", type: "select", options: ["300", "350", "400"] },
-    { key: "width", label: "Width (mm)", type: "number", default: "85" },
-    { key: "height", label: "Height (mm)", type: "number", default: "54" },
-    { key: "printSides", label: "Print Sides", type: "select", options: ["Front only", "Front & Back"] },
-    { key: "cornerStyle", label: "Corner Style", type: "select", options: ["Square", "Rounded", "Custom curve cut"] },
-  ],
-  "uv visiting card": [
-    { key: "lamination", label: "Lamination", type: "select", options: ["Matte", "Gloss", "Velvet", "Embossing", "Foil (Gold)", "Foil (Silver)"] },
+    { key: "finish", label: "Finish", type: "select", options: ["Matte", "Glossy", "Spot UV", "Velvet lamination"] },
     { key: "paperGsm", label: "Paper GSM", type: "select", options: ["300", "350", "400"] },
     { key: "width", label: "Width (mm)", type: "number", default: "85" },
     { key: "height", label: "Height (mm)", type: "number", default: "54" },
@@ -399,15 +367,8 @@ export default function RequirementFormModal({
   // Validation per step
   const canProceed = (s) => {
     switch (s) {
-      case 0: {
-        if (!categoryId || !typeId) return false;
-        // If subtypes are available, must select one
-        const subtypesForSelectedType = allTypes.filter((t) => String(t.parentId) === String(typeId));
-        if (subtypesForSelectedType.length > 0) {
-          return !!subtypeId;
-        }
-        return true;
-      }
+      case 0:
+        return !!categoryId && !!typeId;
       case 1:
         return !!quantity && Number(quantity) > 0;
       case 2:
@@ -421,18 +382,9 @@ export default function RequirementFormModal({
 
   const handleNext = () => {
     if (!canProceed(step)) {
-      if (step === 0) {
-        const subtypesForSelectedType = allTypes.filter((t) => String(t.parentId) === String(typeId));
-        if (subtypesForSelectedType.length > 0 && !subtypeId) {
-          setError("Please select a product subtype");
-        } else {
-          setError("Please select category and product");
-        }
-      } else if (step === 1) {
-        setError("Please enter a valid quantity");
-      } else if (step === 2) {
-        setError("Please upload at least one design file before proceeding");
-      }
+      if (step === 0) setError("Please select category and product");
+      else if (step === 1) setError("Please enter a valid quantity");
+      else if (step === 2) setError("Please upload at least one design file before proceeding");
       return;
     }
     setError("");
@@ -699,6 +651,20 @@ export default function RequirementFormModal({
                             />
                           </div>
                         </div>
+
+                        {/* Sub-type dropdown if present and not shown in step 0 */}
+                        {selectedSubtype && (
+                          <div className="col-md-6">
+                            <div className="lead-form-field">
+                              <label className="form-label">Selected Sub-type</label>
+                              <input
+                                className="form-control"
+                                value={selectedSubtype.name}
+                                readOnly
+                              />
+                            </div>
+                          </div>
+                        )}
 
                         {/* Product-specific fields */}
                         {productFields ? (
