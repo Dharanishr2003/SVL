@@ -367,8 +367,15 @@ export default function RequirementFormModal({
   // Validation per step
   const canProceed = (s) => {
     switch (s) {
-      case 0:
-        return !!categoryId && !!typeId;
+      case 0: {
+        if (!categoryId || !typeId) return false;
+        // If subtypes are available, must select one
+        const subtypesForSelectedType = allTypes.filter((t) => String(t.parentId) === String(typeId));
+        if (subtypesForSelectedType.length > 0) {
+          return !!subtypeId;
+        }
+        return true;
+      }
       case 1:
         return !!quantity && Number(quantity) > 0;
       case 2:
@@ -382,9 +389,18 @@ export default function RequirementFormModal({
 
   const handleNext = () => {
     if (!canProceed(step)) {
-      if (step === 0) setError("Please select category and product");
-      else if (step === 1) setError("Please enter a valid quantity");
-      else if (step === 2) setError("Please upload at least one design file before proceeding");
+      if (step === 0) {
+        const subtypesForSelectedType = allTypes.filter((t) => String(t.parentId) === String(typeId));
+        if (subtypesForSelectedType.length > 0 && !subtypeId) {
+          setError("Please select a product subtype");
+        } else {
+          setError("Please select category and product");
+        }
+      } else if (step === 1) {
+        setError("Please enter a valid quantity");
+      } else if (step === 2) {
+        setError("Please upload at least one design file before proceeding");
+      }
       return;
     }
     setError("");
