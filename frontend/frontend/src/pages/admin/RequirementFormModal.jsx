@@ -74,22 +74,6 @@ const PRODUCT_FIELDS = {
     { key: "colourMode", label: "Colour Mode", type: "select", options: ["CMYK", "Pantone", "Single spot colour"] },
     { key: "productToPack", label: "Product to be Packed", type: "text", placeholder: "e.g. dry fruits, spices, jewellery" },
   ],
-  "monocotton box": [
-    { key: "measurement", label: "Measurement", type: "select", options: ["mm", "cm", "inch", "feet"] },
-    { key: "length", label: "Length (Size)", type: "text", placeholder: "Enter length" },
-    { key: "width", label: "Width (Size)", type: "text", placeholder: "Enter width" },
-    { key: "height", label: "Height (Size)", type: "text", placeholder: "Enter height" },
-    { key: "gsm", label: "Gsm", type: "text", placeholder: "Enter GSM" },
-    { key: "lamination", label: "Lamination", type: "select", options: ["Matt", "Glossy"] },
-  ],
-  "branding box": [
-    { key: "measurement", label: "Measurement", type: "select", options: ["mm", "cm", "inch", "feet"] },
-    { key: "length", label: "Length (Size)", type: "text", placeholder: "Enter length" },
-    { key: "width", label: "Width (Size)", type: "text", placeholder: "Enter width" },
-    { key: "height", label: "Height (Size)", type: "text", placeholder: "Enter height" },
-    { key: "gsm", label: "Gsm", type: "text", placeholder: "Enter GSM" },
-    { key: "lamination", label: "Lamination", type: "select", options: ["Matt", "Glossy"] },
-  ],
 };
 
 const PRINTING_GENERIC_FIELDS = [
