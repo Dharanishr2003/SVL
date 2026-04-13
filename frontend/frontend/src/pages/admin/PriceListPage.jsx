@@ -379,7 +379,7 @@ function WizardModal({ title, form, setForm, step, setStep, onClose, onSave, onP
   function handleAddItem() {
     setForm((p) => ({
       ...p,
-      variantFields: {},
+      variantFields: { ...p.variantFields },
       quantitySlabs: [{ minQty: "", maxQty: "", pricePerPiece: "" }],
     }));
     setStep(1);
