@@ -134,7 +134,6 @@ const VISITING_CARD_FIELDS = [
 const REFLECTOR_FLEX_FIELDS = [
   { key: "size", label: "Size", type: "text", placeholder: "Enter custom size" },
   { key: "orientation", label: "Orientation", type: "select", options: ["Horizontal", "Vertical"] },
-  { key: "quantity", label: "Quantity", type: "number" },
   { key: "colour", label: "Colour", type: "select", options: ["Red", "Blue", "Yellow", "Pink", "Custom"], allowCustom: true, customPlaceholder: "Enter custom colour" },
 ];
 
@@ -173,7 +172,6 @@ const CUSTOM_PAPER_STICKER_FIELDS = [
   { key: "pastingType", label: "Pasting Type (Product)", type: "select", options: ["Custom"], allowCustom: true, customPlaceholder: "Enter custom pasting type" },
   { key: "lamination", label: "Lamination", type: "select", options: ["Matte", "Gloss"] },
   { key: "stickerType", label: "Sticker Type", type: "select", options: ["Roll", "Sheet"] },
-  { key: "quantity", label: "Quantity", type: "number" },
 ];
 
 const VINYL_STICKER_FIELDS = [
@@ -182,7 +180,6 @@ const VINYL_STICKER_FIELDS = [
   { key: "pastingType", label: "Pasting Type (Product)", type: "select", options: ["Custom"], allowCustom: true, customPlaceholder: "Enter custom pasting type" },
   { key: "lamination", label: "Lamination", type: "select", options: ["Matte", "Gloss", "Transparent"] },
   { key: "stickerType", label: "Sticker Type", type: "select", options: ["Roll", "Sheet"] },
-  { key: "quantity", label: "Quantity", type: "number" },
   { key: "gummingType", label: "Gumming Type", type: "select", options: ["Normal Gum", "SunSui Gum"] },
 ];
 
@@ -192,7 +189,6 @@ const POLYCARBONATE_STICKER_FIELDS = [
   { key: "pastingType", label: "Pasting Type (Product)", type: "select", options: ["Custom"], allowCustom: true, customPlaceholder: "Enter custom pasting type" },
   { key: "lamination", label: "Lamination", type: "select", options: ["Matte", "Gloss", "Transparent"] },
   { key: "stickerType", label: "Sticker Type", type: "select", options: ["Roll", "Sheet"] },
-  { key: "quantity", label: "Quantity", type: "number" },
   { key: "gummingType", label: "Gumming Type", type: "select", options: ["Normal Gum", "SunSui Gum"] },
 ];
 
@@ -203,7 +199,6 @@ const FOAM_STICKER_FIELDS = [
   { key: "lamination", label: "Lamination", type: "select", options: ["Matte", "Gloss"] },
   { key: "stickerType", label: "Sticker Type", type: "select", options: ["Roll", "Sheet"] },
   { key: "foamThickness", label: "Foam Thickness", type: "select", options: ["3 Mm", "4 Mm", "5 Mm", "8 Mm"] },
-  { key: "quantity", label: "Quantity", type: "number" },
 ];
 
 const ZIPPER_POUCH_FIELDS = [
@@ -235,7 +230,6 @@ const ZIPPER_POUCH_PLAIN_FIELDS = [
 ];
 
 const BOTH_SIDE_TRANSPARENT_POUCH_FIELDS = [
-  { key: "quantity", label: "Quantity", type: "number" },
   { key: "measurement", label: "Measurement", type: "select", options: ["mm", "cm", "inch", "feet"] },
   { key: "width", label: "Width", type: "text", placeholder: "Custom" },
   { key: "height", label: "Height", type: "text", placeholder: "Custom" },
@@ -263,7 +257,6 @@ const PRINTING_ZIPPER_POUCH_FIELDS = [
 ];
 
 const ONE_SIDE_SILVER_ONE_SIDE_TRANSPARENT_POUCH_FIELDS = [
-  { key: "quantity", label: "Quantity", type: "number" },
   { key: "measurement", label: "Measurement", type: "select", options: ["mm", "cm", "inch", "feet"] },
   { key: "width", label: "Width", type: "text", placeholder: "Custom" },
   { key: "height", label: "Height", type: "text", placeholder: "Custom" },
@@ -292,7 +285,7 @@ const NOTEPAD_FIELDS = [
 const DAIRY_FIELDS = [
   { key: "size", label: "Size", type: "select", options: ["Small (5×7 inch)", "Medium (7×10 inch)", "Large (8.5×11 inch)", "A5 (5.8×8.3 inch)", "Custom"], allowCustom: true, customPlaceholder: "Enter custom size" },
   { key: "dairyType", label: "Dairy Type", type: "select", options: ["Readymade", "Customize"] },
-  { key: "customize", label: "Customize", type: "select", options: ["Inner Detail", "Outer Details"] },
+  { key: "customize", label: "Customize", type: "select", options: ["Inner Detail", "Outer Details"], promptText: true, textRows: 4 },
   { key: "dairyOuterType", label: "Dairy Outer Type", type: "select", options: ["Leather", "Art Paper"] },
   { key: "colour", label: "Colour", type: "select", options: ["Single colour", "Multicolour"] },
 ];
@@ -781,7 +774,39 @@ function resolveFieldSetByName(name) {
   return null;
 }
 
-function matchProductFields(typeName, subtypeName) {
+function normalizeFieldConfigKey(value) {
+  if (!value) return "";
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .trim();
+}
+
+const PRODUCT_FIELDS_BY_CONFIG_KEY = Object.entries(PRODUCT_FIELDS).reduce((acc, [key, value]) => {
+  acc[normalizeFieldConfigKey(key)] = value;
+  return acc;
+}, {});
+
+Object.entries(PRODUCT_FIELD_ALIASES).forEach(([alias, canonical]) => {
+  const canonicalFields = PRODUCT_FIELDS[canonical];
+  if (canonicalFields) {
+    PRODUCT_FIELDS_BY_CONFIG_KEY[normalizeFieldConfigKey(alias)] = canonicalFields;
+  }
+});
+
+function resolveFieldSetByFieldConfigKey(fieldConfigKey) {
+  if (!fieldConfigKey) return null;
+  return PRODUCT_FIELDS_BY_CONFIG_KEY[normalizeFieldConfigKey(fieldConfigKey)] || null;
+}
+
+function matchProductFields(typeName, subtypeName, typeFieldConfigKey, subtypeFieldConfigKey) {
+  const subtypeKeyMatch = resolveFieldSetByFieldConfigKey(subtypeFieldConfigKey);
+  if (subtypeKeyMatch) return subtypeKeyMatch;
+
+  const typeKeyMatch = resolveFieldSetByFieldConfigKey(typeFieldConfigKey);
+  if (typeKeyMatch) return typeKeyMatch;
+
   const subtypeMatch = resolveFieldSetByName(subtypeName);
   if (subtypeMatch) return subtypeMatch;
   return resolveFieldSetByName(typeName);
@@ -885,20 +910,17 @@ export default function RequirementFormModal({
     isFlexCustomSize: false,
     flexWidth: "",
     flexHeight: "",
-    flexDepth: "",
-    showDepth: false,
     sizeUnit: "mm",
   });
+  const [depthSizeDialog, setDepthSizeDialog] = useState({ open: false, width: "", height: "", depth: "", sizeUnit: "mm" });
 
   // Design section
-  const designStatus = "full_design";
-  const setDesignStatus = () => {};
+  const [designMode, setDesignMode] = useState(""); // "design_only" | "production_only" | "design_production"
   const [designNotes, setDesignNotes] = useState("");
   const [stylePreference, setStylePreference] = useState("");
   const [colourPreference, setColourPreference] = useState("");
   const [referenceNotes, setReferenceNotes] = useState("");
   const [brandColours, setBrandColours] = useState("");
-  const [useDesignFolderUpload, setUseDesignFolderUpload] = useState(false);
   const [isDragActive, setIsDragActive] = useState(false);
 
   // Delivery
@@ -972,7 +994,12 @@ export default function RequirementFormModal({
 
   const productFields = useMemo(() => {
     const categoryName = selectedCategory?.name?.trim().toLowerCase();
-    const matchedFields = matchProductFields(selectedType?.name, selectedSubtype?.name);
+    const matchedFields = matchProductFields(
+      selectedType?.name,
+      selectedSubtype?.name,
+      selectedType?.fieldConfigKey,
+      selectedSubtype?.fieldConfigKey,
+    );
     if (categoryName === "printing") {
       return matchedFields || PRINTING_GENERIC_FIELDS;
     }
@@ -1049,17 +1076,24 @@ export default function RequirementFormModal({
       const subtypeName = (selectedSubtype?.name || "").toLowerCase().trim();
       const isSticker = typeName.includes("sticker") || subtypeName.includes("sticker");
       const isCard = typeName.includes("card") || subtypeName.includes("card");
-      const is3DAgralic = typeName.includes("3d agralic") || subtypeName.includes("3d agralic");
-      const isBrownie = typeName.includes("brownie") || subtypeName.includes("brownie");
-      const isCupcake = typeName.includes("cup cake") || typeName.includes("cupcake") || subtypeName.includes("cup cake") || subtypeName.includes("cupcake");
-      const isBento = typeName.includes("bento") || subtypeName.includes("bento");
+      const hasDepthField = (productFields || []).some((f) => f.key === "customDepth");
+      const useMm = hasDepthField || isSticker || isCard;
       let unitLabel = "ft";
       if (isSticker) unitLabel = "mm or inch";
-      else if (isCard) unitLabel = "mm";
-      else if (isBrownie || isCupcake || isBento) unitLabel = "mm";
-      
-      console.log("Custom Size Dialog - Product Type:", typeName, "SubType:", subtypeName, "isBrownie:", isBrownie, "isCupcake:", isCupcake);
-      
+      else if (isCard || hasDepthField) unitLabel = "mm";
+
+      if (hasDepthField) {
+        setDepthSizeDialog({
+          open: true,
+          field,
+          width: specs.customWidth || "",
+          height: specs.customHeight || "",
+          depth: specs.customDepth || "",
+          sizeUnit: useMm ? "mm" : "ft",
+        });
+        return;
+      }
+
       setCustomSpecDialog({
         open: true,
         field,
@@ -1067,9 +1101,24 @@ export default function RequirementFormModal({
         isFlexCustomSize: true,
         flexWidth: specs.customWidth || "",
         flexHeight: specs.customHeight || "",
-        flexDepth: (is3DAgralic || isBrownie || isCupcake || isBento) ? (specs.customDepth || "") : "",
-        showDepth: is3DAgralic || isBrownie || isCupcake || isBento,
         customSizeUnitLabel: unitLabel,
+        sizeUnit: useMm ? "mm" : "ft",
+      });
+      return;
+    }
+
+    if (field.promptText && value) {
+      setCustomSpecDialog({
+        open: true,
+        field,
+        value: String(specs[`${field.key}Text`] || "").trim(),
+        isFlexCustomSize: false,
+        isTextPrompt: true,
+        textRows: field.textRows || 4,
+        selectedOption: value,
+        flexWidth: "",
+        flexHeight: "",
+        customSizeUnitLabel: "ft",
         sizeUnit: "mm",
       });
       return;
@@ -1096,10 +1145,10 @@ export default function RequirementFormModal({
       }
       return next;
     });
-  }, [specs]);
+  }, [specs, productFields, selectedType, selectedSubtype]);
 
   const closeCustomSpecDialog = useCallback(() => {
-    setCustomSpecDialog({ open: false, field: null, value: "", isFlexCustomSize: false, flexWidth: "", flexHeight: "", flexDepth: "", showDepth: false, customSizeUnitLabel: "ft", sizeUnit: "mm" });
+    setCustomSpecDialog({ open: false, field: null, value: "", isFlexCustomSize: false, flexWidth: "", flexHeight: "", customSizeUnitLabel: "ft", sizeUnit: "mm" });
   }, []);
 
   const saveCustomSpecDialog = useCallback(() => {
@@ -1110,30 +1159,33 @@ export default function RequirementFormModal({
     if (customSpecDialog.isFlexCustomSize) {
       const width = String(customSpecDialog.flexWidth || "").trim();
       const height = String(customSpecDialog.flexHeight || "").trim();
-      const depth = String(customSpecDialog.flexDepth || "").trim();
 
       if (!width || !height) {
         setError("Please enter both width and height");
         return;
       }
 
-      const specsUpdate = {
+      setSpecs((prev) => ({
+        ...prev,
         [field.key]: "Custom",
         customWidth: width,
         customHeight: height,
         customUnit: customSpecDialog.sizeUnit,
-      };
-      
-      if (depth) {
-        specsUpdate.customDepth = depth;
-      }
-
-      setSpecs((prev) => ({
-        ...prev,
-        ...specsUpdate,
       }));
       closeCustomSpecDialog();
       setError("");
+      return;
+    }
+
+    // Handle text prompt (e.g. Dairy Customize)
+    if (customSpecDialog.isTextPrompt) {
+      const trimmedText = String(customSpecDialog.value || "").trim();
+      setSpecs((prev) => ({
+        ...prev,
+        [field.key]: customSpecDialog.selectedOption,
+        [`${field.key}Text`]: trimmedText,
+      }));
+      closeCustomSpecDialog();
       return;
     }
 
@@ -1166,7 +1218,7 @@ export default function RequirementFormModal({
   const handleDragOver = (e) => {
     e.preventDefault();
     e.stopPropagation();
-    if (!useDesignFolderUpload) return;
+    if (designMode !== "production_only") return;
     setIsDragActive(true);
   };
 
@@ -1180,7 +1232,7 @@ export default function RequirementFormModal({
     e.preventDefault();
     e.stopPropagation();
     setIsDragActive(false);
-    if (!useDesignFolderUpload) return;
+    if (designMode !== "production_only") return;
     try {
       const droppedFiles = await collectDroppedFiles(e.dataTransfer?.items);
       if (droppedFiles.length > 0) {
@@ -1225,7 +1277,9 @@ export default function RequirementFormModal({
       return true;
     }
     if (s === designStep) {
-      return !useDesignFolderUpload || files.length > 0;
+      if (!designMode) return false;
+      if (designMode === "production_only") return files.length > 0;
+      return true;
     }
     return true;
   };
@@ -1248,7 +1302,10 @@ export default function RequirementFormModal({
       } else {
         setError("Please complete the specifications");
       }
-      } else if (step === designStep) setError("Please upload at least one design file before proceeding");
+      } else if (step === designStep) {
+        if (!designMode) setError("Please select a design mode before proceeding");
+        else setError("Please upload at least one design file before proceeding");
+      }
       return;
     }
     setError("");
@@ -1272,7 +1329,7 @@ export default function RequirementFormModal({
         subtypeId: subtypeId ? Number(subtypeId) : null,
         quantity: Number(quantity) || 0,
         specs: JSON.stringify(specs),
-        designStatus: null,
+        designStatus: designMode || null,
         designNotes: designNotes || null,
         fileFormat: null,
         colourMode: null,
@@ -1638,48 +1695,37 @@ export default function RequirementFormModal({
                         transition={{ duration: 0.26, ease: "easeOut" }}
                         className="row g-3 lead-wizard-step-panel"
                       >
-                        {false && (<div className="col-12">
+                        {/* Design Mode radio buttons */}
+                        <div className="col-12">
                           <label className="form-label fw-semibold">
-                            Design Status <span className="text-danger">*</span>
+                            Design Mode <span className="text-danger">*</span>
                           </label>
-                          <div className="d-flex flex-wrap gap-2 mb-3">
+                          <div className="d-flex flex-wrap gap-2">
                             {[
-                              { value: "full_design", label: "Customer has full design ready" },
-                              { value: "logo_only", label: "Customer has logo only — we design the rest" },
-                              { value: "no_design", label: "No design — we design everything" },
+                              { value: "design_only", label: "Design Only" },
+                              { value: "production_only", label: "Production Only" },
+                              { value: "design_production", label: "Design + Production" },
                             ].map((opt) => (
-                              <button
-                                key={opt.value}
-                                type="button"
-                                className={`btn btn-sm ${designStatus === opt.value ? "btn-primary" : "btn-outline-secondary"}`}
-                                onClick={() => setDesignStatus(opt.value)}
-                              >
-                                {opt.label}
-                              </button>
+                              <div key={opt.value} className="form-check">
+                                <input
+                                  className="form-check-input"
+                                  type="radio"
+                                  name="designMode"
+                                  id={`designMode-${opt.value}`}
+                                  value={opt.value}
+                                  checked={designMode === opt.value}
+                                  onChange={() => { setDesignMode(opt.value); setFiles([]); }}
+                                />
+                                <label className="form-check-label" htmlFor={`designMode-${opt.value}`}>
+                                  {opt.label}
+                                </label>
+                              </div>
                             ))}
                           </div>
-                        </div>)}
-
-                        <div className="col-12">
-                          <div className="form-check form-switch">
-                            <input
-                              className="form-check-input"
-                              type="checkbox"
-                              role="switch"
-                              id="designFolderUploadSwitch"
-                              checked={useDesignFolderUpload}
-                              onChange={(e) => setUseDesignFolderUpload(e.target.checked)}
-                            />
-                            <label className="form-check-label" htmlFor="designFolderUploadSwitch">
-                              Customer has design folder
-                            </label>
-                          </div>
-                          <small className="text-muted">
-                            Turn this on to upload all design files together as a folder.
-                          </small>
                         </div>
 
-                        {useDesignFolderUpload && (
+                        {/* Production Only: folder upload */}
+                        {designMode === "production_only" && (
                           <div className="col-12">
                             <label className="form-label fw-semibold">Design Folder</label>
                             <label
@@ -1732,94 +1778,20 @@ export default function RequirementFormModal({
                           </div>
                         )}
 
-                        {/* Option A: Full design */}
-                        {designStatus === "full_design" && (
-                          <>
-                            <div className="col-12">
-                              <label className="form-label">Note</label>
-                              <textarea
-                                className="form-control"
-                                rows={3}
-                                value={designNotes}
-                                onChange={(e) => setDesignNotes(e.target.value)}
-                                placeholder="Any instructions from customer about the file"
-                              />
-                            </div>
-                          </>
+                        {/* Notes field for all modes */}
+                        {designMode && (
+                          <div className="col-12">
+                            <label className="form-label">Note</label>
+                            <textarea
+                              className="form-control"
+                              rows={3}
+                              value={designNotes}
+                              onChange={(e) => setDesignNotes(e.target.value)}
+                              placeholder="Any instructions from customer about the design"
+                            />
+                          </div>
                         )}
 
-                        {/* Option B: Logo only */}
-                        {designStatus === "logo_only" && (
-                          <>
-                            <div className="col-md-6">
-                              <label className="form-label">Brand Colours</label>
-                              <input
-                                className="form-control"
-                                value={brandColours}
-                                onChange={(e) => setBrandColours(e.target.value)}
-                                placeholder='e.g. Red #E63E2A, White'
-                              />
-                            </div>
-                            <div className="col-12">
-                              <label className="form-label">Reference / Inspiration</label>
-                              <textarea
-                                className="form-control"
-                                rows={2}
-                                value={referenceNotes}
-                                onChange={(e) => setReferenceNotes(e.target.value)}
-                                placeholder="Customer's design preferences"
-                              />
-                            </div>
-                            <div className="col-12">
-                              <label className="form-label">Note</label>
-                              <textarea
-                                className="form-control"
-                                rows={2}
-                                value={designNotes}
-                                onChange={(e) => setDesignNotes(e.target.value)}
-                                placeholder="Additional notes"
-                              />
-                            </div>
-                          </>
-                        )}
-
-                        {/* Option C: No design */}
-                        {designStatus === "no_design" && (
-                          <>
-                            <div className="col-md-6">
-                              <label className="form-label">Style Preference</label>
-                              <select
-                                className="form-select"
-                                value={stylePreference}
-                                onChange={(e) => setStylePreference(e.target.value)}
-                              >
-                                <option value="">Select style</option>
-                                {STYLE_PREF_OPTIONS.map((s) => (
-                                  <option key={s} value={s}>{s}</option>
-                                ))}
-                              </select>
-                            </div>
-                            <div className="col-md-6">
-                              <label className="form-label">Colour Preference</label>
-                              <input
-                                className="form-control"
-                                value={colourPreference}
-                                onChange={(e) => setColourPreference(e.target.value)}
-                                placeholder="Preferred colours"
-                              />
-                            </div>
-                            <div className="col-12">
-                              <label className="form-label">Reference Links or Notes</label>
-                              <textarea
-                                className="form-control"
-                                rows={3}
-                                value={referenceNotes}
-                                onChange={(e) => setReferenceNotes(e.target.value)}
-                                placeholder="Reference links, inspiration, or notes"
-                              />
-                            </div>
-                          </>
-                        )}
                       </motion.div>
                     )}
 
@@ -1918,8 +1890,8 @@ export default function RequirementFormModal({
           style={{ display: "block", backgroundColor: "rgba(0,0,0,0.35)" }}
           tabIndex="-1"
         >
-          <div className="modal-dialog modal-dialog-centered" style={{ maxHeight: "90vh", display: "flex", alignItems: "center" }}>
-            <div className="modal-content" style={{ maxHeight: "90vh", display: "flex", flexDirection: "column", overflowY: "auto" }}>
+          <div className="modal-dialog modal-dialog-centered" style={{ maxHeight: "auto", maxWidth: "500px", display: "flex", alignItems: "center" }}>
+            <div className="modal-content" style={{ maxHeight: "auto", display: "flex", flexDirection: "column", overflowY: "visible" }}>
               <div className="modal-header">
                 <h5 className="modal-title">
                   {customSpecDialog.isFlexCustomSize ? "Enter Custom Size" : `Enter Custom ${customSpecDialog.field?.label}`}
@@ -1979,45 +1951,46 @@ export default function RequirementFormModal({
                         }}
                       />
                     </div>
-                    {customSpecDialog.showDepth && (
-                      <div className="lead-form-field mb-3">
-                        <label className="form-label">Depth ({customSpecDialog.sizeUnit}) <span className="text-muted">(Optional)</span></label>
-                        <input
-                          className="form-control"
-                          type="number"
-                          value={customSpecDialog.flexDepth}
-                          onChange={(e) =>
-                            setCustomSpecDialog((prev) => ({ ...prev, flexDepth: e.target.value }))
-                          }
-                          placeholder={`Enter depth in ${customSpecDialog.sizeUnit}`}
-                        />
-                      </div>
-                    )}
                     {error && <div className="alert alert-danger mt-2 py-2 mb-0">{error}</div>}
                   </>
                 ) : (
                   <div className="lead-form-field">
                     <label className="form-label">
-                      {customSpecDialog.field?.label}
+                      {customSpecDialog.isTextPrompt
+                        ? `${customSpecDialog.selectedOption} Details`
+                        : customSpecDialog.field?.label}
                     </label>
-                    <input
-                      className="form-control"
-                      autoFocus
-                      value={customSpecDialog.value}
-                      onChange={(e) =>
-                        setCustomSpecDialog((prev) => ({ ...prev, value: e.target.value }))
-                      }
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          e.preventDefault();
-                          saveCustomSpecDialog();
+                    {customSpecDialog.isTextPrompt ? (
+                      <textarea
+                        className="form-control"
+                        autoFocus
+                        rows={customSpecDialog.textRows || 4}
+                        value={customSpecDialog.value}
+                        onChange={(e) =>
+                          setCustomSpecDialog((prev) => ({ ...prev, value: e.target.value }))
                         }
-                      }}
-                      placeholder={
-                        customSpecDialog.field?.customPlaceholder ||
-                        `Enter ${customSpecDialog.field?.label || "value"}`
-                      }
-                    />
+                        placeholder={`Enter ${customSpecDialog.selectedOption?.toLowerCase() || "details"}`}
+                      />
+                    ) : (
+                      <input
+                        className="form-control"
+                        autoFocus
+                        value={customSpecDialog.value}
+                        onChange={(e) =>
+                          setCustomSpecDialog((prev) => ({ ...prev, value: e.target.value }))
+                        }
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            saveCustomSpecDialog();
+                          }
+                        }}
+                        placeholder={
+                          customSpecDialog.field?.customPlaceholder ||
+                          `Enter ${customSpecDialog.field?.label || "value"}`
+                        }
+                      />
+                    )}
                   </div>
                 )}
               </div>
@@ -2041,6 +2014,126 @@ export default function RequirementFormModal({
           </div>
         </div>
       )}
+
+      {/* Depth Size popup for products with Width + Height + Depth */}
+      {depthSizeDialog.open && (
+        <div
+          className="modal fade show requirement-form-modal"
+          style={{ display: "block", backgroundColor: "rgba(0,0,0,0.5)", zIndex: 1060 }}
+          tabIndex="-1"
+        >
+          <div className="modal-dialog modal-dialog-centered" style={{ maxWidth: "500px" }}>
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">Enter Custom Size</h5>
+                <button
+                  type="button"
+                  className="btn-close"
+                  onClick={() => setDepthSizeDialog({ open: false, width: "", height: "", depth: "", sizeUnit: "mm" })}
+                />
+              </div>
+              <div className="modal-body" style={{ padding: "1.5rem" }}>
+                <div className="lead-form-field mb-3">
+                  <label className="form-label">Unit <span className="text-danger">*</span></label>
+                  <select
+                    className="form-select"
+                    value={depthSizeDialog.sizeUnit}
+                    onChange={(e) => setDepthSizeDialog((prev) => ({ ...prev, sizeUnit: e.target.value }))}
+                  >
+                    <option value="mm">Millimeters (mm)</option>
+                    <option value="cm">Centimeters (cm)</option>
+                    <option value="ft">Feet (ft)</option>
+                    <option value="inch">Inches (inch)</option>
+                  </select>
+                </div>
+                <div className="lead-form-field mb-3">
+                  <label className="form-label">Width ({depthSizeDialog.sizeUnit}) <span className="text-danger">*</span></label>
+                  <input
+                    className="form-control"
+                    type="number"
+                    autoFocus
+                    value={depthSizeDialog.width}
+                    onChange={(e) => setDepthSizeDialog((prev) => ({ ...prev, width: e.target.value }))}
+                    placeholder={`Enter width in ${depthSizeDialog.sizeUnit}`}
+                  />
+                </div>
+                <div className="lead-form-field mb-3">
+                  <label className="form-label">Height ({depthSizeDialog.sizeUnit}) <span className="text-danger">*</span></label>
+                  <input
+                    className="form-control"
+                    type="number"
+                    value={depthSizeDialog.height}
+                    onChange={(e) => setDepthSizeDialog((prev) => ({ ...prev, height: e.target.value }))}
+                    placeholder={`Enter height in ${depthSizeDialog.sizeUnit}`}
+                  />
+                </div>
+                <div className="lead-form-field mb-3">
+                  <label className="form-label">Depth ({depthSizeDialog.sizeUnit})</label>
+                  <input
+                    className="form-control"
+                    type="number"
+                    value={depthSizeDialog.depth}
+                    onChange={(e) => setDepthSizeDialog((prev) => ({ ...prev, depth: e.target.value }))}
+                    placeholder={`Enter depth in ${depthSizeDialog.sizeUnit}`}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        const w = String(depthSizeDialog.width || "").trim();
+                        const h = String(depthSizeDialog.height || "").trim();
+                        if (!w || !h) return;
+                        setSpecs((prev) => ({
+                          ...prev,
+                          size: "Custom",
+                          customWidth: w,
+                          customHeight: h,
+                          customDepth: String(depthSizeDialog.depth || "").trim(),
+                          customUnit: depthSizeDialog.sizeUnit,
+                        }));
+                        setDepthSizeDialog({ open: false, width: "", height: "", depth: "", sizeUnit: "mm" });
+                      }
+                    }}
+                  />
+                </div>
+                {error && <div className="alert alert-danger mt-2 py-2 mb-0">{error}</div>}
+              </div>
+              <div className="modal-footer">
+                <button
+                  type="button"
+                  className="btn btn-light"
+                  onClick={() => setDepthSizeDialog({ open: false, width: "", height: "", depth: "", sizeUnit: "mm" })}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={() => {
+                    const w = String(depthSizeDialog.width || "").trim();
+                    const h = String(depthSizeDialog.height || "").trim();
+                    if (!w || !h) {
+                      setError("Please enter both width and height");
+                      return;
+                    }
+                    setSpecs((prev) => ({
+                      ...prev,
+                      size: "Custom",
+                      customWidth: w,
+                      customHeight: h,
+                      customDepth: String(depthSizeDialog.depth || "").trim(),
+                      customUnit: depthSizeDialog.sizeUnit,
+                    }));
+                    setDepthSizeDialog({ open: false, width: "", height: "", depth: "", sizeUnit: "mm" });
+                    setError("");
+                  }}
+                >
+                  Save
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="modal-backdrop fade show" />
     </>
   );
