@@ -652,41 +652,6 @@ function WizardModal({ title, form, setForm, step, setStep, onClose, onSave, onP
             </div>
           </div>
       </div>
-      {customFieldDialog.open && (
-        <>
-          <div className="modal fade show lead-create-modal" style={{ display: "block" }} tabIndex="-1">
-            <div className="modal-dialog modal-dialog-centered">
-              <div className="modal-content">
-                <div className="modal-header">
-                  <h5 className="modal-title">Enter Custom {customFieldDialog.field?.label}</h5>
-                  <button type="button" className="btn-close" onClick={closeCustomFieldDialog} aria-label="Close" />
-                </div>
-                <div className="modal-body">
-                  <input
-                    type="text"
-                    className="form-control"
-                    value={customFieldDialog.value}
-                    placeholder={customFieldDialog.field?.customPlaceholder || `Enter custom ${customFieldDialog.field?.label || "value"}`}
-                    onChange={(e) => setCustomFieldDialog((prev) => ({ ...prev, value: e.target.value }))}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        saveCustomFieldDialog();
-                      }
-                    }}
-                    autoFocus
-                  />
-                </div>
-                <div className="modal-footer">
-                  <button type="button" className="btn btn-light" onClick={closeCustomFieldDialog}>Cancel</button>
-                  <button type="button" className="btn btn-primary" onClick={saveCustomFieldDialog}>Save</button>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div className="modal-backdrop fade show lead-create-backdrop" />
-        </>
-      )}
       <div className="modal-backdrop fade show lead-create-backdrop" />
 
       {customSpecDialog.open && (
@@ -1148,42 +1113,7 @@ export default function PriceListPage() {
               </div>
             </div>
           </div>
-          {customFieldDialog.open && (
-        <>
-          <div className="modal fade show lead-create-modal" style={{ display: "block" }} tabIndex="-1">
-            <div className="modal-dialog modal-dialog-centered">
-              <div className="modal-content">
-                <div className="modal-header">
-                  <h5 className="modal-title">Enter Custom {customFieldDialog.field?.label}</h5>
-                  <button type="button" className="btn-close" onClick={closeCustomFieldDialog} aria-label="Close" />
-                </div>
-                <div className="modal-body">
-                  <input
-                    type="text"
-                    className="form-control"
-                    value={customFieldDialog.value}
-                    placeholder={customFieldDialog.field?.customPlaceholder || `Enter custom ${customFieldDialog.field?.label || "value"}`}
-                    onChange={(e) => setCustomFieldDialog((prev) => ({ ...prev, value: e.target.value }))}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        saveCustomFieldDialog();
-                      }
-                    }}
-                    autoFocus
-                  />
-                </div>
-                <div className="modal-footer">
-                  <button type="button" className="btn btn-light" onClick={closeCustomFieldDialog}>Cancel</button>
-                  <button type="button" className="btn btn-primary" onClick={saveCustomFieldDialog}>Save</button>
-                </div>
-              </div>
-            </div>
-          </div>
           <div className="modal-backdrop fade show lead-create-backdrop" />
-        </>
-      )}
-      <div className="modal-backdrop fade show lead-create-backdrop" />
         </>
       )}
     </div>
