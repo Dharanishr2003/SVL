@@ -853,6 +853,7 @@ function WizardModal({ title, form, setForm, step, setStep, onClose, onSave, onP
 export default function PriceListPage() {
   const [rows, setRows] = useState(() => getPriceList());
   const [search, setSearch] = useState("");
+  const [selectedCategoryId, setSelectedCategoryId] = useState(null);
 
   // Service data
   const [categories, setCategories] = useState([]);
@@ -861,7 +862,9 @@ export default function PriceListPage() {
   useEffect(() => {
     Promise.all([getServiceCategories(), getServiceTypes()])
       .then(([cats, types]) => {
-        setCategories(Array.isArray(cats) ? cats : []);
+        const catArray = Array.isArray(cats) ? cats : [];
+        setCategories(catArray);
+        if (catArray.length > 0) setSelectedCategoryId((prev) => prev ?? catArray[0].id);
         setAllTypes(Array.isArray(types) ? types : []);
       })
       .catch(() => {});
@@ -886,15 +889,20 @@ export default function PriceListPage() {
   const reload = () => setRows(getPriceList());
 
   const filteredRows = useMemo(() => {
+    let result = selectedCategoryId
+      ? rows.filter((r) => String(r.categoryId) === String(selectedCategoryId))
+      : rows;
     const q = search.toLowerCase().trim();
-    if (!q) return rows;
-    return rows.filter(
-      (r) =>
-        (r.typeName || "").toLowerCase().includes(q) ||
-        (r.subtypeName || "").toLowerCase().includes(q) ||
-        Object.values(r.variantFields || {}).some((v) => String(v).toLowerCase().includes(q))
-    );
-  }, [rows, search]);
+    if (q) {
+      result = result.filter(
+        (r) =>
+          (r.typeName || "").toLowerCase().includes(q) ||
+          (r.subtypeName || "").toLowerCase().includes(q) ||
+          Object.values(r.variantFields || {}).some((v) => String(v).toLowerCase().includes(q))
+      );
+    }
+    return result;
+  }, [rows, search, selectedCategoryId]);
 
   const groupedRows = useMemo(() => {
     const map = new Map();
@@ -1003,6 +1011,32 @@ export default function PriceListPage() {
             Add Price
           </button>
         </div>
+
+        {/* Category tabs */}
+        {categories.length > 0 && (
+          <div style={{ marginBottom: "1.5rem", borderBottom: "1px solid #e6edf5" }}>
+            <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+              {categories.map((cat) => (
+                <button
+                  key={cat.id}
+                  onClick={() => setSelectedCategoryId(cat.id)}
+                  style={{
+                    padding: "0.75rem 1rem",
+                    backgroundColor: selectedCategoryId === cat.id ? "#45597a" : "transparent",
+                    color: selectedCategoryId === cat.id ? "#fff" : "#666",
+                    border: "none",
+                    borderBottom: selectedCategoryId === cat.id ? "3px solid #45597a" : "3px solid transparent",
+                    cursor: "pointer",
+                    fontWeight: selectedCategoryId === cat.id ? "600" : "400",
+                    transition: "all 0.2s",
+                  }}
+                >
+                  {cat.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Search */}
         <div className="leads-search-row">
