@@ -87,19 +87,6 @@ function VariantField({ field, value, variantFields, onChange }) {
 
   if (field.type === "select") {
     const opts = field.options || [];
-    let customLabel = null;
-    if (value === "Custom" && variantFields) {
-      const w = variantFields.customWidth;
-      const h = variantFields.customHeight;
-      const d = variantFields.customDepth;
-      const u = variantFields.customUnit || "";
-      if (w && h) {
-        customLabel = d ? `${w} × ${h} × ${d} ${u}` : `${w} × ${h} ${u}`;
-      } else {
-        const cv = variantFields[`${field.key}Custom`];
-        if (cv) customLabel = cv;
-      }
-    }
 
     return (
       <div className="col-md-6">
@@ -111,10 +98,30 @@ function VariantField({ field, value, variantFields, onChange }) {
             onChange={(e) => onChange(field, e.target.value)}
           >
             <option value="">-- Select --</option>
-            {opts.map((o) => <option key={o} value={o}>{o}</option>)}
-            {value === "Custom" && (
-              <option value="Custom">{customLabel ? `Custom (${customLabel})` : "Custom"}</option>
-            )}
+            {opts.map((o) => {
+              if (o === "Custom" && field.allowCustom && value === "Custom") {
+                if (field.key === "size") {
+                  const width = variantFields.customWidth;
+                  const height = variantFields.customHeight;
+                  const depth = variantFields.customDepth;
+                  const unit = variantFields.customUnit || "ft";
+                  return (
+                    <option key={o} value={o}>
+                      {width || height ? `Custom: ${width} ${unit} × ${height} ${unit}${depth ? ` × ${depth} ${unit}` : ""}` : "Custom"}
+                    </option>
+                  );
+                }
+                const customValue = variantFields[`${field.key}Custom`];
+                return (
+                  <option key={o} value={o}>
+                    {customValue ? `Custom: ${customValue}` : "Custom"}
+                  </option>
+                );
+              }
+              return (
+                <option key={o} value={o}>{o}</option>
+              );
+            })}
           </select>
         </div>
       </div>
