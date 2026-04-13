@@ -957,7 +957,7 @@ export default function RequirementFormModal({
       setColourPreference(initialRequirement?.colourPreference || "");
       setReferenceNotes(initialRequirement?.referenceNotes || "");
       setBrandColours(initialRequirement?.brandColours || "");
-      setUseDesignFolderUpload(false);
+      setDesignMode("");
       setIsDragActive(false);
       setDeliveryDate(initialRequirement?.deliveryDate || "");
       setSpecialInstructions(initialRequirement?.specialInstructions || "");
