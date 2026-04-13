@@ -2655,14 +2655,25 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
                 >
                   <div className="d-flex justify-content-between align-items-center mb-3">
                     <h6 className="mb-0">Requirements</h6>
-                    <button
-                      type="button"
-                      className="btn btn-sm btn-primary"
-                      onClick={openAddRequirementModal}
-                    >
-                      <i className="ti ti-plus me-1" />
-                      Add Requirement
-                    </button>
+                    <div className="d-flex gap-2">
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-success"
+                        onClick={() => navigate("/quotation", { state: { prefillLead: lead } })}
+                        disabled={!lead}
+                      >
+                        <i className="ti ti-file-invoice me-1" />
+                        Create Quotation
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-primary"
+                        onClick={openAddRequirementModal}
+                      >
+                        <i className="ti ti-plus me-1" />
+                        Add Requirement
+                      </button>
+                    </div>
                   </div>
 
                   {requirements.length === 0 && (
@@ -2682,6 +2693,7 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
                             <th>Sub-type</th>
                             <th>Quantity</th>
                             <th>Specifications</th>
+                            <th>Design Mode</th>
                             <th>Actions</th>
                           </tr>
                         </thead>
@@ -2709,6 +2721,21 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
                                         </span>
                                       ))}
                                     </div>
+                                  ) : (
+                                    <span className="text-muted">-</span>
+                                  )}
+                                </td>
+                                <td>
+                                  {req.designStatus ? (
+                                    <span className="badge bg-info">
+                                      {req.designStatus === "design_only"
+                                        ? "Design Only"
+                                        : req.designStatus === "production_only"
+                                        ? "Production Only"
+                                        : req.designStatus === "design_production"
+                                        ? "Design + Production"
+                                        : req.designStatus}
+                                    </span>
                                   ) : (
                                     <span className="text-muted">-</span>
                                   )}
