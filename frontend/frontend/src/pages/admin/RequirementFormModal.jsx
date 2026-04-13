@@ -1700,7 +1700,7 @@ export default function RequirementFormModal({
                           <label className="form-label fw-semibold">
                             Design Mode <span className="text-danger">*</span>
                           </label>
-                          <div className="d-flex flex-wrap gap-2 mb-3">
+                          <div className="d-flex justify-content-between mb-3">
                             {[
                               { value: "design_only", label: "Design Only" },
                               { value: "production_only", label: "Production Only" },
