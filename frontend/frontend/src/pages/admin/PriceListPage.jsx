@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import PageHeader from "../../components/admin/PageHeader";
 import { matchProductFields } from "../../utils/productFieldConfigs";
 import { getPriceList, savePriceEntry, deletePriceEntry } from "../../api/priceListApi";
@@ -38,6 +38,26 @@ function variantSummary(variantFields) {
   if (!entries.length) return "—";
   const shown = entries.slice(0, 3).map(([, v]) => v).join(", ");
   return entries.length > 3 ? `${shown} +${entries.length - 3} more` : shown;
+}
+
+function variantBadges(variantFields) {
+  const source = variantFields || {};
+  const SKIP = new Set(["customWidth", "customHeight", "customDepth", "customUnit"]);
+  return Object.entries(source)
+    .filter(([key, v]) => !key.endsWith("Custom") && !key.endsWith("Text") && !SKIP.has(key) && v !== "" && v != null)
+    .map(([key, v]) => {
+      if (v === "Custom") {
+        if (key === "size" && source.customWidth && source.customHeight) {
+          const d = source.customDepth;
+          const u = source.customUnit || "";
+          return [key, d
+            ? `${source.customWidth} × ${source.customHeight} × ${d} ${u}`.trim()
+            : `${source.customWidth} × ${source.customHeight} ${u}`.trim()];
+        }
+        if (source[`${key}Custom`]) return [key, source[`${key}Custom`]];
+      }
+      return [key, v];
+    });
 }
 
 function validateStep(step, form, subtypeOptions) {
@@ -876,6 +896,18 @@ export default function PriceListPage() {
     );
   }, [rows, search]);
 
+  const groupedRows = useMemo(() => {
+    const map = new Map();
+    for (const row of filteredRows) {
+      const key = `${row.typeName || ""}|${row.subtypeName || ""}`;
+      if (!map.has(key)) {
+        map.set(key, { groupKey: key, typeName: row.typeName || "", subtypeName: row.subtypeName || "", rows: [] });
+      }
+      map.get(key).rows.push(row);
+    }
+    return Array.from(map.values());
+  }, [filteredRows]);
+
   /* ── wizard action handler ── */
   function handleWizardAction(action, form, step, setStep, setError, entryId, subtypeOptions) {
     const err = validateStep(step, form, subtypeOptions);
@@ -1004,47 +1036,96 @@ export default function PriceListPage() {
                     No price entries yet. Click "Add Price" to get started.
                   </td>
                 </tr>
-              ) : (
-                filteredRows.map((row, idx) => (
-                  <tr key={row.id}>
-                    <td>{idx + 1}</td>
-                    <td className="fw-semibold">
-                      {row.typeName || "—"}
-                      {row.subtypeName && (
-                        <span className="text-muted fw-normal"> / {row.subtypeName}</span>
-                      )}
-                    </td>
-                    <td>
-                      <small className="text-muted">{variantSummary(row.variantFields)}</small>
-                    </td>
-                    <td>
-                      {(row.quantitySlabs || []).map((s, i) => (
-                        <div key={i}>
-                          <small>{s.minQty}–{s.maxQty} pcs: ₹{s.pricePerPiece}/pc</small>
-                        </div>
-                      ))}
-                    </td>
-                    <td>
-                      <button
-                        className="btn btn-sm d-inline-flex align-items-center justify-content-center me-1"
-                        style={{ backgroundColor: "#6f65d6", color: "#fff", width: 32, height: 32, padding: 0, borderRadius: 4, border: "none" }}
-                        onClick={() => openEdit(row)}
-                        title="Edit"
-                      >
-                        <i className="ti ti-edit" style={{ fontSize: 14 }} />
-                      </button>
-                      <button
-                        className="btn btn-sm d-inline-flex align-items-center justify-content-center"
-                        style={{ backgroundColor: "#e74c3c", color: "#fff", width: 32, height: 32, padding: 0, borderRadius: 4, border: "none" }}
-                        onClick={() => setDeleteTarget(row)}
-                        title="Delete"
-                      >
-                        <i className="ti ti-trash" style={{ fontSize: 14 }} />
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              )}
+              ) : (() => {
+                let rowNum = 0;
+                return groupedRows.map((group) => {
+                  const headerLabel = group.subtypeName
+                    ? `${group.typeName} — ${group.subtypeName}`
+                    : group.typeName || "—";
+                  return (
+                    <Fragment key={group.groupKey}>
+                      <tr style={{ backgroundColor: "#f0f4fa" }}>
+                        <td
+                          colSpan={5}
+                          style={{
+                            fontWeight: 700,
+                            fontSize: "0.82rem",
+                            textTransform: "uppercase",
+                            letterSpacing: "0.05em",
+                            color: "#10233f",
+                            padding: "0.45rem 0.75rem",
+                          }}
+                        >
+                          {headerLabel}
+                        </td>
+                      </tr>
+                      {group.rows.map((row) => {
+                        rowNum += 1;
+                        const badges = variantBadges(row.variantFields);
+                        return (
+                          <tr key={row.id}>
+                            <td className="text-muted" style={{ fontSize: "0.82rem" }}>{rowNum}</td>
+                            <td />
+                            <td>
+                              {badges.length === 0 ? (
+                                <small className="text-muted">—</small>
+                              ) : (
+                                <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
+                                  {badges.map(([k, v]) => (
+                                    <span
+                                      key={k}
+                                      style={{
+                                        display: "inline-flex",
+                                        alignItems: "center",
+                                        gap: "3px",
+                                        backgroundColor: "#eef2fb",
+                                        border: "1px solid #d8e2f5",
+                                        borderRadius: "6px",
+                                        padding: "2px 7px",
+                                        fontSize: "0.75rem",
+                                        color: "#34393f",
+                                        whiteSpace: "nowrap",
+                                      }}
+                                    >
+                                      <span style={{ color: "#7b8fa8", fontWeight: 600 }}>{k}:</span>
+                                      {String(v)}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                            </td>
+                            <td>
+                              {(row.quantitySlabs || []).map((s, i) => (
+                                <div key={i}>
+                                  <small>{s.minQty}–{s.maxQty} pcs: ₹{s.pricePerPiece}/pc</small>
+                                </div>
+                              ))}
+                            </td>
+                            <td>
+                              <button
+                                className="btn btn-sm d-inline-flex align-items-center justify-content-center me-1"
+                                style={{ backgroundColor: "#6f65d6", color: "#fff", width: 32, height: 32, padding: 0, borderRadius: 4, border: "none" }}
+                                onClick={() => openEdit(row)}
+                                title="Edit"
+                              >
+                                <i className="ti ti-edit" style={{ fontSize: 14 }} />
+                              </button>
+                              <button
+                                className="btn btn-sm d-inline-flex align-items-center justify-content-center"
+                                style={{ backgroundColor: "#e74c3c", color: "#fff", width: 32, height: 32, padding: 0, borderRadius: 4, border: "none" }}
+                                onClick={() => setDeleteTarget(row)}
+                                title="Delete"
+                              >
+                                <i className="ti ti-trash" style={{ fontSize: 14 }} />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </Fragment>
+                  );
+                });
+              })()}
             </tbody>
           </table>
         </div>
