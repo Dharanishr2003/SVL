@@ -135,12 +135,12 @@ export default function AddItemModal({ open, priceList = [], prefill, onConfirm,
 
   // Auto-advance step 2 when there is only one subtype option
   useEffect(() => {
-    if (subtypes.length === 1) {
+    // Only auto-advance when no product variant is already selected (i.e., not edit mode)
+    if (subtypes.length === 1 && selectedEntryId == null) {
       setSelectedSubtypeId(subtypes[0].id);
-      setSelectedEntryId(null);
       setStep(3);
     }
-  }, [subtypes]); // step removed — subtypes changes when type changes, which is when auto-advance should run
+  }, [subtypes, selectedEntryId]);
 
   function handleSelectType(typeId) {
     setSelectedTypeId(typeId);
