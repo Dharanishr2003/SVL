@@ -1,11 +1,13 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { motion, AnimatePresence } from "motion/react";
-import { quotationCatalog } from "../../mock/quotationData";
+import { Link, useNavigate, useLocation } from "react-router-dom";
+import { motion } from "motion/react";
 import { useAuth } from "../../context/AuthContext";
 import { getLeads } from "../../api/leadsApi";
+import { getRequirementsByLeadId } from "../../api/requirementApi";
 import { approveQuotation, saveQuotation } from "../../api/quotationApi";
+import { getPriceList } from "../../api/priceListApi";
 import "./QuotationPage.css";
+import AddItemModal from "./AddItemModal";
 import {
   QUOTATION_STATUS_APPROVED,
   QUOTATION_STATUS_DRAFT,
@@ -16,46 +18,73 @@ import {
   getQuotationDraft,
 } from "../../utils/quotationUtils";
 
-function findTier(tiers, qty) {
-  return tiers.find((tier) => qty >= tier.min && qty <= tier.max) ?? null;
-}
-
-function computeLineTotal(product, selectedOptions, quantity, needsDesign) {
-  const qty = Number(quantity);
-  const tier = findTier(product.pricing.tiers, qty);
-  if (!tier || qty <= 0) {
-    return null;
+function safeJsonParse(value, fallback) {
+  if (value == null) return fallback;
+  if (typeof value === "object") return value;
+  const trimmed = String(value).trim();
+  if (!trimmed) return fallback;
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    return fallback;
   }
-
-  const optionsExtraCostPerUnit = ["material", "size", "print", "finish"].reduce((sum, key) => {
-    const chosen = product.options[key]?.find((option) => option.name === selectedOptions[key]);
-    return sum + (chosen?.extra_cost ?? 0);
-  }, 0);
-
-  const pricePerUnit = tier.price_per_unit + optionsExtraCostPerUnit;
-  const designCost = needsDesign ? (product.options.design?.cost ?? 0) : 0;
-  const lineTotal = pricePerUnit * qty + designCost;
-
-  return { pricePerUnit, optionsExtraCostPerUnit, designCost, lineTotal };
 }
 
-function buildOptionsSummary(product, selectedOptions, needsDesign) {
-  const parts = ["material", "size", "print", "finish"]
-    .map((key) => {
-      const label = key.charAt(0).toUpperCase() + key.slice(1);
-      return selectedOptions[key] ? `${label}: ${selectedOptions[key]}` : "";
-    })
-    .filter(Boolean);
+function toKeyValueSummary(value) {
+  const source = value && typeof value === "object" ? value : null;
+  if (!source) return "";
 
-  if (needsDesign) {
-    parts.push("Design: Yes");
-  }
+  const parts = Object.entries(source)
+    .filter(([, v]) => v !== "" && v != null)
+    .map(([k, v]) => {
+      if (Array.isArray(v)) return `${k}: ${v.filter(Boolean).join(", ")}`;
+      if (typeof v === "object") return `${k}: ${JSON.stringify(v)}`;
+      return `${k}: ${String(v)}`;
+    });
 
-  return parts.join(", ");
+  if (!parts.length) return "";
+  const shown = parts.slice(0, 6).join(", ");
+  return parts.length > 6 ? `${shown} +${parts.length - 6} more` : shown;
 }
 
-function getValidQuantityRanges(tiers) {
-  return tiers.map((tier) => `${tier.min}-${tier.max}`).join(", ");
+function emptyLabel() {
+  return "-";
+}
+
+function formatCustomSize(width, height, depth, unit) {
+  if (!width || !height) return "";
+  return depth ? `${width} x ${height} x ${depth} ${unit || ""}`.trim() : `${width} x ${height} ${unit || ""}`.trim();
+}
+
+function findSlab(quantitySlabs, qty) {
+  const list = Array.isArray(quantitySlabs) ? quantitySlabs : [];
+  const n = Number(qty);
+  if (!n || n <= 0) return null;
+  return (
+    list.find((s) => n >= Number(s.minQty) && n <= Number(s.maxQty)) ??
+    null
+  );
+}
+
+function getVariantSummary(variantFields) {
+  const source = variantFields || {};
+  const skipKeys = new Set(["customWidth", "customHeight", "customDepth", "customUnit"]);
+  const entries = Object.entries(source)
+    .filter(([key, value]) => !key.endsWith("Custom") && !key.endsWith("Text") && !skipKeys.has(key) && value !== "" && value != null)
+    .map(([key, value]) => {
+      if (value === "Custom") {
+        if (key === "size") {
+          const formatted = formatCustomSize(source.customWidth, source.customHeight, source.customDepth, source.customUnit);
+          if (formatted) return [key, formatted];
+        }
+        if (source[`${key}Custom`]) return [key, source[`${key}Custom`]];
+      }
+      return [key, value];
+    });
+
+  if (!entries.length) return emptyLabel();
+  const shown = entries.slice(0, 3).map(([, value]) => value).join(", ");
+  return entries.length > 3 ? `${shown} +${entries.length - 3} more` : shown;
 }
 
 function createEmptyDraft() {
@@ -90,6 +119,7 @@ function createEmptyDraft() {
 
 export default function QuotationPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
   const userRole = String(user?.role || "").toUpperCase();
   const isEmployee = userRole === "EMPLOYEE";
@@ -123,11 +153,13 @@ export default function QuotationPage() {
   const [createdByEmail, setCreatedByEmail] = useState(null);
   const [createdByRole, setCreatedByRole] = useState(null);
   const [createdByTeam, setCreatedByTeam] = useState(null);
-  const [selectedCategoryId, setSelectedCategoryId] = useState("");
-  const [selectedProductId, setSelectedProductId] = useState("");
-  const [selectedOptions, setSelectedOptions] = useState({});
-  const [quantity, setQuantity] = useState("");
-  const [needsDesign, setNeedsDesign] = useState(false);
+  const [requirements, setRequirements] = useState([]);
+  const [requirementsLoading, setRequirementsLoading] = useState(false);
+  const [requirementsError, setRequirementsError] = useState("");
+  const [priceList, setPriceList] = useState([]);
+  const [priceListLoading, setPriceListLoading] = useState(false);
+  const [addModalOpen, setAddModalOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState(null);
   const [configError, setConfigError] = useState("");
   const [lineItems, setLineItems] = useState([]);
   const [discountPct, setDiscountPct] = useState("0");
@@ -135,7 +167,7 @@ export default function QuotationPage() {
   const [sgstPct, setSgstPct] = useState("0");
   const [saveMessage, setSaveMessage] = useState("");
   const [isSaving, setIsSaving] = useState(false);
-  const [editingItemId, setEditingItemId] = useState(null);
+
   const suggestionRef = useRef(null);
 
   const customerName = selectedLead?.name || "";
@@ -159,9 +191,6 @@ export default function QuotationPage() {
     sgstAmt,
     grandTotal,
   };
-
-  const selectedCategory = quotationCatalog.categories.find((category) => category.id === selectedCategoryId);
-  const selectedProduct = selectedCategory?.products.find((product) => product.id === selectedProductId);
 
   useEffect(() => {
     setLeadsLoading(true);
@@ -208,6 +237,23 @@ export default function QuotationPage() {
   }, []);
 
   useEffect(() => {
+    const prefill = location.state?.prefillLead;
+    if (!prefill) return;
+    setPartyMode("lead");
+    setActiveTab("lead");
+    setSelectedLead(prefill);
+    setLeadSearch(`${prefill.leadId} - ${prefill.name}`);
+  }, []);
+
+  useEffect(() => {
+    setPriceListLoading(true);
+    getPriceList()
+      .then((data) => setPriceList(Array.isArray(data) ? data : []))
+      .catch(() => setPriceList([]))
+      .finally(() => setPriceListLoading(false));
+  }, []);
+
+  useEffect(() => {
     if (!leadSearch.trim()) {
       setLeadSuggestions([]);
       return;
@@ -233,18 +279,22 @@ export default function QuotationPage() {
   }, []);
 
   useEffect(() => {
-    if (!selectedProduct) {
+    const numericId = selectedLead?.id;
+    if (!numericId || partyMode !== "lead") {
+      setRequirements([]);
       return;
     }
 
-    const defaults = {};
-    ["material", "size", "print", "finish"].forEach((key) => {
-      if (selectedProduct.options[key]?.length) {
-        defaults[key] = selectedOptions[key] || selectedProduct.options[key][0].name;
-      }
-    });
-    setSelectedOptions(defaults);
-  }, [selectedProductId]);
+    setRequirementsLoading(true);
+    setRequirementsError("");
+    getRequirementsByLeadId(numericId)
+      .then((data) => setRequirements(Array.isArray(data) ? data : []))
+      .catch(() => {
+        setRequirements([]);
+        setRequirementsError("Failed to load requirements for this lead.");
+      })
+      .finally(() => setRequirementsLoading(false));
+  }, [selectedLead?.id, partyMode]);
 
   const handleLeadSelect = (lead) => {
     setSelectedLead(lead);
@@ -268,160 +318,33 @@ export default function QuotationPage() {
     setLeadSuggestions([]);
     setShowSuggestions(false);
     setSaveMessage("");
+    setRequirements([]);
+    setRequirementsError("");
   };
 
-  const handleCategoryChange = (categoryId) => {
-    setSelectedCategoryId(categoryId);
-    setSelectedProductId("");
-    setSelectedOptions({});
-    setQuantity("");
-    setNeedsDesign(false);
-    setConfigError("");
-  };
-
-  const handleProductSelect = (productId) => {
-    setSelectedProductId(productId);
-    setSelectedOptions({});
-    setQuantity("");
-    setNeedsDesign(false);
-    setConfigError("");
-  };
-
-  const handleOptionChange = (key, value) => {
-    setSelectedOptions((previous) => ({ ...previous, [key]: value }));
-  };
-
-  const handleAddToQuotation = () => {
-    setConfigError("");
-    setSaveMessage("");
-
-    if (!customerName.trim()) {
-      setConfigError("Please select a lead first.");
-      return;
-    }
-
-    if (!selectedProduct) {
-      setConfigError("Please select a product.");
-      return;
-    }
-
-    const qty = Number(quantity);
-    if (!qty || qty <= 0) {
-      setConfigError("Please enter a valid quantity.");
-      return;
-    }
-
-    const tier = findTier(selectedProduct.pricing.tiers, qty);
-    if (!tier) {
-      setConfigError(`Invalid quantity. Valid ranges: ${getValidQuantityRanges(selectedProduct.pricing.tiers)}`);
-      return;
-    }
-
-    const computed = computeLineTotal(selectedProduct, selectedOptions, qty, needsDesign);
-    if (!computed) {
-      setConfigError("Unable to compute price for this item.");
-      return;
-    }
-
-    const newItem = {
-      id: `item-${Date.now()}`,
-      productName: selectedProduct.name,
-      categoryName: selectedCategory?.name || "",
-      optionsSummary: buildOptionsSummary(selectedProduct, selectedOptions, needsDesign),
-      selectedOptions,
-      quantity: qty,
-      pricePerUnit: computed.pricePerUnit,
-      optionsExtraCost: computed.optionsExtraCostPerUnit,
-      designCost: computed.designCost,
-      lineTotal: computed.lineTotal,
+  function buildPrefill(req) {
+    return {
+      typeId: req.typeId,
+      subtypeId: req.subtypeId ?? null,
+      typeName: req.typeName,
+      subtypeName: req.subtypeName ?? null,
+      quantity: req.quantity,
+      specs: safeJsonParse(req.specs, {}),
+      productId: null,
     };
+  }
 
-    setLineItems((previous) => [...previous, newItem]);
-    setQuantity("");
-  };
-
-  const handleEditItem = (item) => {
-    setEditingItemId(item.id);
-    
-    // Find category and product from catalog
-    const category = quotationCatalog.categories.find((cat) => cat.name === item.categoryName);
-    if (category) {
-      setSelectedCategoryId(category.id);
-      const product = category.products.find((prod) => prod.name === item.productName);
-      if (product) {
-        setSelectedProductId(product.id);
-      }
-    }
-    
-    setSelectedOptions(item?.selectedOptions ?? {});
-    setQuantity(item?.quantity != null ? String(item.quantity) : "");
-    
-    // Determine if design was selected
-    const hasDesignCost = Number(item?.designCost ?? 0) > 0;
-    setNeedsDesign(hasDesignCost);
-    
+  function openAddModal(prefill) {
+    setEditingItem(prefill ?? null);
     setConfigError("");
     setSaveMessage("");
-  };
+    setAddModalOpen(true);
+  }
 
-  const handleUpdateItem = () => {
-    if (!editingItemId) {
-      return;
-    }
-
-    setConfigError("");
-    setSaveMessage("");
-
-    if (!selectedProduct) {
-      setConfigError("Please select a product.");
-      return;
-    }
-
-    const qty = Number(quantity);
-    if (!qty || qty <= 0) {
-      setConfigError("Please enter a valid quantity.");
-      return;
-    }
-
-    const tier = findTier(selectedProduct.pricing.tiers, qty);
-    if (!tier) {
-      setConfigError(`Invalid quantity. Valid ranges: ${getValidQuantityRanges(selectedProduct.pricing.tiers)}`);
-      return;
-    }
-
-    const computed = computeLineTotal(selectedProduct, selectedOptions, qty, needsDesign);
-    if (!computed) {
-      setConfigError("Unable to compute price for this item.");
-      return;
-    }
-
-    const updatedItem = {
-      id: editingItemId,
-      productName: selectedProduct.name,
-      categoryName: selectedCategory?.name || "",
-      optionsSummary: buildOptionsSummary(selectedProduct, selectedOptions, needsDesign),
-      selectedOptions,
-      quantity: qty,
-      pricePerUnit: computed.pricePerUnit,
-      optionsExtraCost: computed.optionsExtraCostPerUnit,
-      designCost: computed.designCost,
-      lineTotal: computed.lineTotal,
-    };
-
-    setLineItems((previous) => previous.map((item) => (item.id === editingItemId ? updatedItem : item)));
-    setEditingItemId(null);
-    handleCancelEdit();
-  };
-
-  const handleCancelEdit = () => {
-    setEditingItemId(null);
-    setSelectedCategoryId("");
-    setSelectedProductId("");
-    setSelectedOptions({});
-    setQuantity("");
-    setNeedsDesign(false);
-    setConfigError("");
-  };
+  function closeAddModal() {
+    setAddModalOpen(false);
+    setEditingItem(null);
+  }
 
   const handleRemoveItem = (itemId) => {
     setLineItems((previous) => previous.filter((item) => item.id !== itemId));
@@ -531,9 +454,6 @@ export default function QuotationPage() {
     navigate("/quotation-list");
   };
 
-  const livePrice = selectedProduct
-    ? computeLineTotal(selectedProduct, selectedOptions, quantity, needsDesign)
-    : null;
   const canEditQuotation = !(isEmployee && quotationStatus !== QUOTATION_STATUS_DRAFT && quotationStatus !== "NEGOTIATING");
   const canApproveAsManager = ["MANAGER", "ADMIN", "SUPER_ADMIN"].includes(userRole);
   const canApproveAsTeamLead =
@@ -638,7 +558,7 @@ export default function QuotationPage() {
       <fieldset disabled={!canEditQuotation}>
       <div className="card mb-3">
         <div className="card-header">
-          <h5 className="card-title mb-0">Customer Details</h5>
+          <h5 className="card-title mb-0">{activeTab === "lead" ? "Lead Details" : "Customer Details"}</h5>
         </div>
 
         <div className="card-body">
@@ -699,7 +619,7 @@ export default function QuotationPage() {
             </div>
 
             <div className="col-md-3">
-              <label className="form-label small text-muted">Customer Name</label>
+              <label className="form-label small text-muted">{activeTab === "lead" ? "Lead Name" : "Customer Name"}</label>
               <div className="form-control bg-light">{customerName || "-"}</div>
             </div>
             <div className="col-md-3">
@@ -718,153 +638,93 @@ export default function QuotationPage() {
         </div>
       </div>
 
+      {configError && (
+        <div className="alert alert-danger mt-3 mb-3">
+          <i className="ti ti-alert-circle me-2"></i>
+          {configError}
+        </div>
+      )}
+      {saveMessage && (
+        <div className="alert alert-success mt-3 mb-3">
+          <i className="ti ti-check me-2"></i>
+          {saveMessage}
+        </div>
+      )}
+
+      {partyMode === "lead" && (
+        <div className="card mb-3">
+          <div className="card-header">
+            <h5 className="card-title mb-0">Lead Requirements</h5>
+          </div>
+          <div className="card-body">
+            {requirementsError && <div className="alert alert-danger mb-3">{requirementsError}</div>}
+            {!selectedLead?.leadId ? (
+              <p className="text-muted mb-0">Select a lead to load its requirements.</p>
+            ) : requirementsLoading ? (
+              <p className="text-muted mb-0">Loading requirements...</p>
+            ) : requirements.length ? (
+              <div className="table-responsive">
+                <table className="table table-bordered table-hover align-middle">
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Product</th>
+                      <th>Qty</th>
+                      <th>Specs</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {requirements.map((req, idx) => {
+                      const specsObj = safeJsonParse(req.specs, {});
+                      const specsSummary = toKeyValueSummary(specsObj) || "-";
+                      const productName = [req.typeName, req.subtypeName].filter(Boolean).join(" - ") || "-";
+                      return (
+                        <tr key={req.id ?? idx}>
+                          <td>{idx + 1}</td>
+                          <td>{productName}</td>
+                          <td>{req.quantity ?? "-"}</td>
+                          <td className="small">{specsSummary}</td>
+                          <td>
+                            <button
+                              type="button"
+                              className="btn btn-link btn-sm p-0 text-muted"
+                              onClick={() => openAddModal(buildPrefill(req))}
+                            >
+                              use as reference
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="text-muted mb-0">No requirements found for this lead.</p>
+            )}
+            {priceListLoading && <div className="text-muted small mt-2">Loading price list...</div>}
+          </div>
+        </div>
+      )}
+
+      {partyMode !== "lead" && (
+        <div className="alert alert-warning mb-3">
+          Requirement-based quotation works in <strong>Lead</strong> mode. Switch to Lead to add items from requirements.
+        </div>
+      )}
+
       <div className="card mb-3">
         <div className="card-header d-flex justify-content-between align-items-center">
-          <h5 className="card-title mb-0">{editingItemId ? "Edit Item" : "Add Item to Quotation"}</h5>
-          {editingItemId && (
-            <small className="text-muted">Editing selected item</small>
-          )}
-        </div>
-        <div className="card-body">
-          <div className="row g-3 align-items-end">
-            <div className="col-md-2">
-              <label className="form-label">Category *</label>
-              <select className="form-select" value={selectedCategoryId} onChange={(event) => handleCategoryChange(event.target.value)}>
-                <option value="">Select category</option>
-                {quotationCatalog.categories.map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {category.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="col-md-2">
-              <label className="form-label">Product *</label>
-              <select
-                className="form-select"
-                value={selectedProductId}
-                onChange={(event) => handleProductSelect(event.target.value)}
-                disabled={!selectedCategory}
-              >
-                <option value="">{selectedCategory ? "Select product" : "Select category first"}</option>
-                {selectedCategory?.products.map((product) => (
-                  <option key={product.id} value={product.id}>
-                    {product.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {selectedProduct?.options.material && (
-              <div className="col-md-2">
-                <label className="form-label">Material</label>
-                <select className="form-select" value={selectedOptions.material || ""} onChange={(event) => handleOptionChange("material", event.target.value)}>
-                  {selectedProduct.options.material.map((option) => (
-                    <option key={option.name} value={option.name}>
-                      {option.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-            {selectedProduct?.options.size && (
-              <div className="col-md-2">
-                <label className="form-label">Size</label>
-                <select className="form-select" value={selectedOptions.size || ""} onChange={(event) => handleOptionChange("size", event.target.value)}>
-                  {selectedProduct.options.size.map((option) => (
-                    <option key={option.name} value={option.name}>
-                      {option.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-            {selectedProduct?.options.print && (
-              <div className="col-md-2">
-                <label className="form-label">Print</label>
-                <select className="form-select" value={selectedOptions.print || ""} onChange={(event) => handleOptionChange("print", event.target.value)}>
-                  {selectedProduct.options.print.map((option) => (
-                    <option key={option.name} value={option.name}>
-                      {option.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-            {selectedProduct?.options.finish && (
-              <div className="col-md-2">
-                <label className="form-label">Finish</label>
-                <select className="form-select" value={selectedOptions.finish || ""} onChange={(event) => handleOptionChange("finish", event.target.value)}>
-                  {selectedProduct.options.finish.map((option) => (
-                    <option key={option.name} value={option.name}>
-                      {option.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-
-            <div className="col-md-2">
-              <label className="form-label">Quantity *</label>
-              <input type="number" min="1" className="form-control" value={quantity} onChange={(event) => setQuantity(event.target.value)} />
-            </div>
-            <div className="col-md-2">
-              <label className="form-label">Unit Price</label>
-              <div className="form-control bg-light">{livePrice ? `Rs. ${livePrice.pricePerUnit.toFixed(2)}` : "-"}</div>
-            </div>
-            <div className="col-md-2">
-              <label className="form-label">Total</label>
-              <div className="form-control bg-light fw-semibold">{livePrice ? `Rs. ${livePrice.lineTotal.toFixed(2)}` : "-"}</div>
-            </div>
-            <div className="col-md-2">
-              <button type="button" className="btn btn-info w-100" onClick={editingItemId ? handleUpdateItem : handleAddToQuotation}>
-                <i className={editingItemId ? "ti ti-device-floppy me-1" : "ti ti-plus me-1"}></i>
-                {editingItemId ? "Update Item" : "Add Item"}
-              </button>
-            </div>
-            {editingItemId && (
-              <div className="col-md-2">
-                <button type="button" className="btn btn-outline-secondary w-100" onClick={handleCancelEdit}>
-                  <i className="ti ti-x me-1"></i>
-                  Cancel
-                </button>
-              </div>
-            )}
-          </div>
-
-          {selectedProduct?.options.design?.available && (
-            <div className="form-check mt-3">
-              <input
-                className="form-check-input"
-                type="checkbox"
-                id="needsDesign"
-                checked={needsDesign}
-                onChange={(event) => setNeedsDesign(event.target.checked)}
-              />
-              <label className="form-check-label" htmlFor="needsDesign">
-                Need Design? (+Rs. {selectedProduct.options.design.cost.toFixed(2)})
-              </label>
-            </div>
-          )}
-
-          {configError && (
-            <div className="alert alert-danger mt-3 mb-0">
-              <i className="ti ti-alert-circle me-2"></i>
-              {configError}
-            </div>
-          )}
-          {saveMessage && (
-            <div className="alert alert-success mt-3 mb-0">
-              <i className="ti ti-check me-2"></i>
-              {saveMessage}
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="card mb-3">
-        <div className="card-header">
           <h5 className="card-title mb-0">Line Items</h5>
+          <button
+            type="button"
+            className="btn btn-primary btn-sm"
+            onClick={() => openAddModal()}
+            disabled={!canEditQuotation}
+          >
+            <i className="ti ti-plus me-1"></i>Add Item
+          </button>
         </div>
         <div className="card-body">
           {lineItems.length ? (
@@ -886,15 +746,22 @@ export default function QuotationPage() {
                   {lineItems.map((item, index) => (
                     <tr key={item.id}>
                       <td>{index + 1}</td>
-                      <td>{item.productName}</td>
-                      <td className="small">{item.optionsSummary || "-"}</td>
+                      <td>
+                        <div className="d-flex align-items-center gap-2 flex-wrap">
+                          <span>{item.productName}</span>
+                          {String(item.pricingStatus || "").toUpperCase() === "UNPRICED" && (
+                            <span className="badge bg-danger">PRICE NOT FOUND</span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="small" style={{ whiteSpace: "pre-wrap" }}>{item.optionsSummary || "-"}</td>
                       <td>{item.quantity}</td>
-                      <td>Rs. {Number(item.pricePerUnit).toFixed(2)}</td>
+                      <td>Rs. {Number(item.pricePerUnit || 0).toFixed(2)}</td>
                       <td>{Number(item.designCost) ? `Rs. ${Number(item.designCost).toFixed(2)}` : "-"}</td>
-                      <td>Rs. {Number(item.lineTotal).toFixed(2)}</td>
+                      <td>Rs. {Number(item.lineTotal || 0).toFixed(2)}</td>
                       <td>
                         <div className="d-flex gap-2">
-                          <button type="button" className="btn btn-primary btn-sm" onClick={() => handleEditItem(item)}>
+                          <button type="button" className="btn btn-primary btn-sm" onClick={() => openAddModal(item)}>
                             <i className="ti ti-edit"></i>
                           </button>
                           <button type="button" className="btn btn-danger btn-sm" onClick={() => handleRemoveItem(item.id)}>
@@ -912,7 +779,7 @@ export default function QuotationPage() {
           )}
         </div>
       </div>
-      </fieldset>
+      
 
       <div className="card">
         <div className="card-header">
@@ -972,6 +839,7 @@ export default function QuotationPage() {
           </div>
         </div>
       </div>
+      </fieldset>
       {approveDialogOpen && (
         <>
           <div className="modal fade show d-block" tabIndex="-1" role="dialog" aria-modal="true">
@@ -1005,6 +873,22 @@ export default function QuotationPage() {
           <div className="modal-backdrop fade show"></div>
         </>
       )}
+
+      <AddItemModal
+        open={addModalOpen}
+        priceList={priceList}
+        prefill={editingItem}
+        onConfirm={(lineItem) => {
+          if (editingItem?.id) {
+            setLineItems((prev) => prev.map((i) => (i.id === editingItem.id ? lineItem : i)));
+          } else {
+            setLineItems((prev) => [...prev, lineItem]);
+          }
+          closeAddModal();
+        }}
+        onClose={closeAddModal}
+      />
     </div>
   );
 }
+
