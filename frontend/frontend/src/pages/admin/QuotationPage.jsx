@@ -204,7 +204,7 @@ export default function QuotationPage() {
     setActiveTab("lead");
     setSelectedLead(prefill);
     setLeadSearch(`${prefill.leadId} - ${prefill.name}`);
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     setPriceListLoading(true);
