@@ -42,7 +42,7 @@ function getVariantSummary(variantFields) {
   return entries.length > 3 ? `${shown} +${entries.length - 3} more` : shown;
 }
 
-export default function AddItemModal({ open, priceList, prefill, onConfirm, onClose }) {
+export default function AddItemModal({ open, priceList = [], prefill, onConfirm, onClose }) {
   const [step, setStep] = useState(1);
   const [selectedTypeId, setSelectedTypeId] = useState(null);
   const [selectedSubtypeId, setSelectedSubtypeId] = useState(null);
@@ -56,7 +56,8 @@ export default function AddItemModal({ open, priceList, prefill, onConfirm, onCl
   useEffect(() => {
     if (!open) return;
     const hasType = prefill?.typeId != null;
-    setStep(hasType ? 2 : 1);
+    const hasProduct = prefill?.productId != null;
+    setStep(hasProduct ? 3 : hasType ? 2 : 1);
     setSelectedTypeId(prefill?.typeId ?? null);
     setSelectedSubtypeId(prefill?.subtypeId ?? null);
     setSelectedEntryId(prefill?.productId ?? null);
@@ -134,12 +135,12 @@ export default function AddItemModal({ open, priceList, prefill, onConfirm, onCl
 
   // Auto-advance step 2 when there is only one subtype option
   useEffect(() => {
-    if (step === 2 && subtypes.length === 1) {
+    if (subtypes.length === 1) {
       setSelectedSubtypeId(subtypes[0].id);
       setSelectedEntryId(null);
       setStep(3);
     }
-  }, [step, subtypes]);
+  }, [subtypes]); // step removed — subtypes changes when type changes, which is when auto-advance should run
 
   function handleSelectType(typeId) {
     setSelectedTypeId(typeId);
