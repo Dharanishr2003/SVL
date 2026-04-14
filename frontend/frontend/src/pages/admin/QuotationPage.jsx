@@ -47,45 +47,6 @@ function toKeyValueSummary(value) {
   return parts.length > 6 ? `${shown} +${parts.length - 6} more` : shown;
 }
 
-function emptyLabel() {
-  return "-";
-}
-
-function formatCustomSize(width, height, depth, unit) {
-  if (!width || !height) return "";
-  return depth ? `${width} x ${height} x ${depth} ${unit || ""}`.trim() : `${width} x ${height} ${unit || ""}`.trim();
-}
-
-function findSlab(quantitySlabs, qty) {
-  const list = Array.isArray(quantitySlabs) ? quantitySlabs : [];
-  const n = Number(qty);
-  if (!n || n <= 0) return null;
-  return (
-    list.find((s) => n >= Number(s.minQty) && n <= Number(s.maxQty)) ??
-    null
-  );
-}
-
-function getVariantSummary(variantFields) {
-  const source = variantFields || {};
-  const skipKeys = new Set(["customWidth", "customHeight", "customDepth", "customUnit"]);
-  const entries = Object.entries(source)
-    .filter(([key, value]) => !key.endsWith("Custom") && !key.endsWith("Text") && !skipKeys.has(key) && value !== "" && value != null)
-    .map(([key, value]) => {
-      if (value === "Custom") {
-        if (key === "size") {
-          const formatted = formatCustomSize(source.customWidth, source.customHeight, source.customDepth, source.customUnit);
-          if (formatted) return [key, formatted];
-        }
-        if (source[`${key}Custom`]) return [key, source[`${key}Custom`]];
-      }
-      return [key, value];
-    });
-
-  if (!entries.length) return emptyLabel();
-  const shown = entries.slice(0, 3).map(([, value]) => value).join(", ");
-  return entries.length > 3 ? `${shown} +${entries.length - 3} more` : shown;
-}
 
 function createEmptyDraft() {
   return {
