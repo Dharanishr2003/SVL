@@ -1,4 +1,6 @@
 import api from "../utils/api";
+import vendorApi, { setVendorAccessToken } from "../utils/vendorApi";
+import { getVendorSession } from "../utils/vendorSession";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8081";
 
@@ -67,18 +69,51 @@ function normalize(row) {
 }
 
 export async function getVendorOrders(vendorId) {
-  const response = await api.get("/api/vendor-orders", {
+  const session = getVendorSession();
+  const isVendorPortal =
+    typeof window !== "undefined" &&
+    String(window.location?.pathname || "").startsWith("/vendor") &&
+    Boolean(session?.vendorId);
+
+  if (isVendorPortal && session?.accessToken) {
+    setVendorAccessToken(session.accessToken);
+  }
+
+  const client = isVendorPortal ? vendorApi : api;
+  const response = await client.get("/api/vendor-orders", {
     params: vendorId ? { vendorId } : undefined,
   });
   return Array.isArray(response?.data) ? response.data.map(normalize) : [];
 }
 
 export async function createVendorOrder(order) {
-  const response = await api.post("/api/vendor-orders", buildVendorOrderFormData(order));
+  const session = getVendorSession();
+  const isVendorPortal =
+    typeof window !== "undefined" &&
+    String(window.location?.pathname || "").startsWith("/vendor") &&
+    Boolean(session?.vendorId);
+
+  if (isVendorPortal && session?.accessToken) {
+    setVendorAccessToken(session.accessToken);
+  }
+
+  const client = isVendorPortal ? vendorApi : api;
+  const response = await client.post("/api/vendor-orders", buildVendorOrderFormData(order));
   return response?.data ? normalize(response.data) : null;
 }
 
 export async function updateVendorOrderApi(id, order) {
-  const response = await api.put(`/api/vendor-orders/${id}`, buildVendorOrderFormData(order));
+  const session = getVendorSession();
+  const isVendorPortal =
+    typeof window !== "undefined" &&
+    String(window.location?.pathname || "").startsWith("/vendor") &&
+    Boolean(session?.vendorId);
+
+  if (isVendorPortal && session?.accessToken) {
+    setVendorAccessToken(session.accessToken);
+  }
+
+  const client = isVendorPortal ? vendorApi : api;
+  const response = await client.put(`/api/vendor-orders/${id}`, buildVendorOrderFormData(order));
   return response?.data ? normalize(response.data) : null;
 }

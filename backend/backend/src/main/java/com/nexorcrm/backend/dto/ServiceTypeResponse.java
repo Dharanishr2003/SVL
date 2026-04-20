@@ -6,6 +6,7 @@ public class ServiceTypeResponse {
 
     private Long id;
     private String name;
+    private String fieldConfigKey;
     private Long categoryId;
     private String categoryName;
     private Long parentId;
@@ -14,6 +15,7 @@ public class ServiceTypeResponse {
     public ServiceTypeResponse(ServiceType serviceType) {
         this.id = serviceType.getId();
         this.name = serviceType.getName();
+        this.fieldConfigKey = serviceType.getFieldConfigKey();
         this.categoryId = serviceType.getCategory().getId();
         this.categoryName = serviceType.getCategory().getName();
         if (serviceType.getParent() != null) {
@@ -36,6 +38,14 @@ public class ServiceTypeResponse {
 
     public void setName(String name) {
         this.name = name;
+    }
+
+    public String getFieldConfigKey() {
+        return fieldConfigKey;
+    }
+
+    public void setFieldConfigKey(String fieldConfigKey) {
+        this.fieldConfigKey = fieldConfigKey;
     }
 
     public Long getCategoryId() {

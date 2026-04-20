@@ -1,6 +1,7 @@
 package com.nexorcrm.backend.dto;
 
 import java.time.LocalDate;
+import java.util.List;
 
 public class VendorResponse {
 
@@ -25,8 +26,17 @@ public class VendorResponse {
     private String panNumber;
     private String companyAddress;
     private String status;
+    private String bankAccountHolderName;
+    private String bankName;
+    private String bankAccountNumber;
+    private String bankIfscCode;
+    private String bankBranchName;
+    private String bankAccountType;
+    private List<BankDetailDto> bankDetails;
     private String officialEmail;
     private String secondaryEmail;
+    private String username;
+    private boolean hasPassword;
 
     // Getters
     public Long getId() { return id; }
@@ -50,8 +60,17 @@ public class VendorResponse {
     public String getPanNumber() { return panNumber; }
     public String getCompanyAddress() { return companyAddress; }
     public String getStatus() { return status; }
+    public String getBankAccountHolderName() { return bankAccountHolderName; }
+    public String getBankName() { return bankName; }
+    public String getBankAccountNumber() { return bankAccountNumber; }
+    public String getBankIfscCode() { return bankIfscCode; }
+    public String getBankBranchName() { return bankBranchName; }
+    public String getBankAccountType() { return bankAccountType; }
+    public List<BankDetailDto> getBankDetails() { return bankDetails; }
     public String getOfficialEmail() { return officialEmail; }
     public String getSecondaryEmail() { return secondaryEmail; }
+    public String getUsername() { return username; }
+    public boolean isHasPassword() { return hasPassword; }
 
     // Setters
     public void setId(Long id) { this.id = id; }
@@ -75,6 +94,15 @@ public class VendorResponse {
     public void setPanNumber(String panNumber) { this.panNumber = panNumber; }
     public void setCompanyAddress(String companyAddress) { this.companyAddress = companyAddress; }
     public void setStatus(String status) { this.status = status; }
+    public void setBankAccountHolderName(String bankAccountHolderName) { this.bankAccountHolderName = bankAccountHolderName; }
+    public void setBankName(String bankName) { this.bankName = bankName; }
+    public void setBankAccountNumber(String bankAccountNumber) { this.bankAccountNumber = bankAccountNumber; }
+    public void setBankIfscCode(String bankIfscCode) { this.bankIfscCode = bankIfscCode; }
+    public void setBankBranchName(String bankBranchName) { this.bankBranchName = bankBranchName; }
+    public void setBankAccountType(String bankAccountType) { this.bankAccountType = bankAccountType; }
+    public void setBankDetails(List<BankDetailDto> bankDetails) { this.bankDetails = bankDetails; }
     public void setOfficialEmail(String officialEmail) { this.officialEmail = officialEmail; }
     public void setSecondaryEmail(String secondaryEmail) { this.secondaryEmail = secondaryEmail; }
+    public void setUsername(String username) { this.username = username; }
+    public void setHasPassword(boolean hasPassword) { this.hasPassword = hasPassword; }
 }

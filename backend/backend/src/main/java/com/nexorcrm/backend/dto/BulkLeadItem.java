@@ -1,5 +1,6 @@
 package com.nexorcrm.backend.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -83,4 +84,20 @@ public class BulkLeadItem {
     public void setLeadCity(String leadCity) { this.leadCity = leadCity; }
     public Long getAssignedUserId() { return assignedUserId; }
     public void setAssignedUserId(Long assignedUserId) { this.assignedUserId = assignedUserId; }
+
+    // duplicate detection fields (set by frontend after check-duplicates)
+    @JsonProperty("isDuplicate")
+    private boolean isDuplicate = false;
+    private Long duplicateOfLeadId;
+    private String duplicateOfLeadRef;
+    private String duplicateOfLeadName;
+
+    public boolean isDuplicate() { return isDuplicate; }
+    public void setDuplicate(boolean isDuplicate) { this.isDuplicate = isDuplicate; }
+    public Long getDuplicateOfLeadId() { return duplicateOfLeadId; }
+    public void setDuplicateOfLeadId(Long duplicateOfLeadId) { this.duplicateOfLeadId = duplicateOfLeadId; }
+    public String getDuplicateOfLeadRef() { return duplicateOfLeadRef; }
+    public void setDuplicateOfLeadRef(String duplicateOfLeadRef) { this.duplicateOfLeadRef = duplicateOfLeadRef; }
+    public String getDuplicateOfLeadName() { return duplicateOfLeadName; }
+    public void setDuplicateOfLeadName(String duplicateOfLeadName) { this.duplicateOfLeadName = duplicateOfLeadName; }
 }

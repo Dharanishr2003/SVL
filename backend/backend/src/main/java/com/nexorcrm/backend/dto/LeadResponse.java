@@ -1,5 +1,6 @@
 package com.nexorcrm.backend.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import java.time.LocalDateTime;
 
 public class LeadResponse {
@@ -104,6 +105,13 @@ public class LeadResponse {
     private String budgetVerificationAssignedToUserName;
     private String budgetVerificationRejectionReason;
 
+    // duplicate detection
+    @JsonProperty("isDuplicate")
+    private boolean isDuplicate;
+    private Long duplicateOfLeadId;
+    private String duplicateOfLeadRef;
+    private String duplicateOfLeadName;
+
     private LocalDateTime createdAt;
 
     public Long getPaymentVerificationAssignedToUserId() {
@@ -130,6 +138,14 @@ public class LeadResponse {
     public void setBudgetVerificationAssignedToUserName(String budgetVerificationAssignedToUserName) { this.budgetVerificationAssignedToUserName = budgetVerificationAssignedToUserName; }
     public String getBudgetVerificationRejectionReason() { return budgetVerificationRejectionReason; }
     public void setBudgetVerificationRejectionReason(String budgetVerificationRejectionReason) { this.budgetVerificationRejectionReason = budgetVerificationRejectionReason; }
+    public boolean isDuplicate() { return isDuplicate; }
+    public void setDuplicate(boolean isDuplicate) { this.isDuplicate = isDuplicate; }
+    public Long getDuplicateOfLeadId() { return duplicateOfLeadId; }
+    public void setDuplicateOfLeadId(Long duplicateOfLeadId) { this.duplicateOfLeadId = duplicateOfLeadId; }
+    public String getDuplicateOfLeadRef() { return duplicateOfLeadRef; }
+    public void setDuplicateOfLeadRef(String duplicateOfLeadRef) { this.duplicateOfLeadRef = duplicateOfLeadRef; }
+    public String getDuplicateOfLeadName() { return duplicateOfLeadName; }
+    public void setDuplicateOfLeadName(String duplicateOfLeadName) { this.duplicateOfLeadName = duplicateOfLeadName; }
 
     public Long getId() {
         return id;

@@ -155,28 +155,15 @@ public class Lead {
     @Column(name = "design_end_at")
     private LocalDateTime designEndAt;
 
-    // owner of the lead while it is in payment status; preserved when the lead
-    // moves into "design" so we can restore ownership when it returns to
-    // payment. not null only during design phase.
     @Column(name = "payment_owner_id")
     private Long paymentOwnerId;
 
-    // when a lead is sent into design we choose an employee from the
-    // design group with a round‑robin algorithm. if the lead leaves
-    // design and later returns, we want to restore the same employee
-    // rather than picking a new one.
     @Column(name = "design_owner_id")
     private Long designOwnerId;
 
-    // when a lead is sent into production we choose an employee from the
-    // production group with a round‑robin algorithm. if the lead leaves
-    // production and later returns, we want to restore the same employee
-    // rather than picking a new one; this field holds the previously assigned
-    // production owner until it has been reapplied. cleared when used.
     @Column(name = "production_owner_id")
     private Long productionOwnerId;
 
-    // original owner before converting the lead to a deal
     @Column(name = "pre_deal_owner_user_id")
     private Long preDealOwnerUserId;
 
@@ -215,19 +202,18 @@ public class Lead {
     @Column(name = "payment_verification_rejection_reason", columnDefinition = "LONGTEXT")
     private String paymentVerificationRejectionReason;
 
-    // payment verification address IDs
     @Column(name = "payment_verification_billing_address_id")
     private Long paymentVerificationBillingAddressId;
 
     @Column(name = "payment_verification_shipping_address_id")
     private Long paymentVerificationShippingAddressId;
+
     @Column(name = "payment_verification_assigned_to_user_id")
     private Long paymentVerificationAssignedToUserId;
 
     @Column(name = "payment_verification_amount", precision = 14, scale = 2)
     private java.math.BigDecimal paymentVerificationAmount;
 
-    // payment details captured from payment verification
     @Column(name = "payment_method", length = 100)
     private String paymentMethod;
 
@@ -261,7 +247,6 @@ public class Lead {
     @Column(name = "payment_invoice_sent", nullable = false)
     private boolean paymentInvoiceSent = false;
 
-    // budget verification fields
     @Column(name = "budget_verification_status", length = 50)
     private String budgetVerificationStatus;
 
@@ -270,6 +255,27 @@ public class Lead {
 
     @Column(name = "budget_verification_rejection_reason", columnDefinition = "LONGTEXT")
     private String budgetVerificationRejectionReason;
+
+    // ── Duplicate detection fields ──────────────────────────────────────────
+    // When is_duplicate = true this lead was created but matched an existing
+    // lead by mobile or email. It lives in the "Duplicate" bucket until the
+    // user reviews and either converts it to a real lead or discards it.
+    @Column(name = "is_duplicate", nullable = false)
+    private boolean isDuplicate = false;
+
+    // The ID of the existing lead that this one duplicates.
+    @Column(name = "duplicate_of_lead_id")
+    private Long duplicateOfLeadId;
+
+    // Human-readable identifier of the original lead (leadId string, e.g. "LD-00042").
+    // Stored so the frontend can show it without an extra join.
+    @Column(name = "duplicate_of_lead_ref", length = 64)
+    private String duplicateOfLeadRef;
+
+    // Display name of the original lead owner — stored for quick display.
+    @Column(name = "duplicate_of_lead_name", length = 200)
+    private String duplicateOfLeadName;
+    // ────────────────────────────────────────────────────────────────────────
 
     @Column(name = "is_deleted", nullable = false)
     private boolean deleted = false;
@@ -291,6 +297,7 @@ public class Lead {
         updatedAt = LocalDateTime.now();
     }
 
+    // ── Getters / Setters ────────────────────────────────────────────────────
     public Long getId() { return id; }
     public String getLeadId() { return leadId; }
     public void setLeadId(String leadId) { this.leadId = leadId; }
@@ -372,119 +379,92 @@ public class Lead {
     public void setRejectedReason(String rejectedReason) { this.rejectedReason = rejectedReason; }
     public String getRejectedReasonSubtype() { return rejectedReasonSubtype; }
     public void setRejectedReasonSubtype(String rejectedReasonSubtype) { this.rejectedReasonSubtype = rejectedReasonSubtype; }
-
     public java.math.BigDecimal getTotalAmount() { return totalAmount; }
     public void setTotalAmount(java.math.BigDecimal totalAmount) { this.totalAmount = totalAmount; }
-
     public java.math.BigDecimal getPaidAmount() { return paidAmount; }
     public void setPaidAmount(java.math.BigDecimal paidAmount) { this.paidAmount = paidAmount; }
-
     public java.math.BigDecimal getRemainingAmount() { return remainingAmount; }
     public void setRemainingAmount(java.math.BigDecimal remainingAmount) { this.remainingAmount = remainingAmount; }
-
     public LocalDateTime getDesignStartAt() { return designStartAt; }
     public void setDesignStartAt(LocalDateTime designStartAt) { this.designStartAt = designStartAt; }
-
     public LocalDateTime getDesignEndAt() { return designEndAt; }
     public void setDesignEndAt(LocalDateTime designEndAt) { this.designEndAt = designEndAt; }
-
     public Long getPaymentOwnerId() { return paymentOwnerId; }
     public void setPaymentOwnerId(Long paymentOwnerId) { this.paymentOwnerId = paymentOwnerId; }
-
     public Long getDesignOwnerId() { return designOwnerId; }
     public void setDesignOwnerId(Long designOwnerId) { this.designOwnerId = designOwnerId; }
-
     public Long getProductionOwnerId() { return productionOwnerId; }
     public void setProductionOwnerId(Long productionOwnerId) { this.productionOwnerId = productionOwnerId; }
-
     public Long getPreDealOwnerUserId() { return preDealOwnerUserId; }
     public void setPreDealOwnerUserId(Long preDealOwnerUserId) { this.preDealOwnerUserId = preDealOwnerUserId; }
-
     public String getRequirementType() { return requirementType; }
     public void setRequirementType(String requirementType) { this.requirementType = requirementType; }
-
     public String getRequirementFileName() { return requirementFileName; }
     public void setRequirementFileName(String requirementFileName) { this.requirementFileName = requirementFileName; }
-
     public String getRequirementFilePath() { return requirementFilePath; }
     public void setRequirementFilePath(String requirementFilePath) { this.requirementFilePath = requirementFilePath; }
-
     public String getRequirementFileType() { return requirementFileType; }
     public void setRequirementFileType(String requirementFileType) { this.requirementFileType = requirementFileType; }
-
     public Long getRequirementFileSize() { return requirementFileSize; }
     public void setRequirementFileSize(Long requirementFileSize) { this.requirementFileSize = requirementFileSize; }
-
     public String getRequirementNotes() { return requirementNotes; }
     public void setRequirementNotes(String requirementNotes) { this.requirementNotes = requirementNotes; }
-
     public String getPaymentProofFileName() { return paymentProofFileName; }
     public void setPaymentProofFileName(String paymentProofFileName) { this.paymentProofFileName = paymentProofFileName; }
-
     public String getPaymentProofFilePath() { return paymentProofFilePath; }
     public void setPaymentProofFilePath(String paymentProofFilePath) { this.paymentProofFilePath = paymentProofFilePath; }
-
     public String getPaymentProofNotes() { return paymentProofNotes; }
     public void setPaymentProofNotes(String paymentProofNotes) { this.paymentProofNotes = paymentProofNotes; }
-
     public String getPaymentVerificationStatus() { return paymentVerificationStatus; }
     public void setPaymentVerificationStatus(String paymentVerificationStatus) { this.paymentVerificationStatus = paymentVerificationStatus; }
-
     public String getPaymentVerificationRejectionReason() { return paymentVerificationRejectionReason; }
     public void setPaymentVerificationRejectionReason(String paymentVerificationRejectionReason) { this.paymentVerificationRejectionReason = paymentVerificationRejectionReason; }
-
     public Long getPaymentVerificationBillingAddressId() { return paymentVerificationBillingAddressId; }
     public void setPaymentVerificationBillingAddressId(Long paymentVerificationBillingAddressId) { this.paymentVerificationBillingAddressId = paymentVerificationBillingAddressId; }
-
     public Long getPaymentVerificationShippingAddressId() { return paymentVerificationShippingAddressId; }
     public void setPaymentVerificationShippingAddressId(Long paymentVerificationShippingAddressId) { this.paymentVerificationShippingAddressId = paymentVerificationShippingAddressId; }
     public Long getPaymentVerificationAssignedToUserId() { return paymentVerificationAssignedToUserId; }
     public void setPaymentVerificationAssignedToUserId(Long paymentVerificationAssignedToUserId) { this.paymentVerificationAssignedToUserId = paymentVerificationAssignedToUserId; }
-
-    public String getPaymentMethod() { return paymentMethod; }
-    public void setPaymentMethod(String paymentMethod) { this.paymentMethod = paymentMethod; }
-
-    public String getTransactionId() { return transactionId; }
-    public void setTransactionId(String transactionId) { this.transactionId = transactionId; }
-
-    public LocalDateTime getPaymentDate() { return paymentDate; }
-    public void setPaymentDate(LocalDateTime paymentDate) { this.paymentDate = paymentDate; }
-
-    public String getPaymentNotes() { return paymentNotes; }
-    public void setPaymentNotes(String paymentNotes) { this.paymentNotes = paymentNotes; }
-
-    public String getRejectionNotes() { return rejectionNotes; }
-    public void setRejectionNotes(String rejectionNotes) { this.rejectionNotes = rejectionNotes; }
-
-    public String getInvoiceData() { return invoiceData; }
-    public void setInvoiceData(String invoiceData) { this.invoiceData = invoiceData; }
-
-    public String getPaymentVerifiedInvoiceData() { return paymentVerifiedInvoiceData; }
-    public void setPaymentVerifiedInvoiceData(String paymentVerifiedInvoiceData) { this.paymentVerifiedInvoiceData = paymentVerifiedInvoiceData; }
-
     public java.math.BigDecimal getPaymentVerificationAmount() { return paymentVerificationAmount; }
     public void setPaymentVerificationAmount(java.math.BigDecimal paymentVerificationAmount) { this.paymentVerificationAmount = paymentVerificationAmount; }
-
+    public String getPaymentMethod() { return paymentMethod; }
+    public void setPaymentMethod(String paymentMethod) { this.paymentMethod = paymentMethod; }
+    public String getTransactionId() { return transactionId; }
+    public void setTransactionId(String transactionId) { this.transactionId = transactionId; }
+    public LocalDateTime getPaymentDate() { return paymentDate; }
+    public void setPaymentDate(LocalDateTime paymentDate) { this.paymentDate = paymentDate; }
+    public String getPaymentNotes() { return paymentNotes; }
+    public void setPaymentNotes(String paymentNotes) { this.paymentNotes = paymentNotes; }
+    public String getRejectionNotes() { return rejectionNotes; }
+    public void setRejectionNotes(String rejectionNotes) { this.rejectionNotes = rejectionNotes; }
+    public String getInvoiceData() { return invoiceData; }
+    public void setInvoiceData(String invoiceData) { this.invoiceData = invoiceData; }
+    public String getPaymentVerifiedInvoiceData() { return paymentVerifiedInvoiceData; }
+    public void setPaymentVerifiedInvoiceData(String paymentVerifiedInvoiceData) { this.paymentVerifiedInvoiceData = paymentVerifiedInvoiceData; }
     public java.math.BigDecimal getInvoiceCgstPercent() { return invoiceCgstPercent; }
     public void setInvoiceCgstPercent(java.math.BigDecimal invoiceCgstPercent) { this.invoiceCgstPercent = invoiceCgstPercent; }
-
     public java.math.BigDecimal getInvoiceSgstPercent() { return invoiceSgstPercent; }
     public void setInvoiceSgstPercent(java.math.BigDecimal invoiceSgstPercent) { this.invoiceSgstPercent = invoiceSgstPercent; }
-
     public boolean isBudgetInvoiceSent() { return budgetInvoiceSent; }
     public void setBudgetInvoiceSent(boolean budgetInvoiceSent) { this.budgetInvoiceSent = budgetInvoiceSent; }
-
     public boolean isPaymentInvoiceSent() { return paymentInvoiceSent; }
     public void setPaymentInvoiceSent(boolean paymentInvoiceSent) { this.paymentInvoiceSent = paymentInvoiceSent; }
-
     public String getBudgetVerificationStatus() { return budgetVerificationStatus; }
     public void setBudgetVerificationStatus(String budgetVerificationStatus) { this.budgetVerificationStatus = budgetVerificationStatus; }
-
     public Long getBudgetVerificationAssignedToUserId() { return budgetVerificationAssignedToUserId; }
     public void setBudgetVerificationAssignedToUserId(Long budgetVerificationAssignedToUserId) { this.budgetVerificationAssignedToUserId = budgetVerificationAssignedToUserId; }
-
     public String getBudgetVerificationRejectionReason() { return budgetVerificationRejectionReason; }
     public void setBudgetVerificationRejectionReason(String budgetVerificationRejectionReason) { this.budgetVerificationRejectionReason = budgetVerificationRejectionReason; }
+
+    // duplicate detection getters/setters
+    public boolean isDuplicate() { return isDuplicate; }
+    public void setDuplicate(boolean isDuplicate) { this.isDuplicate = isDuplicate; }
+    public Long getDuplicateOfLeadId() { return duplicateOfLeadId; }
+    public void setDuplicateOfLeadId(Long duplicateOfLeadId) { this.duplicateOfLeadId = duplicateOfLeadId; }
+    public String getDuplicateOfLeadRef() { return duplicateOfLeadRef; }
+    public void setDuplicateOfLeadRef(String duplicateOfLeadRef) { this.duplicateOfLeadRef = duplicateOfLeadRef; }
+    public String getDuplicateOfLeadName() { return duplicateOfLeadName; }
+    public void setDuplicateOfLeadName(String duplicateOfLeadName) { this.duplicateOfLeadName = duplicateOfLeadName; }
 
     public boolean isDeleted() { return deleted; }
     public void setDeleted(boolean deleted) { this.deleted = deleted; }

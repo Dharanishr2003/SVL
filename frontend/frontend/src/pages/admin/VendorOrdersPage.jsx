@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { getVendorOrders, updateVendorOrderApi } from "../../api/vendorOrdersApi";
+import CreateVendorOrderModal from "./CreateVendorOrderModal";
 import "./VendorOrdersPage.css";
 
 const STATUS_CLASS = {
@@ -27,6 +28,7 @@ const PAYMENT_CLASS = {
 export default function VendorOrdersPage() {
   const [orders, setOrders] = useState([]);
   const [search, setSearch] = useState("");
+  const [showCreateModal, setShowCreateModal] = useState(false);
   const [advancePaidModalOpen, setAdvancePaidModalOpen] = useState(false);
   const [advancePaidOrderId, setAdvancePaidOrderId] = useState(null);
   const [advancePaidAmount, setAdvancePaidAmount] = useState("");
@@ -35,12 +37,13 @@ export default function VendorOrdersPage() {
   const [advancePaidError, setAdvancePaidError] = useState("");
   const [advancePaidSaving, setAdvancePaidSaving] = useState(false);
 
+  const load = async () => {
+    const data = await getVendorOrders().catch(() => []);
+    setOrders(Array.isArray(data) ? data : []);
+  };
+
   useEffect(() => {
-    const loadOrders = async () => {
-      const data = await getVendorOrders().catch(() => []);
-      setOrders(Array.isArray(data) ? data : []);
-    };
-    loadOrders();
+    load();
   }, []);
 
   const filteredOrders = useMemo(() => {
@@ -131,10 +134,10 @@ export default function VendorOrdersPage() {
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
-          <Link to="/stocks/vendor-orders/new" className="vo-add-btn">
+          <button type="button" className="vo-add-btn" onClick={() => setShowCreateModal(true)}>
             <i className="ti ti-circle-plus"></i>
             New Order Request
-          </Link>
+          </button>
         </div>
       </div>
 
@@ -235,6 +238,12 @@ export default function VendorOrdersPage() {
           </table>
         </div>
       </div>
+
+      <CreateVendorOrderModal
+        open={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        onCreated={load}
+      />
 
       {advancePaidModalOpen ? (
         <>

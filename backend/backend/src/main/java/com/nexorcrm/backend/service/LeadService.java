@@ -4,6 +4,10 @@ package com.nexorcrm.backend.service;
 import com.nexorcrm.backend.dto.BulkLeadCreateRequest;
 import com.nexorcrm.backend.dto.BulkLeadItem;
 import com.nexorcrm.backend.dto.BulkLeadResponse;
+import com.nexorcrm.backend.dto.CheckDuplicatesContactResponse;
+import com.nexorcrm.backend.dto.CheckDuplicatesRequest;
+import com.nexorcrm.backend.dto.ConvertDuplicateRequest;
+import com.nexorcrm.backend.dto.ConvertDuplicateResponse;
 import com.nexorcrm.backend.dto.LeadAllocatorOptionResponse;
 import com.nexorcrm.backend.dto.LeadAssignableGroupResponse;
 import com.nexorcrm.backend.dto.LeadCreateRequest;
@@ -216,6 +220,7 @@ public class LeadService {
         Set<Long> visibleGroupIds = resolveVisibleLeadGroupIds(actor);
         boolean paymentFilter = StringUtils.hasText(status) && status.equalsIgnoreCase("payment");
         List<Lead> rows = leadRepository.findByDeletedFalseOrderByCreatedAtDesc().stream()
+                .filter(row -> !row.isDuplicate())
                 .filter(row -> canViewLead(actor, row, visibleGroupIds))
                 .filter(row -> containsIgnoreCase(row.getName(), search)
                         || containsIgnoreCase(row.getMobile(), search)
@@ -312,7 +317,9 @@ public class LeadService {
             throw new AccessDeniedException("Employees cannot use bulk import");
         }
 
-        Long flowGroupId = resolveFlowGroupForStatus(actor, "New Lead");
+        Long flowGroupId = StringUtils.hasText(request.getInstitutionName())
+                ? resolveFlowGroupForStatusInScope(request.getInstitutionName(), "New Lead")
+                : resolveFlowGroupForStatus(actor, "New Lead");
 
         java.util.ArrayList<String> errors = new java.util.ArrayList<>();
         java.util.ArrayList<Lead> toSave = new java.util.ArrayList<>();
@@ -391,6 +398,12 @@ public class LeadService {
             row.setAllocatorUserId(actor.getId());
             row.setOwnerUserId(assignedUser.getId());
             row.setOwner(assignedUser.getUsername());
+            if (item.isDuplicate()) {
+                row.setDuplicate(true);
+                row.setDuplicateOfLeadId(item.getDuplicateOfLeadId());
+                row.setDuplicateOfLeadRef(item.getDuplicateOfLeadRef());
+                row.setDuplicateOfLeadName(item.getDuplicateOfLeadName());
+            }
             toSave.add(row);
         }
 
@@ -443,7 +456,12 @@ public class LeadService {
     public LeadResponse create(LeadCreateRequest request, String actorPrincipal) {
         User actor = assertLeadAccess(actorPrincipal);
         Long flowGroupId = resolveFlowGroupForStatus(actor, "New Lead");
-        Long groupId = flowGroupId != null ? flowGroupId : request.getLeadGroupId();
+        // SUPER_ADMIN uses a branch selector on the frontend which sends the branch-specific
+        // group as request.getLeadGroupId(). The global flow would otherwise override it with
+        // a different group, causing eligibility checks to fail for branch-specific employees.
+        Long groupId = (actor.getRole() == Role.SUPER_ADMIN && request.getLeadGroupId() != null)
+                ? request.getLeadGroupId()
+                : (flowGroupId != null ? flowGroupId : request.getLeadGroupId());
         UserGroup selectedGroup = resolveLeadGroupForCreate(actor, groupId);
         User ownerUser;
         if (actor.getRole() != Role.EMPLOYEE && request.getAssignedUserId() != null) {
@@ -479,6 +497,14 @@ public class LeadService {
             throw new IllegalStateException("Mobile is required");
         }
 
+        // Duplicate detection: check for an existing non-duplicate lead with same mobile or email
+        Optional<Lead> existingMatch = leadRepository
+                .findFirstByDeletedFalseAndIsDuplicateFalseAndMobileNormalizedOrderByCreatedAtDesc(mobileNormalized);
+        if (existingMatch.isEmpty() && StringUtils.hasText(emailNormalized)) {
+            existingMatch = leadRepository
+                    .findFirstByDeletedFalseAndIsDuplicateFalseAndEmailNormalizedOrderByCreatedAtDesc(emailNormalized);
+        }
+
         Lead row = new Lead();
         row.setLeadId("LEAD_" + UUID.randomUUID().toString().replace("-", "").substring(0, 14).toUpperCase(Locale.ROOT));
         row.setEuid(leadRepository.countByDeletedFalse() + 1);
@@ -504,6 +530,14 @@ public class LeadService {
         row.setAllocatorUserId(actor.getId());
         row.setOwnerUserId(ownerUser.getId());
         row.setOwner(ownerUser.getUsername());
+
+        // Mark as duplicate if a match was found
+        existingMatch.ifPresent(existing -> {
+            row.setDuplicate(true);
+            row.setDuplicateOfLeadId(existing.getId());
+            row.setDuplicateOfLeadRef(existing.getLeadId());
+            row.setDuplicateOfLeadName(existing.getName());
+        });
 
         Lead saved = leadRepository.save(row);
         auditService.log("LEAD_CREATE", "Created lead with status " + saved.getStatus(), actor.getEmail());
@@ -2057,6 +2091,16 @@ public class LeadService {
         }
     }
 
+    private Long resolveFlowGroupForStatusInScope(String institutionName, String status) {
+        try {
+            List<Map<String, Object>> rules = leadFlowService.getFlowForScope(institutionName).getRules();
+            FlowRule rule = findFlowRule(rules, status);
+            return rule == null ? null : rule.handledByGroupId;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     private Long resolveDealFlowGroupForStatus(String status) {
         try {
             List<Map<String, Object>> rules = dealFlowService.getFlow().getRules();
@@ -3043,6 +3087,11 @@ public class LeadService {
         res.setBudgetVerificationAssignedToUserId(row.getBudgetVerificationAssignedToUserId());
         res.setBudgetVerificationAssignedToUserName(userNameMap.get(row.getBudgetVerificationAssignedToUserId()));
         res.setBudgetVerificationRejectionReason(row.getBudgetVerificationRejectionReason());
+        // duplicate detection
+        res.setDuplicate(row.isDuplicate());
+        res.setDuplicateOfLeadId(row.getDuplicateOfLeadId());
+        res.setDuplicateOfLeadRef(row.getDuplicateOfLeadRef());
+        res.setDuplicateOfLeadName(row.getDuplicateOfLeadName());
         return res;
     }
 
@@ -3289,6 +3338,92 @@ public class LeadService {
     private String normalizeEmail(String email) {
         if (!StringUtils.hasText(email)) return null;
         return email.trim().toLowerCase(Locale.ROOT);
+    }
+
+    @Transactional(readOnly = true)
+    public List<CheckDuplicatesContactResponse> checkDuplicates(CheckDuplicatesRequest request, String actorPrincipal) {
+        assertLeadAccess(actorPrincipal);
+        if (request.getContacts() == null || request.getContacts().isEmpty()) return List.of();
+        List<CheckDuplicatesContactResponse> results = new java.util.ArrayList<>();
+        for (CheckDuplicatesRequest.ContactItem contact : request.getContacts()) {
+            String mobileNorm = normalizeMobile(contact.getMobile());
+            String emailNorm = normalizeEmail(contact.getEmail());
+            Lead match = null;
+            if (StringUtils.hasText(mobileNorm)) {
+                match = leadRepository
+                        .findFirstByDeletedFalseAndIsDuplicateFalseAndMobileNormalizedOrderByCreatedAtDesc(mobileNorm)
+                        .orElse(null);
+            }
+            if (match == null && StringUtils.hasText(emailNorm)) {
+                match = leadRepository
+                        .findFirstByDeletedFalseAndIsDuplicateFalseAndEmailNormalizedOrderByCreatedAtDesc(emailNorm)
+                        .orElse(null);
+            }
+            if (match != null) {
+                CheckDuplicatesContactResponse res = new CheckDuplicatesContactResponse();
+                res.setMobile(contact.getMobile());
+                res.setEmail(contact.getEmail());
+                res.setMatchedLeadId(match.getId());
+                res.setMatchedLeadRef(match.getLeadId());
+                res.setMatchedLeadName(match.getName());
+                results.add(res);
+            }
+        }
+        return results;
+    }
+
+    @Transactional(readOnly = true)
+    public List<LeadResponse> getDuplicateLeads(String actorPrincipal) {
+        User actor = assertLeadAccess(actorPrincipal);
+        Set<Long> visibleGroupIds = resolveVisibleLeadGroupIds(actor);
+        List<Lead> rows = leadRepository.findByDeletedFalseAndIsDuplicateTrueOrderByCreatedAtDesc().stream()
+                .filter(row -> canViewLead(actor, row, visibleGroupIds))
+                .toList();
+        Map<Long, String> groupNameMap = loadGroupNameMap(rows);
+        Map<Long, String> userNameMap = loadUserNameMap(rows);
+        return rows.stream().map(row -> toResponse(row, groupNameMap, userNameMap)).toList();
+    }
+
+    public ConvertDuplicateResponse convertDuplicate(Long leadId, ConvertDuplicateRequest request, String actorPrincipal) {
+        User actor = assertLeadAccess(actorPrincipal);
+        Lead row = leadRepository.findByIdAndDeletedFalse(leadId)
+                .orElseThrow(() -> new EntityNotFoundException("Lead not found"));
+        if (!row.isDuplicate()) {
+            throw new IllegalStateException("Lead is not marked as duplicate");
+        }
+        if (!request.isForce()) {
+            String mobileNorm = row.getMobileNormalized();
+            String emailNorm = row.getEmailNormalized();
+            Lead match = null;
+            if (StringUtils.hasText(mobileNorm)) {
+                match = leadRepository
+                        .findFirstByDeletedFalseAndIsDuplicateFalseAndMobileNormalizedAndIdNotOrderByCreatedAtDesc(mobileNorm, leadId)
+                        .orElse(null);
+            }
+            if (match == null && StringUtils.hasText(emailNorm)) {
+                match = leadRepository
+                        .findFirstByDeletedFalseAndIsDuplicateFalseAndEmailNormalizedAndIdNotOrderByCreatedAtDesc(emailNorm, leadId)
+                        .orElse(null);
+            }
+            if (match != null) {
+                ConvertDuplicateResponse res = new ConvertDuplicateResponse();
+                res.setStillDuplicate(true);
+                res.setMatchedLeadRef(match.getLeadId());
+                res.setMatchedLeadName(match.getName());
+                return res;
+            }
+        }
+        row.setDuplicate(false);
+        row.setDuplicateOfLeadId(null);
+        row.setDuplicateOfLeadRef(null);
+        row.setDuplicateOfLeadName(null);
+        row.setStatus("New Lead");
+        leadRepository.save(row);
+        auditService.log("LEAD_CONVERT_DUPLICATE", "Converted duplicate lead " + row.getLeadId() + " to new lead", actor.getEmail());
+        ConvertDuplicateResponse res = new ConvertDuplicateResponse();
+        res.setConverted(true);
+        res.setLeadId(leadId);
+        return res;
     }
 
     private String normalizeMobile(String mobile) {

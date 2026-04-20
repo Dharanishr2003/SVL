@@ -1,0 +1,1334 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e130]:
+      - generic [ref=e132]:
+        - generic [ref=e134]:
+          - link "" [ref=e136] [cursor=pointer]:
+            - /url: "#"
+            - generic [ref=e137]: 
+          - generic [ref=e138]:
+            - link "" [ref=e139] [cursor=pointer]:
+              - /url: "#"
+              - generic [ref=e140]: 
+            - link "鈴" [ref=e141] [cursor=pointer]:
+              - /url: /profile-settings
+              - generic [ref=e142]: 鈴
+            - link "" [ref=e143] [cursor=pointer]:
+              - /url: /apps
+              - generic [ref=e144]: 
+            - link "" [ref=e145] [cursor=pointer]:
+              - /url: "#"
+              - generic [ref=e146]: 
+            - link "User" [ref=e149] [cursor=pointer]:
+              - /url: "#"
+              - img "User" [ref=e151]
+          - text:   﨡    ﰌ    﨡                    ﭞ         﨡       
+        - text: 
+      - generic [ref=e152]:
+        - link "Logo" [ref=e154] [cursor=pointer]:
+          - /url: /admin-dashboard
+          - img "Logo" [ref=e155]
+        - text:  墳 
+        - list [ref=e158]:
+          - listitem [ref=e159]:
+            - generic [ref=e160]: MAIN MENU
+          - listitem [ref=e161]:
+            - list [ref=e162]:
+              - listitem [ref=e163]:
+                - link " Dashboard Hot" [ref=e164] [cursor=pointer]:
+                  - /url: "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')"
+                  - generic [ref=e165]: 
+                  - generic [ref=e166]: Dashboard
+                  - generic [ref=e167]: Hot
+                - list [ref=e169]:
+                  - listitem [ref=e170]:
+                    - link "Admin Dashboard" [ref=e171] [cursor=pointer]:
+                      - /url: /admin-dashboard
+                  - listitem [ref=e172]:
+                    - link "Employee Dashboard" [ref=e173] [cursor=pointer]:
+                      - /url: /employee-dashboard
+                  - listitem [ref=e174]:
+                    - link "Sales Dashboard" [ref=e175] [cursor=pointer]:
+                      - /url: /dashboard
+              - listitem [ref=e176]:
+                - link " Super Admin" [ref=e177] [cursor=pointer]:
+                  - /url: "#"
+                  - generic [ref=e178]: 
+                  - generic [ref=e179]: Super Admin
+          - listitem [ref=e181]:
+            - generic [ref=e182]: PROJECTS
+          - listitem [ref=e183]:
+            - list [ref=e184]:
+              - listitem [ref=e185]:
+                - link "﨡 Clients" [ref=e186] [cursor=pointer]:
+                  - /url: /clients
+                  - generic [ref=e187]: 﨡
+                  - generic [ref=e188]: Clients
+          - listitem [ref=e189]:
+            - generic [ref=e190]: CRM
+          - listitem [ref=e191]:
+            - list [ref=e192]:
+              - listitem [ref=e193]:
+                - link " Contacts" [ref=e194] [cursor=pointer]:
+                  - /url: /contacts
+                  - generic [ref=e195]: 
+                  - generic [ref=e196]: Contacts
+              - listitem [ref=e197]:
+                - link " Companies" [ref=e198] [cursor=pointer]:
+                  - /url: /companies
+                  - generic [ref=e199]: 
+                  - generic [ref=e200]: Companies
+              - listitem [ref=e201]:
+                - link "ﰌ Design" [ref=e202] [cursor=pointer]:
+                  - /url: /design
+                  - generic [ref=e203]: ﰌ
+                  - generic [ref=e204]: Design
+              - listitem [ref=e205]:
+                - link " Production" [ref=e206] [cursor=pointer]:
+                  - /url: /production
+                  - generic [ref=e207]: 
+                  - generic [ref=e208]: Production
+              - listitem [ref=e209]:
+                - link " Leads" [ref=e210] [cursor=pointer]:
+                  - /url: /leads
+                  - generic [ref=e211]: 
+                  - generic [ref=e212]: Leads
+              - listitem [ref=e213]:
+                - link " Rejected Leads" [ref=e214] [cursor=pointer]:
+                  - /url: /rejected-leads
+                  - generic [ref=e215]: 
+                  - generic [ref=e216]: Rejected Leads
+              - listitem [ref=e217]:
+                - link "﨡 Customers" [ref=e218] [cursor=pointer]:
+                  - /url: /customer
+                  - generic [ref=e219]: 﨡
+                  - generic [ref=e220]: Customers
+              - listitem [ref=e221]:
+                - link " Quotation" [ref=e222] [cursor=pointer]:
+                  - /url: "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')"
+                  - generic [ref=e223]: 
+                  - generic [ref=e224]: Quotation
+              - listitem [ref=e226]:
+                - link " Stocks" [ref=e227] [cursor=pointer]:
+                  - /url: "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')"
+                  - generic [ref=e228]: 
+                  - generic [ref=e229]: Stocks
+              - listitem [ref=e231]:
+                - link " RRQ" [ref=e232] [cursor=pointer]:
+                  - /url: "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')"
+                  - generic [ref=e233]: 
+                  - generic [ref=e234]: RRQ
+              - listitem [ref=e236]:
+                - link " Projects" [ref=e237] [cursor=pointer]:
+                  - /url: "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')"
+                  - generic [ref=e238]: 
+                  - generic [ref=e239]: Projects
+              - listitem [ref=e241]:
+                - link " Lead Source" [ref=e242] [cursor=pointer]:
+                  - /url: "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')"
+                  - generic [ref=e243]: 
+                  - generic [ref=e244]: Lead Source
+          - listitem [ref=e246]:
+            - generic [ref=e247]: HRM
+          - listitem [ref=e248]:
+            - list [ref=e249]:
+              - listitem [ref=e250]:
+                - link " Employees" [ref=e251] [cursor=pointer]:
+                  - /url: "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')"
+                  - generic [ref=e252]: 
+                  - generic [ref=e253]: Employees
+              - listitem [ref=e255]:
+                - link " Tickets" [ref=e256] [cursor=pointer]:
+                  - /url: "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')"
+                  - generic [ref=e257]: 
+                  - generic [ref=e258]: Tickets
+              - listitem [ref=e260]:
+                - link " Holidays" [ref=e261] [cursor=pointer]:
+                  - /url: /holidays
+                  - generic [ref=e262]: 
+                  - generic [ref=e263]: Holidays
+              - listitem [ref=e264]:
+                - link " Attendance" [ref=e265] [cursor=pointer]:
+                  - /url: "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')"
+                  - generic [ref=e266]: 
+                  - generic [ref=e267]: Attendance
+              - listitem [ref=e269]:
+                - link " Performance" [ref=e270] [cursor=pointer]:
+                  - /url: "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')"
+                  - generic [ref=e271]: 
+                  - generic [ref=e272]: Performance
+              - listitem [ref=e274]:
+                - link " Training" [ref=e275] [cursor=pointer]:
+                  - /url: "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')"
+                  - generic [ref=e276]: 
+                  - generic [ref=e277]: Training
+              - listitem [ref=e279]:
+                - link " Promotion" [ref=e280] [cursor=pointer]:
+                  - /url: /promotion
+                  - generic [ref=e281]: 
+                  - generic [ref=e282]: Promotion
+              - listitem [ref=e283]:
+                - link " Resignation" [ref=e284] [cursor=pointer]:
+                  - /url: /resignation
+                  - generic [ref=e285]: 
+                  - generic [ref=e286]: Resignation
+              - listitem [ref=e287]:
+                - link " Termination" [ref=e288] [cursor=pointer]:
+                  - /url: /termination
+                  - generic [ref=e289]: 
+                  - generic [ref=e290]: Termination
+          - listitem [ref=e291]:
+            - generic [ref=e292]: SERVICES
+          - listitem [ref=e293]:
+            - list [ref=e294]:
+              - listitem [ref=e295]:
+                - link " Services" [ref=e296] [cursor=pointer]:
+                  - /url: "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')"
+                  - generic [ref=e297]: 
+                  - generic [ref=e298]: Services
+          - listitem [ref=e300]:
+            - generic [ref=e301]: RECRUITMENT
+          - listitem [ref=e302]:
+            - list [ref=e303]:
+              - listitem [ref=e304]:
+                - link " Jobs" [ref=e305] [cursor=pointer]:
+                  - /url: /job-grid
+                  - generic [ref=e306]: 
+                  - generic [ref=e307]: Jobs
+              - listitem [ref=e308]:
+                - link " Candidates" [ref=e309] [cursor=pointer]:
+                  - /url: /candidates-grid
+                  - generic [ref=e310]: 
+                  - generic [ref=e311]: Candidates
+              - listitem [ref=e312]:
+                - link " Referrals" [ref=e313] [cursor=pointer]:
+                  - /url: /referrals
+                  - generic [ref=e314]: 
+                  - generic [ref=e315]: Referrals
+          - listitem [ref=e316]:
+            - generic [ref=e317]: FINANCE & ACCOUNTS
+          - listitem [ref=e318]:
+            - list [ref=e319]:
+              - listitem [ref=e320]:
+                - link "ﭞ Sales" [ref=e321] [cursor=pointer]:
+                  - /url: "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')"
+                  - generic [ref=e322]: ﭞ
+                  - generic [ref=e323]: Sales
+              - listitem [ref=e325]:
+                - link " Accounting" [ref=e326] [cursor=pointer]:
+                  - /url: "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')"
+                  - generic [ref=e327]: 
+                  - generic [ref=e328]: Accounting
+              - listitem [ref=e330]:
+                - link " Payroll" [ref=e331] [cursor=pointer]:
+                  - /url: "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')"
+                  - generic [ref=e332]: 
+                  - generic [ref=e333]: Payroll
+              - listitem [ref=e335]:
+                - link " Accounts" [ref=e336] [cursor=pointer]:
+                  - /url: "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')"
+                  - generic [ref=e337]: 
+                  - generic [ref=e338]: Accounts
+              - listitem [ref=e340]:
+                - link " Vendor Management" [ref=e341] [cursor=pointer]:
+                  - /url: "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')"
+                  - generic [ref=e342]: 
+                  - generic [ref=e343]: Vendor Management
+          - listitem [ref=e345]:
+            - generic [ref=e346]: REPORTS
+          - listitem [ref=e347]:
+            - list [ref=e348]:
+              - listitem [ref=e349]:
+                - link " Reports" [ref=e350] [cursor=pointer]:
+                  - /url: "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')"
+                  - generic [ref=e351]: 
+                  - generic [ref=e352]: Reports
+          - listitem [ref=e354]:
+            - generic [ref=e355]: Settings
+          - listitem [ref=e356]:
+            - list [ref=e357]:
+              - listitem [ref=e358]:
+                - link " User Admin" [ref=e359] [cursor=pointer]:
+                  - /url: /useradmin
+                  - generic [ref=e360]: 
+                  - generic [ref=e361]: User Admin
+              - listitem [ref=e362]:
+                - link " Group Access" [ref=e363] [cursor=pointer]:
+                  - /url: /group-access
+                  - generic [ref=e364]: 
+                  - generic [ref=e365]: Group Access
+              - listitem [ref=e366]:
+                - link "﨡 User Groups" [ref=e367] [cursor=pointer]:
+                  - /url: /usergroups
+                  - generic [ref=e368]: 﨡
+                  - generic [ref=e369]: User Groups
+              - listitem [ref=e370]:
+                - link " Registration" [ref=e371] [cursor=pointer]:
+                  - /url: /registration
+                  - generic [ref=e372]: 
+                  - generic [ref=e373]: Registration
+              - listitem [ref=e374]:
+                - link " Session" [ref=e375] [cursor=pointer]:
+                  - /url: /session-settings
+                  - generic [ref=e376]: 
+                  - generic [ref=e377]: Session
+              - listitem [ref=e378]:
+                - link " User Settings" [ref=e379] [cursor=pointer]:
+                  - /url: /user-settings
+                  - generic [ref=e380]: 
+                  - generic [ref=e381]: User Settings
+              - listitem [ref=e382]:
+                - link " Security" [ref=e383] [cursor=pointer]:
+                  - /url: /security
+                  - generic [ref=e384]: 
+                  - generic [ref=e385]: Security
+              - listitem [ref=e386]:
+                - link " Security Settings" [ref=e387] [cursor=pointer]:
+                  - /url: /security-settings
+                  - generic [ref=e388]: 
+                  - generic [ref=e389]: Security Settings
+              - listitem [ref=e390]:
+                - link " Flow" [ref=e391] [cursor=pointer]:
+                  - /url: /flow
+                  - generic [ref=e392]: 
+                  - generic [ref=e393]: Flow
+              - listitem [ref=e394]:
+                - link " Logs" [ref=e395] [cursor=pointer]:
+                  - /url: /logs
+                  - generic [ref=e396]: 
+                  - generic [ref=e397]: Logs
+      - generic [ref=e398]:
+        - generic [ref=e399]:
+          - generic [ref=e400]:
+            - generic [ref=e401]:
+              - heading "Admin Dashboard" [level=2] [ref=e402]
+              - navigation [ref=e403]:
+                - list [ref=e404]:
+                  - listitem [ref=e405]:
+                    - link "" [ref=e406] [cursor=pointer]:
+                      - /url: admin-dashboard.php
+                      - generic [ref=e407]: 
+                  - listitem [ref=e408]: / Dashboard
+                  - listitem [ref=e409]: / Admin Dashboard
+            - generic [ref=e410]:
+              - generic [ref=e412]:
+                - link " Export" [ref=e413] [cursor=pointer]:
+                  - /url: "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')"
+                  - generic [ref=e414]: 
+                  - text: Export
+                - text: ﬐ ﬛
+              - generic [ref=e416]:
+                - generic:
+                  - generic: 
+                - textbox [ref=e417]: "2025"
+              - link "" [ref=e419] [cursor=pointer]:
+                - /url: "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')"
+                - generic [ref=e420]: 
+          - generic [ref=e422]:
+            - generic [ref=e423]:
+              - img "img" [ref=e425]
+              - generic [ref=e426]:
+                - heading "Welcome Back, Adrian " [level=3] [ref=e427]:
+                  - text: Welcome Back, Adrian
+                  - link "" [ref=e428] [cursor=pointer]:
+                    - /url: "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')"
+                    - generic [ref=e429]: 
+                - paragraph [ref=e430]: You have 21 Pending Approvals & 14 Leave Requests
+            - generic [ref=e431]:
+              - link "Add Project" [ref=e432] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e433]: 
+                - text: Add Project
+              - link "Add Requests" [ref=e434] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e435]: 
+                - text: Add Requests
+          - generic [ref=e436]:
+            - generic [ref=e438]:
+              - generic [ref=e441]:
+                - generic [ref=e443]: 
+                - heading "Attendance Overview" [level=6] [ref=e444]
+                - heading "120/154 +2.1%" [level=3] [ref=e445]:
+                  - text: 120/154
+                  - generic [ref=e446]: +2.1%
+                - link "View Details" [ref=e447] [cursor=pointer]:
+                  - /url: attendance-employee.php
+              - generic [ref=e450]:
+                - generic [ref=e452]: 
+                - heading "Total No of Project's" [level=6] [ref=e453]
+                - heading "90/125 -2.1%" [level=3] [ref=e454]:
+                  - text: 90/125
+                  - generic [ref=e455]: "-2.1%"
+                - link "View All" [ref=e456] [cursor=pointer]:
+                  - /url: projects.php
+              - generic [ref=e459]:
+                - generic [ref=e461]: 﨡
+                - heading "Total No of Clients" [level=6] [ref=e462]
+                - heading "69/86 -11.2%" [level=3] [ref=e463]:
+                  - text: 69/86
+                  - generic [ref=e464]: "-11.2%"
+                - link "View All" [ref=e465] [cursor=pointer]:
+                  - /url: clients.php
+              - generic [ref=e468]:
+                - generic [ref=e470]: 
+                - heading "Total No of Tasks" [level=6] [ref=e471]
+                - heading "225/28 +11.2%" [level=3] [ref=e472]:
+                  - text: 225/28
+                  - generic [ref=e473]: +11.2%
+                - link "View All" [ref=e474] [cursor=pointer]:
+                  - /url: tasks.php
+              - generic [ref=e477]:
+                - generic [ref=e479]: 
+                - heading "Earnings" [level=6] [ref=e480]
+                - heading "$21445 +10.2%" [level=3] [ref=e481]:
+                  - text: $21445
+                  - generic [ref=e482]: +10.2%
+                - link "View All" [ref=e483] [cursor=pointer]:
+                  - /url: expenses.php
+              - generic [ref=e486]:
+                - generic [ref=e488]: 
+                - heading "Profit This Week" [level=6] [ref=e489]
+                - heading "$5,544 +2.1%" [level=3] [ref=e490]:
+                  - text: $5,544
+                  - generic [ref=e491]: +2.1%
+                - link "View All" [ref=e492] [cursor=pointer]:
+                  - /url: purchase-transaction.php
+              - generic [ref=e495]:
+                - generic [ref=e497]: 﨡
+                - heading "Job Applicants" [level=6] [ref=e498]
+                - heading "98 +2.1%" [level=3] [ref=e499]:
+                  - text: "98"
+                  - generic [ref=e500]: +2.1%
+                - link "View All" [ref=e501] [cursor=pointer]:
+                  - /url: job-list.php
+              - generic [ref=e504]:
+                - generic [ref=e506]: 
+                - heading "New Hire" [level=6] [ref=e507]
+                - heading "45/48 -11.2%" [level=3] [ref=e508]:
+                  - text: 45/48
+                  - generic [ref=e509]: "-11.2%"
+                - link "View All" [ref=e510] [cursor=pointer]:
+                  - /url: candidates.php
+            - generic [ref=e512]:
+              - generic [ref=e513]:
+                - heading "Employees By Department" [level=5] [ref=e514]
+                - link " This Week" [ref=e516] [cursor=pointer]:
+                  - /url: "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')"
+                  - generic [ref=e517]: 
+                  - text: This Week
+              - paragraph [ref=e519]:
+                - generic [ref=e520]: 
+                - text: No of Employees increased by +20% from last Week
+          - generic [ref=e521]:
+            - generic [ref=e523]:
+              - generic [ref=e524]:
+                - heading "Employee Status" [level=5] [ref=e525]
+                - link " This Week" [ref=e527] [cursor=pointer]:
+                  - /url: "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')"
+                  - generic [ref=e528]: 
+                  - text: This Week
+              - generic [ref=e529]:
+                - generic [ref=e530]:
+                  - paragraph [ref=e531]: Total Employee
+                  - heading "154" [level=3] [ref=e532]
+                - generic [ref=e533]:
+                  - progressbar "Segment one" [ref=e534]
+                  - progressbar "Segment two" [ref=e536]
+                  - progressbar "Segment three" [ref=e538]
+                  - progressbar "Segment four" [ref=e540]
+                - generic [ref=e543]:
+                  - generic [ref=e545]:
+                    - paragraph [ref=e546]:
+                      - generic [ref=e547]: ﱀ
+                      - text: Fulltime (48%)
+                    - heading "112" [level=2] [ref=e548]
+                  - generic [ref=e550]:
+                    - paragraph [ref=e551]:
+                      - generic [ref=e552]: ﱀ
+                      - text: Contract (20%)
+                    - heading "112" [level=2] [ref=e553]
+                  - generic [ref=e555]:
+                    - paragraph [ref=e556]:
+                      - generic [ref=e557]: ﱀ
+                      - text: Probation (22%)
+                    - heading "12" [level=2] [ref=e558]
+                  - generic [ref=e560]:
+                    - paragraph [ref=e561]:
+                      - generic [ref=e562]: ﱀ
+                      - text: WFH (20%)
+                    - heading "04" [level=2] [ref=e563]
+                - heading "Top Performer" [level=6] [ref=e564]
+                - generic [ref=e565]:
+                  - generic [ref=e566]:
+                    - generic [ref=e568]: 
+                    - link "img" [ref=e569] [cursor=pointer]:
+                      - /url: employee-details.php
+                      - img "img" [ref=e570]
+                    - generic [ref=e571]:
+                      - heading "Daniel Esbella" [level=6] [ref=e572]:
+                        - link "Daniel Esbella" [ref=e573] [cursor=pointer]:
+                          - /url: employee-details.php
+                      - paragraph [ref=e574]: IOS Developer
+                  - generic [ref=e575]:
+                    - paragraph [ref=e576]: Performance
+                    - heading "99%" [level=5] [ref=e577]
+                - link "View All Employees" [ref=e578] [cursor=pointer]:
+                  - /url: employees.php
+            - generic [ref=e580]:
+              - generic [ref=e581]:
+                - heading "Attendance Overview" [level=5] [ref=e582]
+                - link " Today" [ref=e584] [cursor=pointer]:
+                  - /url: "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')"
+                  - generic [ref=e585]: 
+                  - text: Today
+              - generic [ref=e586]:
+                - generic [ref=e589]:
+                  - paragraph [ref=e590]: Total Attendance
+                  - heading "120" [level=3] [ref=e591]
+                - heading "Status" [level=6] [ref=e592]
+                - generic [ref=e593]:
+                  - paragraph [ref=e594]:
+                    - generic [ref=e595]: 
+                    - text: Present
+                  - paragraph [ref=e596]: 59%
+                - generic [ref=e597]:
+                  - paragraph [ref=e598]:
+                    - generic [ref=e599]: 
+                    - text: Late
+                  - paragraph [ref=e600]: 21%
+                - generic [ref=e601]:
+                  - paragraph [ref=e602]:
+                    - generic [ref=e603]: 
+                    - text: Permission
+                  - paragraph [ref=e604]: 2%
+                - generic [ref=e605]:
+                  - paragraph [ref=e606]:
+                    - generic [ref=e607]: 
+                    - text: Absent
+                  - paragraph [ref=e608]: 15%
+                - generic [ref=e609]:
+                  - generic [ref=e610]:
+                    - paragraph [ref=e611]: Total Absenties
+                    - generic [ref=e612]:
+                      - img "img" [ref=e614]
+                      - img "img" [ref=e616]
+                      - img "img" [ref=e618]
+                      - img "img" [ref=e620]
+                      - link "+1" [ref=e621] [cursor=pointer]:
+                        - /url: "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')"
+                  - link "View Details" [ref=e622] [cursor=pointer]:
+                    - /url: leaves.php
+            - generic [ref=e624]:
+              - generic [ref=e625]:
+                - heading "Clock-In/Out" [level=5] [ref=e626]
+                - generic [ref=e627]:
+                  - link "All Departments" [ref=e629] [cursor=pointer]:
+                    - /url: "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')"
+                  - link " Today" [ref=e631] [cursor=pointer]:
+                    - /url: "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')"
+                    - generic [ref=e632]: 
+                    - text: Today
+              - generic [ref=e633]:
+                - generic [ref=e634]:
+                  - generic [ref=e635]:
+                    - generic [ref=e636]:
+                      - link "img" [ref=e637] [cursor=pointer]:
+                        - /url: "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')"
+                        - img "img" [ref=e638]
+                      - generic [ref=e639]:
+                        - heading "Daniel Esbella" [level=6] [ref=e640]
+                        - paragraph [ref=e641]: UI/UX Designer
+                    - generic [ref=e642]:
+                      - link "" [ref=e643] [cursor=pointer]:
+                        - /url: "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')"
+                        - generic [ref=e644]: 
+                      - generic [ref=e645]:
+                        - generic [ref=e646]: 
+                        - text: 09:15
+                  - generic [ref=e647]:
+                    - generic [ref=e648]:
+                      - link "img" [ref=e649] [cursor=pointer]:
+                        - /url: "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')"
+                        - img "img" [ref=e650]
+                      - generic [ref=e651]:
+                        - heading "Doglas Martini" [level=6] [ref=e652]
+                        - paragraph [ref=e653]: Project Manager
+                    - generic [ref=e654]:
+                      - link "" [ref=e655] [cursor=pointer]:
+                        - /url: "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')"
+                        - generic [ref=e656]: 
+                      - generic [ref=e657]:
+                        - generic [ref=e658]: 
+                        - text: 09:36
+                  - generic [ref=e659]:
+                    - generic [ref=e660]:
+                      - generic [ref=e661]:
+                        - link "img" [ref=e662] [cursor=pointer]:
+                          - /url: "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')"
+                          - img "img" [ref=e663]
+                        - generic [ref=e664]:
+                          - heading "Brian Villalobos" [level=6] [ref=e665]
+                          - paragraph [ref=e666]: PHP Developer
+                      - generic [ref=e667]:
+                        - link "" [ref=e668] [cursor=pointer]:
+                          - /url: "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')"
+                          - generic [ref=e669]: 
+                        - generic [ref=e670]:
+                          - generic [ref=e671]: 
+                          - text: 09:15
+                    - generic [ref=e672]:
+                      - generic [ref=e673]:
+                        - paragraph [ref=e674]:
+                          - generic [ref=e675]: 
+                          - text: Clock In
+                        - heading "10:30 AM" [level=6] [ref=e676]
+                      - generic [ref=e677]:
+                        - paragraph [ref=e678]:
+                          - generic [ref=e679]: 
+                          - text: Clock Out
+                        - heading "09:45 AM" [level=6] [ref=e680]
+                      - generic [ref=e681]:
+                        - paragraph [ref=e682]:
+                          - generic [ref=e683]: 
+                          - text: Production
+                        - heading "09:21 Hrs" [level=6] [ref=e684]
+                - heading "Late" [level=6] [ref=e685]
+                - generic [ref=e686]:
+                  - generic [ref=e687]:
+                    - img "img" [ref=e689]
+                    - generic [ref=e690]:
+                      - heading "Anthony Lewis  30 Min" [level=6] [ref=e691]:
+                        - text: Anthony Lewis
+                        - generic [ref=e692]:
+                          - generic [ref=e693]: 
+                          - text: 30 Min
+                      - paragraph [ref=e694]: Marketing Head
+                  - generic [ref=e695]:
+                    - link "" [ref=e696] [cursor=pointer]:
+                      - /url: "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')"
+                      - generic [ref=e697]: 
+                    - generic [ref=e698]:
+                      - generic [ref=e699]: 
+                      - text: 08:35
+                - link "View All Attendance" [ref=e700] [cursor=pointer]:
+                  - /url: attendance-report.php
+          - generic [ref=e701]:
+            - generic [ref=e703]:
+              - generic [ref=e704]:
+                - heading "Jobs Applicants" [level=5] [ref=e705]
+                - link "View All" [ref=e706] [cursor=pointer]:
+                  - /url: job-list.php
+              - generic [ref=e707]:
+                - tablist [ref=e708]:
+                  - tab "Openings" [selected] [ref=e709] [cursor=pointer]
+                  - tab "Applicants" [ref=e710] [cursor=pointer]
+                - generic [ref=e711]:
+                  - text:    
+                  - generic [ref=e712]:
+                    - generic [ref=e713]:
+                      - generic [ref=e714]:
+                        - link "img" [ref=e715] [cursor=pointer]:
+                          - /url: "#"
+                          - img "img" [ref=e716]
+                        - generic [ref=e717]:
+                          - paragraph [ref=e718]:
+                            - link "Brian Villalobos" [ref=e719] [cursor=pointer]:
+                              - /url: "#"
+                          - generic [ref=e720]:
+                            - text: "Exp : 5+ Years"
+                            - generic [ref=e721]: 
+                            - text: USA
+                      - generic [ref=e722]: UI/UX Designer
+                    - generic [ref=e723]:
+                      - generic [ref=e724]:
+                        - link "img" [ref=e725] [cursor=pointer]:
+                          - /url: "#"
+                          - img "img" [ref=e726]
+                        - generic [ref=e727]:
+                          - paragraph [ref=e728]:
+                            - link "Anthony Lewis" [ref=e729] [cursor=pointer]:
+                              - /url: "#"
+                          - generic [ref=e730]:
+                            - text: "Exp : 4+ Years"
+                            - generic [ref=e731]: 
+                            - text: USA
+                      - generic [ref=e732]: Python Developer
+                    - generic [ref=e733]:
+                      - generic [ref=e734]:
+                        - link "img" [ref=e735] [cursor=pointer]:
+                          - /url: "#"
+                          - img "img" [ref=e736]
+                        - generic [ref=e737]:
+                          - paragraph [ref=e738]:
+                            - link "Stephan Peralt" [ref=e739] [cursor=pointer]:
+                              - /url: "#"
+                          - generic [ref=e740]:
+                            - text: "Exp : 6+ Years"
+                            - generic [ref=e741]: 
+                            - text: USA
+                      - generic [ref=e742]: Android Developer
+                    - generic [ref=e743]:
+                      - generic [ref=e744]:
+                        - link "img" [ref=e745] [cursor=pointer]:
+                          - /url: "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')"
+                          - img "img" [ref=e746]
+                        - generic [ref=e747]:
+                          - paragraph [ref=e748]:
+                            - link "Doglas Martini" [ref=e749] [cursor=pointer]:
+                              - /url: "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')"
+                          - generic [ref=e750]:
+                            - text: "Exp : 2+ Years"
+                            - generic [ref=e751]: 
+                            - text: USA
+                      - generic [ref=e752]: React Developer
+            - generic [ref=e754]:
+              - generic [ref=e755]:
+                - heading "Employees" [level=5] [ref=e756]
+                - link "View All" [ref=e757] [cursor=pointer]:
+                  - /url: employees.php
+              - table [ref=e760]:
+                - rowgroup [ref=e761]:
+                  - row "Name Department" [ref=e762]:
+                    - columnheader "Name" [ref=e763]
+                    - columnheader "Department" [ref=e764]
+                - rowgroup [ref=e765]:
+                  - row "img Anthony Lewis Finance Finance" [ref=e766]:
+                    - cell "img Anthony Lewis Finance" [ref=e767]:
+                      - generic [ref=e768]:
+                        - link "img" [ref=e769] [cursor=pointer]:
+                          - /url: "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')"
+                          - img "img" [ref=e770]
+                        - generic [ref=e771]:
+                          - heading "Anthony Lewis" [level=6] [ref=e772]:
+                            - link "Anthony Lewis" [ref=e773] [cursor=pointer]:
+                              - /url: "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')"
+                          - text: Finance
+                    - cell "Finance" [ref=e774]:
+                      - generic [ref=e775]: Finance
+                  - row "img Brian Villalobos PHP Developer Development" [ref=e776]:
+                    - cell "img Brian Villalobos PHP Developer" [ref=e777]:
+                      - generic [ref=e778]:
+                        - link "img" [ref=e779] [cursor=pointer]:
+                          - /url: "#"
+                          - img "img" [ref=e780]
+                        - generic [ref=e781]:
+                          - heading "Brian Villalobos" [level=6] [ref=e782]:
+                            - link "Brian Villalobos" [ref=e783] [cursor=pointer]:
+                              - /url: "#"
+                          - text: PHP Developer
+                    - cell "Development" [ref=e784]:
+                      - generic [ref=e785]: Development
+                  - row "img Stephan Peralt Executive Marketing" [ref=e786]:
+                    - cell "img Stephan Peralt Executive" [ref=e787]:
+                      - generic [ref=e788]:
+                        - link "img" [ref=e789] [cursor=pointer]:
+                          - /url: "#"
+                          - img "img" [ref=e790]
+                        - generic [ref=e791]:
+                          - heading "Stephan Peralt" [level=6] [ref=e792]:
+                            - link "Stephan Peralt" [ref=e793] [cursor=pointer]:
+                              - /url: "#"
+                          - text: Executive
+                    - cell "Marketing" [ref=e794]:
+                      - generic [ref=e795]: Marketing
+                  - row "img Doglas Martini Project Manager Manager" [ref=e796]:
+                    - cell "img Doglas Martini Project Manager" [ref=e797]:
+                      - generic [ref=e798]:
+                        - link "img" [ref=e799] [cursor=pointer]:
+                          - /url: "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')"
+                          - img "img" [ref=e800]
+                        - generic [ref=e801]:
+                          - heading "Doglas Martini" [level=6] [ref=e802]:
+                            - link "Doglas Martini" [ref=e803] [cursor=pointer]:
+                              - /url: "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')"
+                          - text: Project Manager
+                    - cell "Manager" [ref=e804]:
+                      - generic [ref=e805]: Manager
+                  - row "img Anthony Lewis UI/UX Designer UI/UX Design" [ref=e806]:
+                    - cell "img Anthony Lewis UI/UX Designer" [ref=e807]:
+                      - generic [ref=e808]:
+                        - link "img" [ref=e809] [cursor=pointer]:
+                          - /url: "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')"
+                          - img "img" [ref=e810]
+                        - generic [ref=e811]:
+                          - heading "Anthony Lewis" [level=6] [ref=e812]:
+                            - link "Anthony Lewis" [ref=e813] [cursor=pointer]:
+                              - /url: "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')"
+                          - text: UI/UX Designer
+                    - cell "UI/UX Design" [ref=e814]:
+                      - generic [ref=e815]: UI/UX Design
+            - generic [ref=e817]:
+              - generic [ref=e818]:
+                - heading "Todo" [level=5] [ref=e819]
+                - generic [ref=e820]:
+                  - link " Today" [ref=e822] [cursor=pointer]:
+                    - /url: "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')"
+                    - generic [ref=e823]: 
+                    - text: Today
+                  - link "" [ref=e824] [cursor=pointer]:
+                    - /url: "#"
+                    - generic [ref=e825]: 
+              - generic [ref=e826]:
+                - generic [ref=e827]:
+                  - generic [ref=e828]: 
+                  - generic [ref=e829]:
+                    - checkbox "Add Holidays" [ref=e830]
+                    - generic [ref=e831]: Add Holidays
+                - generic [ref=e832]:
+                  - generic [ref=e833]: 
+                  - generic [ref=e834]:
+                    - checkbox "Add Meeting to Client" [ref=e835]
+                    - generic [ref=e836]: Add Meeting to Client
+                - generic [ref=e837]:
+                  - generic [ref=e838]: 
+                  - generic [ref=e839]:
+                    - checkbox "Chat with Adrian" [ref=e840]
+                    - generic [ref=e841]: Chat with Adrian
+                - generic [ref=e842]:
+                  - generic [ref=e843]: 
+                  - generic [ref=e844]:
+                    - checkbox "Management Call" [ref=e845]
+                    - generic [ref=e846]: Management Call
+                - generic [ref=e847]:
+                  - generic [ref=e848]: 
+                  - generic [ref=e849]:
+                    - checkbox "Add Payroll" [ref=e850]
+                    - generic [ref=e851]: Add Payroll
+                - generic [ref=e852]:
+                  - generic [ref=e853]: 
+                  - generic [ref=e854]:
+                    - checkbox "Add Policy for Increment" [ref=e855]
+                    - generic [ref=e856]: Add Policy for Increment
+          - generic [ref=e857]:
+            - generic [ref=e859]:
+              - generic [ref=e860]:
+                - heading "Sales Overview" [level=5] [ref=e861]
+                - link "All Departments" [ref=e864] [cursor=pointer]:
+                  - /url: "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')"
+              - generic [ref=e866]:
+                - generic [ref=e867]:
+                  - paragraph [ref=e868]:
+                    - generic [ref=e869]: ﱀ
+                    - text: Income
+                  - paragraph [ref=e870]:
+                    - generic [ref=e871]: ﱀ
+                    - text: Expenses
+                - paragraph [ref=e872]: Last Updated at 11:30PM
+            - generic [ref=e874]:
+              - generic [ref=e875]:
+                - heading "Invoices" [level=5] [ref=e876]
+                - generic [ref=e877]:
+                  - link "Invoices" [ref=e879] [cursor=pointer]:
+                    - /url: "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')"
+                  - link " This Week" [ref=e881] [cursor=pointer]:
+                    - /url: "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')"
+                    - generic [ref=e882]: 
+                    - text: This Week
+              - generic [ref=e883]:
+                - table [ref=e885]:
+                  - rowgroup [ref=e886]:
+                    - 'row "img Redesign Website #INVOO2  Logistics Payment $3560  Unpaid" [ref=e887]':
+                      - 'cell "img Redesign Website #INVOO2  Logistics" [ref=e888]':
+                        - generic [ref=e889]:
+                          - link "img" [ref=e890] [cursor=pointer]:
+                            - /url: invoice-details.php
+                            - img "img" [ref=e891]
+                          - generic [ref=e892]:
+                            - heading "Redesign Website" [level=6] [ref=e893]:
+                              - link "Redesign Website" [ref=e894] [cursor=pointer]:
+                                - /url: invoice-details.php
+                            - generic [ref=e895]:
+                              - text: "#INVOO2"
+                              - generic [ref=e896]: 
+                              - text: Logistics
+                      - cell "Payment $3560" [ref=e897]:
+                        - paragraph [ref=e898]: Payment
+                        - heading "$3560" [level=6] [ref=e899]
+                      - cell " Unpaid" [ref=e900]:
+                        - generic [ref=e901]:
+                          - generic [ref=e902]: 
+                          - text: Unpaid
+                    - 'row "img Module Completion #INVOO5  Yip Corp Payment $4175  Unpaid" [ref=e903]':
+                      - 'cell "img Module Completion #INVOO5  Yip Corp" [ref=e904]':
+                        - generic [ref=e905]:
+                          - link "img" [ref=e906] [cursor=pointer]:
+                            - /url: invoice-details.php
+                            - img "img" [ref=e907]
+                          - generic [ref=e908]:
+                            - heading "Module Completion" [level=6] [ref=e909]:
+                              - link "Module Completion" [ref=e910] [cursor=pointer]:
+                                - /url: invoice-details.php
+                            - generic [ref=e911]:
+                              - text: "#INVOO5"
+                              - generic [ref=e912]: 
+                              - text: Yip Corp
+                      - cell "Payment $4175" [ref=e913]:
+                        - paragraph [ref=e914]: Payment
+                        - heading "$4175" [level=6] [ref=e915]
+                      - cell " Unpaid" [ref=e916]:
+                        - generic [ref=e917]:
+                          - generic [ref=e918]: 
+                          - text: Unpaid
+                    - 'row "img Change on Emp Module #INVOO3  Ignis LLP Payment $6985  Unpaid" [ref=e919]':
+                      - 'cell "img Change on Emp Module #INVOO3  Ignis LLP" [ref=e920]':
+                        - generic [ref=e921]:
+                          - link "img" [ref=e922] [cursor=pointer]:
+                            - /url: invoice-details.php
+                            - img "img" [ref=e923]
+                          - generic [ref=e924]:
+                            - heading "Change on Emp Module" [level=6] [ref=e925]:
+                              - link "Change on Emp Module" [ref=e926] [cursor=pointer]:
+                                - /url: invoice-details.php
+                            - generic [ref=e927]:
+                              - text: "#INVOO3"
+                              - generic [ref=e928]: 
+                              - text: Ignis LLP
+                      - cell "Payment $6985" [ref=e929]:
+                        - paragraph [ref=e930]: Payment
+                        - heading "$6985" [level=6] [ref=e931]
+                      - cell " Unpaid" [ref=e932]:
+                        - generic [ref=e933]:
+                          - generic [ref=e934]: 
+                          - text: Unpaid
+                    - 'row "img Changes on the Board #INVOO2  Ignis LLP Payment $1457  Unpaid" [ref=e935]':
+                      - 'cell "img Changes on the Board #INVOO2  Ignis LLP" [ref=e936]':
+                        - generic [ref=e937]:
+                          - link "img" [ref=e938] [cursor=pointer]:
+                            - /url: invoice-details.php
+                            - img "img" [ref=e939]
+                          - generic [ref=e940]:
+                            - heading "Changes on the Board" [level=6] [ref=e941]:
+                              - link "Changes on the Board" [ref=e942] [cursor=pointer]:
+                                - /url: invoice-details.php
+                            - generic [ref=e943]:
+                              - text: "#INVOO2"
+                              - generic [ref=e944]: 
+                              - text: Ignis LLP
+                      - cell "Payment $1457" [ref=e945]:
+                        - paragraph [ref=e946]: Payment
+                        - heading "$1457" [level=6] [ref=e947]
+                      - cell " Unpaid" [ref=e948]:
+                        - generic [ref=e949]:
+                          - generic [ref=e950]: 
+                          - text: Unpaid
+                    - 'row "img Hospital Management #INVOO6  HCL Corp Payment $6458  Paid" [ref=e951]':
+                      - 'cell "img Hospital Management #INVOO6  HCL Corp" [ref=e952]':
+                        - generic [ref=e953]:
+                          - link "img" [ref=e954] [cursor=pointer]:
+                            - /url: invoice-details.php
+                            - img "img" [ref=e955]
+                          - generic [ref=e956]:
+                            - heading "Hospital Management" [level=6] [ref=e957]:
+                              - link "Hospital Management" [ref=e958] [cursor=pointer]:
+                                - /url: invoice-details.php
+                            - generic [ref=e959]:
+                              - text: "#INVOO6"
+                              - generic [ref=e960]: 
+                              - text: HCL Corp
+                      - cell "Payment $6458" [ref=e961]:
+                        - paragraph [ref=e962]: Payment
+                        - heading "$6458" [level=6] [ref=e963]
+                      - cell " Paid" [ref=e964]:
+                        - generic [ref=e965]:
+                          - generic [ref=e966]: 
+                          - text: Paid
+                - link "View All" [ref=e967] [cursor=pointer]:
+                  - /url: invoice.php
+          - generic [ref=e968]:
+            - generic [ref=e970]:
+              - generic [ref=e971]:
+                - heading "Projects" [level=5] [ref=e972]
+                - link " This Week" [ref=e975] [cursor=pointer]:
+                  - /url: "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')"
+                  - generic [ref=e976]: 
+                  - text: This Week
+              - table [ref=e979]:
+                - rowgroup [ref=e980]:
+                  - row "ID Name Team Hours Deadline Priority" [ref=e981]:
+                    - columnheader "ID" [ref=e982]
+                    - columnheader "Name" [ref=e983]
+                    - columnheader "Team" [ref=e984]
+                    - columnheader "Hours" [ref=e985]
+                    - columnheader "Deadline" [ref=e986]
+                    - columnheader "Priority" [ref=e987]
+                - rowgroup [ref=e988]:
+                  - row "PRO-001 Office Management App img img img 15/255 Hrs 40 12/09/2024  High" [ref=e989]:
+                    - cell "PRO-001" [ref=e990]:
+                      - link "PRO-001" [ref=e991] [cursor=pointer]:
+                        - /url: project-details.php
+                    - cell "Office Management App" [ref=e992]:
+                      - heading "Office Management App" [level=6] [ref=e993]:
+                        - link "Office Management App" [ref=e994] [cursor=pointer]:
+                          - /url: project-details.php
+                    - cell "img img img" [ref=e995]:
+                      - generic [ref=e996]:
+                        - img "img" [ref=e998]
+                        - img "img" [ref=e1000]
+                        - img "img" [ref=e1002]
+                    - cell "15/255 Hrs 40" [ref=e1003]:
+                      - paragraph [ref=e1004]: 15/255 Hrs
+                      - progressbar [ref=e1005]
+                    - cell "12/09/2024" [ref=e1007]
+                    - cell " High" [ref=e1008]:
+                      - generic [ref=e1009]:
+                        - generic [ref=e1010]: 
+                        - text: High
+                  - row "PRO-002 Clinic Management img img img +1 15/255 Hrs 40 24/10/2024  Low" [ref=e1011]:
+                    - cell "PRO-002" [ref=e1012]:
+                      - link "PRO-002" [ref=e1013] [cursor=pointer]:
+                        - /url: project-details.php
+                    - cell "Clinic Management" [ref=e1014]:
+                      - heading "Clinic Management" [level=6] [ref=e1015]:
+                        - link "Clinic Management" [ref=e1016] [cursor=pointer]:
+                          - /url: project-details.php
+                    - cell "img img img +1" [ref=e1017]:
+                      - generic [ref=e1018]:
+                        - img "img" [ref=e1020]
+                        - img "img" [ref=e1022]
+                        - img "img" [ref=e1024]
+                        - link "+1" [ref=e1025] [cursor=pointer]:
+                          - /url: "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')"
+                    - cell "15/255 Hrs 40" [ref=e1026]:
+                      - paragraph [ref=e1027]: 15/255 Hrs
+                      - progressbar [ref=e1028]
+                    - cell "24/10/2024" [ref=e1030]
+                    - cell " Low" [ref=e1031]:
+                      - generic [ref=e1032]:
+                        - generic [ref=e1033]: 
+                        - text: Low
+                  - row "PRO-003 Educational Platform img img img 40/255 Hrs 50 18/02/2024  Medium" [ref=e1034]:
+                    - cell "PRO-003" [ref=e1035]:
+                      - link "PRO-003" [ref=e1036] [cursor=pointer]:
+                        - /url: project-details.php
+                    - cell "Educational Platform" [ref=e1037]:
+                      - heading "Educational Platform" [level=6] [ref=e1038]:
+                        - link "Educational Platform" [ref=e1039] [cursor=pointer]:
+                          - /url: project-details.php
+                    - cell "img img img" [ref=e1040]:
+                      - generic [ref=e1041]:
+                        - img "img" [ref=e1043]
+                        - img "img" [ref=e1045]
+                        - img "img" [ref=e1047]
+                    - cell "40/255 Hrs 50" [ref=e1048]:
+                      - paragraph [ref=e1049]: 40/255 Hrs
+                      - progressbar [ref=e1050]
+                    - cell "18/02/2024" [ref=e1052]
+                    - cell " Medium" [ref=e1053]:
+                      - generic [ref=e1054]:
+                        - generic [ref=e1055]: 
+                        - text: Medium
+                  - row "PRO-004 Chat & Call Mobile App img img img 35/155 Hrs 50 19/02/2024  High" [ref=e1056]:
+                    - cell "PRO-004" [ref=e1057]:
+                      - link "PRO-004" [ref=e1058] [cursor=pointer]:
+                        - /url: project-details.php
+                    - cell "Chat & Call Mobile App" [ref=e1059]:
+                      - heading "Chat & Call Mobile App" [level=6] [ref=e1060]:
+                        - link "Chat & Call Mobile App" [ref=e1061] [cursor=pointer]:
+                          - /url: project-details.php
+                    - cell "img img img" [ref=e1062]:
+                      - generic [ref=e1063]:
+                        - img "img" [ref=e1065]
+                        - img "img" [ref=e1067]
+                        - img "img" [ref=e1069]
+                    - cell "35/155 Hrs 50" [ref=e1070]:
+                      - paragraph [ref=e1071]: 35/155 Hrs
+                      - progressbar [ref=e1072]
+                    - cell "19/02/2024" [ref=e1074]
+                    - cell " High" [ref=e1075]:
+                      - generic [ref=e1076]:
+                        - generic [ref=e1077]: 
+                        - text: High
+                  - row "PRO-005 Travel Planning Website img img img 50/235 Hrs 50 18/02/2024  Medium" [ref=e1078]:
+                    - cell "PRO-005" [ref=e1079]:
+                      - link "PRO-005" [ref=e1080] [cursor=pointer]:
+                        - /url: project-details.php
+                    - cell "Travel Planning Website" [ref=e1081]:
+                      - heading "Travel Planning Website" [level=6] [ref=e1082]:
+                        - link "Travel Planning Website" [ref=e1083] [cursor=pointer]:
+                          - /url: project-details.php
+                    - cell "img img img" [ref=e1084]:
+                      - generic [ref=e1085]:
+                        - img "img" [ref=e1087]
+                        - img "img" [ref=e1089]
+                        - img "img" [ref=e1091]
+                    - cell "50/235 Hrs 50" [ref=e1092]:
+                      - paragraph [ref=e1093]: 50/235 Hrs
+                      - progressbar [ref=e1094]
+                    - cell "18/02/2024" [ref=e1096]
+                    - cell " Medium" [ref=e1097]:
+                      - generic [ref=e1098]:
+                        - generic [ref=e1099]: 
+                        - text: Medium
+                  - row "PRO-006 Service Booking Software img img img 40/255 Hrs 50 20/02/2024  Low" [ref=e1100]:
+                    - cell "PRO-006" [ref=e1101]:
+                      - link "PRO-006" [ref=e1102] [cursor=pointer]:
+                        - /url: project-details.php
+                    - cell "Service Booking Software" [ref=e1103]:
+                      - heading "Service Booking Software" [level=6] [ref=e1104]:
+                        - link "Service Booking Software" [ref=e1105] [cursor=pointer]:
+                          - /url: project-details.php
+                    - cell "img img img" [ref=e1106]:
+                      - generic [ref=e1107]:
+                        - img "img" [ref=e1109]
+                        - img "img" [ref=e1111]
+                        - img "img" [ref=e1113]
+                    - cell "40/255 Hrs 50" [ref=e1114]:
+                      - paragraph [ref=e1115]: 40/255 Hrs
+                      - progressbar [ref=e1116]
+                    - cell "20/02/2024" [ref=e1118]
+                    - cell " Low" [ref=e1119]:
+                      - generic [ref=e1120]:
+                        - generic [ref=e1121]: 
+                        - text: Low
+                  - row "PRO-008 Travel Planning Website img img img +2 15/255 Hrs 45 17/10/2024  Medium" [ref=e1122]:
+                    - cell "PRO-008" [ref=e1123]:
+                      - link "PRO-008" [ref=e1124] [cursor=pointer]:
+                        - /url: project-details.php
+                    - cell "Travel Planning Website" [ref=e1125]:
+                      - heading "Travel Planning Website" [level=6] [ref=e1126]:
+                        - link "Travel Planning Website" [ref=e1127] [cursor=pointer]:
+                          - /url: project-details.php
+                    - cell "img img img +2" [ref=e1128]:
+                      - generic [ref=e1129]:
+                        - img "img" [ref=e1131]
+                        - img "img" [ref=e1133]
+                        - img "img" [ref=e1135]
+                        - link "+2" [ref=e1136] [cursor=pointer]:
+                          - /url: "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')"
+                    - cell "15/255 Hrs 45" [ref=e1137]:
+                      - paragraph [ref=e1138]: 15/255 Hrs
+                      - progressbar [ref=e1139]
+                    - cell "17/10/2024" [ref=e1141]
+                    - cell " Medium" [ref=e1142]:
+                      - generic [ref=e1143]:
+                        - generic [ref=e1144]: 
+                        - text: Medium
+            - generic [ref=e1146]:
+              - generic [ref=e1147]:
+                - heading "Tasks Statistics" [level=5] [ref=e1148]
+                - link " This Week" [ref=e1151] [cursor=pointer]:
+                  - /url: "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')"
+                  - generic [ref=e1152]: 
+                  - text: This Week
+              - generic [ref=e1153]:
+                - generic [ref=e1156]:
+                  - paragraph [ref=e1157]: Total Tasks
+                  - heading "124/165" [level=3] [ref=e1158]
+                - generic [ref=e1159]:
+                  - generic [ref=e1160]:
+                    - paragraph [ref=e1161]:
+                      - generic [ref=e1162]: 
+                      - text: Ongoing
+                    - heading "24%" [level=5] [ref=e1163]
+                  - generic [ref=e1164]:
+                    - paragraph [ref=e1165]:
+                      - generic [ref=e1166]: 
+                      - text: On Hold
+                    - heading "10%" [level=5] [ref=e1167]
+                  - generic [ref=e1168]:
+                    - paragraph [ref=e1169]:
+                      - generic [ref=e1170]: 
+                      - text: Overdue
+                    - heading "16%" [level=5] [ref=e1171]
+                  - generic [ref=e1172]:
+                    - paragraph [ref=e1173]:
+                      - generic [ref=e1174]: 
+                      - text: Ongoing
+                    - heading "40%" [level=5] [ref=e1175]
+                - generic [ref=e1176]:
+                  - generic [ref=e1177]:
+                    - heading "389/689 hrs" [level=4] [ref=e1178]
+                    - paragraph [ref=e1179]: Spent on Overall Tasks This Week
+                  - link "View All" [ref=e1180] [cursor=pointer]:
+                    - /url: tasks.php
+          - generic [ref=e1181]:
+            - generic [ref=e1183]:
+              - generic [ref=e1184]:
+                - heading "Schedules" [level=5] [ref=e1185]
+                - link "View All" [ref=e1186] [cursor=pointer]:
+                  - /url: candidates.php
+              - generic [ref=e1187]:
+                - generic [ref=e1188]:
+                  - generic [ref=e1189]: UI/ UX Designer
+                  - heading "Interview Candidates - UI/UX Designer" [level=6] [ref=e1190]
+                  - generic [ref=e1191]:
+                    - paragraph [ref=e1192]:
+                      - generic [ref=e1193]: 
+                      - text: Thu, 15 Feb 2025
+                    - paragraph [ref=e1194]:
+                      - generic [ref=e1195]: 
+                      - text: 01:00 PM - 02:20 PM
+                  - generic [ref=e1196]:
+                    - generic [ref=e1197]:
+                      - img "img" [ref=e1199]
+                      - img "img" [ref=e1201]
+                      - img "img" [ref=e1203]
+                      - img "img" [ref=e1205]
+                      - img "img" [ref=e1207]
+                      - link "+3" [ref=e1208] [cursor=pointer]:
+                        - /url: "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')"
+                    - link "Join Meeting" [ref=e1209] [cursor=pointer]:
+                      - /url: "#"
+                - generic [ref=e1210]:
+                  - generic [ref=e1211]: IOS Developer
+                  - heading "Interview Candidates - IOS Developer" [level=6] [ref=e1212]
+                  - generic [ref=e1213]:
+                    - paragraph [ref=e1214]:
+                      - generic [ref=e1215]: 
+                      - text: Thu, 15 Feb 2025
+                    - paragraph [ref=e1216]:
+                      - generic [ref=e1217]: 
+                      - text: 02:00 PM - 04:20 PM
+                  - generic [ref=e1218]:
+                    - generic [ref=e1219]:
+                      - img "img" [ref=e1221]
+                      - img "img" [ref=e1223]
+                      - img "img" [ref=e1225]
+                      - img "img" [ref=e1227]
+                      - img "img" [ref=e1229]
+                      - link "+3" [ref=e1230] [cursor=pointer]:
+                        - /url: "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')"
+                    - link "Join Meeting" [ref=e1231] [cursor=pointer]:
+                      - /url: "#"
+            - generic [ref=e1233]:
+              - generic [ref=e1234]:
+                - heading "Recent Activities" [level=5] [ref=e1235]
+                - link "View All" [ref=e1236] [cursor=pointer]:
+                  - /url: activity.php
+              - generic [ref=e1237]:
+                - generic [ref=e1240]:
+                  - link "img" [ref=e1241] [cursor=pointer]:
+                    - /url: javscript:void(0);
+                    - img "img" [ref=e1242]
+                  - generic [ref=e1243]:
+                    - generic [ref=e1244]:
+                      - heading "Matt Morgan" [level=6] [ref=e1245]:
+                        - link "Matt Morgan" [ref=e1246] [cursor=pointer]:
+                          - /url: javscript:void(0);
+                      - paragraph [ref=e1247]: 05:30 PM
+                    - paragraph [ref=e1248]: Added New Project HRMS Dashboard
+                - generic [ref=e1251]:
+                  - link "img" [ref=e1252] [cursor=pointer]:
+                    - /url: javscript:void(0);
+                    - img "img" [ref=e1253]
+                  - generic [ref=e1254]:
+                    - generic [ref=e1255]:
+                      - heading "Jay Ze" [level=6] [ref=e1256]:
+                        - link "Jay Ze" [ref=e1257] [cursor=pointer]:
+                          - /url: javscript:void(0);
+                      - paragraph [ref=e1258]: 05:00 PM
+                    - paragraph [ref=e1259]: Commented on Uploaded Document
+                - generic [ref=e1262]:
+                  - link "img" [ref=e1263] [cursor=pointer]:
+                    - /url: javscript:void(0);
+                    - img "img" [ref=e1264]
+                  - generic [ref=e1265]:
+                    - generic [ref=e1266]:
+                      - heading "Mary Donald" [level=6] [ref=e1267]:
+                        - link "Mary Donald" [ref=e1268] [cursor=pointer]:
+                          - /url: javscript:void(0);
+                      - paragraph [ref=e1269]: 05:30 PM
+                    - paragraph [ref=e1270]: Approved Task Projects
+                - generic [ref=e1273]:
+                  - link "img" [ref=e1274] [cursor=pointer]:
+                    - /url: javscript:void(0);
+                    - img "img" [ref=e1275]
+                  - generic [ref=e1276]:
+                    - generic [ref=e1277]:
+                      - heading "George David" [level=6] [ref=e1278]:
+                        - link "George David" [ref=e1279] [cursor=pointer]:
+                          - /url: javscript:void(0);
+                      - paragraph [ref=e1280]: 06:00 PM
+                    - paragraph [ref=e1281]: Requesting Access to Module Tickets
+                - generic [ref=e1284]:
+                  - link "img" [ref=e1285] [cursor=pointer]:
+                    - /url: javscript:void(0);
+                    - img "img" [ref=e1286]
+                  - generic [ref=e1287]:
+                    - generic [ref=e1288]:
+                      - heading "Aaron Zeen" [level=6] [ref=e1289]:
+                        - link "Aaron Zeen" [ref=e1290] [cursor=pointer]:
+                          - /url: javscript:void(0);
+                      - paragraph [ref=e1291]: 06:30 PM
+                    - paragraph [ref=e1292]: Downloaded App Reportss
+                - generic [ref=e1295]:
+                  - link "img" [ref=e1296] [cursor=pointer]:
+                    - /url: javscript:void(0);
+                    - img "img" [ref=e1297]
+                  - generic [ref=e1298]:
+                    - generic [ref=e1299]:
+                      - heading "Hendry Daniel" [level=6] [ref=e1300]:
+                        - link "Hendry Daniel" [ref=e1301] [cursor=pointer]:
+                          - /url: javscript:void(0);
+                      - paragraph [ref=e1302]: 05:30 PM
+                    - paragraph [ref=e1303]: Completed New Project HMS
+            - generic [ref=e1305]:
+              - generic [ref=e1306]:
+                - heading "Birthdays" [level=5] [ref=e1307]
+                - link "View All" [ref=e1308] [cursor=pointer]:
+                  - /url: "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')"
+              - generic [ref=e1309]:
+                - heading "Today" [level=6] [ref=e1310]
+                - generic [ref=e1312]:
+                  - generic [ref=e1313]:
+                    - link "img" [ref=e1314] [cursor=pointer]:
+                      - /url: "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')"
+                      - img "img" [ref=e1315]
+                    - generic [ref=e1316]:
+                      - heading "Andrew Jermia" [level=6] [ref=e1317]
+                      - paragraph [ref=e1318]: IOS Developer
+                  - link "Send" [ref=e1319] [cursor=pointer]:
+                    - /url: "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')"
+                    - generic [ref=e1320]: 
+                    - text: Send
+                - heading "Tomorow" [level=6] [ref=e1321]
+                - generic [ref=e1323]:
+                  - generic [ref=e1324]:
+                    - link "img" [ref=e1325] [cursor=pointer]:
+                      - /url: "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')"
+                      - img "img" [ref=e1326]
+                    - generic [ref=e1327]:
+                      - heading "Mary Zeen" [level=6] [ref=e1328]:
+                        - link "Mary Zeen" [ref=e1329] [cursor=pointer]:
+                          - /url: "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')"
+                      - paragraph [ref=e1330]: UI/UX Designer
+                  - link "Send" [ref=e1331] [cursor=pointer]:
+                    - /url: "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')"
+                    - generic [ref=e1332]: 
+                    - text: Send
+                - generic [ref=e1334]:
+                  - generic [ref=e1335]:
+                    - link "img" [ref=e1336] [cursor=pointer]:
+                      - /url: "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')"
+                      - img "img" [ref=e1337]
+                    - generic [ref=e1338]:
+                      - heading "Antony Lewis" [level=6] [ref=e1339]:
+                        - link "Antony Lewis" [ref=e1340] [cursor=pointer]:
+                          - /url: "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')"
+                      - paragraph [ref=e1341]: Android Developer
+                  - link "Send" [ref=e1342] [cursor=pointer]:
+                    - /url: "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')"
+                    - generic [ref=e1343]: 
+                    - text: Send
+                - heading "25 Jan 2025" [level=6] [ref=e1344]
+                - generic [ref=e1346]:
+                  - generic [ref=e1347]:
+                    - img "img" [ref=e1349]
+                    - generic [ref=e1350]:
+                      - heading "Doglas Martini" [level=6] [ref=e1351]
+                      - paragraph [ref=e1352]: .Net Developer
+                  - link "Send" [ref=e1353] [cursor=pointer]:
+                    - /url: "javascript:throw new Error('React has blocked a javascript: URL as a security precaution.')"
+                    - generic [ref=e1354]: 
+                    - text: Send
+        - generic [ref=e1356]:
+          - paragraph [ref=e1357]: 2025 © SVL.
+          - paragraph [ref=e1358]:
+            - text: Designed & Developed By
+            - link "Nexor CRM" [ref=e1359] [cursor=pointer]:
+              - /url: javascript:void(0);
+    - generic [ref=e29]:
+      - img [ref=e31]
+      - button "Open Tanstack query devtools" [ref=e79] [cursor=pointer]:
+        - img [ref=e80]
+  - generic [ref=e129] [cursor=pointer]: 

@@ -412,14 +412,6 @@ export default function Topbar({
           </div>
         </div>
 
-        <div className="mobile-topbar-actions d-flex d-lg-none align-items-center">
-          <div
-            className="topbar-attendance-slot topbar-attendance-slot--mobile me-1"
-            data-topbar-attendance-slot="mobile"
-          ></div>
-          <div className="me-1">{notificationButton}</div>
-          <div className="mobile-topbar-profile">{profileDropdown}</div>
-        </div>
       </div>
     </div>
   );

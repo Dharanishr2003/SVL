@@ -15,7 +15,7 @@ export default function ServiceTypesPage() {
   const [categories, setCategories] = useState([]);
   const [selectedCategoryId, setSelectedCategoryId] = useState(null);
   const [showCreate, setShowCreate] = useState(false);
-  const [form, setForm] = useState({ name: "", categoryId: "", parentId: "" });
+  const [form, setForm] = useState({ name: "", fieldConfigKey: "", categoryId: "", parentId: "" });
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState("");
   const [editingId, setEditingId] = useState(null);
@@ -85,7 +85,7 @@ export default function ServiceTypesPage() {
   };
 
   const handleOpenCreate = () => {
-    setForm({ name: "", categoryId: "", parentId: "" });
+    setForm({ name: "", fieldConfigKey: "", categoryId: "", parentId: "" });
     setEditingId(null);
     setShowCreate(true);
   };
@@ -93,6 +93,7 @@ export default function ServiceTypesPage() {
   const handleAddSubType = (parentServiceType) => {
     setForm({
       name: "",
+      fieldConfigKey: "",
       categoryId: parentServiceType.categoryId,
       parentId: parentServiceType.id,
     });
@@ -103,6 +104,7 @@ export default function ServiceTypesPage() {
   const handleEdit = (serviceType) => {
     setForm({
       name: serviceType.name,
+      fieldConfigKey: serviceType.fieldConfigKey || "",
       categoryId: serviceType.categoryId || "",
       parentId: serviceType.parentId || "",
     });
@@ -119,10 +121,15 @@ export default function ServiceTypesPage() {
       showError("Category required");
       return;
     }
+    if (!form.fieldConfigKey.trim()) {
+      showError("Field config key required");
+      return;
+    }
     setSaving(true);
     try {
       const payload = {
         name: form.name.trim(),
+        fieldConfigKey: form.fieldConfigKey.trim().toLowerCase(),
         categoryId: form.categoryId ? Number(form.categoryId) : null,
         parentId: form.parentId ? Number(form.parentId) : null,
       };
@@ -134,7 +141,7 @@ export default function ServiceTypesPage() {
         showSuccess("Service Type added");
       }
       setShowCreate(false);
-      setForm({ name: "", categoryId: "", parentId: "" });
+      setForm({ name: "", fieldConfigKey: "", categoryId: "", parentId: "" });
       setEditingId(null);
       await loadServiceTypes();
     } catch (e) {
@@ -266,6 +273,7 @@ export default function ServiceTypesPage() {
                 <th style={{ width: "80px" }}>Index No.</th>
                 <th>Category</th>
                 <th>Name</th>
+                <th>Field Key</th>
                 <th style={{ width: "80px" }}>Sub Types</th>
                 <th style={{ width: "120px" }}>Actions</th>
               </tr>
@@ -273,7 +281,7 @@ export default function ServiceTypesPage() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan="5" className="text-center text-muted py-4">
+                  <td colSpan="6" className="text-center text-muted py-4">
                     Loading...
                   </td>
                 </tr>
@@ -297,6 +305,7 @@ export default function ServiceTypesPage() {
                           </button>
                           <strong>{serviceType.name}</strong>
                         </td>
+                        <td><code>{serviceType.fieldConfigKey || "-"}</code></td>
                         <td>
                           <span style={{
                             backgroundColor: "#e8eaf6",
@@ -369,6 +378,7 @@ export default function ServiceTypesPage() {
                           <td>
                             <span className="service-type-child-label">{child.name}</span>
                           </td>
+                          <td><code>{child.fieldConfigKey || "-"}</code></td>
                           <td></td>
                           <td>
                             <button
@@ -412,7 +422,7 @@ export default function ServiceTypesPage() {
                 })
               ) : (
                 <tr>
-                  <td colSpan="5" className="text-center text-muted py-4">
+                  <td colSpan="6" className="text-center text-muted py-4">
                     No service types found
                   </td>
                 </tr>
@@ -470,6 +480,29 @@ export default function ServiceTypesPage() {
                         placeholder="Enter service type name"
                         autoFocus
                       />
+                    </div>
+                    <div className="col-12">
+                      <label className="form-label">Field Config Key</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        value={form.fieldConfigKey}
+                        onChange={(e) => {
+                          if (editingId) return;
+                          const value = e.target.value
+                            .toLowerCase()
+                            .replace(/[^a-z0-9_-]+/g, "_")
+                            .replace(/_+/g, "_");
+                          setForm({ ...form, fieldConfigKey: value });
+                        }}
+                        placeholder="e.g. visiting_card"
+                        disabled={Boolean(editingId)}
+                      />
+                      {editingId && (
+                        <small className="text-muted">
+                          Field config key is locked after creation so renaming does not change field matching.
+                        </small>
+                      )}
                     </div>
 
                    

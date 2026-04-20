@@ -1,0 +1,33 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e4]:
+      - generic [ref=e7]:
+        - heading "Sign in" [level=2] [ref=e8]
+        - generic [ref=e9]:
+          - button "Staff Login" [ref=e10] [cursor=pointer]
+          - button "Vendor Login" [ref=e11] [cursor=pointer]
+        - generic [ref=e12]:
+          - generic [ref=e13]: 
+          - textbox "Username or Email" [ref=e14]
+        - generic [ref=e15]:
+          - generic [ref=e16]: 
+          - textbox "Password" [ref=e17]
+          - button "Show password" [ref=e18] [cursor=pointer]:
+            - img [ref=e19]
+        - button "Login" [ref=e22] [cursor=pointer]
+      - generic [ref=e23]:
+        - generic [ref=e24]:
+          - generic [ref=e25]:
+            - heading "Welcome Back" [level=3] [ref=e26]
+            - paragraph [ref=e27]: Manage your CRM access and user administration from one place.
+          - img "Welcome" [ref=e28]
+        - generic:
+          - generic:
+            - heading "Secure Access" [level=3]
+            - paragraph: Sign in using your username or email to continue.
+          - img "Login"
+    - generic [ref=e29]:
+      - img [ref=e31]
+      - button "Open Tanstack query devtools" [ref=e79] [cursor=pointer]:
+        - img [ref=e80]
+  - generic [ref=e129] [cursor=pointer]: 

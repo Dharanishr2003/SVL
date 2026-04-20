@@ -6,7 +6,71 @@ import { getServiceCategories } from "../../api/serviceCategoriesApi";
 import { extractApiErrorMessage } from "../../utils/errorMessage";
 import { useToast } from "../../components/system/ToastProvider";
 import PageLoader from "../../components/common/PageLoader";
-import "./EditVendorPage.css";
+import EditVendorModal from "./EditVendorModal";
+import "./VendorDetailPage.css";
+
+const val = (v) =>
+  v !== null && v !== undefined && String(v).trim() !== "" ? String(v) : null;
+
+function Field({ label, value, full }) {
+  const display = val(value);
+  return (
+    <div className={`vd-field${full ? " full" : ""}`}>
+      <span className="vd-field-label">{label}</span>
+      {display ? (
+        <span className="vd-field-value">{display}</span>
+      ) : (
+        <span className="vd-field-value empty">—</span>
+      )}
+    </div>
+  );
+}
+
+function BankBlock({ bank, index }) {
+  const hasQrImage = val(bank.upiQrImage);
+  const handleViewQr = async () => {
+    if (!hasQrImage) return;
+    const qrWindow = window.open("", "_blank");
+    if (!qrWindow) return;
+    qrWindow.document.title = `UPI QR - Bank ${index + 1}`;
+    qrWindow.document.body.innerHTML = "<p style='font-family: Arial, sans-serif; padding: 24px;'>Loading QR image...</p>";
+
+    try {
+      const response = await fetch(bank.upiQrImage);
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      qrWindow.location.replace(blobUrl);
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+    } catch (_) {
+      qrWindow.location.replace(bank.upiQrImage);
+    }
+  };
+
+  return (
+    <div className="vd-info-card bank">
+      <div className="vd-card-title">Bank {index + 1}</div>
+      <div className="vd-fields">
+        <Field label="Account Holder Name" value={bank.bankAccountHolderName} />
+        <Field label="Bank Name" value={bank.bankName} />
+        <Field label="Account Number" value={bank.bankAccountNumber} />
+        <Field label="IFSC Code" value={bank.bankIfscCode} />
+        <Field label="Branch Name" value={bank.bankBranchName} />
+        <Field label="Account Type" value={bank.bankAccountType} />
+        <Field label="UPI ID" value={bank.upiId} />
+        <div className="vd-field full">
+          <span className="vd-field-label">UPI QR Image</span>
+          {hasQrImage ? (
+            <button type="button" className="vd-btn light" onClick={handleViewQr}>
+              View QR Image
+            </button>
+          ) : (
+            <span className="vd-field-value empty">—</span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function VendorDetailPage() {
   const { id } = useParams();
@@ -17,6 +81,7 @@ export default function VendorDetailPage() {
   const [vendorTypes, setVendorTypes] = useState([]);
   const [serviceCategories, setServiceCategories] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showEditModal, setShowEditModal] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -47,349 +112,182 @@ export default function VendorDetailPage() {
   if (!vendor) {
     return (
       <div className="content">
-        <div className="card">
-          <div className="card-header d-flex align-items-center justify-content-between">
-            <h5 className="mb-0">Vendor Details</h5>
-            <button
-              type="button"
-              className="btn btn-secondary btn-sm d-flex align-items-center"
-              onClick={() => navigate("/stocks/vendors")}
-            >
-              <i className="ti ti-arrow-left me-2"></i>Back
-            </button>
-          </div>
-          <div className="card-body">
-            <div className="text-center text-muted">Vendor not found.</div>
-          </div>
+        <div className="vd-empty-state">
+          <p>Vendor not found.</p>
+          <button
+            type="button"
+            className="vd-btn light"
+            onClick={() => navigate("/stocks/vendors")}
+          >
+            <i className="ti ti-arrow-left"></i> Back to Vendors
+          </button>
         </div>
       </div>
     );
   }
 
   const isActive = (vendor.status || "active").toLowerCase() === "active";
-  const typeNames =
+  const avatarLetter = (vendor.vendorName || "V").charAt(0).toUpperCase();
+
+  const typeChips =
     vendor?.vendorTypeIds?.length > 0
-      ? vendor.vendorTypeIds
-          .map((tid) => {
-            const t = vendorTypes.find((vt) => vt.id === tid || vt.id === Number(tid));
-            return t?.name || t?.vendorTypeName || t?.typeName || String(tid);
-          })
-          .join(", ")
-      : "-";
+      ? vendor.vendorTypeIds.map((tid) => {
+          const t = vendorTypes.find((vt) => vt.id === tid || vt.id === Number(tid));
+          return { id: tid, label: t?.name || t?.vendorTypeName || t?.typeName || String(tid) };
+        })
+      : [];
 
-  const categoryNames =
+  const categoryChips =
     vendor?.productIds?.length > 0
-      ? vendor.productIds
-          .map((cid) => {
-            const c = serviceCategories.find((sc) => sc.id === cid || sc.id === Number(cid));
-            return c?.name || c?.categoryName || String(cid);
-          })
-          .join(", ")
-      : "-";
+      ? vendor.productIds.map((cid) => {
+          const c = serviceCategories.find((sc) => sc.id === cid || sc.id === Number(cid));
+          return { id: cid, label: c?.name || c?.categoryName || String(cid) };
+        })
+      : [];
 
-  const materialsText =
-    vendor?.materialsSupplied?.length > 0
-      ? vendor.materialsSupplied.join(", ")
-      : "-";
+  const phoneDisplay = [vendor.countryCode, vendor.phone].filter(Boolean).join(" ") || null;
+  const bankDetails = Array.isArray(vendor.bankDetails) ? vendor.bankDetails : [];
 
   return (
-    <>
-      <div className="content">
-        <div className="card">
-          <div className="card-header d-flex align-items-center justify-content-between">
-            <h5 className="mb-0">Vendor Details</h5>
-            <button
-              type="button"
-              className="btn btn-secondary btn-sm d-flex align-items-center"
-              onClick={() => navigate("/stocks/vendors")}
-            >
-              <i className="ti ti-arrow-left me-2"></i>Back
-            </button>
-          </div>
-          <div className="card-body p-0">
-            <div className="vendor-wizard">
-              {/* Step 0: Basic Information */}
-              <div className="wizard-step-content" style={{ margin: "2rem 0" }}>
-                <div className="row g-3">
-                  <div className="col-12">
-                    <div className="wizard-section-title">Basic Information</div>
-                  </div>
-                  <div className="col-md-6">
-                    <label className="form-label">Vendor Name</label>
-                    <input
-                      type="text"
-                      className="form-control vendor-wizard-input"
-                      value={vendor.vendorName || ""}
-                      disabled
-                    />
-                  </div>
-                  <div className="col-md-6">
-                    <label className="form-label">Contact Person</label>
-                    <input
-                      type="text"
-                      className="form-control vendor-wizard-input"
-                      value={vendor.contactPerson || ""}
-                      disabled
-                    />
-                  </div>
-                  <div className="col-md-6">
-                    <label className="form-label">Phone</label>
-                    <input
-                      type="text"
-                      className="form-control vendor-wizard-input"
-                      value={vendor.phone || ""}
-                      disabled
-                    />
-                  </div>
-                  <div className="col-md-6">
-                    <label className="form-label">Status</label>
-                    <input
-                      type="text"
-                      className="form-control vendor-wizard-input"
-                      value={isActive ? "Active" : "Inactive"}
-                      disabled
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Step 1: Vendor Type & Services */}
-              <div className="wizard-step-content" style={{ margin: "2rem 0" }}>
-                <div className="row g-3">
-                  <div className="col-12">
-                    <div className="wizard-section-title">Vendor Type & Services</div>
-                  </div>
-                  <div className="col-md-6">
-                    <label className="form-label">Vendor Types</label>
-                    <input
-                      type="text"
-                      className="form-control vendor-wizard-input"
-                      value={typeNames}
-                      disabled
-                    />
-                  </div>
-                  <div className="col-md-6">
-                    <label className="form-label">Service Categories</label>
-                    <input
-                      type="text"
-                      className="form-control vendor-wizard-input"
-                      value={categoryNames}
-                      disabled
-                    />
-                  </div>
-                  <div className="col-md-12">
-                    <label className="form-label">Materials Supplied</label>
-                    <input
-                      type="text"
-                      className="form-control vendor-wizard-input"
-                      value={materialsText}
-                      disabled
-                    />
-                  </div>
-                  <div className="col-md-12">
-                    <label className="form-label">Deals With</label>
-                    <input
-                      type="text"
-                      className="form-control vendor-wizard-input"
-                      value={vendor.dealsWith || ""}
-                      disabled
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Step 2: Company Information */}
-              <div className="wizard-step-content" style={{ margin: "2rem 0" }}>
-                <div className="row g-3">
-                  <div className="col-12">
-                    <div className="wizard-section-title">Company Information</div>
-                  </div>
-                  <div className="col-md-6">
-                    <label className="form-label">Country of Registration</label>
-                    <input
-                      type="text"
-                      className="form-control vendor-wizard-input"
-                      value={vendor.countryOfRegistration || ""}
-                      disabled
-                    />
-                  </div>
-                  <div className="col-md-6">
-                    <label className="form-label">Company Registration No.</label>
-                    <input
-                      type="text"
-                      className="form-control vendor-wizard-input"
-                      value={vendor.companyRegistrationNo || ""}
-                      disabled
-                    />
-                  </div>
-                  <div className="col-md-6">
-                    <label className="form-label">GST Number</label>
-                    <input
-                      type="text"
-                      className="form-control vendor-wizard-input"
-                      value={vendor.gstNumber || ""}
-                      disabled
-                    />
-                  </div>
-                  <div className="col-md-6">
-                    <label className="form-label">PAN Number</label>
-                    <input
-                      type="text"
-                      className="form-control vendor-wizard-input"
-                      value={vendor.panNumber || ""}
-                      disabled
-                    />
-                  </div>
-                  <div className="col-md-6">
-                    <label className="form-label">Company Website</label>
-                    <input
-                      type="text"
-                      className="form-control vendor-wizard-input"
-                      value={vendor.companyWebsite || ""}
-                      disabled
-                    />
-                  </div>
-                  <div className="col-md-6">
-                    <label className="form-label">Country Code</label>
-                    <input
-                      type="text"
-                      className="form-control vendor-wizard-input"
-                      value={vendor.countryCode || ""}
-                      disabled
-                    />
-                  </div>
-                  <div className="col-md-12">
-                    <label className="form-label">Company Address</label>
-                    <textarea
-                      className="form-control vendor-wizard-input"
-                      rows="3"
-                      value={vendor.companyAddress || ""}
-                      disabled
-                    ></textarea>
-                  </div>
-                </div>
-              </div>
-
-              {/* Vendor Bank Details */}
-              <div className="wizard-step-content" style={{ margin: "2rem 0" }}>
-                <div className="row g-3">
-                  <div className="col-12">
-                    <div className="wizard-section-title">🏦 Vendor Bank Details</div>
-                  </div>
-                  <div className="col-md-6">
-                    <label className="form-label">Account Holder Name</label>
-                    <input
-                      type="text"
-                      className="form-control vendor-wizard-input"
-                      value={vendor.bankAccountHolderName || "--"}
-                      disabled
-                    />
-                  </div>
-                  <div className="col-md-6">
-                    <label className="form-label">Bank Name</label>
-                    <input
-                      type="text"
-                      className="form-control vendor-wizard-input"
-                      value={vendor.bankName || "--"}
-                      disabled
-                    />
-                  </div>
-                  <div className="col-md-6">
-                    <label className="form-label">Bank Account Number</label>
-                    <input
-                      type="text"
-                      className="form-control vendor-wizard-input"
-                      value={vendor.bankAccountNumber || "--"}
-                      disabled
-                    />
-                  </div>
-                  <div className="col-md-6">
-                    <label className="form-label">IFSC Code (India)</label>
-                    <input
-                      type="text"
-                      className="form-control vendor-wizard-input"
-                      value={vendor.bankIfscCode || "--"}
-                      disabled
-                    />
-                  </div>
-                  <div className="col-md-6">
-                    <label className="form-label">Branch Name</label>
-                    <input
-                      type="text"
-                      className="form-control vendor-wizard-input"
-                      value={vendor.bankBranchName || "--"}
-                      disabled
-                    />
-                  </div>
-                  <div className="col-md-6">
-                    <label className="form-label">Account Type</label>
-                    <input
-                      type="text"
-                      className="form-control vendor-wizard-input"
-                      value={vendor.bankAccountType || "--"}
-                      disabled
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Step 3: Contact Information */}
-              <div className="wizard-step-content" style={{ margin: "2rem 0" }}>
-                <div className="row g-3">
-                  <div className="col-12">
-                    <div className="wizard-section-title">Contact Information</div>
-                  </div>
-                  <div className="col-md-6">
-                    <label className="form-label">Official Email</label>
-                    <input
-                      type="email"
-                      className="form-control vendor-wizard-input"
-                      value={vendor.officialEmail || ""}
-                      disabled
-                    />
-                  </div>
-                  <div className="col-md-6">
-                    <label className="form-label">Secondary Email</label>
-                    <input
-                      type="email"
-                      className="form-control vendor-wizard-input"
-                      value={vendor.secondaryEmail || ""}
-                      disabled
-                    />
-                  </div>
-                  <div className="col-md-6">
-                    <label className="form-label">Internal Representative</label>
-                    <input
-                      type="text"
-                      className="form-control vendor-wizard-input"
-                      value={vendor.internalRepresentative || ""}
-                      disabled
-                    />
-                  </div>
-                  <div className="col-md-6">
-                    <label className="form-label">Relationship Since</label>
-                    <input
-                      type="text"
-                      className="form-control vendor-wizard-input"
-                      value={vendor.relationshipSince || ""}
-                      disabled
-                    />
-                  </div>
-                  <div className="col-md-12">
-                    <label className="form-label">Address</label>
-                    <textarea
-                      className="form-control vendor-wizard-input"
-                      rows="2"
-                      value={vendor.address || ""}
-                      disabled
-                    ></textarea>
-                  </div>
-                </div>
-              </div>
+    <div className="content vd-page">
+      {/* Hero */}
+      <div className="vd-hero">
+        <div className="vd-hero-left">
+          <div className="vd-hero-avatar">{avatarLetter}</div>
+          <div className="vd-hero-info">
+            <div className="vd-hero-name">{vendor.vendorName}</div>
+            <div className="vd-hero-meta">
+              <span className={`vd-status-badge ${isActive ? "active" : "inactive"}`}>
+                {isActive ? "Active" : "Inactive"}
+              </span>
+              {vendor.email && (
+                <span className="vd-hero-email">{vendor.email}</span>
+              )}
             </div>
           </div>
         </div>
+        <div className="vd-hero-actions">
+          <button
+            type="button"
+            className="vd-btn light"
+            onClick={() => navigate("/stocks/vendors")}
+          >
+            <i className="ti ti-arrow-left"></i> Back
+          </button>
+          <button
+            type="button"
+            className="vd-btn primary"
+            onClick={() => setShowEditModal(true)}
+          >
+            <i className="ti ti-edit"></i> Edit
+          </button>
+        </div>
       </div>
-    </>
+
+      {/* Two-column grid: Basic Info + Type & Services */}
+      <div className="vd-section-grid">
+        {/* Basic Info */}
+        <div className="vd-info-card">
+          <div className="vd-card-title">Basic Info</div>
+          <div className="vd-fields cols-1">
+            <Field label="Vendor Name" value={vendor.vendorName} />
+            <Field label="Contact Person" value={vendor.contactPerson} />
+            <Field label="Phone" value={phoneDisplay} />
+            <Field label="Username" value={vendor.username} />
+            <Field
+              label="Portal Access"
+              value={vendor.hasPassword ? "Password set" : "No password"}
+            />
+          </div>
+        </div>
+
+        {/* Type & Services */}
+        <div className="vd-info-card">
+          <div className="vd-card-title">Type & Services</div>
+          <div className="vd-fields cols-1">
+            <div className="vd-field">
+              <span className="vd-field-label">Vendor Types</span>
+              {typeChips.length > 0 ? (
+                <div className="vd-chip-wrap">
+                  {typeChips.map((c) => (
+                    <span key={c.id} className="vd-chip">{c.label}</span>
+                  ))}
+                </div>
+              ) : (
+                <span className="vd-field-value empty">—</span>
+              )}
+            </div>
+            <div className="vd-field">
+              <span className="vd-field-label">Service Categories</span>
+              {categoryChips.length > 0 ? (
+                <div className="vd-chip-wrap">
+                  {categoryChips.map((c) => (
+                    <span key={c.id} className="vd-chip">{c.label}</span>
+                  ))}
+                </div>
+              ) : (
+                <span className="vd-field-value empty">—</span>
+              )}
+            </div>
+            <Field label="Deals With" value={vendor.dealsWith} />
+          </div>
+        </div>
+      </div>
+
+      {/* Company Information */}
+      <div className="vd-info-card">
+        <div className="vd-card-title">Company Information</div>
+        <div className="vd-fields">
+          <Field label="Country of Registration" value={vendor.countryOfRegistration} />
+          <Field label="MSME / Udyam Registration Number" value={vendor.companyRegistrationNo} />
+          <Field label="GST Number" value={vendor.gstNumber} />
+          <Field label="PAN Number" value={vendor.panNumber} />
+          <Field
+            label="Company Website"
+            value={vendor.companyWebsite}
+          />
+          <Field label="Country Code" value={vendor.countryCode} />
+          <Field label="Company Address" value={vendor.companyAddress} full />
+        </div>
+      </div>
+
+      {/* Bank Details */}
+      {bankDetails.length > 0 ? (
+        bankDetails.map((bank, index) => <BankBlock key={`bank-${index}`} bank={bank} index={index} />)
+      ) : (
+        <div className="vd-info-card bank">
+          <div className="vd-card-title">Bank Details</div>
+          <div className="vd-fields">
+            <span className="vd-field-value empty">—</span>
+          </div>
+        </div>
+      )}
+
+      {/* Contact Information */}
+      <div className="vd-info-card">
+        <div className="vd-card-title">Contact Information</div>
+        <div className="vd-fields">
+          <Field label="Official Email" value={vendor.officialEmail} />
+          <Field label="Secondary Email" value={vendor.secondaryEmail} />
+          <Field label="Internal Representative" value={vendor.internalRepresentative} />
+          <Field label="Relationship Since" value={vendor.relationshipSince} />
+          <Field label="Address" value={vendor.address} full />
+        </div>
+      </div>
+
+      <EditVendorModal
+        open={showEditModal}
+        vendor={vendor}
+        onClose={() => setShowEditModal(false)}
+        onUpdated={async () => {
+          setShowEditModal(false);
+          try {
+            const vendors = await getVendors();
+            const found = Array.isArray(vendors) ? vendors.find((v) => v.id === Number(id)) : null;
+            if (found) setVendor(found);
+          } catch (_) {}
+        }}
+      />
+    </div>
   );
 }

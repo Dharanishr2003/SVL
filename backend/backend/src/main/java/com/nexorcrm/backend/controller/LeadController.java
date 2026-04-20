@@ -2,6 +2,10 @@ package com.nexorcrm.backend.controller;
 
 import com.nexorcrm.backend.dto.BulkLeadCreateRequest;
 import com.nexorcrm.backend.dto.BulkLeadResponse;
+import com.nexorcrm.backend.dto.CheckDuplicatesContactResponse;
+import com.nexorcrm.backend.dto.CheckDuplicatesRequest;
+import com.nexorcrm.backend.dto.ConvertDuplicateRequest;
+import com.nexorcrm.backend.dto.ConvertDuplicateResponse;
 import com.nexorcrm.backend.dto.LeadCreateRequest;
 import com.nexorcrm.backend.dto.LeadAllocatorOptionResponse;
 import com.nexorcrm.backend.dto.LeadAssignableGroupResponse;
@@ -118,6 +122,31 @@ public class LeadController {
     @PostMapping
     public LeadResponse create(@Valid @RequestBody LeadCreateRequest request, Authentication authentication) {
         return leadService.create(request, authentication.getName());
+    }
+
+    @PostMapping("/check-duplicates")
+    public List<CheckDuplicatesContactResponse> checkDuplicates(
+            @RequestBody CheckDuplicatesRequest request,
+            Authentication authentication) {
+        return leadService.checkDuplicates(request, authentication.getName());
+    }
+
+    @GetMapping("/duplicates")
+    public List<LeadResponse> getDuplicateLeads(Authentication authentication) {
+        return leadService.getDuplicateLeads(authentication.getName());
+    }
+
+    @PatchMapping("/{id}/convert-duplicate")
+    public ResponseEntity<ConvertDuplicateResponse> convertDuplicate(
+            @PathVariable("id") Long id,
+            @RequestBody ConvertDuplicateRequest request,
+            Authentication authentication) {
+        try {
+            ConvertDuplicateResponse result = leadService.convertDuplicate(id, request, authentication.getName());
+            return ResponseEntity.ok(result);
+        } catch (IllegalStateException e) {
+            return ResponseEntity.badRequest().build();
+        }
     }
 
     @PatchMapping("/{id}/status")

@@ -259,6 +259,7 @@ const TYPE_FIELD_MAP = {
 | Case | Handling |
 |---|---|
 | Quantity outside all slabs | `pricingStatus = "UNPRICED"`, badge shown in modal and in line items table; item can still be added |
+| Quantity changed → slab changes | Recompute `unitPrice` and `lineTotal` reactively on every quantity keystroke inside the modal. Show a subtle `text-muted small` line "Price updated" next to the price display when the displayed price has changed from the prefill value (only relevant during edit flow). |
 | No candidates for type+subtype | Step 3 shows "No products configured for this combination" |
 | `typeName` has no field config | `SpecsInlineForm` renders nothing; item still addable |
 | Editing an item | Same modal, pre-filled; confirms as update (replaces by `id`) |
@@ -286,3 +287,4 @@ const TYPE_FIELD_MAP = {
 - [ ] `SpecsInlineForm` contains no business logic
 - [ ] All line items follow the shape defined in Section 3
 - [ ] `optionsSummary` is built from `specs` + `variantFields` before calling `onConfirm`
+- [ ] Price display in modal reacts to every quantity change without requiring blur/submit

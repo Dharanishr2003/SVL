@@ -33,6 +33,7 @@ public class ServiceTypeService {
     }
 
     public ServiceTypeResponse create(ServiceTypeRequest request) {
+        String normalizedFieldConfigKey = normalizeFieldConfigKey(request.getFieldConfigKey());
         ServiceCategory category = categoryRepository.findById(request.getCategoryId())
                 .orElseThrow(() -> new RuntimeException("Service Category not found with id: " + request.getCategoryId()));
         ServiceType parent = null;
@@ -43,9 +44,11 @@ public class ServiceTypeService {
                 throw new RuntimeException("Parent Service Type must belong to the same category");
             }
         }
+        validateFieldConfigKeyForCreate(normalizedFieldConfigKey);
 
         ServiceType entity = new ServiceType();
         entity.setName(request.getName().trim());
+        entity.setFieldConfigKey(normalizedFieldConfigKey);
         entity.setCategory(category);
         entity.setParent(parent);
         entity.setDeleted(false);
@@ -56,6 +59,7 @@ public class ServiceTypeService {
     }
 
     public ServiceTypeResponse update(Long id, ServiceTypeRequest request) {
+        String normalizedFieldConfigKey = normalizeFieldConfigKey(request.getFieldConfigKey());
         ServiceType entity = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Service Type not found with id: " + id));
 
@@ -69,8 +73,10 @@ public class ServiceTypeService {
                 throw new RuntimeException("Parent Service Type must belong to the same category");
             }
         }
+        validateFieldConfigKeyForUpdate(entity, normalizedFieldConfigKey);
 
         entity.setName(request.getName().trim());
+        entity.setFieldConfigKey(normalizedFieldConfigKey);
         entity.setCategory(category);
         entity.setParent(parent);
         entity.setUpdatedAt(LocalDateTime.now());
@@ -85,5 +91,31 @@ public class ServiceTypeService {
         entity.setDeleted(true);
         entity.setUpdatedAt(LocalDateTime.now());
         repository.saveAndFlush(entity);
+    }
+
+    private String normalizeFieldConfigKey(String value) {
+        return value == null ? null : value.trim().toLowerCase();
+    }
+
+    private void validateFieldConfigKeyForCreate(String fieldConfigKey) {
+        if (fieldConfigKey == null || fieldConfigKey.isBlank()) {
+            throw new RuntimeException("Field config key is required");
+        }
+        if (repository.existsByFieldConfigKeyIgnoreCaseAndDeletedFalse(fieldConfigKey)) {
+            throw new RuntimeException("Field config key already exists");
+        }
+    }
+
+    private void validateFieldConfigKeyForUpdate(ServiceType entity, String fieldConfigKey) {
+        if (fieldConfigKey == null || fieldConfigKey.isBlank()) {
+            throw new RuntimeException("Field config key is required");
+        }
+        String existingKey = entity.getFieldConfigKey();
+        if (existingKey != null && !existingKey.isBlank() && !existingKey.equalsIgnoreCase(fieldConfigKey)) {
+            throw new RuntimeException("Field config key cannot be changed once set");
+        }
+        if (repository.existsByFieldConfigKeyIgnoreCaseAndDeletedFalseAndIdNot(fieldConfigKey, entity.getId())) {
+            throw new RuntimeException("Field config key already exists");
+        }
     }
 }

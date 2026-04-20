@@ -1,23 +1,30 @@
 package com.nexorcrm.backend.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nexorcrm.backend.dto.BankDetailDto;
 import com.nexorcrm.backend.dto.VendorRequest;
 import com.nexorcrm.backend.dto.VendorResponse;
 import com.nexorcrm.backend.entity.Vendor;
 import com.nexorcrm.backend.repo.VendorRepository;
 import jakarta.persistence.EntityNotFoundException;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Arrays;
+import java.util.Objects;
 
 @Service
 public class VendorService {
 
     private final VendorRepository repo;
     private final ObjectMapper objectMapper;
+    private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
     public VendorService(VendorRepository repo) {
         this.repo = repo;
@@ -55,7 +62,21 @@ public class VendorService {
         v.setStatus(req.getStatus() != null ? req.getStatus() : "active");
         v.setOfficialEmail(req.getOfficialEmail());
         v.setSecondaryEmail(req.getSecondaryEmail());
-        
+        v.setBankAccountHolderName(req.getBankAccountHolderName());
+        v.setBankName(req.getBankName());
+        v.setBankAccountNumber(req.getBankAccountNumber());
+        v.setBankIfscCode(req.getBankIfscCode());
+        v.setBankBranchName(req.getBankBranchName());
+        v.setBankAccountType(req.getBankAccountType());
+        v.setBankDetails(serializeBankDetails(req.getBankDetails()));
+
+        if (StringUtils.hasText(req.getUsername())) {
+            v.setUsername(req.getUsername().trim());
+        }
+        if (StringUtils.hasText(req.getPassword())) {
+            v.setPasswordHash(passwordEncoder.encode(req.getPassword()));
+        }
+
         v = repo.save(v);
         return toResponse(v);
     }
@@ -88,7 +109,21 @@ public class VendorService {
         v.setStatus(req.getStatus() != null ? req.getStatus() : v.getStatus());
         v.setOfficialEmail(req.getOfficialEmail());
         v.setSecondaryEmail(req.getSecondaryEmail());
-        
+        v.setBankAccountHolderName(req.getBankAccountHolderName());
+        v.setBankName(req.getBankName());
+        v.setBankAccountNumber(req.getBankAccountNumber());
+        v.setBankIfscCode(req.getBankIfscCode());
+        v.setBankBranchName(req.getBankBranchName());
+        v.setBankAccountType(req.getBankAccountType());
+        v.setBankDetails(serializeBankDetails(req.getBankDetails()));
+
+        if (StringUtils.hasText(req.getUsername())) {
+            v.setUsername(req.getUsername().trim());
+        }
+        if (StringUtils.hasText(req.getPassword())) {
+            v.setPasswordHash(passwordEncoder.encode(req.getPassword()));
+        }
+
         v = repo.save(v);
         return toResponse(v);
     }
@@ -127,7 +162,115 @@ public class VendorService {
         r.setStatus(v.getStatus());
         r.setOfficialEmail(v.getOfficialEmail());
         r.setSecondaryEmail(v.getSecondaryEmail());
-        
+        r.setUsername(v.getUsername());
+        r.setHasPassword(StringUtils.hasText(v.getPasswordHash()));
+        r.setBankAccountHolderName(v.getBankAccountHolderName());
+        r.setBankName(v.getBankName());
+        r.setBankAccountNumber(v.getBankAccountNumber());
+        r.setBankIfscCode(v.getBankIfscCode());
+        r.setBankBranchName(v.getBankBranchName());
+        r.setBankAccountType(v.getBankAccountType());
+        r.setBankDetails(resolveBankDetails(v));
+
         return r;
+    }
+
+    private String serializeBankDetails(List<BankDetailDto> bankDetails) {
+        List<BankDetailDto> sanitized = sanitizeBankDetails(bankDetails);
+        try {
+            return objectMapper.writeValueAsString(sanitized);
+        } catch (JsonProcessingException e) {
+            throw new IllegalArgumentException("Unable to serialize bank details", e);
+        }
+    }
+
+    private List<BankDetailDto> resolveBankDetails(Vendor vendor) {
+        if (StringUtils.hasText(vendor.getBankDetails())) {
+            try {
+                List<BankDetailDto> parsed = objectMapper.readValue(
+                        vendor.getBankDetails(),
+                        new TypeReference<List<BankDetailDto>>() {}
+                );
+                return sanitizeBankDetails(parsed);
+            } catch (JsonProcessingException ignored) {
+                // Fall through to legacy single-bank fields.
+            }
+        }
+
+        BankDetailDto legacy = buildLegacyBankDetail(vendor);
+        if (legacy == null) {
+            return new ArrayList<>();
+        }
+        List<BankDetailDto> legacyList = new ArrayList<>();
+        legacyList.add(legacy);
+        return legacyList;
+    }
+
+    private BankDetailDto buildLegacyBankDetail(Vendor vendor) {
+        if (!StringUtils.hasText(vendor.getBankAccountHolderName())
+                && !StringUtils.hasText(vendor.getBankName())
+                && !StringUtils.hasText(vendor.getBankAccountNumber())
+                && !StringUtils.hasText(vendor.getBankIfscCode())
+                && !StringUtils.hasText(vendor.getBankBranchName())
+                && !StringUtils.hasText(vendor.getBankAccountType())) {
+            return null;
+        }
+
+        BankDetailDto dto = new BankDetailDto();
+        dto.setBankAccountHolderName(trimToNull(vendor.getBankAccountHolderName()));
+        dto.setBankName(trimToNull(vendor.getBankName()));
+        dto.setBankAccountNumber(trimToNull(vendor.getBankAccountNumber()));
+        dto.setBankIfscCode(trimToNull(vendor.getBankIfscCode()));
+        dto.setBankBranchName(trimToNull(vendor.getBankBranchName()));
+        dto.setBankAccountType(trimToNull(vendor.getBankAccountType()));
+        dto.setUpiId(null);
+        dto.setUpiQrImage(null);
+        return dto;
+    }
+
+    private List<BankDetailDto> sanitizeBankDetails(List<BankDetailDto> bankDetails) {
+        if (bankDetails == null || bankDetails.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        List<BankDetailDto> sanitized = new ArrayList<>();
+        for (BankDetailDto detail : bankDetails) {
+            if (detail == null) {
+                continue;
+            }
+
+            BankDetailDto dto = new BankDetailDto();
+            dto.setBankAccountHolderName(trimToNull(detail.getBankAccountHolderName()));
+            dto.setBankName(trimToNull(detail.getBankName()));
+            dto.setBankAccountNumber(trimToNull(detail.getBankAccountNumber()));
+            dto.setBankIfscCode(trimToNull(detail.getBankIfscCode()));
+            dto.setBankBranchName(trimToNull(detail.getBankBranchName()));
+            dto.setBankAccountType(trimToNull(detail.getBankAccountType()));
+            dto.setUpiId(trimToNull(detail.getUpiId()));
+            dto.setUpiQrImage(trimToNull(detail.getUpiQrImage()));
+
+            boolean hasValue = Arrays.asList(
+                    dto.getBankAccountHolderName(),
+                    dto.getBankName(),
+                    dto.getBankAccountNumber(),
+                    dto.getBankIfscCode(),
+                    dto.getBankBranchName(),
+                    dto.getBankAccountType(),
+                    dto.getUpiId(),
+                    dto.getUpiQrImage()
+            ).stream().anyMatch(Objects::nonNull);
+
+            if (hasValue) {
+                sanitized.add(dto);
+            }
+        }
+        return sanitized;
+    }
+
+    private String trimToNull(String value) {
+        if (!StringUtils.hasText(value)) {
+            return null;
+        }
+        return value.trim();
     }
 }

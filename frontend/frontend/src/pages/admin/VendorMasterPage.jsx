@@ -10,11 +10,15 @@ import { getStockCategories } from "../../api/stocksApi";
 import { extractApiErrorMessage } from "../../utils/errorMessage";
 import { useToast } from "../../components/system/ToastProvider";
 import useConfirmDialog from "../../components/system/useConfirmDialog";
+import AddVendorModal from "./AddVendorModal";
+import EditVendorModal from "./EditVendorModal";
 
 export default function VendorMasterPage() {
   const { showSuccess, showError } = useToast();
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [editVendor, setEditVendor] = useState(null);
   const [saving, setSaving] = useState(false);
   const [statusSavingId, setStatusSavingId] = useState(null);
   const [search, setSearch] = useState("");
@@ -114,6 +118,7 @@ export default function VendorMasterPage() {
     gstNumber: row.gstNumber || "",
     panNumber: row.panNumber || "",
     companyAddress: row.companyAddress || "",
+    bankDetails: Array.isArray(row.bankDetails) ? row.bankDetails : [],
     status: nextStatus,
   });
 
@@ -200,9 +205,13 @@ export default function VendorMasterPage() {
               onChange={(e) => setSearch(e.target.value)}
               style={{ maxWidth: 260 }}
             />
-            <Link to="/stocks/vendors/add" className="btn btn-primary d-flex align-items-center">
+            <button
+              type="button"
+              className="btn btn-primary d-flex align-items-center"
+              onClick={() => setShowAddModal(true)}
+            >
               <i className="ti ti-circle-plus me-2"></i>Add Vendor
-            </Link>
+            </button>
           </div>
         </div>
 
@@ -276,12 +285,20 @@ export default function VendorMasterPage() {
                         <td>
                           <div className="action-icon d-inline-flex">
                             <Link
-                              to={`/stocks/vendors/edit/${row.id}`}
+                              to={`/stocks/vendors/${row.id}`}
+                              className="btn btn-link p-0 me-2"
+                              title="View vendor"
+                            >
+                              <i className="ti ti-eye"></i>
+                            </Link>
+                            <button
+                              type="button"
                               className="btn btn-link p-0 me-2"
                               title="Edit vendor"
+                              onClick={() => setEditVendor(row)}
                             >
                               <i className="ti ti-edit"></i>
-                            </Link>
+                            </button>
                             <button
                               type="button"
                               className="btn btn-link p-0 text-danger"
@@ -301,6 +318,18 @@ export default function VendorMasterPage() {
           </div>
         </div>
       </div>
+
+      <AddVendorModal
+        open={showAddModal}
+        onClose={() => setShowAddModal(false)}
+        onCreated={load}
+      />
+      <EditVendorModal
+        open={!!editVendor}
+        vendor={editVendor}
+        onClose={() => setEditVendor(null)}
+        onUpdated={load}
+      />
 
       {/* Delete Confirmation Modal */}
       {showDeleteModal && (

@@ -11,6 +11,7 @@ const STATUS_CLASS = {
   Accepted: "status-accepted",
   Rejected: "status-rejected",
   "Work Started": "status-work-started",
+  "Work Finished": "status-delivered",
   "In Production": "status-in-production",
   Delivered: "status-delivered",
   Cancelled: "status-cancelled",
@@ -67,8 +68,6 @@ export default function VendorOrdersListPage({ view, title }) {
       const status = String(order.status || "New");
       const paymentStatus = String(order.paymentStatus || "Pending");
       const hasAdvanceReceived = paymentStatus === "Advance Paid";
-      const hasFinalPaymentPending =
-        status === "Delivered" && paymentStatus === "Pending";
 
       if (["New", "Draft", "Sent"].includes(status)) {
         next.newOrders.push(order);
@@ -77,14 +76,12 @@ export default function VendorOrdersListPage({ view, title }) {
       } else if (
         (status === "Accepted" && hasAdvanceReceived) ||
         status === "Work Started" ||
-        hasFinalPaymentPending
+        status === "Work Finished"
       ) {
         next.pending.push(order);
       } else if (status === "Delivered") {
         next.delivered.push(order);
-      }
-      if (hasFinalPaymentPending) {
-        next.delivered.push(order);
+      } else if (status === "Payment Pending") {
         next.paymentPending.push(order);
       }
     });
@@ -159,7 +156,7 @@ export default function VendorOrdersListPage({ view, title }) {
     if (statusToUpdate === "Work Started") {
       updates.paymentStatus = "Pending";
     }
-    if (statusToUpdate === "Delivered") {
+    if (statusToUpdate === "Work Finished" || statusToUpdate === "Delivered") {
       updates.paymentStatus = currentOrder?.paymentStatus || "Pending";
     }
     await applyOrderUpdate(orderId, updates);
@@ -183,7 +180,7 @@ export default function VendorOrdersListPage({ view, title }) {
       order.status === "Accepted"
         ? ["Work Started"]
         : order.status === "Work Started"
-          ? ["Delivered"]
+          ? ["Work Finished"]
           : [];
 
     // For "all" view, show only View button
@@ -319,30 +316,47 @@ export default function VendorOrdersListPage({ view, title }) {
           <td>{order.requiredDate || "--"}</td>
           <td>
             <span
-              className={`vod-badge ${order.status === "Accepted" ? "status-accepted" : STATUS_CLASS[order.status] || "status-draft"}`}
+              className={`vod-badge ${
+                order.status === "Work Finished"
+                  ? "status-delivered"
+                  : order.status === "Accepted"
+                    ? "status-accepted"
+                    : STATUS_CLASS[order.status] || "status-draft"
+              }`}
               style={
-                order.status === "Accepted"
+                (order.status === "Accepted" || order.status === "Work Finished")
                   ? { display: "inline-flex", flexDirection: "column", alignItems: "center", whiteSpace: "normal" }
                   : undefined
               }
             >
-              {(order.status === "Accepted" && order.paymentStatus === "Advance Paid")
-                ? "Advance Paid"
-                : (order.status || "New")}
+              {order.status === "Work Finished"
+                ? "Work Completed"
+                : (order.status === "Accepted" && order.paymentStatus === "Advance Paid")
+                  ? "Advance Paid"
+                  : (order.status || "New")}
               {order.status === "Accepted" && order.paymentStatus === "Pending" && (
                 <span style={{ fontSize: "0.75rem", fontWeight: "500", color: "#e65100" }}>
-                  Waiting for Advance Amount
+                  Waiting for Advance to be Paid
                 </span>
               )}
               {order.status === "Accepted" && order.paymentStatus === "Advance Paid" && (
-                <span style={{ fontSize: "0.75rem", fontWeight: "500" }}>
+                <span style={{ fontSize: "0.75rem", fontWeight: "500", color: "#2e7d32" }}>
                   Ready to Start Work
                 </span>
               )}
             </span>
           </td>
           <td>
-            {view === "pending" ? (
+            {view === "all" ? (
+              <button
+                type="button"
+                className="vod-btn vod-btn-view-text"
+                onClick={() => navigate(`/vendor/order/${order.id}`)}
+                title="View Details"
+              >
+                View
+              </button>
+            ) : view === "pending" ? (
               <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap", justifyContent: "center" }}>
                 <button
                   type="button"
@@ -352,7 +366,7 @@ export default function VendorOrdersListPage({ view, title }) {
                 >
                   View
                 </button>
-                {order.status === "Accepted" && (
+                {order.status === "Accepted" && order.paymentStatus === "Advance Paid" && (
                   <button
                     type="button"
                     className="vod-btn vod-btn-accept-text"
@@ -373,7 +387,7 @@ export default function VendorOrdersListPage({ view, title }) {
                   </button>
                 )}
               </div>
-            ) : (
+            ) : view === "delivered" || view === "paymentPending" ? (
               <button
                 type="button"
                 className="vod-btn primary"
@@ -383,10 +397,10 @@ export default function VendorOrdersListPage({ view, title }) {
               >
                 {isEditing ? "Close" : "Edit"}
               </button>
-            )}
+            ) : null}
           </td>
         </tr>
-        {isEditing ? (
+        {isEditing && (view === "delivered" || view === "paymentPending") ? (
           <tr>
             <td colSpan={5}>
               <div className="vod-edit-panel">
@@ -624,4 +638,3 @@ export default function VendorOrdersListPage({ view, title }) {
     </div>
   );
 }
-

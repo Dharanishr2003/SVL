@@ -10,6 +10,10 @@ public class BulkLeadCreateRequest {
     @Valid
     private List<BulkLeadItem> leads;
 
+    private String institutionName;
+
     public List<BulkLeadItem> getLeads() { return leads; }
     public void setLeads(List<BulkLeadItem> leads) { this.leads = leads; }
+    public String getInstitutionName() { return institutionName; }
+    public void setInstitutionName(String institutionName) { this.institutionName = institutionName; }
 }

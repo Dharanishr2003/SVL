@@ -7,7 +7,13 @@ import {
   isAlwaysAllowedPath,
 } from "../constants/pageAccess";
 
-const PageAccessContext = createContext({});
+const PageAccessContext = createContext({
+  canAccess: () => false,
+  canAccessRoute: () => false,
+  allowedPages: [],
+  role: null,
+  loading: true,
+});
 
 function normalizePageKeys(keys) {
   return Array.isArray(keys)

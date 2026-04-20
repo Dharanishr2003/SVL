@@ -16,6 +16,8 @@ import {
   getAssignableAllocators,
   updateLeadAllocator,
   updateLeadDetails,
+  getDuplicateLeads,
+  convertDuplicateLead,
 } from "../../api/leadsApi";
 import { getLeadStatuses, DEFAULT_LEAD_STATUSES } from "../../api/leadStatusApi";
 import { getPrimarySources, createPrimarySource } from "../../api/primarySourceApi";
@@ -311,6 +313,14 @@ export default function LeadsPage() {
   });
   const [leadStatusOptions, setLeadStatusOptions] = useState([]);
 
+  const [activeMainTab, setActiveMainTab] = useState('leads');
+  const [duplicateLeads, setDuplicateLeads] = useState([]);
+  const [dupLoading, setDupLoading] = useState(false);
+  const [dupError, setDupError] = useState('');
+  const [convertingLeadId, setConvertingLeadId] = useState(null);
+  const [convertConfirm, setConvertConfirm] = useState(null);
+  const [dupWarnLead, setDupWarnLead] = useState(null);
+
   const [showCreate, setShowCreate] = useState(false);
   const [createWizardStep, setCreateWizardStep] = useState(0);
   const [createForm, setCreateForm] = useState(EMPTY_CREATE_FORM);
@@ -498,7 +508,16 @@ export default function LeadsPage() {
     setError("");
     try {
       const baseData = await getLeads(nextFilters);
-      setRows(Array.isArray(baseData) ? baseData : []);
+      if (Array.isArray(baseData)) {
+        const seen = new Set();
+        setRows(baseData.filter((r) => {
+          if (seen.has(r.id)) return false;
+          seen.add(r.id);
+          return true;
+        }));
+      } else {
+        setRows([]);
+      }
     } catch (e) {
       setRows([]);
       setError(extractApiErrorMessage(e, "Failed to load leads"));
@@ -852,6 +871,47 @@ export default function LeadsPage() {
     };
   }, [showCreate, shouldSelectCreateLeadGroup, createForm.createBranchName]);
 
+  const loadDuplicateLeads = async () => {
+    setDupLoading(true);
+    setDupError('');
+    try {
+      const data = await getDuplicateLeads();
+      setDuplicateLeads(Array.isArray(data) ? data : []);
+    } catch (e) {
+      setDupError(extractApiErrorMessage(e, 'Failed to load duplicate leads.'));
+    } finally {
+      setDupLoading(false);
+    }
+  };
+
+  const handleConvertDuplicate = async (leadId, force = false) => {
+    setConvertingLeadId(leadId);
+    try {
+      const result = await convertDuplicateLead(leadId, force);
+      if (result?.stillDuplicate && !force) {
+        setConvertConfirm({
+          leadId,
+          matchedRef: result.matchedLeadRef,
+          matchedName: result.matchedLeadName,
+        });
+      } else {
+        setDuplicateLeads((prev) => prev.filter((l) => l.id !== leadId));
+        showSuccess('Lead converted to new lead successfully.');
+        setConvertConfirm(null);
+      }
+    } catch (e) {
+      setDupError(extractApiErrorMessage(e, 'Failed to convert lead.'));
+    } finally {
+      setConvertingLeadId(null);
+    }
+  };
+
+  useEffect(() => {
+    if (activeMainTab === 'duplicates') {
+      loadDuplicateLeads();
+    }
+  }, [activeMainTab]);
+
   const goToNextCreateStep = () => {
     const errors = { name: "", primarySource: "" };
     let hasError = false;
@@ -917,13 +977,17 @@ export default function LeadsPage() {
       };
 
       const created = await createLead(payload);
-      setRows((prev) => [created, ...prev]);
+      setRows((prev) => [created, ...prev.filter((r) => r.id !== created.id)]);
       setShowCreate(false);
       setCreateForm(EMPTY_CREATE_FORM);
       setCreateMobileError("");
       setCreateStep0Errors({ name: "", primarySource: "" });
       setCreateWizardStep(0);
-      showSuccess("Lead created successfully");
+      if (created.isDuplicate) {
+        setDupWarnLead(created);
+      } else {
+        showSuccess("Lead created successfully");
+      }
     } catch (e) {
       setError(extractApiErrorMessage(e, "Failed to create lead"));
     } finally {
@@ -1218,6 +1282,7 @@ export default function LeadsPage() {
         try {
           await deleteLead(lead.id);
           setRows((prev) => prev.filter((row) => String(row.id) !== String(lead.id)));
+          setDuplicateLeads((prev) => prev.filter((row) => String(row.id) !== String(lead.id)));
           showSuccess("Lead deleted");
         } catch (e) {
           setError(extractApiErrorMessage(e, "Failed to delete lead"));
@@ -1420,6 +1485,28 @@ export default function LeadsPage() {
         </div>
         
       </div>
+      <ul className="nav nav-tabs mb-3">
+        <li className="nav-item">
+          <button
+            className={`nav-link ${activeMainTab === 'leads' ? 'active' : ''}`}
+            onClick={() => setActiveMainTab('leads')}
+          >
+            Leads
+          </button>
+        </li>
+        <li className="nav-item">
+          <button
+            className={`nav-link ${activeMainTab === 'duplicates' ? 'active' : ''}`}
+            onClick={() => setActiveMainTab('duplicates')}
+          >
+            Duplicates
+            {duplicateLeads.length > 0 && (
+              <span className="badge bg-warning text-dark ms-2">{duplicateLeads.length}</span>
+            )}
+          </button>
+        </li>
+      </ul>
+      {activeMainTab === 'leads' && (
       <div className="leads-page-body">
           <div className="leads-toolbar">
             <div className="d-flex flex-wrap gap-2">
@@ -1786,6 +1873,106 @@ export default function LeadsPage() {
             </table>
           </div>
       </div>
+      )}
+
+      {activeMainTab === 'duplicates' && (
+        <div className="card">
+          <div className="card-body">
+            <div className="d-flex justify-content-between align-items-center mb-3">
+              <h6 className="mb-0">Duplicate Leads</h6>
+              <button className="btn btn-sm btn-outline-secondary" onClick={loadDuplicateLeads}>
+                <i className="ti ti-refresh me-1" /> Refresh
+              </button>
+            </div>
+            {dupError && <div className="alert alert-danger py-2">{dupError}</div>}
+            {dupLoading ? (
+              <div className="text-center py-4">
+                <div className="spinner-border spinner-border-sm text-primary" />
+                <div className="text-muted mt-2 small">Loading duplicates…</div>
+              </div>
+            ) : duplicateLeads.length === 0 ? (
+              <div className="text-center py-4 text-muted">
+                <i className="ti ti-circle-check" style={{ fontSize: 32 }} />
+                <div className="mt-2">No duplicate leads</div>
+              </div>
+            ) : (
+              <div className="table-responsive">
+                <table className="table table-hover align-middle">
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Name</th>
+                      <th>Mobile</th>
+                      <th>Primary Source</th>
+                      <th>Owner</th>
+                      <th>Matches Existing Lead</th>
+                      <th>Created</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {duplicateLeads.map((lead, idx) => (
+                      <tr key={lead.id}>
+                        <td className="text-muted small">{idx + 1}</td>
+                        <td>{lead.name}</td>
+                        <td>{lead.mobile}</td>
+                        <td>{lead.primarySource}</td>
+                        <td>{lead.owner}</td>
+                        <td>
+                          {lead.duplicateOfLeadRef || lead.duplicateOfLeadName ? (
+                            <span className="small text-danger">
+                              <i className="ti ti-alert-circle me-1" />
+                              {lead.duplicateOfLeadName || '—'}
+                              {lead.duplicateOfLeadRef && (
+                                <span className="text-muted ms-1">({lead.duplicateOfLeadRef})</span>
+                              )}
+                            </span>
+                          ) : (
+                            <span className="badge bg-warning text-dark">Duplicate</span>
+                          )}
+                        </td>
+                        <td className="text-muted small">
+                          {lead.createdAt ? new Date(lead.createdAt).toLocaleDateString() : '—'}
+                        </td>
+                        <td>
+                          <div className="d-flex gap-2">
+                            <button
+                              className="btn btn-sm btn-outline-primary"
+                              onClick={() => navigate(`/leads/${lead.id}`)}
+                              title="Edit Lead"
+                            >
+                              <i className="ti ti-pencil" />
+                            </button>
+                            <button
+                              className="btn btn-sm btn-outline-success"
+                              disabled={convertingLeadId === lead.id}
+                              onClick={() => handleConvertDuplicate(lead.id, false)}
+                              title="Convert to New Lead"
+                            >
+                              {convertingLeadId === lead.id
+                                ? <span className="spinner-border spinner-border-sm" />
+                                : <i className="ti ti-arrow-right" />}
+                            </button>
+                            {role !== 'EMPLOYEE' && (
+                              <button
+                                className="btn btn-sm btn-outline-danger"
+                                onClick={() => handleDeleteLead(lead)}
+                                title="Delete Lead"
+                              >
+                                <i className="ti ti-trash" />
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {showCreate && (
         <>
@@ -2621,6 +2808,103 @@ export default function LeadsPage() {
             </div>
           </div>
           <div className="modal-backdrop fade show lead-create-backdrop" />
+        </>
+      )}
+
+      {dupWarnLead && (
+        <>
+          <div className="modal fade show" style={{ display: 'block', zIndex: 1070 }} tabIndex="-1">
+            <div className="modal-dialog modal-dialog-centered" style={{ maxWidth: 480 }}>
+              <div className="modal-content">
+                <div className="modal-header bg-warning-subtle">
+                  <h5 className="modal-title">
+                    <i className="ti ti-alert-triangle me-2 text-warning" />
+                    Duplicate Lead Detected
+                  </h5>
+                  <button className="btn-close" onClick={() => setDupWarnLead(null)} />
+                </div>
+                <div className="modal-body">
+                  <p>
+                    The lead <strong>{dupWarnLead.name}</strong> was saved but flagged as a
+                    {' '}<span className="badge bg-warning text-dark">Duplicate</span> because a
+                    matching lead already exists:
+                  </p>
+                  <div className="alert alert-warning py-2 mb-2">
+                    <strong>{dupWarnLead.duplicateOfLeadName || '—'}</strong>
+                    {dupWarnLead.duplicateOfLeadRef && (
+                      <span className="text-muted ms-2">({dupWarnLead.duplicateOfLeadRef})</span>
+                    )}
+                  </div>
+                  <p className="text-muted small mb-0">
+                    It has been moved to the <strong>Duplicates</strong> tab. You can review,
+                    edit, or convert it from there.
+                  </p>
+                </div>
+                <div className="modal-footer">
+                  <button
+                    className="btn btn-outline-secondary"
+                    onClick={() => setDupWarnLead(null)}
+                  >
+                    Dismiss
+                  </button>
+                  <button
+                    className="btn btn-warning"
+                    onClick={() => {
+                      setDupWarnLead(null);
+                      setActiveMainTab('duplicates');
+                      loadDuplicateLeads();
+                    }}
+                  >
+                    <i className="ti ti-list me-1" />
+                    View Duplicates Tab
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="modal-backdrop fade show" style={{ zIndex: 1065 }} />
+        </>
+      )}
+
+      {convertConfirm && (
+        <>
+          <div className="modal fade show" style={{ display: 'block', zIndex: 1060 }} tabIndex="-1">
+            <div className="modal-dialog modal-dialog-centered" style={{ maxWidth: 480 }}>
+              <div className="modal-content">
+                <div className="modal-header">
+                  <h5 className="modal-title">Still a Duplicate</h5>
+                  <button className="btn-close" onClick={() => setConvertConfirm(null)} />
+                </div>
+                <div className="modal-body">
+                  <p>This lead still matches an existing lead:</p>
+                  <div className="alert alert-warning py-2">
+                    <strong>{convertConfirm.matchedName || '—'}</strong>
+                    {convertConfirm.matchedRef && (
+                      <span className="text-muted ms-2">({convertConfirm.matchedRef})</span>
+                    )}
+                  </div>
+                  <p className="text-muted small mb-0">
+                    Do you want to convert it to a new lead anyway?
+                  </p>
+                </div>
+                <div className="modal-footer">
+                  <button
+                    className="btn btn-outline-secondary"
+                    onClick={() => setConvertConfirm(null)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    className="btn btn-success"
+                    onClick={() => handleConvertDuplicate(convertConfirm.leadId, true)}
+                  >
+                    Convert Anyway
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="modal-backdrop fade show" style={{ zIndex: 1055 }} />
         </>
       )}
 

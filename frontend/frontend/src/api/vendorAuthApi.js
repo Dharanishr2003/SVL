@@ -1,9 +1,30 @@
-import api from "../utils/api";
+import vendorApi, { setVendorAccessToken } from "../utils/vendorApi";
 
 export async function loginVendor(identifier, password) {
-  const response = await api.post("/api/vendor-auth/login", {
+  const response = await vendorApi.post("/api/vendor-auth/login", {
     identifier,
     password,
   });
-  return response?.data || null;
+  const payload = response?.data || null;
+  if (payload?.accessToken) {
+    setVendorAccessToken(payload.accessToken);
+  }
+  return payload;
+}
+
+export async function refreshVendorSession() {
+  const response = await vendorApi.post("/api/vendor-auth/refresh", {});
+  const payload = response?.data || null;
+  if (payload?.accessToken) {
+    setVendorAccessToken(payload.accessToken);
+  }
+  return payload;
+}
+
+export async function logoutVendor() {
+  try {
+    await vendorApi.post("/api/vendor-auth/logout", {});
+  } finally {
+    setVendorAccessToken(null);
+  }
 }

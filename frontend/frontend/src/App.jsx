@@ -1,10 +1,13 @@
 import { Suspense, lazy, useEffect } from "react";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import AdminLayout from "./layouts/AdminLayout";
+import VendorLayout from "./layouts/VendorLayout";
 import { adminPhpRoutes } from "./adminPhpRoutes";
 import PageLoader from "./components/common/PageLoader";
 import ProtectedRoute from "./routes/ProtectedRoute";
+import VendorProtectedRoute from "./routes/VendorProtectedRoute";
 import LoginPage from "./pages/common/LoginPage";
+import VendorLoginPage from "./pages/common/VendorLoginPage";
 import UnauthorizedPage from "./pages/common/UnauthorizedPage";
 import RouteProgress, {
   beginRouteProgress,
@@ -29,12 +32,20 @@ const AttendanceEmployeePage = lazy(
 const DesignWorkPage = lazy(
   () => import("./pages/admin/DesignWorkPage"),
 );
+const VendorOrdersDashboardPage = lazy(
+  () => import("./pages/vendor/VendorOrdersDashboardPage"),
+);
+const VendorOrderDetailPage = lazy(
+  () => import("./pages/vendor/VendorOrderDetailPage"),
+);
 
 const explicitLazyComponents = {
   AdminDashboardPage,
   AttendanceAdminPage,
   AttendanceEmployeePage,
   DesignWorkPage,
+  VendorOrdersDashboardPage,
+  VendorOrderDetailPage,
 };
 
 const lazyComponentCache = { ...explicitLazyComponents };
@@ -143,7 +154,65 @@ export default function App() {
       <RouteProgress />
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/vendor-login" element={<VendorLoginPage />} />
         <Route path="/unauthorized" element={<UnauthorizedPage />} />
+        <Route
+          path="/vendor"
+          element={(
+            <VendorProtectedRoute>
+              <VendorLayout />
+            </VendorProtectedRoute>
+          )}
+        >
+          <Route
+            index
+            element={(
+              <Suspense fallback={<RouteFallback />}>
+                <VendorOrdersDashboardPage />
+              </Suspense>
+            )}
+          />
+          <Route
+            path="new-orders"
+            element={(
+              <Suspense fallback={<RouteFallback />}>
+                <VendorOrdersDashboardPage />
+              </Suspense>
+            )}
+          />
+          <Route
+            path="pending-orders"
+            element={(
+              <Suspense fallback={<RouteFallback />}>
+                <VendorOrdersDashboardPage />
+              </Suspense>
+            )}
+          />
+          <Route
+            path="delivered-orders"
+            element={(
+              <Suspense fallback={<RouteFallback />}>
+                <VendorOrdersDashboardPage />
+              </Suspense>
+            )}
+          />
+          <Route
+            path="payment-pending"
+            element={(
+              <Suspense fallback={<RouteFallback />}>
+                <VendorOrdersDashboardPage />
+              </Suspense>
+            )}
+          />
+          <Route
+            path="order/:id"
+            element={(
+              <Suspense fallback={<RouteFallback />}>
+                <VendorOrderDetailPage />
+              </Suspense>
+            )}
+          />
+        </Route>
         <Route path="/" element={<AdminLayout />}>
           <Route index element={<RoleRedirect />} />
           {adminPhpRoutes.map((route) => (

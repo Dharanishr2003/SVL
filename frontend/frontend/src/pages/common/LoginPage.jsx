@@ -1,14 +1,17 @@
 import { useState } from "react";
-import { Navigate, useNavigate } from "react-router-dom";
+import { Link, Navigate, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import "../../assets/css/LoginAuth.css";
 import { getMyPageVisibility } from "../../api/userGroupApi";
 import { getDefaultLandingPath } from "../../constants/pageAccess";
+import { loginVendor } from "../../api/vendorAuthApi";
+import { getVendorSession, setVendorSession } from "../../utils/vendorSession";
 
 export default function LoginPage() {
   const navigate = useNavigate();
   const { login, isAuthenticated, user, loading: authLoading } = useAuth();
 
+  const [loginMode, setLoginMode] = useState("staff"); // "staff" | "vendor"
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -21,27 +24,49 @@ export default function LoginPage() {
 
   // Stay on login page even if an existing session is present.
 
+  const handleModeSwitch = (mode) => {
+    if (mode === loginMode) return;
+    setLoginMode(mode);
+    setIdentifier("");
+    setPassword("");
+    setError("");
+  };
+
   const onSubmit = async (e) => {
     e.preventDefault();
     setError("");
     setLoading(true);
     try {
-      sessionStorage.setItem("lastLoginIdentifier", identifier.trim());
-      const data = await login(identifier, password);
-      if (data?.forcePasswordChange) {
-        navigate("/force-change-password", { replace: true });
-        return;
+      if (loginMode === "vendor") {
+        const vendor = await loginVendor(identifier, password);
+        // Keep refresh token only in httpOnly cookie; persist vendor access token for API calls.
+        setVendorSession({
+          vendorId: vendor?.vendorId || null,
+          vendorName: vendor?.vendorName || "",
+          username: vendor?.username || "",
+          officialEmail: vendor?.officialEmail || "",
+          status: vendor?.status || "",
+          accessToken: vendor?.accessToken || null,
+        });
+        navigate("/vendor", { replace: true });
+      } else {
+        sessionStorage.setItem("lastLoginIdentifier", identifier.trim());
+        const data = await login(identifier, password);
+        if (data?.forcePasswordChange) {
+          navigate("/force-change-password", { replace: true });
+          return;
+        }
+        if (data?.isProfileIncomplete) {
+          navigate("/complete-profile", { replace: true });
+          return;
+        }
+        const role = String(data?.user?.role || "").toUpperCase();
+        const visiblePageKeys =
+          role === "SUPER_ADMIN" ? ["*"] : await getMyPageVisibility().catch(() => []);
+        const landingPath = getDefaultLandingPath(role, visiblePageKeys);
+        sessionStorage.setItem("showWelcomeToast", "1");
+        navigate(landingPath, { replace: true });
       }
-      if (data?.isProfileIncomplete) {
-        navigate("/complete-profile", { replace: true });
-        return;
-      }
-      const role = String(data?.user?.role || "").toUpperCase();
-      const visiblePageKeys =
-        role === "SUPER_ADMIN" ? ["*"] : await getMyPageVisibility().catch(() => []);
-      const landingPath = getDefaultLandingPath(role, visiblePageKeys);
-      sessionStorage.setItem("showWelcomeToast", "1");
-      navigate(landingPath, { replace: true });
     } catch (err) {
       const msg =
         err?.response?.data?.message ||
@@ -60,11 +85,27 @@ export default function LoginPage() {
           <div className="auth-signin">
             <form className="auth-form" onSubmit={onSubmit}>
               <h2 className="auth-title">Sign in</h2>
+              <div className="auth-login-switch">
+                <button
+                  type="button"
+                  className={`auth-login-pill${loginMode === "staff" ? " active" : ""}`}
+                  onClick={() => handleModeSwitch("staff")}
+                >
+                  Staff Login
+                </button>
+                <button
+                  type="button"
+                  className={`auth-login-pill${loginMode === "vendor" ? " active" : ""}`}
+                  onClick={() => handleModeSwitch("vendor")}
+                >
+                  Vendor Login
+                </button>
+              </div>
               <div className="auth-input">
                 <i className="ti ti-user" />
                 <input
                   type="text"
-                  placeholder="Username or Email"
+                  placeholder={loginMode === "vendor" ? "Vendor Username or Email" : "Username or Email"}
                   value={identifier}
                   onChange={(e) => setIdentifier(e.target.value)}
                   autoComplete="username"

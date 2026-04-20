@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import {
   approveQuotation,
@@ -22,6 +22,7 @@ import {
   downloadQuotationPdf,
   setQuotationDraft,
 } from "../../utils/quotationUtils";
+import { getQuotationTemplate } from "../../api/quotationTemplateApi";
 import "./QuotationListPage.css";
 
 function formatDate(value) {
@@ -98,6 +99,7 @@ function canApproveQuotation(quotation, userRole, user) {
 
 export default function QuotationListPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
   const userRole = normalizeRole(user?.role);
   const isEmployee = userRole === "EMPLOYEE";
@@ -120,6 +122,8 @@ export default function QuotationListPage() {
     open: false,
     quotation: null,
   });
+  const [quotationTemplate, setQuotationTemplate] = useState(null);
+  const [successMessage, setSuccessMessage] = useState(location.state?.successMessage || "");
 
   useEffect(() => {
     let ignore = false;
@@ -145,6 +149,20 @@ export default function QuotationListPage() {
     };
   }, []);
 
+  useEffect(() => {
+    let ignore = false;
+    getQuotationTemplate()
+      .then((data) => { if (!ignore) setQuotationTemplate(data || {}); })
+      .catch(() => { if (!ignore) setQuotationTemplate({}); });
+    return () => { ignore = true; };
+  }, []);
+
+  useEffect(() => {
+    if (!successMessage) return;
+    const timer = setTimeout(() => setSuccessMessage(""), 4000);
+    return () => clearTimeout(timer);
+  }, [successMessage]);
+
   const updateSingleQuotation = (updatedQuotation) => {
     setQuotations((previous) =>
       previous.map((quotation) => (quotation.id === updatedQuotation.id ? updatedQuotation : quotation)),
@@ -156,9 +174,9 @@ export default function QuotationListPage() {
     navigate("/quotation");
   };
 
-  const handleDownload = (quotation) => {
+  const handleDownload = async (quotation) => {
     try {
-      downloadQuotationPdf(quotation);
+      await downloadQuotationPdf(quotation, quotationTemplate || {});
     } catch (error) {
       console.error("Failed to download quotation PDF", error);
       setActionError("Failed to download quotation PDF.");
@@ -378,6 +396,13 @@ export default function QuotationListPage() {
           </Link>
         </div>
 
+        {successMessage && (
+          <div className="alert alert-success alert-dismissible">
+            <i className="ti ti-circle-check me-2"></i>
+            {successMessage}
+            <button type="button" className="btn-close" onClick={() => setSuccessMessage("")} />
+          </div>
+        )}
         {actionError && (
           <div className="alert alert-danger">
             <i className="ti ti-alert-circle me-2"></i>

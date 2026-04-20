@@ -12,11 +12,10 @@ export const PAGE_ACCESS_OPTIONS = [
   },
 
   // ── CRM ────────────────────────────────────────────────────────────────────
-  { key: "contacts", label: "Contacts", category: "CRM" },
-  { key: "companies", label: "Companies", category: "CRM" },
   { key: "design", label: "Design", category: "CRM" },
   { key: "production", label: "Production", category: "CRM" },
   { key: "leads", label: "Leads", category: "CRM" },
+  { key: "requirements", label: "Requirements", category: "CRM" },
   { key: "rejected-leads", label: "Rejected Leads", category: "CRM" },
   { key: "customer", label: "Customers", category: "CRM" },
   { key: "quotation", label: "Quotation", category: "CRM" },
@@ -61,21 +60,6 @@ export const PAGE_ACCESS_OPTIONS = [
       { key: "secondary-source", label: "Secondary Source" },
       { key: "tertiary-source", label: "Tertiary Source" },
       { key: "lead-type", label: "Lead Type" },
-    ],
-  },
-
-  // ── Projects (Clients) ─────────────────────────────────────────────────────
-  { key: "clients", label: "Clients", category: "Projects" },
-
-  // ── Recruitment ────────────────────────────────────────────────────────────
-  {
-    key: "recruitment",
-    label: "Recruitment",
-    category: "Recruitment",
-    children: [
-      { key: "recruitment-jobs", label: "Jobs" },
-      { key: "recruitment-candidates", label: "Candidates" },
-      { key: "recruitment-referrals", label: "Referrals" },
     ],
   },
 
@@ -185,6 +169,7 @@ export const PAGE_ACCESS_OPTIONS = [
     category: "Finance",
     children: [
       { key: "vendors", label: "Vendors" },
+      { key: "vendor-orders", label: "Vendor Orders" },
       { key: "brands", label: "Brands" },
       { key: "vendor-types", label: "Vendor Types" },
     ],
@@ -199,6 +184,8 @@ export const PAGE_ACCESS_OPTIONS = [
     children: [
       { key: "service-categories", label: "Service Categories" },
       { key: "service-types", label: "Service Types" },
+      { key: "price-list", label: "Price List" },
+      { key: "product-field-config", label: "Product Field Config" },
     ],
   },
 
@@ -255,6 +242,7 @@ const ROUTE_ACCESS_RULES = [
   { pageKeys: ["settings-flow"], prefixes: ["/flow"] },
   { pageKeys: ["settings-logs"], prefixes: ["/logs"] },
   { pageKeys: ["vendor-management", "vendors", "brands", "vendor-types"], prefixes: ["/stocks/vendors", "/stocks/brands", "/stocks/vendor-types"] },
+  { pageKeys: ["vendor-management", "vendor-orders"], prefixes: ["/stocks/vendor-orders"] },
   { pageKeys: ["lead-source", "lead-status", "lead-type", "primary-source", "secondary-source", "tertiary-source"], prefixes: ["/lead-status", "/lead-type", "/primary-source", "/secondary-source", "/tertiary-source"] },
   { pageKeys: ["rrq", "rrq-overview"], prefixes: ["/rrq"] },
   { pageKeys: ["rrq", "rrq-type"], prefixes: ["/rrq-type"] },
@@ -292,6 +280,7 @@ const ROUTE_ACCESS_RULES = [
   { pageKeys: ["rejected-leads"], prefixes: ["/rejected-leads"] },
   { pageKeys: ["customer"], prefixes: ["/customer"] },
   { pageKeys: ["leads"], prefixes: ["/leads", "/leads-dashboard"] },
+  { pageKeys: ["requirements"], prefixes: ["/requirements"] },
   { pageKeys: ["employees", "employees-list"], prefixes: ["/employees"] },
   { pageKeys: ["employees", "departments"], prefixes: ["/departments"] },
   { pageKeys: ["employees", "designations"], prefixes: ["/designations"] },
@@ -330,6 +319,8 @@ const ROUTE_ACCESS_RULES = [
   { pageKeys: ["reports", "project-report"], prefixes: ["/project-report"] },
   { pageKeys: ["services", "service-categories"], prefixes: ["/services/service-categories"] },
   { pageKeys: ["services", "service-types"], prefixes: ["/services/service-types"] },
+  { pageKeys: ["services", "price-list"], prefixes: ["/services/price-list"] },
+  { pageKeys: ["services", "product-field-config"], prefixes: ["/services/product-field-config"] },
 ];
 
 const ALWAYS_ALLOWED_PREFIXES = [

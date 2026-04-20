@@ -19,7 +19,12 @@
       "mcp__playwright__browser_console_messages",
       "Bash(node -e ':*)",
       "Bash(grep -E \"\\\\.\\(jsx|js|css\\)$\")",
-      "Bash(curl -s http://localhost:5173/customer)"
+      "Bash(curl -s http://localhost:5173/customer)",
+      "Bash(bash \"C:\\\\Users\\\\rambo\\\\.claude\\\\plugins\\\\cache\\\\claude-plugins-official\\\\superpowers\\\\5.0.7\\\\skills\\\\brainstorming\\\\scripts\\\\start-server.sh\" --project-dir \"c:/Users/rambo/Music/SVL\")",
+      "Bash(git -C \"C:/Users/rambo/Music/SVL\" diff cb48888782fb0b01b696b04e5d2fe184170a2bff..08ce1f1c86042aa0f38172a81d5d03f87d65e2dc -- frontend/frontend/src/pages/admin/AddItemModal.jsx)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(./mvnw clean *)"
     ]
   }
 }

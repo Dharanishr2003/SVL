@@ -7,4 +7,6 @@ import java.util.List;
 
 public interface ServiceTypeRepository extends JpaRepository<ServiceType, Long> {
     List<ServiceType> findByDeletedFalse();
+    boolean existsByFieldConfigKeyIgnoreCaseAndDeletedFalse(String fieldConfigKey);
+    boolean existsByFieldConfigKeyIgnoreCaseAndDeletedFalseAndIdNot(String fieldConfigKey, Long id);
 }

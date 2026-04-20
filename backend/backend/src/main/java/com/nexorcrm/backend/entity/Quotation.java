@@ -1,13 +1,12 @@
 package com.nexorcrm.backend.entity;
 
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.Lob;
+import jakarta.persistence.OneToMany;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
@@ -15,6 +14,8 @@ import jakarta.persistence.Table;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "quotations")
@@ -24,112 +25,64 @@ public class Quotation {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "quotation_number", length = 120)
+    @Column(name = "lead_id", nullable = false)
+    private Long leadId;
+
+    @Column(name = "quotation_number", nullable = false, unique = true, length = 50)
     private String quotationNumber;
 
-    @Column(name = "quotation_date")
-    private LocalDate quotationDate;
+    @Column(name = "client_name")
+    private String clientName;
 
-    @Column(name = "customer_name", length = 255)
-    private String customerName;
+    @Column(name = "client_mobile", length = 50)
+    private String clientMobile;
 
-    @Column(name = "party_mode", length = 40)
-    private String partyMode;
+    @Column(name = "client_email")
+    private String clientEmail;
 
-    @Lob
-    @Column(name = "selected_lead_json", columnDefinition = "text")
-    private String selectedLeadJson;
+    @Column(name = "client_company")
+    private String clientCompany;
 
-    @Lob
-    @Column(name = "line_items_json", columnDefinition = "text")
-    private String lineItemsJson;
+    @Column(name = "subtotal", precision = 12, scale = 2, nullable = false)
+    private BigDecimal subtotal = BigDecimal.ZERO;
 
-    @Lob
-    @Column(name = "totals_json", columnDefinition = "text")
-    private String totalsJson;
+    @Column(name = "discount_percent", precision = 5, scale = 2, nullable = false)
+    private BigDecimal discountPercent = BigDecimal.ZERO;
 
-    @Column(name = "discount_pct", precision = 10, scale = 2)
-    private BigDecimal discountPct;
+    @Column(name = "gst_percent", precision = 5, scale = 2, nullable = false)
+    private BigDecimal gstPercent = new BigDecimal("18");
 
-    @Column(name = "cgst_pct", precision = 10, scale = 2)
-    private BigDecimal cgstPct;
+    @Column(name = "cgst_percent", precision = 6, scale = 2)
+    private BigDecimal cgstPercent = BigDecimal.ZERO;
 
-    @Column(name = "sgst_pct", precision = 10, scale = 2)
-    private BigDecimal sgstPct;
+    @Column(name = "sgst_percent", precision = 6, scale = 2)
+    private BigDecimal sgstPercent = BigDecimal.ZERO;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "status", nullable = false, length = 40)
-    private QuotationStatus status = QuotationStatus.DRAFT;
+    @Column(name = "igst_percent", precision = 6, scale = 2)
+    private BigDecimal igstPercent = BigDecimal.ZERO;
 
-    @Column(name = "verification_requested_at")
-    private LocalDateTime verificationRequestedAt;
+    @Column(name = "gst_rows_json", columnDefinition = "TEXT")
+    private String gstRowsJson;
 
-    @Column(name = "verification_requested_by_id")
-    private Long verificationRequestedById;
+    @Column(name = "grand_total", precision = 12, scale = 2, nullable = false)
+    private BigDecimal grandTotal = BigDecimal.ZERO;
 
-    @Column(name = "verification_requested_by_name", length = 255)
-    private String verificationRequestedByName;
+    @Column(name = "notes", columnDefinition = "text")
+    private String notes;
 
-    @Column(name = "verification_requested_by_role", length = 40)
-    private String verificationRequestedByRole;
+    @Column(name = "validity_date")
+    private LocalDate validityDate;
 
-    @Lob
-    @Column(name = "verification_request_notes", columnDefinition = "text")
-    private String verificationRequestNotes;
+    @Column(name = "status", nullable = false, length = 50)
+    private String status = "draft";
 
-    @Column(name = "approved_at")
-    private LocalDateTime approvedAt;
+    @Column(name = "created_at", nullable = false)
+    private LocalDateTime createdAt;
 
-    @Column(name = "approved_by_id")
-    private Long approvedById;
+    @Column(name = "updated_at")
+    private LocalDateTime updatedAt;
 
-    @Column(name = "approved_by_name", length = 255)
-    private String approvedByName;
-
-    @Column(name = "approved_by_role", length = 40)
-    private String approvedByRole;
-
-    @Lob
-    @Column(name = "approval_notes", columnDefinition = "text")
-    private String approvalNotes;
-
-    @Column(name = "sent_at")
-    private LocalDateTime sentAt;
-
-    @Column(name = "sent_by_name", length = 255)
-    private String sentByName;
-
-    @Column(name = "negotiating_at")
-    private LocalDateTime negotiatingAt;
-
-    @Column(name = "negotiating_by_name", length = 255)
-    private String negotiatingByName;
-
-    @Lob
-    @Column(name = "negotiating_notes", columnDefinition = "text")
-    private String negotiatingNotes;
-
-    @Column(name = "rejected_at")
-    private LocalDateTime rejectedAt;
-
-    @Column(name = "rejected_by_name", length = 255)
-    private String rejectedByName;
-
-    @Lob
-    @Column(name = "rejection_notes", columnDefinition = "text")
-    private String rejectionNotes;
-
-    @Column(name = "accepted_at")
-    private LocalDateTime acceptedAt;
-
-    @Column(name = "accepted_by_name", length = 255)
-    private String acceptedByName;
-
-    @Lob
-    @Column(name = "acceptance_notes", columnDefinition = "text")
-    private String acceptanceNotes;
-
-    @Column(name = "created_by_id", nullable = false)
+    @Column(name = "created_by_id")
     private Long createdById;
 
     @Column(name = "created_by_name", length = 255)
@@ -144,18 +97,43 @@ public class Quotation {
     @Column(name = "created_by_team", length = 160)
     private String createdByTeam;
 
-    @Column(name = "created_at", nullable = false)
-    private LocalDateTime createdAt;
+    @Column(name = "verification_requested_at")
+    private LocalDateTime verificationRequestedAt;
 
-    @Column(name = "updated_at")
-    private LocalDateTime updatedAt;
+    @Column(name = "verification_requested_by_id")
+    private Long verificationRequestedById;
+
+    @Column(name = "verification_requested_by_name", length = 255)
+    private String verificationRequestedByName;
+
+    @Column(name = "verification_requested_by_role", length = 40)
+    private String verificationRequestedByRole;
+
+    @Column(name = "verification_request_notes", columnDefinition = "TEXT")
+    private String verificationRequestNotes;
+
+    @Column(name = "approved_at")
+    private LocalDateTime approvedAt;
+
+    @Column(name = "approved_by_id")
+    private Long approvedById;
+
+    @Column(name = "approved_by_name", length = 255)
+    private String approvedByName;
+
+    @Column(name = "approved_by_role", length = 40)
+    private String approvedByRole;
+
+    @Column(name = "approval_notes", columnDefinition = "TEXT")
+    private String approvalNotes;
+
+    @OneToMany(mappedBy = "quotation", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<QuotationItem> items = new ArrayList<>();
 
     @PrePersist
     void onCreate() {
         LocalDateTime now = LocalDateTime.now();
-        if (createdAt == null) {
-            createdAt = now;
-        }
+        if (createdAt == null) createdAt = now;
         updatedAt = now;
     }
 
@@ -164,256 +142,73 @@ public class Quotation {
         updatedAt = LocalDateTime.now();
     }
 
-    public Long getId() {
-        return id;
-    }
-
-    public String getQuotationNumber() {
-        return quotationNumber;
-    }
-
-    public void setQuotationNumber(String quotationNumber) {
-        this.quotationNumber = quotationNumber;
-    }
-
-    public LocalDate getQuotationDate() {
-        return quotationDate;
-    }
-
-    public void setQuotationDate(LocalDate quotationDate) {
-        this.quotationDate = quotationDate;
-    }
-
-    public String getCustomerName() {
-        return customerName;
-    }
-
-    public void setCustomerName(String customerName) {
-        this.customerName = customerName;
-    }
-
-    public String getPartyMode() {
-        return partyMode;
-    }
-
-    public void setPartyMode(String partyMode) {
-        this.partyMode = partyMode;
-    }
-
-    public String getSelectedLeadJson() {
-        return selectedLeadJson;
-    }
-
-    public void setSelectedLeadJson(String selectedLeadJson) {
-        this.selectedLeadJson = selectedLeadJson;
-    }
-
-    public String getLineItemsJson() {
-        return lineItemsJson;
-    }
-
-    public void setLineItemsJson(String lineItemsJson) {
-        this.lineItemsJson = lineItemsJson;
-    }
-
-    public String getTotalsJson() {
-        return totalsJson;
-    }
-
-    public void setTotalsJson(String totalsJson) {
-        this.totalsJson = totalsJson;
-    }
-
-    public BigDecimal getDiscountPct() {
-        return discountPct;
-    }
-
-    public void setDiscountPct(BigDecimal discountPct) {
-        this.discountPct = discountPct;
-    }
-
-    public BigDecimal getCgstPct() {
-        return cgstPct;
-    }
-
-    public void setCgstPct(BigDecimal cgstPct) {
-        this.cgstPct = cgstPct;
-    }
-
-    public BigDecimal getSgstPct() {
-        return sgstPct;
-    }
-
-    public void setSgstPct(BigDecimal sgstPct) {
-        this.sgstPct = sgstPct;
-    }
-
-    public QuotationStatus getStatus() {
-        return status;
-    }
-
-    public void setStatus(QuotationStatus status) {
-        this.status = status;
-    }
-
-    public LocalDateTime getVerificationRequestedAt() {
-        return verificationRequestedAt;
-    }
-
-    public void setVerificationRequestedAt(LocalDateTime verificationRequestedAt) {
-        this.verificationRequestedAt = verificationRequestedAt;
-    }
-
-    public Long getVerificationRequestedById() {
-        return verificationRequestedById;
-    }
-
-    public void setVerificationRequestedById(Long verificationRequestedById) {
-        this.verificationRequestedById = verificationRequestedById;
-    }
-
-    public String getVerificationRequestedByName() {
-        return verificationRequestedByName;
-    }
-
-    public void setVerificationRequestedByName(String verificationRequestedByName) {
-        this.verificationRequestedByName = verificationRequestedByName;
-    }
-
-    public String getVerificationRequestedByRole() {
-        return verificationRequestedByRole;
-    }
-
-    public void setVerificationRequestedByRole(String verificationRequestedByRole) {
-        this.verificationRequestedByRole = verificationRequestedByRole;
-    }
-
-    public String getVerificationRequestNotes() {
-        return verificationRequestNotes;
-    }
-
-    public void setVerificationRequestNotes(String verificationRequestNotes) {
-        this.verificationRequestNotes = verificationRequestNotes;
-    }
-
-    public LocalDateTime getApprovedAt() {
-        return approvedAt;
-    }
-
-    public void setApprovedAt(LocalDateTime approvedAt) {
-        this.approvedAt = approvedAt;
-    }
-
-    public Long getApprovedById() {
-        return approvedById;
-    }
-
-    public void setApprovedById(Long approvedById) {
-        this.approvedById = approvedById;
-    }
-
-    public String getApprovedByName() {
-        return approvedByName;
-    }
-
-    public void setApprovedByName(String approvedByName) {
-        this.approvedByName = approvedByName;
-    }
-
-    public String getApprovedByRole() {
-        return approvedByRole;
-    }
-
-    public void setApprovedByRole(String approvedByRole) {
-        this.approvedByRole = approvedByRole;
-    }
-
-    public String getApprovalNotes() {
-        return approvalNotes;
-    }
-
-    public void setApprovalNotes(String approvalNotes) {
-        this.approvalNotes = approvalNotes;
-    }
-
-    public Long getCreatedById() {
-        return createdById;
-    }
-
-    public void setCreatedById(Long createdById) {
-        this.createdById = createdById;
-    }
-
-    public String getCreatedByName() {
-        return createdByName;
-    }
-
-    public void setCreatedByName(String createdByName) {
-        this.createdByName = createdByName;
-    }
-
-    public String getCreatedByEmail() {
-        return createdByEmail;
-    }
-
-    public void setCreatedByEmail(String createdByEmail) {
-        this.createdByEmail = createdByEmail;
-    }
-
-    public String getCreatedByRole() {
-        return createdByRole;
-    }
-
-    public void setCreatedByRole(String createdByRole) {
-        this.createdByRole = createdByRole;
-    }
-
-    public String getCreatedByTeam() {
-        return createdByTeam;
-    }
-
-    public void setCreatedByTeam(String createdByTeam) {
-        this.createdByTeam = createdByTeam;
-    }
-
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
-    }
-
-    public LocalDateTime getUpdatedAt() {
-        return updatedAt;
-    }
-
-    public LocalDateTime getSentAt() { return sentAt; }
-    public void setSentAt(LocalDateTime sentAt) { this.sentAt = sentAt; }
-
-    public String getSentByName() { return sentByName; }
-    public void setSentByName(String sentByName) { this.sentByName = sentByName; }
-
-    public LocalDateTime getNegotiatingAt() { return negotiatingAt; }
-    public void setNegotiatingAt(LocalDateTime negotiatingAt) { this.negotiatingAt = negotiatingAt; }
-
-    public String getNegotiatingByName() { return negotiatingByName; }
-    public void setNegotiatingByName(String negotiatingByName) { this.negotiatingByName = negotiatingByName; }
-
-    public String getNegotiatingNotes() { return negotiatingNotes; }
-    public void setNegotiatingNotes(String negotiatingNotes) { this.negotiatingNotes = negotiatingNotes; }
-
-    public LocalDateTime getRejectedAt() { return rejectedAt; }
-    public void setRejectedAt(LocalDateTime rejectedAt) { this.rejectedAt = rejectedAt; }
-
-    public String getRejectedByName() { return rejectedByName; }
-    public void setRejectedByName(String rejectedByName) { this.rejectedByName = rejectedByName; }
-
-    public String getRejectionNotes() { return rejectionNotes; }
-    public void setRejectionNotes(String rejectionNotes) { this.rejectionNotes = rejectionNotes; }
-
-    public LocalDateTime getAcceptedAt() { return acceptedAt; }
-    public void setAcceptedAt(LocalDateTime acceptedAt) { this.acceptedAt = acceptedAt; }
-
-    public String getAcceptedByName() { return acceptedByName; }
-    public void setAcceptedByName(String acceptedByName) { this.acceptedByName = acceptedByName; }
-
-    public String getAcceptanceNotes() { return acceptanceNotes; }
-    public void setAcceptanceNotes(String acceptanceNotes) { this.acceptanceNotes = acceptanceNotes; }
+    public Long getId() { return id; }
+    public Long getLeadId() { return leadId; }
+    public void setLeadId(Long leadId) { this.leadId = leadId; }
+    public String getQuotationNumber() { return quotationNumber; }
+    public void setQuotationNumber(String quotationNumber) { this.quotationNumber = quotationNumber; }
+    public String getClientName() { return clientName; }
+    public void setClientName(String clientName) { this.clientName = clientName; }
+    public String getClientMobile() { return clientMobile; }
+    public void setClientMobile(String clientMobile) { this.clientMobile = clientMobile; }
+    public String getClientEmail() { return clientEmail; }
+    public void setClientEmail(String clientEmail) { this.clientEmail = clientEmail; }
+    public String getClientCompany() { return clientCompany; }
+    public void setClientCompany(String clientCompany) { this.clientCompany = clientCompany; }
+    public BigDecimal getSubtotal() { return subtotal; }
+    public void setSubtotal(BigDecimal subtotal) { this.subtotal = subtotal; }
+    public BigDecimal getDiscountPercent() { return discountPercent; }
+    public void setDiscountPercent(BigDecimal discountPercent) { this.discountPercent = discountPercent; }
+    public BigDecimal getGstPercent() { return gstPercent; }
+    public void setGstPercent(BigDecimal gstPercent) { this.gstPercent = gstPercent; }
+    public BigDecimal getCgstPercent() { return cgstPercent; }
+    public void setCgstPercent(BigDecimal cgstPercent) { this.cgstPercent = cgstPercent; }
+    public BigDecimal getSgstPercent() { return sgstPercent; }
+    public void setSgstPercent(BigDecimal sgstPercent) { this.sgstPercent = sgstPercent; }
+    public BigDecimal getIgstPercent() { return igstPercent; }
+    public void setIgstPercent(BigDecimal igstPercent) { this.igstPercent = igstPercent; }
+    public String getGstRowsJson() { return gstRowsJson; }
+    public void setGstRowsJson(String gstRowsJson) { this.gstRowsJson = gstRowsJson; }
+    public BigDecimal getGrandTotal() { return grandTotal; }
+    public void setGrandTotal(BigDecimal grandTotal) { this.grandTotal = grandTotal; }
+    public String getNotes() { return notes; }
+    public void setNotes(String notes) { this.notes = notes; }
+    public LocalDate getValidityDate() { return validityDate; }
+    public void setValidityDate(LocalDate validityDate) { this.validityDate = validityDate; }
+    public String getStatus() { return status; }
+    public void setStatus(String status) { this.status = status; }
+    public Long getCreatedById() { return createdById; }
+    public void setCreatedById(Long createdById) { this.createdById = createdById; }
+    public String getCreatedByName() { return createdByName; }
+    public void setCreatedByName(String createdByName) { this.createdByName = createdByName; }
+    public String getCreatedByEmail() { return createdByEmail; }
+    public void setCreatedByEmail(String createdByEmail) { this.createdByEmail = createdByEmail; }
+    public String getCreatedByRole() { return createdByRole; }
+    public void setCreatedByRole(String createdByRole) { this.createdByRole = createdByRole; }
+    public String getCreatedByTeam() { return createdByTeam; }
+    public void setCreatedByTeam(String createdByTeam) { this.createdByTeam = createdByTeam; }
+    public LocalDateTime getVerificationRequestedAt() { return verificationRequestedAt; }
+    public void setVerificationRequestedAt(LocalDateTime v) { this.verificationRequestedAt = v; }
+    public Long getVerificationRequestedById() { return verificationRequestedById; }
+    public void setVerificationRequestedById(Long v) { this.verificationRequestedById = v; }
+    public String getVerificationRequestedByName() { return verificationRequestedByName; }
+    public void setVerificationRequestedByName(String v) { this.verificationRequestedByName = v; }
+    public String getVerificationRequestedByRole() { return verificationRequestedByRole; }
+    public void setVerificationRequestedByRole(String v) { this.verificationRequestedByRole = v; }
+    public String getVerificationRequestNotes() { return verificationRequestNotes; }
+    public void setVerificationRequestNotes(String v) { this.verificationRequestNotes = v; }
+    public LocalDateTime getApprovedAt() { return approvedAt; }
+    public void setApprovedAt(LocalDateTime approvedAt) { this.approvedAt = approvedAt; }
+    public Long getApprovedById() { return approvedById; }
+    public void setApprovedById(Long approvedById) { this.approvedById = approvedById; }
+    public String getApprovedByName() { return approvedByName; }
+    public void setApprovedByName(String approvedByName) { this.approvedByName = approvedByName; }
+    public String getApprovedByRole() { return approvedByRole; }
+    public void setApprovedByRole(String approvedByRole) { this.approvedByRole = approvedByRole; }
+    public String getApprovalNotes() { return approvalNotes; }
+    public void setApprovalNotes(String approvalNotes) { this.approvalNotes = approvalNotes; }
+    public LocalDateTime getCreatedAt() { return createdAt; }
+    public LocalDateTime getUpdatedAt() { return updatedAt; }
+    public List<QuotationItem> getItems() { return items; }
+    public void setItems(List<QuotationItem> items) { this.items = items; }
 }

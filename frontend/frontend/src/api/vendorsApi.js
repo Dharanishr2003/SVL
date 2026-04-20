@@ -36,6 +36,18 @@ function normalizeVendorResponse(row) {
     vendorTypeIds: normalizeIds(row.vendorTypeIds),
     productIds: normalizeIds(row.productIds),
     brandIds: normalizeIds(row.brandIds),
+    bankDetails: Array.isArray(row.bankDetails)
+      ? row.bankDetails.map((detail) => ({
+          bankAccountHolderName: detail?.bankAccountHolderName || '',
+          bankName: detail?.bankName || '',
+          bankAccountNumber: detail?.bankAccountNumber || '',
+          bankIfscCode: detail?.bankIfscCode || '',
+          bankBranchName: detail?.bankBranchName || '',
+          bankAccountType: detail?.bankAccountType || '',
+          upiId: detail?.upiId || '',
+          upiQrImage: detail?.upiQrImage || '',
+        }))
+      : [],
   };
 }
 
@@ -57,6 +69,18 @@ function normalizeVendorPayload(vendor) {
     productIds: normalizeArrayField(vendor.productIds),
     brandIds: normalizeArrayField(vendor.brandIds),
     countryCode: vendor.countryCode || '',
+    bankDetails: Array.isArray(vendor.bankDetails)
+      ? vendor.bankDetails.map((detail) => ({
+          bankAccountHolderName: detail?.bankAccountHolderName || '',
+          bankName: detail?.bankName || '',
+          bankAccountNumber: detail?.bankAccountNumber || '',
+          bankIfscCode: detail?.bankIfscCode || '',
+          bankBranchName: detail?.bankBranchName || '',
+          bankAccountType: detail?.bankAccountType || '',
+          upiId: detail?.upiId || '',
+          upiQrImage: detail?.upiQrImage || '',
+        }))
+      : [],
   };
 }
 

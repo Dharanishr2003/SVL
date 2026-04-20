@@ -1,14 +1,58 @@
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
-import { clearVendorSession, getVendorSession } from "../utils/vendorSession";
+import { useEffect, useState } from "react";
+import { clearVendorSession, getVendorSession, setVendorSession } from "../utils/vendorSession";
+import { logoutVendor, refreshVendorSession } from "../api/vendorAuthApi";
+import { setVendorAccessToken } from "../utils/vendorApi";
 
 export default function VendorLayout() {
   const navigate = useNavigate();
   const session = getVendorSession();
+  const [booting, setBooting] = useState(true);
+
+  // Restore/attach vendor token for vendor portal requests.
+  useEffect(() => {
+    let cancelled = false;
+    const restore = async () => {
+      try {
+        if (session?.accessToken) {
+          setVendorAccessToken(session.accessToken);
+          return;
+        }
+        if (session?.vendorId) {
+          const refreshed = await refreshVendorSession();
+          if (cancelled) return;
+          setVendorSession({
+            vendorId: refreshed?.vendorId || session.vendorId,
+            vendorName: refreshed?.vendorName || session.vendorName || "",
+            username: refreshed?.username || session.username || "",
+            officialEmail: refreshed?.officialEmail || session.officialEmail || "",
+            status: refreshed?.status || session.status || "",
+            accessToken: refreshed?.accessToken || null,
+          });
+        }
+      } catch {
+        // If refresh fails (expired), vendorApi interceptor will clear tokens on 401/403.
+      } finally {
+        if (!cancelled) setBooting(false);
+      }
+    };
+    restore();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleLogout = async () => {
-    clearVendorSession();
-    navigate("/login", { replace: true });
+    try {
+      await logoutVendor();
+    } finally {
+      clearVendorSession();
+      navigate("/login", { replace: true });
+    }
   };
+
+  if (booting) return null;
 
   return (
     <div className="main-wrapper customer-layout">

@@ -44,8 +44,14 @@ api.interceptors.response.use(
     const originalRequest = error.config || {}
     const status = error.response?.status
     const url = originalRequest.url || ''
-    const isLogin = url.includes('/api/auth/login') || url.includes('/auth/login')
-    const isRefresh = url.includes('/api/auth/refresh') || url.includes('/auth/refresh')
+    const isLogin =
+      url.includes('/api/auth/login') ||
+      url.includes('/auth/login') ||
+      url.includes('/api/vendor-auth/login')
+    const isRefresh =
+      url.includes('/api/auth/refresh') ||
+      url.includes('/auth/refresh') ||
+      url.includes('/api/vendor-auth/refresh')
 
     if (status === 401 && !originalRequest._retry && !isLogin && !isRefresh) {
       originalRequest._retry = true

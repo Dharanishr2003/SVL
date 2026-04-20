@@ -25,4 +25,12 @@ public interface LeadRepository extends JpaRepository<Lead, Long> {
     boolean existsByDeletedFalseAndProjectNameIgnoreCaseAndEmailNormalized(String projectName, String emailNormalized);
 
     long countByDeletedFalse();
+
+    // duplicate detection queries
+    List<Lead> findByDeletedFalseAndIsDuplicateTrueOrderByCreatedAtDesc();
+
+    Optional<Lead> findFirstByDeletedFalseAndIsDuplicateFalseAndMobileNormalizedOrderByCreatedAtDesc(String mobileNormalized);
+    Optional<Lead> findFirstByDeletedFalseAndIsDuplicateFalseAndEmailNormalizedOrderByCreatedAtDesc(String emailNormalized);
+    Optional<Lead> findFirstByDeletedFalseAndIsDuplicateFalseAndMobileNormalizedAndIdNotOrderByCreatedAtDesc(String mobileNormalized, Long id);
+    Optional<Lead> findFirstByDeletedFalseAndIsDuplicateFalseAndEmailNormalizedAndIdNotOrderByCreatedAtDesc(String emailNormalized, Long id);
 }

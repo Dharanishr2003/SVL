@@ -6,7 +6,7 @@ export default function VendorProtectedRoute({ children }) {
   const session = getVendorSession();
 
   if (!session?.vendorId) {
-    return <Navigate to="/vendor-login" replace state={{ from: location.pathname }} />;
+    return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   }
 
   return children;

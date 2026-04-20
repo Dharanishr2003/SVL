@@ -72,6 +72,28 @@ public class Vendor {
     @Column(name = "company_address", columnDefinition = "text")
     private String companyAddress;
 
+    @Column(name = "bank_account_holder_name")
+    private String bankAccountHolderName;
+
+    @Column(name = "bank_name")
+    private String bankName;
+
+    @Column(name = "bank_account_number")
+    private String bankAccountNumber;
+
+    @Column(name = "bank_ifsc_code")
+    private String bankIfscCode;
+
+    @Column(name = "bank_branch_name")
+    private String bankBranchName;
+
+    @Column(name = "bank_account_type")
+    private String bankAccountType;
+
+    @Lob
+    @Column(name = "bank_details", columnDefinition = "text")
+    private String bankDetails;
+
     @Column(name = "status")
     private String status = "active";
 
@@ -145,6 +167,20 @@ public class Vendor {
     public void setPanNumber(String panNumber) { this.panNumber = panNumber; }
     public String getCompanyAddress() { return companyAddress; }
     public void setCompanyAddress(String companyAddress) { this.companyAddress = companyAddress; }
+    public String getBankAccountHolderName() { return bankAccountHolderName; }
+    public void setBankAccountHolderName(String bankAccountHolderName) { this.bankAccountHolderName = bankAccountHolderName; }
+    public String getBankName() { return bankName; }
+    public void setBankName(String bankName) { this.bankName = bankName; }
+    public String getBankAccountNumber() { return bankAccountNumber; }
+    public void setBankAccountNumber(String bankAccountNumber) { this.bankAccountNumber = bankAccountNumber; }
+    public String getBankIfscCode() { return bankIfscCode; }
+    public void setBankIfscCode(String bankIfscCode) { this.bankIfscCode = bankIfscCode; }
+    public String getBankBranchName() { return bankBranchName; }
+    public void setBankBranchName(String bankBranchName) { this.bankBranchName = bankBranchName; }
+    public String getBankAccountType() { return bankAccountType; }
+    public void setBankAccountType(String bankAccountType) { this.bankAccountType = bankAccountType; }
+    public String getBankDetails() { return bankDetails; }
+    public void setBankDetails(String bankDetails) { this.bankDetails = bankDetails; }
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
     public String getOfficialEmail() { return officialEmail; }

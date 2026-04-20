@@ -208,6 +208,7 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
   const [showRequirementModal, setShowRequirementModal] = useState(false);
   const [editingRequirement, setEditingRequirement] = useState(null);
   const [requirementModalKey, setRequirementModalKey] = useState(0);
+  const [viewingSpecs, setViewingSpecs] = useState(null);
   const [requirements, setRequirements] = useState([]);
   const [serviceCategories, setServiceCategories] = useState([]);
   const [serviceTypes, setServiceTypes] = useState([]);
@@ -1990,7 +1991,7 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
   };
 
   return (
-    <div className="container-fluid">
+    <div className="container-fluid lead-edit-page">
 
       <div className="d-flex align-items-center justify-content-between mb-3">
         <div>
@@ -2000,15 +2001,17 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
         <div className="d-flex gap-2 align-items-center">
           <div className="lead-current-status-box">
             <span className="lead-current-status-label">Current Status</span>
-            <strong>{lead?.status || "-"}</strong>
+            <strong>{lead?.isDuplicate ? "Duplicate" : (lead?.status || "-")}</strong>
           </div>
-          <button
-            className="btn btn-outline-primary btn-sm"
-            onClick={() => setShowStatusModal(true)}
-            title="Update status"
-          >
-            <i className="ti ti-transfer-out me-1"></i>Update Status
-          </button>
+          {!lead?.isDuplicate && (
+            <button
+              className="btn btn-outline-primary btn-sm"
+              onClick={() => setShowStatusModal(true)}
+              title="Update status"
+            >
+              <i className="ti ti-transfer-out me-1"></i>Update Status
+            </button>
+          )}
           <button
             className="btn btn-primary btn-sm"
             onClick={saveLeadDetails}
@@ -2026,7 +2029,7 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
             <i className="ti ti-history me-1"></i>
             Log
           </button>
-          <button className="btn btn-light btn-sm" onClick={() => navigate("/leads")}>
+          <button className="btn btn-light btn-sm" onClick={() => navigate(-1)}>
             Back
           </button>
         </div>
@@ -2714,13 +2717,13 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
                                 <td>{req.quantity || "-"}</td>
                                 <td style={{ minWidth: 260 }}>
                                   {parsedSpecs && Object.keys(parsedSpecs).length > 0 ? (
-                                    <div className="d-flex flex-wrap gap-1">
-                                      {Object.entries(parsedSpecs).map(([k, v]) => (
-                                        <span key={k} className="badge bg-light text-dark border">
-                                          {k}: {String(v)}
-                                        </span>
-                                      ))}
-                                    </div>
+                                    <button
+                                      type="button"
+                                      className="spec-view-btn"
+                                      onClick={() => setViewingSpecs({ specs: parsedSpecs, req })}
+                                    >
+                                      <i className="ti ti-eye" /> View
+                                    </button>
                                   ) : (
                                     <span className="text-muted">-</span>
                                   )}
@@ -3367,6 +3370,34 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
         shippingAddresses={shippingAddresses}
         onAddShippingAddress={handleAddShippingAddress}
       />
+
+      {viewingSpecs && (
+        <div className="spec-viewer-backdrop" onClick={() => setViewingSpecs(null)}>
+          <div className="spec-viewer-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="spec-viewer-header">
+              <h2 className="spec-viewer-title">Specifications</h2>
+              <button type="button" className="spec-viewer-close" onClick={() => setViewingSpecs(null)}>✕</button>
+            </div>
+            <div className="spec-viewer-body">
+              {(viewingSpecs.req.categoryName || viewingSpecs.req.typeName || viewingSpecs.req.subtypeName) && (
+                <div className="spec-viewer-meta">
+                  {viewingSpecs.req.categoryName && <span className="spec-viewer-meta-chip">{viewingSpecs.req.categoryName}</span>}
+                  {viewingSpecs.req.typeName && <span className="spec-viewer-meta-chip">{viewingSpecs.req.typeName}</span>}
+                  {viewingSpecs.req.subtypeName && <span className="spec-viewer-meta-chip">{viewingSpecs.req.subtypeName}</span>}
+                </div>
+              )}
+              <div className="spec-viewer-grid">
+                {Object.entries(viewingSpecs.specs).map(([k, v]) => (
+                  <div key={k} className="spec-viewer-field">
+                    <span className="spec-viewer-label">{k}</span>
+                    <span className="spec-viewer-value">{String(v)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <RequirementFormModal
         show={showRequirementModal}

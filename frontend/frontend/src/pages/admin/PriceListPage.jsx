@@ -1,12 +1,12 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 import PageHeader from "../../components/admin/PageHeader";
-import { matchProductFields } from "../../utils/productFieldConfigs";
+import { getFieldsByServiceType } from "../../api/productFieldConfigApi";
 import { getPriceList, savePriceEntry, deletePriceEntry } from "../../api/priceListApi";
 import { getServiceCategories } from "../../api/serviceCategoriesApi";
 import { getServiceTypes } from "../../api/serviceTypesApi";
+import { getCustomOptions, saveCustomOption } from "../../api/customOptionsApi";
+import { collectCustomOptionSaves } from "../../utils/customSizeUtils";
 import "./PriceListPage.css";
-
-const STEP_LABELS = ["Product Type", "Variant Details", "Pricing", "Added Products"];
 
 /* ── helpers ──────────────────────────────────────────────────────────── */
 function emptyForm() {
@@ -60,13 +60,13 @@ function variantBadges(variantFields) {
     });
 }
 
-function validateStep(step, form, subtypeOptions) {
+function validateStep(step, form, subtypeOptions, pricingStep = 2) {
   if (step === 0) {
     if (!form.categoryId) return "Please select a category.";
     if (!form.typeId) return "Please select a product type.";
     if (subtypeOptions.length > 0 && !form.subtypeId) return "Please select a sub-product.";
   }
-  if (step === 2) {
+  if (step === pricingStep) {
     const valid = form.quantitySlabs.filter(
       (s) => s.minQty !== "" && s.maxQty !== "" && s.pricePerPiece !== "" && Number(s.pricePerPiece) > 0
     );
@@ -79,17 +79,17 @@ function validateStep(step, form, subtypeOptions) {
 }
 
 /* ── sub-components ───────────────────────────────────────────────────── */
-function StepCircles({ step }) {
+function StepCircles({ step, stepLabels }) {
   return (
     <>
       <div className="lead-wizard-progress-bar">
         <div
           className="lead-wizard-progress"
-          style={{ width: `${(step / (STEP_LABELS.length - 1)) * 100}%` }}
+          style={{ width: `${(step / (stepLabels.length - 1)) * 100}%` }}
         />
       </div>
       <div className="lead-wizard-circles">
-        {STEP_LABELS.map((label, i) => (
+        {stepLabels.map((label, i) => (
           <div className="lead-wizard-circle-item" key={label}>
             <div className={`lead-wizard-circle${step >= i ? " active" : ""}`}>
               <span>{i + 1}</span>
@@ -102,56 +102,109 @@ function StepCircles({ step }) {
   );
 }
 
-function VariantField({ field, value, variantFields, onChange }) {
+function VariantField({ field, value, variantFields, onChange, optionsOverride }) {
   if (field.hidden) return null;
 
   if (field.type === "select") {
-    const opts = field.options || [];
+    const opts = (optionsOverride || field.options || []).filter((o) => o !== "Custom");
 
     return (
       <div className="col-md-6">
         <div className="lead-form-field">
           <label className="form-label">{field.label}</label>
-          <select
-            className="form-select"
-            value={value}
-            onChange={(e) => onChange(field, e.target.value)}
-          >
-            <option value="">-- Select --</option>
-            {opts.map((o) => {
-              if (o === "Custom" && field.allowCustom && value === "Custom") {
+          <div style={{ display: "flex", alignItems: "center" }}>
+            <select
+              className="form-select"
+              value={value}
+              onChange={(e) => onChange(field, e.target.value)}
+            >
+              <option value="">-- Select --</option>
+              {value === "Custom" && field.allowCustom && (() => {
                 if (field.key === "size") {
+                  if (field.customSizeMode === "text") {
+                    const customValue = variantFields.sizeCustom;
+                    return (
+                      <option key="Custom" value="Custom">
+                        {customValue ? `Custom: ${customValue}` : "Custom"}
+                      </option>
+                    );
+                  }
                   const width = variantFields.customWidth;
                   const height = variantFields.customHeight;
                   const depth = variantFields.customDepth;
                   const unit = variantFields.customUnit || "ft";
                   return (
-                    <option key={o} value={o}>
+                    <option key="Custom" value="Custom">
                       {width || height ? `Custom: ${width} ${unit} × ${height} ${unit}${depth ? ` × ${depth} ${unit}` : ""}` : "Custom"}
                     </option>
                   );
                 }
                 const customValue = variantFields[`${field.key}Custom`];
                 return (
-                  <option key={o} value={o}>
+                  <option key="Custom" value="Custom">
                     {customValue ? `Custom: ${customValue}` : "Custom"}
                   </option>
                 );
-              }
-              return (
+              })()}
+              {opts.map((o) => (
                 <option key={o} value={o}>{o}</option>
-              );
-            })}
-          </select>
+              ))}
+            </select>
+            {field.allowCustom && (
+              <button
+                type="button"
+                className="btn btn-sm btn-outline-secondary ms-1"
+                style={{ flexShrink: 0 }}
+                onClick={() => onChange(field, "Custom")}
+                title="Add custom value"
+              >
+                <i className="ti ti-plus" />
+              </button>
+            )}
+          </div>
         </div>
       </div>
     );
   }
 
+  if (field.hasUnit && (field.type === "number" || field.type === "text")) {
+    return (
+      <div className="col-md-6">
+        <div className="lead-form-field">
+          <label className="form-label">{field.label}</label>
+          <div style={{ display: "flex", alignItems: "stretch", width: "100%" }}>
+            <input
+              className="form-control unit-input"
+              type={field.type === "number" ? "number" : "text"}
+              value={value}
+              onChange={(e) => onChange(field, e.target.value)}
+              placeholder={field.placeholder || ""}
+            />
+            <select
+              className="form-select unit-select"
+              value={variantFields[`${field.key}Unit`] ?? field.defaultUnit ?? ""}
+              onChange={(e) => {
+                onChange({ ...field, key: `${field.key}Unit` }, e.target.value);
+              }}
+            >
+              {(field.unitOptions || []).map((u) => (
+                <option key={u} value={u}>{u}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const measurementValue = variantFields["measurement"];
+  const isDimensionField = ["length", "width", "height", "gusset", "depth", "diameter"].includes(field.key);
+  const dimensionSuffix = isDimensionField && !field.hasUnit && measurementValue ? ` (in ${measurementValue})` : "";
+
   return (
     <div className="col-md-6">
       <div className="lead-form-field">
-        <label className="form-label">{field.label}</label>
+        <label className="form-label">{field.label}{dimensionSuffix}</label>
         <input
           type={field.type === "number" ? "number" : "text"}
           className="form-control"
@@ -165,6 +218,7 @@ function VariantField({ field, value, variantFields, onChange }) {
 }
 function WizardModal({ title, form, setForm, step, setStep, onClose, onSave, onPersist, error, categories, allTypes, isAddMode }) {
   const [sessionItems, setSessionItems] = useState([]);
+  const [editingSessionIdx, setEditingSessionIdx] = useState(null);
   const [customSpecDialog, setCustomSpecDialog] = useState({
     open: false, field: null, value: "",
     isFlexCustomSize: false, isTextPrompt: false,
@@ -175,6 +229,7 @@ function WizardModal({ title, form, setForm, step, setStep, onClose, onSave, onP
     open: false, width: "", height: "", depth: "", sizeUnit: "mm",
   });
   const [dialogError, setDialogError] = useState("");
+  const [customOptionsByFieldKey, setCustomOptionsByFieldKey] = useState({});
 
   const typeOptions = useMemo(
     () => allTypes.filter((t) => String(t.categoryId) === String(form.categoryId) && !t.parentId),
@@ -185,6 +240,10 @@ function WizardModal({ title, form, setForm, step, setStep, onClose, onSave, onP
     [allTypes, form.typeId]
   );
 
+  const selectedCategory = useMemo(
+    () => categories.find((c) => String(c.id) === String(form.categoryId)),
+    [categories, form.categoryId]
+  );
   const selectedType = useMemo(
     () => allTypes.find((t) => String(t.id) === String(form.typeId)),
     [allTypes, form.typeId]
@@ -194,15 +253,103 @@ function WizardModal({ title, form, setForm, step, setStep, onClose, onSave, onP
     [allTypes, form.subtypeId]
   );
 
-  const fields = useMemo(
-    () => matchProductFields(
-      selectedType?.name,
-      selectedSubtype?.name,
-      selectedType?.fieldConfigKey,
-      selectedSubtype?.fieldConfigKey,
-    ),
-    [selectedType, selectedSubtype]
-  );
+  const [fields, setFields] = useState([]);
+  const [fieldsLoading, setFieldsLoading] = useState(false);
+
+  const variantSteps = useMemo(() => {
+    if (!fields || fields.length === 0) {
+      return [{ section: "Variant", fields: [] }];
+    }
+    if (fields.length > 8) {
+      const numTabs = Math.ceil(fields.length / 8);
+      const fieldsPerTab = Math.ceil(fields.length / numTabs);
+      const chunks = [];
+      for (let i = 0; i < fields.length; i += fieldsPerTab) {
+        chunks.push(fields.slice(i, i + fieldsPerTab));
+      }
+      return chunks.map((chunk, idx) => ({
+        section: idx === 0 ? "Variant" : `Variant ${idx + 1}`,
+        fields: chunk,
+      }));
+    }
+    return [{ section: "Variant", fields: fields }];
+  }, [fields]);
+
+  const variantStepCount = variantSteps.length;
+  const firstVariantStep = 1;
+  const pricingStep = firstVariantStep + variantStepCount;
+  const addedStep = pricingStep + 1;
+
+  const currentVariant = variantSteps[
+    Math.max(0, Math.min(step - firstVariantStep, variantSteps.length - 1))
+  ] || { section: "Variant", fields: [] };
+
+  const isVariantStep = step >= firstVariantStep && step < pricingStep;
+  const stepLabels = useMemo(() => ([
+    "Product",
+    ...variantSteps.map((s) => s.section),
+    "Pricing",
+    "Added",
+  ]), [variantSteps]);
+
+  useEffect(() => {
+    const resolvedId = form.subtypeId || form.typeId;
+    if (!resolvedId) { setFields([]); return; }
+    let cancelled = false;
+    setFieldsLoading(true);
+    getFieldsByServiceType(resolvedId)
+      .then((data) => {
+        if (cancelled) return;
+        const mapped = (data || []).map((f) => ({
+          key: f.fieldKey,
+          label: f.label,
+          type: f.fieldType,
+          options: f.options || [],
+          isRequired: f.isRequired,
+          placeholder: f.placeholder,
+          allowCustom: f.allowCustom,
+          customDimensions: f.customDimensions || ["width", "height"],
+          customDimensionUnit: f.customDimensionUnit || "mm",
+          customSizeMode: f.customSizeMode || null,
+          hidden: f.isHidden,
+          hasUnit: f.hasUnit,
+          unitOptions: f.unitOptions || [],
+          defaultUnit: f.defaultUnit,
+          dependsOn: f.dependsOn,
+          dependsOnValue: f.dependsOnValue,
+        }));
+        setFields(mapped);
+        setForm((p) => {
+          const next = { ...(p.variantFields || {}) };
+          mapped.forEach((mf) => {
+            if (mf.hasUnit && mf.defaultUnit && next[`${mf.key}Unit`] === undefined) {
+              next[`${mf.key}Unit`] = mf.defaultUnit;
+            }
+          });
+          return { ...p, variantFields: next };
+        });
+      })
+      .catch(() => { if (!cancelled) setFields([]); })
+      .finally(() => { if (!cancelled) setFieldsLoading(false); });
+    return () => { cancelled = true; };
+  }, [form.typeId, form.subtypeId]);
+
+  // Fetch saved custom options for all allowCustom select fields for this wizard scope
+  useEffect(() => {
+    if (!form.typeId) { setCustomOptionsByFieldKey({}); return; }
+    const allowCustomFields = (fields || []).filter((f) => f.type === "select" && f.allowCustom && !f.promptText);
+    if (!allowCustomFields.length) { setCustomOptionsByFieldKey({}); return; }
+
+    Promise.all(
+      allowCustomFields.map((f) =>
+        getCustomOptions(form.typeId, form.subtypeId || null, f.key)
+          .then((opts) => [f.key, (opts || []).map((o) => o.valueRaw)])
+          .catch(() => [f.key, []])
+      )
+    ).then((pairs) => {
+      setCustomOptionsByFieldKey(Object.fromEntries(pairs));
+    });
+  }, [form.typeId, form.subtypeId, fields]);
 
   function handleCategoryChange(catId) {
     setForm((p) => ({
@@ -235,23 +382,74 @@ function WizardModal({ title, form, setForm, step, setStep, onClose, onSave, onP
 
   const handleVariantChange = (field, val) => {
     if (field.key === "size" && val === "Custom") {
+      // Some products (e.g. Reflector Flex) treat size as a text custom value (sizeCustom),
+      // not as width/height dimensions (customWidth/customHeight).
+      if (field.customSizeMode === "text") {
+        setCustomSpecDialog({
+          open: true, field,
+          value: String(form.variantFields[`${field.key}Custom`] || "").trim(),
+          isFlexCustomSize: false, isTextPrompt: false,
+          flexWidth: "", flexHeight: "",
+          customSizeUnitLabel: "ft", sizeUnit: "mm",
+          textRows: 4, selectedOption: "",
+        });
+        return;
+      }
+
+      const configDims = field.customDimensions || [];
+      const hasDimensionFields = configDims.length > 0
+        ? true
+        : (fields || []).some((f) => f.key === "customWidth");
+      const hasDepthField = configDims.length > 0
+        ? (configDims.includes("Depth") || configDims.includes("depth"))
+        : (fields || []).some((f) => f.key === "customDepth");
+      const unit = configDims.length > 0
+        ? (field.customDimensionUnit || "mm")
+        : null;
+
+      if (hasDimensionFields) {
+        if (hasDepthField) {
+          setDepthSizeDialog({
+            open: true,
+            width: form.variantFields.customWidth || "",
+            height: form.variantFields.customHeight || "",
+            depth: form.variantFields.customDepth || "",
+            sizeUnit: unit || "mm",
+          });
+          return;
+        }
+
+        setCustomSpecDialog({
+          open: true, field,
+          value: "", isFlexCustomSize: true, isTextPrompt: false,
+          flexWidth: form.variantFields.customWidth || "",
+          flexHeight: form.variantFields.customHeight || "",
+          customSizeUnitLabel: unit || "mm",
+          sizeUnit: unit || "mm",
+          textRows: 4, selectedOption: "",
+        });
+        return;
+      }
+
+      // legacy fallback — name-based detection for existing products
       const typeName = (selectedType?.name || "").toLowerCase();
       const subtypeName = (selectedSubtype?.name || "").toLowerCase();
       const isSticker = typeName.includes("sticker") || subtypeName.includes("sticker");
       const isCard = typeName.includes("card") || subtypeName.includes("card");
-      const hasDepthField = (fields || []).some((f) => f.key === "customDepth");
-      const useMm = hasDepthField || isSticker || isCard;
+      const hasDepthFieldLegacy = (fields || []).some((f) => f.key === "customDepth");
+      const useMm = hasDepthFieldLegacy || isSticker || isCard;
+      const fallbackUnit = unit || (isCard || hasDepthFieldLegacy ? "mm" : "ft");
       let unitLabel = "ft";
       if (isSticker) unitLabel = "mm or inch";
-      else if (isCard || hasDepthField) unitLabel = "mm";
+      else if (isCard || hasDepthFieldLegacy) unitLabel = "mm";
 
-      if (hasDepthField) {
+      if (hasDepthFieldLegacy) {
         setDepthSizeDialog({
           open: true,
           width: form.variantFields.customWidth || "",
           height: form.variantFields.customHeight || "",
           depth: form.variantFields.customDepth || "",
-          sizeUnit: useMm ? "mm" : "ft",
+          sizeUnit: fallbackUnit || (useMm ? "mm" : "ft"),
         });
         return;
       }
@@ -262,7 +460,7 @@ function WizardModal({ title, form, setForm, step, setStep, onClose, onSave, onP
         flexWidth: form.variantFields.customWidth || "",
         flexHeight: form.variantFields.customHeight || "",
         customSizeUnitLabel: unitLabel,
-        sizeUnit: useMm ? "mm" : "ft",
+        sizeUnit: fallbackUnit || (useMm ? "mm" : "ft"),
         textRows: 4, selectedOption: "",
       });
       return;
@@ -297,6 +495,13 @@ function WizardModal({ title, form, setForm, step, setStep, onClose, onSave, onP
       const next = { ...p.variantFields, [field.key]: val };
       if (field.allowCustom && val !== "Custom") {
         delete next[`${field.key}Custom`];
+        if (field.key === "size") {
+          delete next.customWidth;
+          delete next.customHeight;
+          delete next.customDepth;
+          delete next.customUnit;
+          delete next.sizeCustom;
+        }
       }
       return { ...p, variantFields: next };
     });
@@ -314,6 +519,13 @@ function WizardModal({ title, form, setForm, step, setStep, onClose, onSave, onP
         ...p,
         variantFields: { ...p.variantFields, size: "Custom", customWidth: w, customHeight: h, customUnit: customSpecDialog.sizeUnit },
       }));
+      const sizeLabel = `${w} × ${h} ${customSpecDialog.sizeUnit}`;
+      saveCustomOption(
+        form.typeId,
+        form.subtypeId || null,
+        "size",
+        sizeLabel
+      ).catch(() => {});
       closeCustomSpecDialog();
       return;
     }
@@ -340,6 +552,14 @@ function WizardModal({ title, form, setForm, step, setStep, onClose, onSave, onP
       }
       return { ...p, variantFields: next };
     });
+    if (val) {
+      saveCustomOption(
+        form.typeId,
+        form.subtypeId || null,
+        field.key,
+        val
+      ).catch(() => {});
+    }
     closeCustomSpecDialog();
   }
 
@@ -360,7 +580,7 @@ function WizardModal({ title, form, setForm, step, setStep, onClose, onSave, onP
     setForm((p) => ({ ...p, quantitySlabs: p.quantitySlabs.filter((_, idx) => idx !== i) }));
 
   function handleSavePrice() {
-    const err = validateStep(2, form, subtypeOptions);
+    const err = validateStep(pricingStep, form, subtypeOptions, pricingStep);
     if (err) return;
 
     const validSlabs = form.quantitySlabs
@@ -382,10 +602,15 @@ function WizardModal({ title, form, setForm, step, setStep, onClose, onSave, onP
     };
 
     if (isAddMode) {
-      setSessionItems((p) => [...p, entry]);
-      setStep(3);
+      if (editingSessionIdx !== null) {
+        setSessionItems((p) => p.map((item, idx) => idx === editingSessionIdx ? entry : item));
+        setEditingSessionIdx(null);
+      } else {
+        setSessionItems((p) => [...p, entry]);
+      }
+      setStep(addedStep);
     } else {
-      onSave("save", subtypeOptions);
+      onSave("save", subtypeOptions, fields, pricingStep);
     }
   }
 
@@ -397,12 +622,20 @@ function WizardModal({ title, form, setForm, step, setStep, onClose, onSave, onP
   }
 
   function handleAddItem() {
-    setForm((p) => ({
-      ...p,
-      variantFields: { ...p.variantFields },
-      quantitySlabs: [{ minQty: "", maxQty: "", pricePerPiece: "" }],
-    }));
-    setStep(1);
+    if (Array.isArray(sessionItems) && sessionItems.length > 0) {
+      const lastItem = sessionItems[sessionItems.length - 1];
+      setForm({
+        categoryId: lastItem.categoryId || "",
+        typeId: lastItem.typeId || "",
+        subtypeId: lastItem.subtypeId || "",
+        variantFields: { ...(lastItem.variantFields || {}) },
+        quantitySlabs: [{ minQty: "", maxQty: "", pricePerPiece: "" }],
+      });
+    } else {
+      setForm(emptyForm());
+    }
+    setEditingSessionIdx(null);
+    setStep(firstVariantStep);
   }
 
   return (
@@ -416,7 +649,7 @@ function WizardModal({ title, form, setForm, step, setStep, onClose, onSave, onP
             </div>
             <div className="modal-body lead-create-shell service-types-modal-body">
               <div className="lead-wizard">
-                  <StepCircles step={step} />
+                  <StepCircles step={step} stepLabels={stepLabels} />
 
                   {error && <div className="alert alert-danger py-2 mb-3">{error}</div>}
 
@@ -461,26 +694,37 @@ function WizardModal({ title, form, setForm, step, setStep, onClose, onSave, onP
                           </div>
                         </div>
 
-                        {form.typeId && subtypeOptions.length > 0 && (
-                          <div className="col-md-6">
-                            <div className="lead-form-field">
-                              <label className="form-label fw-semibold">Sub-Product</label>
-                              <select
-                                className="form-select"
-                                value={form.subtypeId}
-                                onChange={(e) =>
-                                  setForm((p) => ({
-                                    ...p,
-                                    subtypeId: e.target.value,
-                                    variantFields: {},
-                                  }))
-                                }
-                              >
-                                <option value="">Select sub-type</option>
-                                {subtypeOptions.map((st) => (
-                                  <option key={st.id} value={st.id}>{st.name}</option>
-                                ))}
-                              </select>
+                        <div
+                          className="col-md-6"
+                          style={{ visibility: form.typeId && subtypeOptions.length > 0 ? "visible" : "hidden" }}
+                        >
+                          <div className="lead-form-field">
+                            <label className="form-label fw-semibold">Sub-product</label>
+                            <select
+                              className="form-select"
+                              value={form.subtypeId}
+                              onChange={(e) =>
+                                setForm((p) => ({
+                                  ...p,
+                                  subtypeId: e.target.value,
+                                  variantFields: {},
+                                }))
+                              }
+                            >
+                              <option value="">Select sub-type</option>
+                              {subtypeOptions.map((st) => (
+                                <option key={st.id} value={st.id}>{st.name}</option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+
+                        {selectedCategory && (
+                          <div className="col-12">
+                            <div className="alert alert-info py-2 mb-0">
+                              {selectedType
+                                ? `Selected: ${selectedCategory.name} / ${selectedType.name}${selectedSubtype ? ` / ${selectedSubtype.name}` : ""}`
+                                : `Select a product under ${selectedCategory.name} to continue.`}
                             </div>
                           </div>
                         )}
@@ -488,30 +732,52 @@ function WizardModal({ title, form, setForm, step, setStep, onClose, onSave, onP
                     )}
 
                     {/* Step 1 — Variant Details */}
-                    {step === 1 && (
+                    {isVariantStep && (
                       <div className="row g-3 lead-wizard-step-panel">
-                        {fields.length === 0 ? (
+                        {fieldsLoading ? (
+                          <div className="col-12 text-center py-3">
+                            <div className="spinner-border spinner-border-sm text-primary" role="status">
+                              <span className="visually-hidden">Loading...</span>
+                            </div>
+                            <div className="text-muted mt-2 small">Loading fields…</div>
+                          </div>
+                        ) : currentVariant.fields.length === 0 ? (
                           <div className="col-12">
                             <p className="text-muted">No variant fields for this product type.</p>
                           </div>
                         ) : (
-                          fields.map((field) => (
-                            !field.hidden && (
+                          currentVariant.fields.map((field) => {
+                            if (field.hidden) return null;
+                            if (field.dependsOn && field.dependsOn.trim() !== "") {
+                              const parentValue = form.variantFields[field.dependsOn];
+                              if (parentValue !== field.dependsOnValue) return null;
+                            }
+                            let optionsOverride = undefined;
+                            if (field.type === "select" && field.allowCustom && !field.promptText) {
+                              const savedForField = customOptionsByFieldKey[field.key] || [];
+                              const staticOpts = (field.options || []).filter((o) => o !== "Custom");
+                              const alreadyInStatic = new Set(staticOpts.map((o) => String(o).toLowerCase()));
+                              const uniqueSaved = savedForField.filter((s) => !alreadyInStatic.has(String(s).toLowerCase()));
+                              const hasCustomOpt = (field.options || []).includes("Custom");
+                              optionsOverride = [...staticOpts, ...uniqueSaved, ...(hasCustomOpt ? ["Custom"] : [])];
+                            }
+                            return (
                               <VariantField
                                 key={field.key}
                                 field={field}
                                 value={form.variantFields[field.key] ?? ""}
                                 variantFields={form.variantFields}
                                 onChange={handleVariantChange}
+                                optionsOverride={optionsOverride}
                               />
-                            )
-                          ))
+                            );
+                          })
                         )}
                       </div>
                     )}
 
                     {/* Step 2 — Pricing */}
-                    {step === 2 && (
+                    {step === pricingStep && (
                       <div className="row g-3 lead-wizard-step-panel">
                         <div className="col-12">
                           <label className="form-label">
@@ -588,7 +854,7 @@ function WizardModal({ title, form, setForm, step, setStep, onClose, onSave, onP
                   </div>
 
                     {/* Step 3 — Added Products (add mode only) */}
-                    {step === 3 && isAddMode && (
+                    {step === addedStep && isAddMode && (
                       <div className="price-list-added-items">
                         <table className="table price-list-added-table mb-3">
                           <thead>
@@ -629,26 +895,44 @@ function WizardModal({ title, form, setForm, step, setStep, onClose, onSave, onP
 
                   {/* Navigation */}
                   <div className="lead-wizard-nav">
-                    {step > 0 && step < 3 ? (
+                    {step > 0 && step < addedStep ? (
                       <button type="button" className="btn btn-light" onClick={() => setStep((s) => s - 1)}>
                         Previous
                       </button>
-                    ) : step === 3 ? (
-                      <button type="button" className="btn btn-light" onClick={() => setStep(2)}>
+                    ) : step === addedStep ? (
+                      <button type="button" className="btn btn-light" onClick={() => {
+                        if (Array.isArray(sessionItems) && sessionItems.length > 0) {
+                          const lastIdx = sessionItems.length - 1;
+                          const lastItem = sessionItems[lastIdx];
+                          setForm({
+                            categoryId: lastItem.categoryId || "",
+                            typeId: lastItem.typeId || "",
+                            subtypeId: lastItem.subtypeId || "",
+                            variantFields: { ...(lastItem.variantFields || {}) },
+                            quantitySlabs: (lastItem.quantitySlabs || []).map((s) => ({
+                              minQty: String(s.minQty ?? ""),
+                              maxQty: String(s.maxQty ?? ""),
+                              pricePerPiece: String(s.pricePerPiece ?? ""),
+                            })),
+                          });
+                          setEditingSessionIdx(lastIdx);
+                        }
+                        setStep(pricingStep);
+                      }}>
                         Previous
                       </button>
                     ) : (
                       <div />
                     )}
-                    {step < 2 ? (
+                    {step < pricingStep ? (
                       <button
                         type="button"
                         className="btn btn-primary"
-                        onClick={() => onSave("next", subtypeOptions)}
+                        onClick={() => onSave("next", subtypeOptions, fields, pricingStep)}
                       >
                         Next
                       </button>
-                    ) : step === 2 ? (
+                    ) : step === pricingStep ? (
                       <button
                         type="button"
                         className="btn btn-primary"
@@ -851,17 +1135,20 @@ function WizardModal({ title, form, setForm, step, setStep, onClose, onSave, onP
 
 /* ── Main page ────────────────────────────────────────────────────────── */
 export default function PriceListPage() {
-  const [rows, setRows] = useState(() => getPriceList());
+  const [rows, setRows] = useState([]);
   const [search, setSearch] = useState("");
   const [selectedCategoryId, setSelectedCategoryId] = useState(null);
+  const [selectedTypeId, setSelectedTypeId] = useState(null);
+  const [selectedSubtypeId, setSelectedSubtypeId] = useState(null);
 
   // Service data
   const [categories, setCategories] = useState([]);
   const [allTypes, setAllTypes] = useState([]);
 
   useEffect(() => {
-    Promise.all([getServiceCategories(), getServiceTypes()])
-      .then(([cats, types]) => {
+    Promise.all([getPriceList(), getServiceCategories(), getServiceTypes()])
+      .then(([priceList, cats, types]) => {
+        setRows(Array.isArray(priceList) ? priceList : []);
         const catArray = Array.isArray(cats) ? cats : [];
         setCategories(catArray);
         if (catArray.length > 0) setSelectedCategoryId((prev) => prev ?? catArray[0].id);
@@ -886,12 +1173,21 @@ export default function PriceListPage() {
   // Delete modal
   const [deleteTarget, setDeleteTarget] = useState(null);
 
-  const reload = () => setRows(getPriceList());
+  const reload = async () => {
+    const data = await getPriceList();
+    setRows(Array.isArray(data) ? data : []);
+  };
 
   const filteredRows = useMemo(() => {
     let result = selectedCategoryId
       ? rows.filter((r) => String(r.categoryId) === String(selectedCategoryId))
       : rows;
+    if (selectedTypeId) {
+      result = result.filter((r) => String(r.typeId) === String(selectedTypeId));
+    }
+    if (selectedSubtypeId) {
+      result = result.filter((r) => String(r.subtypeId) === String(selectedSubtypeId));
+    }
     const q = search.toLowerCase().trim();
     if (q) {
       result = result.filter(
@@ -902,7 +1198,7 @@ export default function PriceListPage() {
       );
     }
     return result;
-  }, [rows, search, selectedCategoryId]);
+  }, [rows, search, selectedCategoryId, selectedTypeId, selectedSubtypeId]);
 
   const groupedRows = useMemo(() => {
     const map = new Map();
@@ -916,9 +1212,43 @@ export default function PriceListPage() {
     return Array.from(map.values());
   }, [filteredRows]);
 
+  const typesForCategory = useMemo(
+    () => allTypes.filter((t) => !t.parentId && String(t.categoryId) === String(selectedCategoryId)),
+    [allTypes, selectedCategoryId]
+  );
+
+  const subtypesForType = useMemo(
+    () => allTypes.filter((t) => String(t.parentId) === String(selectedTypeId)),
+    [allTypes, selectedTypeId]
+  );
+
+  const selectedTypeHasSubtypes = subtypesForType.length > 0;
+
+  const countByTypeId = useMemo(() => {
+    const map = {};
+    rows
+      .filter((r) => String(r.categoryId) === String(selectedCategoryId))
+      .forEach((r) => {
+        const k = String(r.typeId);
+        map[k] = (map[k] || 0) + 1;
+      });
+    return map;
+  }, [rows, selectedCategoryId]);
+
+  const countBySubtypeId = useMemo(() => {
+    const map = {};
+    rows
+      .filter((r) => String(r.typeId) === String(selectedTypeId))
+      .forEach((r) => {
+        const k = String(r.subtypeId ?? "__none__");
+        map[k] = (map[k] || 0) + 1;
+      });
+    return map;
+  }, [rows, selectedTypeId]);
+
   /* ── wizard action handler ── */
-  function handleWizardAction(action, form, step, setStep, setError, entryId, subtypeOptions) {
-    const err = validateStep(step, form, subtypeOptions);
+  function handleWizardAction(action, form, step, setStep, setError, entryId, subtypeOptions, fieldDefs, pricingStep = 2) {
+    const err = validateStep(step, form, subtypeOptions, pricingStep);
     if (err) { setError(err); return; }
     setError("");
 
@@ -948,14 +1278,49 @@ export default function PriceListPage() {
       subtypeName: selectedSubtype?.name || "",
       variantFields: form.variantFields,
       quantitySlabs: validSlabs,
-    });
-    reload();
-    setShowEdit(false);
+    }).then(() => {
+      // Persist custom options for all allowCustom fields
+      if (form.typeId) {
+        const saves = collectCustomOptionSaves(fieldDefs || [], form.variantFields);
+        saves.forEach(({ fieldKey, valueRaw }) => {
+          saveCustomOption(
+            Number(form.typeId),
+            form.subtypeId ? Number(form.subtypeId) : null,
+            fieldKey,
+            valueRaw
+          ).catch(() => {});
+        });
+      }
+      reload();
+      setShowEdit(false);
+    }).catch(() => {});
   }
 
   function handleAddItemSaved(entries) {
-    entries.forEach((entry) => savePriceEntry(entry));
-    reload();
+    Promise.all(entries.map((entry) => savePriceEntry(entry))).then(() => {
+      // Persist custom options for all allowCustom fields across all session entries
+      entries.forEach((entry) => {
+        if (!entry.typeId) return;
+        const resolvedId = entry.subtypeId || entry.typeId;
+        getFieldsByServiceType(resolvedId)
+          .then((data) => {
+            const fieldDefs = (data || []).map((f) => ({
+              key: f.fieldKey, type: f.fieldType, allowCustom: f.allowCustom,
+            }));
+            const saves = collectCustomOptionSaves(fieldDefs, entry.variantFields);
+            saves.forEach(({ fieldKey, valueRaw }) => {
+              saveCustomOption(
+                Number(entry.typeId),
+                entry.subtypeId ? Number(entry.subtypeId) : null,
+                fieldKey,
+                valueRaw
+              ).catch(() => {});
+            });
+          })
+          .catch(() => {});
+      });
+      reload();
+    }).catch(() => {});
   }
 
   /* ── open edit ── */
@@ -979,9 +1344,10 @@ export default function PriceListPage() {
 
   /* ── delete ── */
   function handleDelete() {
-    deletePriceEntry(deleteTarget.id);
-    reload();
-    setDeleteTarget(null);
+    deletePriceEntry(deleteTarget.id).then(() => {
+      reload();
+      setDeleteTarget(null);
+    }).catch(() => {});
   }
 
   return (
@@ -1012,6 +1378,19 @@ export default function PriceListPage() {
           </button>
         </div>
 
+        {/* Search */}
+        <div className="leads-search-row">
+          <div className="leads-search-box">
+            <label className="mb-0 leads-search-label">Search</label>
+            <input
+              className="form-control leads-search-input"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search product or variant..."
+            />
+          </div>
+        </div>
+
         {/* Category tabs */}
         {categories.length > 0 && (
           <div style={{ marginBottom: "1.5rem", borderBottom: "1px solid #e6edf5" }}>
@@ -1019,7 +1398,7 @@ export default function PriceListPage() {
               {categories.map((cat) => (
                 <button
                   key={cat.id}
-                  onClick={() => setSelectedCategoryId(cat.id)}
+                  onClick={() => { setSelectedCategoryId(cat.id); setSelectedTypeId(null); setSelectedSubtypeId(null); }}
                   style={{
                     padding: "0.75rem 1rem",
                     backgroundColor: selectedCategoryId === cat.id ? "#45597a" : "transparent",
@@ -1038,131 +1417,205 @@ export default function PriceListPage() {
           </div>
         )}
 
-        {/* Search */}
-        <div className="leads-search-row">
-          <div className="leads-search-box">
-            <label className="mb-0 leads-search-label">Search</label>
-            <input
-              className="form-control leads-search-input"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search product or variant..."
-            />
+        {/* Breadcrumb nav */}
+        {selectedTypeId && (
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "1rem", fontSize: "0.875rem", color: "#666" }}>
+            <button
+              onClick={() => { setSelectedTypeId(null); setSelectedSubtypeId(null); }}
+              style={{ background: "none", border: "none", cursor: "pointer", color: "#45597a", fontWeight: 600, padding: 0 }}
+            >
+              ← Back
+            </button>
+            <span>/</span>
+            <span
+              style={{ cursor: selectedSubtypeId ? "pointer" : "default", color: selectedSubtypeId ? "#45597a" : "#333", fontWeight: selectedSubtypeId ? 400 : 600 }}
+              onClick={() => selectedSubtypeId && setSelectedSubtypeId(null)}
+            >
+              {allTypes.find((t) => String(t.id) === String(selectedTypeId))?.name || ""}
+            </span>
+            {selectedSubtypeId && (
+              <>
+                <span>/</span>
+                <span style={{ color: "#333", fontWeight: 600 }}>
+                  {allTypes.find((t) => String(t.id) === String(selectedSubtypeId))?.name || ""}
+                </span>
+              </>
+            )}
           </div>
-        </div>
+        )}
 
-        {/* Table */}
-        <div className="leads-table-wrap">
-          <table className="table leads-table mb-0">
-            <thead>
-              <tr>
-                <th style={{ width: 60 }}>#</th>
-                <th>Product</th>
-                <th>Variant Details</th>
-                <th>Qty Slabs</th>
-                <th style={{ width: 100 }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredRows.length === 0 ? (
+        {/* Level 1: Type cards */}
+        {!selectedTypeId && (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: "1rem" }}>
+            {typesForCategory.length === 0 ? (
+              <p style={{ color: "#999", gridColumn: "1/-1" }}>No products in this category yet.</p>
+            ) : (
+              typesForCategory.map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => { setSelectedTypeId(t.id); setSelectedSubtypeId(null); }}
+                  style={{
+                    textAlign: "left",
+                    background: "#fff",
+                    border: "1px solid #e0e7ef",
+                    borderRadius: "10px",
+                    padding: "1rem 1.25rem",
+                    cursor: "pointer",
+                    boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
+                    transition: "box-shadow 0.15s, border-color 0.15s",
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#45597a"; e.currentTarget.style.boxShadow = "0 2px 8px rgba(69,89,122,0.15)"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = "#e0e7ef"; e.currentTarget.style.boxShadow = "0 1px 4px rgba(0,0,0,0.06)"; }}
+                >
+                  <div style={{ fontWeight: 700, fontSize: "0.95rem", color: "#10233f", marginBottom: "0.25rem" }}>{t.name}</div>
+                  <div style={{ fontSize: "0.78rem", color: "#7b8fa8" }}>{countByTypeId[String(t.id)] || 0} entries</div>
+                </button>
+              ))
+            )}
+          </div>
+        )}
+
+        {/* Level 2: Subtype cards */}
+        {selectedTypeId && selectedTypeHasSubtypes && !selectedSubtypeId && (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: "1rem" }}>
+            {subtypesForType.map((st) => (
+              <button
+                key={st.id}
+                onClick={() => setSelectedSubtypeId(st.id)}
+                style={{
+                  textAlign: "left",
+                  background: "#fff",
+                  border: "1px solid #e0e7ef",
+                  borderRadius: "10px",
+                  padding: "1rem 1.25rem",
+                  cursor: "pointer",
+                  boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
+                  transition: "box-shadow 0.15s, border-color 0.15s",
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#45597a"; e.currentTarget.style.boxShadow = "0 2px 8px rgba(69,89,122,0.15)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.borderColor = "#e0e7ef"; e.currentTarget.style.boxShadow = "0 1px 4px rgba(0,0,0,0.06)"; }}
+              >
+                <div style={{ fontWeight: 700, fontSize: "0.95rem", color: "#10233f", marginBottom: "0.25rem" }}>{st.name}</div>
+                <div style={{ fontSize: "0.78rem", color: "#7b8fa8" }}>{countBySubtypeId[String(st.id)] || 0} entries</div>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Level 3: Variant table */}
+        {selectedTypeId && (!selectedTypeHasSubtypes || selectedSubtypeId) && (
+          <div className="leads-table-wrap">
+            <table className="table leads-table mb-0">
+              <thead>
                 <tr>
-                  <td colSpan={5} className="text-center text-muted py-4">
-                    No price entries yet. Click "Add Price" to get started.
-                  </td>
+                  <th style={{ width: 60 }}>#</th>
+                  <th>Product</th>
+                  <th>Variant Details</th>
+                  <th>Qty Slabs</th>
+                  <th style={{ width: 100 }}>Actions</th>
                 </tr>
-              ) : (() => {
-                let rowNum = 0;
-                return groupedRows.map((group) => {
-                  const headerLabel = group.subtypeName
-                    ? `${group.typeName} — ${group.subtypeName}`
-                    : group.typeName || "—";
-                  return (
-                    <Fragment key={group.groupKey}>
-                      <tr style={{ backgroundColor: "#f0f4fa" }}>
-                        <td
-                          colSpan={5}
-                          style={{
-                            fontWeight: 700,
-                            fontSize: "0.82rem",
-                            textTransform: "uppercase",
-                            letterSpacing: "0.05em",
-                            color: "#10233f",
-                            padding: "0.45rem 0.75rem",
-                          }}
-                        >
-                          {headerLabel}
-                        </td>
-                      </tr>
-                      {group.rows.map((row) => {
-                        rowNum += 1;
-                        const badges = variantBadges(row.variantFields);
-                        return (
-                          <tr key={row.id}>
-                            <td className="text-muted" style={{ fontSize: "0.82rem" }}>{rowNum}</td>
-                            <td />
-                            <td>
-                              {badges.length === 0 ? (
-                                <small className="text-muted">—</small>
-                              ) : (
-                                <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
-                                  {badges.map(([k, v]) => (
-                                    <span
-                                      key={k}
-                                      style={{
-                                        display: "inline-flex",
-                                        alignItems: "center",
-                                        gap: "3px",
-                                        backgroundColor: "#eef2fb",
-                                        border: "1px solid #d8e2f5",
-                                        borderRadius: "6px",
-                                        padding: "2px 7px",
-                                        fontSize: "0.75rem",
-                                        color: "#34393f",
-                                        whiteSpace: "nowrap",
-                                      }}
-                                    >
-                                      <span style={{ color: "#7b8fa8", fontWeight: 600 }}>{k}:</span>
-                                      {String(v)}
-                                    </span>
-                                  ))}
-                                </div>
-                              )}
-                            </td>
-                            <td>
-                              {(row.quantitySlabs || []).map((s, i) => (
-                                <div key={i}>
-                                  <small>{s.minQty}–{s.maxQty} pcs: ₹{s.pricePerPiece}/pc</small>
-                                </div>
-                              ))}
-                            </td>
-                            <td>
-                              <button
-                                className="btn btn-sm d-inline-flex align-items-center justify-content-center me-1"
-                                style={{ backgroundColor: "#6f65d6", color: "#fff", width: 32, height: 32, padding: 0, borderRadius: 4, border: "none" }}
-                                onClick={() => openEdit(row)}
-                                title="Edit"
-                              >
-                                <i className="ti ti-edit" style={{ fontSize: 14 }} />
-                              </button>
-                              <button
-                                className="btn btn-sm d-inline-flex align-items-center justify-content-center"
-                                style={{ backgroundColor: "#e74c3c", color: "#fff", width: 32, height: 32, padding: 0, borderRadius: 4, border: "none" }}
-                                onClick={() => setDeleteTarget(row)}
-                                title="Delete"
-                              >
-                                <i className="ti ti-trash" style={{ fontSize: 14 }} />
-                              </button>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </Fragment>
-                  );
-                });
-              })()}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {filteredRows.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="text-center text-muted py-4">
+                      No price entries yet. Click "Add Price" to get started.
+                    </td>
+                  </tr>
+                ) : (() => {
+                  let rowNum = 0;
+                  return groupedRows.map((group) => {
+                    const headerLabel = group.subtypeName
+                      ? `${group.typeName} — ${group.subtypeName}`
+                      : group.typeName || "—";
+                    return (
+                      <Fragment key={group.groupKey}>
+                        <tr style={{ backgroundColor: "#f0f4fa" }}>
+                          <td
+                            colSpan={5}
+                            style={{
+                              fontWeight: 700,
+                              fontSize: "0.82rem",
+                              textTransform: "uppercase",
+                              letterSpacing: "0.05em",
+                              color: "#10233f",
+                              padding: "0.45rem 0.75rem",
+                            }}
+                          >
+                            {headerLabel}
+                          </td>
+                        </tr>
+                        {group.rows.map((row) => {
+                          rowNum += 1;
+                          const badges = variantBadges(row.variantFields);
+                          return (
+                            <tr key={row.id}>
+                              <td className="text-muted" style={{ fontSize: "0.82rem" }}>{rowNum}</td>
+                              <td />
+                              <td>
+                                {badges.length === 0 ? (
+                                  <small className="text-muted">—</small>
+                                ) : (
+                                  <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
+                                    {badges.map(([k, v]) => (
+                                      <span
+                                        key={k}
+                                        style={{
+                                          display: "inline-flex",
+                                          alignItems: "center",
+                                          gap: "3px",
+                                          backgroundColor: "#eef2fb",
+                                          border: "1px solid #d8e2f5",
+                                          borderRadius: "6px",
+                                          padding: "2px 7px",
+                                          fontSize: "0.75rem",
+                                          color: "#34393f",
+                                          whiteSpace: "nowrap",
+                                        }}
+                                      >
+                                        <span style={{ color: "#7b8fa8", fontWeight: 600 }}>{k}:</span>
+                                        {String(v)}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                              </td>
+                              <td>
+                                {(row.quantitySlabs || []).map((s, i) => (
+                                  <div key={i}>
+                                    <small>{s.minQty}–{s.maxQty} pcs: ₹{s.pricePerPiece}/pc</small>
+                                  </div>
+                                ))}
+                              </td>
+                              <td>
+                                <button
+                                  className="btn btn-sm d-inline-flex align-items-center justify-content-center me-1"
+                                  style={{ backgroundColor: "#6f65d6", color: "#fff", width: 32, height: 32, padding: 0, borderRadius: 4, border: "none" }}
+                                  onClick={() => openEdit(row)}
+                                  title="Edit"
+                                >
+                                  <i className="ti ti-edit" style={{ fontSize: 14 }} />
+                                </button>
+                                <button
+                                  className="btn btn-sm d-inline-flex align-items-center justify-content-center"
+                                  style={{ backgroundColor: "#e74c3c", color: "#fff", width: 32, height: 32, padding: 0, borderRadius: 4, border: "none" }}
+                                  onClick={() => setDeleteTarget(row)}
+                                  title="Delete"
+                                >
+                                  <i className="ti ti-trash" style={{ fontSize: 14 }} />
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </Fragment>
+                    );
+                  });
+                })()}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {/* Add Modal */}
@@ -1178,8 +1631,8 @@ export default function PriceListPage() {
           categories={categories}
           allTypes={allTypes}
           isAddMode={true}
-          onSave={(action, subtypeOptions) =>
-            handleWizardAction(action, addForm, addStep, setAddStep, setAddError, null, subtypeOptions)
+          onSave={(action, subtypeOptions, fieldDefs, currentPricingStep) =>
+            handleWizardAction(action, addForm, addStep, setAddStep, setAddError, null, subtypeOptions, fieldDefs, currentPricingStep)
           }
           onPersist={handleAddItemSaved}
         />
@@ -1198,8 +1651,8 @@ export default function PriceListPage() {
           categories={categories}
           allTypes={allTypes}
           isAddMode={false}
-          onSave={(action, subtypeOptions) =>
-            handleWizardAction(action, editForm, editStep, setEditStep, setEditError, editingId, subtypeOptions)
+          onSave={(action, subtypeOptions, fieldDefs, currentPricingStep) =>
+            handleWizardAction(action, editForm, editStep, setEditStep, setEditError, editingId, subtypeOptions, fieldDefs, currentPricingStep)
           }
         />
       )}
@@ -1241,6 +1694,3 @@ export default function PriceListPage() {
     </div>
   );
 }
-
-
-

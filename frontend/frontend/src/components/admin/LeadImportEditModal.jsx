@@ -7,6 +7,7 @@ export default function LeadImportEditModal({
   onClose,
   rowData,
   onSave,
+  allowEditMandatory = false,
 }) {
   const [formData, setFormData] = useState({});
 
@@ -75,9 +76,16 @@ export default function LeadImportEditModal({
                 </div>
                 <div className="modal-body">
                   <div className="lead-import-edit-form">
-                    {/* Mandatory Fields - Read Only */}
+                    {/* Mandatory Fields */}
                     <div className="form-section">
-                      <h6 className="section-title">Mandatory Information</h6>
+                      <h6 className="section-title">
+                        Mandatory Information
+                        {allowEditMandatory && (
+                          <span className="badge bg-warning text-dark ms-2" style={{ fontSize: 11, fontWeight: 400 }}>
+                            Editable — fix conflict then save
+                          </span>
+                        )}
+                      </h6>
                       <div className="row g-3">
                         <div className="col-md-6">
                           <label className="form-label">Name *</label>
@@ -85,7 +93,8 @@ export default function LeadImportEditModal({
                             type="text"
                             className="form-control"
                             value={formData.name}
-                            readOnly
+                            readOnly={!allowEditMandatory}
+                            onChange={allowEditMandatory ? (e) => handleChange("name", e.target.value) : undefined}
                           />
                         </div>
                         <div className="col-md-6">
@@ -94,7 +103,8 @@ export default function LeadImportEditModal({
                             type="tel"
                             className="form-control"
                             value={formData.mobile}
-                            readOnly
+                            readOnly={!allowEditMandatory}
+                            onChange={allowEditMandatory ? (e) => handleChange("mobile", e.target.value) : undefined}
                           />
                         </div>
                         <div className="col-md-12">
@@ -103,7 +113,8 @@ export default function LeadImportEditModal({
                             type="text"
                             className="form-control"
                             value={formData.primarySource}
-                            readOnly
+                            readOnly={!allowEditMandatory}
+                            onChange={allowEditMandatory ? (e) => handleChange("primarySource", e.target.value) : undefined}
                           />
                         </div>
                       </div>

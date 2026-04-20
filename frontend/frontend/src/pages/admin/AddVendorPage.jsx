@@ -43,6 +43,8 @@ const initialForm = {
   companyAddress: "",
   status: "active",
   materialsSupplied: [],
+  username: "",
+  password: "",
 };
 
 export default function AddVendorPage() {
@@ -234,6 +236,8 @@ export default function AddVendorPage() {
         companyAddress: form.companyAddress.trim(),
         status: form.status,
         materialsSupplied: form.materialsSupplied,
+        username: form.username.trim() || undefined,
+        password: form.password || undefined,
       });
       showSuccess("Vendor added successfully", { title: "Vendors" });
       navigate("/stocks/vendors");
@@ -802,6 +806,40 @@ export default function AddVendorPage() {
                         setForm((p) => ({ ...p, address: e.target.value }))
                       }
                     ></textarea>
+                  </div>
+                </div>
+
+                {/* Vendor Login Credentials */}
+                <div className="col-md-12">
+                  <h6 className="mb-3 fw-semibold mt-3">Vendor Portal Login</h6>
+                </div>
+                <div className="col-md-6">
+                  <div className="mb-3">
+                    <label className="form-label">Username</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      autoComplete="off"
+                      value={form.username}
+                      onChange={(e) =>
+                        setForm((p) => ({ ...p, username: e.target.value }))
+                      }
+                    />
+                    <small className="text-muted">Used by vendor to log in to the vendor portal</small>
+                  </div>
+                </div>
+                <div className="col-md-6">
+                  <div className="mb-3">
+                    <label className="form-label">Password</label>
+                    <input
+                      type="password"
+                      className="form-control"
+                      autoComplete="new-password"
+                      value={form.password}
+                      onChange={(e) =>
+                        setForm((p) => ({ ...p, password: e.target.value }))
+                      }
+                    />
                   </div>
                 </div>
 

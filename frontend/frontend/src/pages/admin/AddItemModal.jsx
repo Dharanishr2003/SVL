@@ -1,8 +1,17 @@
-// frontend/frontend/src/pages/admin/AddItemModal.jsx
-import React, { useState, useMemo, useEffect } from "react";
-import SpecsInlineForm from "./SpecsInlineForm";
+﻿import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { motion, AnimatePresence } from "motion/react";
+import { getFieldsByServiceType } from "../../api/productFieldConfigApi";
+import { getServiceCategories } from "../../api/serviceCategoriesApi";
+import { getServiceTypes } from "../../api/serviceTypesApi";
+import { getCustomOptions, saveCustomOption } from "../../api/customOptionsApi";
+import { collectCustomOptionSaves } from "../../utils/customSizeUtils";
+import { createRequirement, updateRequirement } from "../../api/requirementApi";
+import "./LeadsPage.css";
+import "./RequirementFormModal.css";
+import "./AddItemModal.css";
 
-// Pure helpers — defined locally to avoid coupling with QuotationPage
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
 function findSlab(quantitySlabs, qty) {
   const list = Array.isArray(quantitySlabs) ? quantitySlabs : [];
   const n = Number(qty);
@@ -10,11 +19,10 @@ function findSlab(quantitySlabs, qty) {
   return list.find((s) => n >= Number(s.minQty) && n <= Number(s.maxQty)) ?? null;
 }
 
-function formatCustomSize(width, height, depth, unit) {
-  if (!width || !height) return "";
-  return depth
-    ? `${width} x ${height} x ${depth} ${unit || ""}`.trim()
-    : `${width} x ${height} ${unit || ""}`.trim();
+function getDesignOnlyPrice(priceMatch) {
+  if (!priceMatch?.quantitySlabs?.length) return null;
+  const value = Number(priceMatch.quantitySlabs[0].pricePerPiece);
+  return Number.isFinite(value) ? value : null;
 }
 
 function getVariantSummary(variantFields) {
@@ -22,398 +30,1373 @@ function getVariantSummary(variantFields) {
   const skipKeys = new Set(["customWidth", "customHeight", "customDepth", "customUnit"]);
   const entries = Object.entries(source)
     .filter(([key, value]) =>
-      !key.endsWith("Custom") && !key.endsWith("Text") && !skipKeys.has(key) &&
-      value !== "" && value != null
-    )
+      !key.endsWith("Custom") && !key.endsWith("Text") &&
+      !skipKeys.has(key) && value !== "" && value != null)
     .map(([key, value]) => {
       if (value === "Custom") {
         if (key === "size") {
-          const formatted = formatCustomSize(
-            source.customWidth, source.customHeight, source.customDepth, source.customUnit
-          );
-          if (formatted) return [key, formatted];
+          const w = source.customWidth, h = source.customHeight;
+          const d = source.customDepth, u = source.customUnit || "";
+          if (w && h) return [key, d ? `${w} x ${h} x ${d} ${u}`.trim() : `${w} x ${h} ${u}`.trim()];
         }
         if (source[`${key}Custom`]) return [key, source[`${key}Custom`]];
       }
       return [key, value];
     });
-  if (!entries.length) return "-";
+  if (!entries.length) return "";
   const shown = entries.slice(0, 3).map(([, v]) => v).join(", ");
   return entries.length > 3 ? `${shown} +${entries.length - 3} more` : shown;
 }
 
-export default function AddItemModal({ open, priceList = [], prefill, onConfirm, onClose }) {
-  const [step, setStep] = useState(1);
-  const [selectedTypeId, setSelectedTypeId] = useState(null);
-  const [selectedSubtypeId, setSelectedSubtypeId] = useState(null);
-  const [selectedEntryId, setSelectedEntryId] = useState(null);
-  const [quantity, setQuantity] = useState("");
-  const [specs, setSpecs] = useState({});
-  const [error, setError] = useState("");
-  const [priceUpdated, setPriceUpdated] = useState(false);
+// ── Component ─────────────────────────────────────────────────────────────────
 
-  // Reset and apply prefill each time modal opens
+export default function AddItemModal({
+  open,
+  priceList = [],
+  prefill,
+  onConfirm,
+  onClose,
+  leadId,
+  onRequirementSaved,
+}) {
+  const [step, setStep] = useState(0);
+  const [error, setError] = useState("");
+
+  // Step 0 — product selection
+  const [categories, setCategories] = useState([]);
+  const [allTypes, setAllTypes] = useState([]);
+  const [categoryId, setCategoryId] = useState("");
+  const [typeId, setTypeId] = useState("");
+  const [subtypeId, setSubtypeId] = useState("");
+
+  // Spec steps — DB-driven fields
+  const [productFields, setProductFields] = useState([]);
+  const [fieldsLoading, setFieldsLoading] = useState(false);
+  const [specs, setSpecs] = useState({});
+  const [customOptionsByFieldKey, setCustomOptionsByFieldKey] = useState({});
+  const [customSpecDialog, setCustomSpecDialog] = useState({
+    open: false, field: null, value: "",
+    isFlexCustomSize: false, flexWidth: "", flexHeight: "",
+    customSizeUnitLabel: "ft", sizeUnit: "mm",
+  });
+  const [depthSizeDialog, setDepthSizeDialog] = useState({
+    open: false, width: "", height: "", depth: "", sizeUnit: "mm",
+  });
+
+  const [quantity, setQuantity] = useState("");
+
+  // Design step
+  const [designMode,       setDesignMode]       = useState("");
+  const [designNotes,      setDesignNotes]       = useState("");
+  const [stylePreference,  setStylePreference]   = useState("");
+  const [colourPreference, setColourPreference]  = useState("");
+  const [referenceNotes,   setReferenceNotes]    = useState("");
+  const [brandColours,     setBrandColours]      = useState("");
+  const [files,            setFiles]             = useState([]);
+  const [isDragActive,     setIsDragActive]      = useState(false);
+
+  // Delivery step
+  const [deliveryDate,          setDeliveryDate]          = useState("");
+  const [specialInstructions,   setSpecialInstructions]   = useState("");
+
+  // Saving
+  const [saving, setSaving] = useState(false);
+
+  // ── Load master data on mount ─────────────────────────────────────────────
+
+  useEffect(() => {
+    Promise.all([getServiceCategories(), getServiceTypes()])
+      .then(([cats, types]) => {
+        setCategories(Array.isArray(cats) ? cats : []);
+        setAllTypes(Array.isArray(types) ? types : []);
+      })
+      .catch(() => {});
+  }, []);
+
+  // ── Reset when modal opens ────────────────────────────────────────────────
+
   useEffect(() => {
     if (!open) return;
-    const hasType = prefill?.typeId != null;
-    const hasProduct = prefill?.productId != null;
-    setStep(hasProduct ? 3 : hasType ? 2 : 1);
-    setSelectedTypeId(prefill?.typeId ?? null);
-    setSelectedSubtypeId(prefill?.subtypeId ?? null);
-    setSelectedEntryId(prefill?.productId ?? null);
-    setQuantity(prefill?.quantity != null ? String(prefill.quantity) : "");
-    setSpecs(prefill?.specs ?? {});
+    setStep(0);
     setError("");
-    setPriceUpdated(false);
+    setSpecs({});
+    setQuantity(prefill?.quantity != null ? String(prefill.quantity) : "");
+    setCustomOptionsByFieldKey({});
+
+    if (prefill?.typeId) {
+      setCategoryId(prefill.categoryId ? String(prefill.categoryId) : "");
+      setTypeId(String(prefill.typeId));
+      setSubtypeId(prefill.subtypeId ? String(prefill.subtypeId) : "");
+      const parsedSpecs = prefill.specs && typeof prefill.specs === "object"
+        ? prefill.specs
+        : {};
+      setSpecs(parsedSpecs);
+    } else {
+      setCategoryId("");
+      setTypeId("");
+      setSubtypeId("");
+    }
+
+    // Reset design step
+    setDesignMode(prefill?.designStatus || "");
+    setDesignNotes(prefill?.designNotes || "");
+    setStylePreference(prefill?.stylePreference || "");
+    setColourPreference(prefill?.colourPreference || "");
+    setReferenceNotes(prefill?.referenceNotes || "");
+    setBrandColours(prefill?.brandColours || "");
+    setFiles([]);
+    setIsDragActive(false);
+
+    // Reset delivery step
+    setDeliveryDate(prefill?.deliveryDate || "");
+    setSpecialInstructions(prefill?.specialInstructions || "");
+    setSaving(false);
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Derived: unique types from price list
-  const types = useMemo(() => {
-    const seen = new Map();
-    for (const p of priceList) {
-      if (!seen.has(p.typeId)) seen.set(p.typeId, { id: p.typeId, name: p.typeName });
-    }
-    return [...seen.values()];
-  }, [priceList]);
+  // ── Derived lists ─────────────────────────────────────────────────────────
 
-  // Derived: unique subtypes for selected type
-  const subtypes = useMemo(() => {
-    if (!selectedTypeId) return [];
-    const filtered = priceList.filter((p) => Number(p.typeId) === Number(selectedTypeId));
-    const seen = new Map();
-    for (const p of filtered) {
-      const key = p.subtypeId ?? "__none__";
-      if (!seen.has(key)) seen.set(key, { id: p.subtypeId, name: p.subtypeName });
-    }
-    return [...seen.values()];
-  }, [priceList, selectedTypeId]);
+  const typeOptions = useMemo(() => {
+    if (!categoryId) return [];
+    return allTypes.filter(t => String(t.categoryId) === String(categoryId) && !t.parentId);
+  }, [allTypes, categoryId]);
 
-  // Derived: candidate price entries for selected type + subtype
-  const candidates = useMemo(() => {
-    if (!selectedTypeId) return [];
-    return priceList.filter((p) => {
-      const typeMatch = Number(p.typeId) === Number(selectedTypeId);
-      const subMatch =
-        selectedSubtypeId == null
-          ? p.subtypeId == null
-          : Number(p.subtypeId) === Number(selectedSubtypeId);
-      return typeMatch && subMatch;
+  const subtypeOptions = useMemo(() => {
+    if (!typeId) return [];
+    return allTypes.filter(t => String(t.parentId) === String(typeId));
+  }, [allTypes, typeId]);
+
+  const selectedCategory = useMemo(
+    () => categories.find(c => String(c.id) === String(categoryId)),
+    [categories, categoryId],
+  );
+  const selectedType = useMemo(
+    () => allTypes.find(t => String(t.id) === String(typeId)),
+    [allTypes, typeId],
+  );
+  const selectedSubtype = useMemo(
+    () => allTypes.find(t => String(t.id) === String(subtypeId)),
+    [allTypes, subtypeId],
+  );
+
+  // ── Fetch DB fields when type/subtype changes ─────────────────────────────
+
+  useEffect(() => {
+    const resolvedId = subtypeId || typeId;
+    if (!resolvedId) { setProductFields([]); return; }
+    let cancelled = false;
+    setFieldsLoading(true);
+    getFieldsByServiceType(resolvedId)
+      .then((data) => {
+        if (cancelled) return;
+        const mapped = (data || []).map((f) => ({
+          key: f.fieldKey,
+          label: f.label,
+          type: f.fieldType,
+          options: f.options || [],
+          isRequired: f.isRequired,
+          placeholder: f.placeholder,
+          allowCustom: f.allowCustom,
+          isHidden: f.isHidden,
+          hidden: f.isHidden,
+          hasUnit: f.hasUnit,
+          unitOptions: f.unitOptions || [],
+          defaultUnit: f.defaultUnit,
+          enable3rdDimension: f.enable3rdDimension,
+          thirdDimensionLabel: f.thirdDimensionLabel,
+          dependsOn: f.dependsOn,
+          dependsOnValue: f.dependsOnValue,
+        }));
+        setProductFields(mapped);
+        setSpecs(prev => {
+          const next = { ...prev };
+          let changed = false;
+          mapped.forEach(mf => {
+            if (mf.hasUnit && mf.defaultUnit && next[`${mf.key}Unit`] === undefined) {
+              next[`${mf.key}Unit`] = mf.defaultUnit;
+              changed = true;
+            }
+          });
+          return changed ? next : prev;
+        });
+      })
+      .catch(() => { if (!cancelled) setProductFields([]); })
+      .finally(() => { if (!cancelled) setFieldsLoading(false); });
+    return () => { cancelled = true; };
+  }, [typeId, subtypeId]);
+
+  // ── Fetch custom options ──────────────────────────────────────────────────
+
+  useEffect(() => {
+    if (!typeId) { setCustomOptionsByFieldKey({}); return; }
+    const allowCustomFields = (productFields || []).filter(
+      f => f.type === "select" && f.allowCustom && !f.promptText
+    );
+    if (!allowCustomFields.length) { setCustomOptionsByFieldKey({}); return; }
+    Promise.all(
+      allowCustomFields.map(f =>
+        getCustomOptions(typeId, subtypeId || null, f.key)
+          .then(opts => [f.key, (opts || []).map(o => o.valueRaw)])
+          .catch(() => [f.key, []])
+      )
+    ).then(pairs => setCustomOptionsByFieldKey(Object.fromEntries(pairs)));
+  }, [typeId, subtypeId, productFields]);
+
+  // ── Clear dependent field values ──────────────────────────────────────────
+
+  useEffect(() => {
+    if (!productFields || productFields.length === 0) return;
+    const dependentFields = productFields.filter(f => f.dependsOn && f.dependsOn.trim() !== "");
+    if (!dependentFields.length) return;
+    setSpecs(prev => {
+      let changed = false;
+      const next = { ...prev };
+      dependentFields.forEach(field => {
+        if (prev[field.dependsOn] !== field.dependsOnValue && prev[field.key] !== undefined) {
+          delete next[field.key];
+          changed = true;
+        }
+      });
+      return changed ? next : prev;
     });
-  }, [priceList, selectedTypeId, selectedSubtypeId]);
+  }, [productFields, specs]);
 
-  const selectedEntry = useMemo(
-    () => candidates.find((c) => Number(c.id) === Number(selectedEntryId)) ?? null,
-    [candidates, selectedEntryId]
-  );
+  // ── Spec steps ────────────────────────────────────────────────────────────
 
-  const selectedTypeName = useMemo(
-    () => types.find((t) => Number(t.id) === Number(selectedTypeId))?.name ?? "",
-    [types, selectedTypeId]
-  );
+  const specificationSteps = useMemo(() => {
+    if (!productFields || productFields.length === 0) {
+      return [{ section: "Specification", fields: [] }];
+    }
+    if (productFields.length > 8) {
+      const numTabs = Math.ceil(productFields.length / 8);
+      const fieldsPerTab = Math.ceil(productFields.length / numTabs);
+      const chunks = [];
+      for (let i = 0; i < productFields.length; i += fieldsPerTab) {
+        chunks.push(productFields.slice(i, i + fieldsPerTab));
+      }
+      return chunks.map((chunk, idx) => ({
+        section: idx === 0 ? "Specification" : idx === 1 ? "Spec 2" : `Specification ${idx + 1}`,
+        fields: chunk,
+      }));
+    }
+    return [{ section: "Specification", fields: productFields }];
+  }, [productFields]);
 
-  const selectedSubtypeName = useMemo(
-    () => subtypes.find((s) => s.id === selectedSubtypeId)?.name ?? null,
-    [subtypes, selectedSubtypeId]
-  );
+  const specificationStepCount = specificationSteps.length;
+  const firstSpecStep  = 1;
+  const designStep     = firstSpecStep + specificationStepCount;
+  const deliveryStep   = designStep + 1;
+  const isSpecStep     = step >= firstSpecStep && step < designStep;
+  const currentSpec    = specificationSteps[
+    Math.max(0, Math.min(step - firstSpecStep, specificationSteps.length - 1))
+  ] || { section: "Specification", fields: [] };
 
-  // Auto-pricing — reacts to every quantity keystroke
+  const stepLabels = useMemo(() => ([
+    "Product",
+    ...specificationSteps.map(s => s.section),
+    "Design",
+    "Delivery",
+  ]), [specificationSteps]);
+
+  // ── Breadcrumb ────────────────────────────────────────────────────────────
+
+  const breadcrumb = useMemo(() => {
+    const parts = ["SVL"];
+    if (selectedCategory) parts.push(selectedCategory.name);
+    if (selectedType) parts.push(selectedType.name);
+    if (selectedSubtype) parts.push(selectedSubtype.name);
+    return parts.join(" > ");
+  }, [selectedCategory, selectedType, selectedSubtype]);
+
+  // ── Price matching ────────────────────────────────────────────────────────
+
+  const priceMatch = useMemo(() => {
+    if (!typeId || !priceList.length) return null;
+    return priceList.find(p =>
+      Number(p.typeId) === Number(typeId) &&
+      (p.subtypeId == null
+        ? !subtypeId
+        : Number(p.subtypeId) === Number(subtypeId))
+    ) || null;
+  }, [priceList, typeId, subtypeId]);
+
   const slab = useMemo(
-    () => findSlab(selectedEntry?.quantitySlabs, quantity),
-    [selectedEntry, quantity]
+    () => findSlab(priceMatch?.quantitySlabs, quantity),
+    [priceMatch, quantity],
   );
 
-  const unitPrice = useMemo(() => {
+  const slabPrice = useMemo(() => {
     if (!slab) return null;
     const v = Number(slab.pricePerPiece);
     return Number.isFinite(v) ? v : null;
   }, [slab]);
+  const designOnlyPrice = useMemo(() => getDesignOnlyPrice(priceMatch), [priceMatch]);
 
-  const lineTotal = useMemo(
-    () => (unitPrice != null && quantity ? Number(quantity) * unitPrice : null),
-    [unitPrice, quantity]
-  );
+  // ── Spec change handlers ──────────────────────────────────────────────────
 
-  // Auto-advance step 2 when there is only one subtype option
-  useEffect(() => {
-    // Only auto-advance when no product variant is already selected (i.e., not edit mode)
-    if (subtypes.length === 1 && selectedEntryId == null) {
-      setSelectedSubtypeId(subtypes[0].id);
-      setStep(3);
-    }
-  }, [subtypes, selectedEntryId]);
+  const handleSpecChange = useCallback((key, value) => {
+    setSpecs(prev => ({ ...prev, [key]: value }));
+  }, []);
 
-  function handleSelectType(typeId) {
-    setSelectedTypeId(typeId);
-    setSelectedSubtypeId(null);
-    setSelectedEntryId(null);
-    setError("");
-    setStep(2);
-  }
-
-  function handleSelectSubtype(subtypeId) {
-    setSelectedSubtypeId(subtypeId);
-    setSelectedEntryId(null);
-    setError("");
-    setStep(3);
-  }
-
-  function handleQuantityChange(e) {
-    setQuantity(e.target.value);
-    // Show "Price updated" indicator only during edits where original price existed
-    if (prefill?.unitPrice != null) setPriceUpdated(true);
-  }
-
-  function handleConfirm() {
-    setError("");
-
-    const qty = Number(quantity);
-    if (!qty || qty <= 0) {
-      setError("Please enter a valid quantity.");
+  const handleSelectSpecChange = useCallback((field, value) => {
+    if (field.key === "size" && value === "Custom") {
+      if (field.customSizeMode === "text") {
+        setCustomSpecDialog({
+          open: true, field,
+          value: String(specs[`${field.key}Custom`] || "").trim(),
+          isFlexCustomSize: false, flexWidth: "", flexHeight: "",
+          customSizeUnitLabel: "ft", sizeUnit: "mm",
+        });
+        return;
+      }
+      const configDims = field.customDimensions || [];
+      const hasDimensionFields = configDims.length > 0
+        ? true
+        : (productFields || []).some((f) => f.key === "customWidth");
+      const hasDepthField = configDims.length > 0
+        ? (configDims.includes("Depth") || configDims.includes("depth"))
+        : (productFields || []).some((f) => f.key === "customDepth");
+      const typeName = (selectedType?.name || "").toLowerCase().trim();
+      const subtypeName = (selectedSubtype?.name || "").toLowerCase().trim();
+      const isSticker = typeName.includes("sticker") || subtypeName.includes("sticker");
+      const isCard = typeName.includes("card") || subtypeName.includes("card");
+      const useMm = hasDepthField || isSticker || isCard;
+      const unit = configDims.length > 0
+        ? (field.customDimensionUnit || "mm")
+        : (isCard || hasDepthField ? "mm" : "ft");
+      let unitLabel = "ft";
+      if (isSticker) unitLabel = "mm or inch";
+      else if (isCard || hasDepthField) unitLabel = "mm";
+      if (hasDimensionFields && hasDepthField) {
+        setDepthSizeDialog({
+          open: true, field,
+          width: specs.customWidth || "",
+          height: specs.customHeight || "",
+          depth: specs.customDepth || "",
+          sizeUnit: unit,
+        });
+        return;
+      }
+      if (hasDimensionFields) {
+        setCustomSpecDialog({
+          open: true, field, value: "",
+          isFlexCustomSize: true,
+          flexWidth: specs.customWidth || "",
+          flexHeight: specs.customHeight || "",
+          customSizeUnitLabel: unit,
+          sizeUnit: unit,
+        });
+        return;
+      }
+      setCustomSpecDialog({
+        open: true, field, value: "",
+        isFlexCustomSize: true,
+        flexWidth: specs.customWidth || "",
+        flexHeight: specs.customHeight || "",
+        customSizeUnitLabel: unitLabel,
+        sizeUnit: unit,
+      });
       return;
     }
-    if (!selectedEntry) {
-      setError("Please select a product variant.");
+
+    if (field.promptText && value) {
+      setCustomSpecDialog({
+        open: true, field,
+        value: String(specs[`${field.key}Text`] || "").trim(),
+        isFlexCustomSize: false,
+        isTextPrompt: true,
+        textRows: field.textRows || 4,
+        selectedOption: value,
+        flexWidth: "", flexHeight: "",
+        customSizeUnitLabel: "ft", sizeUnit: "mm",
+      });
       return;
     }
 
-    const resolvedUnitPrice = unitPrice ?? 0;
-    const pricingStatus = unitPrice != null ? "PRICED" : "UNPRICED";
+    if (field.allowCustom && value === "Custom") {
+      setCustomSpecDialog({
+        open: true, field,
+        value: String(specs[`${field.key}Custom`] || "").trim(),
+        isFlexCustomSize: false, flexWidth: "", flexHeight: "",
+        customSizeUnitLabel: "ft", sizeUnit: "mm",
+      });
+      return;
+    }
 
-    // Build optionsSummary for line items table and PDF
-    const specParts = Object.entries(specs)
-      .filter(([, v]) => v !== "" && v != null)
-      .map(([k, v]) => `${k}: ${v}`)
-      .slice(0, 6);
-    const variantSummary = getVariantSummary(selectedEntry.variantFields);
-    const variantPart = variantSummary !== "-" ? `Variant: ${variantSummary}` : "";
-    const optionsSummary = [...specParts, variantPart].filter(Boolean).join(", ") || "-";
-
-    const productName = [selectedTypeName, selectedSubtypeName].filter(Boolean).join(" - ");
-
-    onConfirm({
-      id: prefill?.id ?? `item-${Date.now()}`,
-      productId: Number(selectedEntry.id),
-      typeId: selectedEntry.typeId,
-      subtypeId: selectedEntry.subtypeId ?? null,
-      typeName: selectedEntry.typeName,
-      subtypeName: selectedEntry.subtypeName ?? null,
-      productName: productName || selectedTypeName,
-      quantity: qty,
-      unitPrice: resolvedUnitPrice,
-      pricePerUnit: resolvedUnitPrice, // kept for PDF compatibility (quotationUtils uses pricePerUnit)
-      lineTotal: qty * resolvedUnitPrice,
-      pricingStatus,
-      specs,
-      variantFields: selectedEntry.variantFields ?? {},
-      optionsSummary,
-      designCost: prefill?.designCost ?? 0,
-      priceListEntryId: Number(selectedEntry.id),
+    setSpecs(prev => {
+      const next = { ...prev, [field.key]: value };
+      if (field.allowCustom && value !== "Custom") {
+        delete next[`${field.key}Custom`];
+        if (field.key === "size") {
+          delete next.customWidth;
+          delete next.customHeight;
+          delete next.customDepth;
+          delete next.customUnit;
+          delete next.sizeCustom;
+        }
+      }
+      return next;
     });
+  }, [specs, productFields, selectedType, selectedSubtype]);
+
+  const closeCustomSpecDialog = useCallback(() => {
+    setCustomSpecDialog({
+      open: false, field: null, value: "",
+      isFlexCustomSize: false, flexWidth: "", flexHeight: "",
+      customSizeUnitLabel: "ft", sizeUnit: "mm",
+    });
+  }, []);
+
+  const saveCustomSpecDialog = useCallback(() => {
+    const field = customSpecDialog.field;
+    if (!field) return;
+
+    if (customSpecDialog.isFlexCustomSize) {
+      const width = String(customSpecDialog.flexWidth || "").trim();
+      const height = String(customSpecDialog.flexHeight || "").trim();
+      if (!width || !height) { setError("Please enter both width and height"); return; }
+      setSpecs(prev => ({
+        ...prev,
+        [field.key]: "Custom",
+        customWidth: width,
+        customHeight: height,
+        customUnit: customSpecDialog.sizeUnit,
+      }));
+      const sizeLabel = `${width} × ${height} ${customSpecDialog.sizeUnit}`;
+      saveCustomOption(typeId, subtypeId || null, "size", sizeLabel).catch(() => {});
+      closeCustomSpecDialog();
+      setError("");
+      return;
+    }
+
+    if (customSpecDialog.isTextPrompt) {
+      const trimmedText = String(customSpecDialog.value || "").trim();
+      setSpecs(prev => ({
+        ...prev,
+        [field.key]: customSpecDialog.selectedOption,
+        [`${field.key}Text`]: trimmedText,
+      }));
+      closeCustomSpecDialog();
+      return;
+    }
+
+    const trimmedValue = String(customSpecDialog.value || "").trim();
+    if (!trimmedValue) {
+      setSpecs(prev => {
+        const next = { ...prev };
+        delete next[field.key];
+        delete next[`${field.key}Custom`];
+        return next;
+      });
+      closeCustomSpecDialog();
+      return;
+    }
+
+    setSpecs(prev => ({
+      ...prev,
+      [field.key]: "Custom",
+      [`${field.key}Custom`]: trimmedValue,
+    }));
+    saveCustomOption(typeId, subtypeId || null, field.key, trimmedValue).catch(() => {});
+    closeCustomSpecDialog();
+  }, [closeCustomSpecDialog, customSpecDialog, typeId, subtypeId]);
+
+  // ── Navigation handlers ───────────────────────────────────────────────────
+
+  function handleCategoryChange(id) {
+    setCategoryId(id);
+    setTypeId("");
+    setSubtypeId("");
+    setSpecs({});
   }
+
+  function handleTypeChange(id) {
+    setTypeId(id);
+    setSubtypeId("");
+    setSpecs({});
+  }
+
+  function canProceed(s) {
+    if (s === 0) {
+      if (!categoryId || !typeId) return false;
+      if (!designMode) return false;
+      if (subtypeOptions.length > 0 && !subtypeId) return false;
+      return true;
+    }
+    if (s >= firstSpecStep && s < designStep) {
+      return true;
+    }
+    if (s === designStep) {
+      if (!designMode) return false;
+      if (designMode === "production_only" && files.length === 0) return false;
+      return true;
+    }
+    if (s === deliveryStep) return true;
+    return true;
+  }
+
+  function handleNext() {
+    if (!canProceed(step)) {
+      if (step === 0) {
+        if (!categoryId || !typeId) {
+          setError("Please select a category and product.");
+        } else if (!designMode) {
+          setError("Please select a design mode.");
+        } else if (subtypeOptions.length > 0 && !subtypeId) {
+          setError("Please select a sub-product.");
+        }
+      } else if (step === designStep) {
+        if (!designMode) setError("Please select a design mode.");
+        else setError("Please upload at least one design file.");
+      }
+      return;
+    }
+    setError("");
+    setStep(s => Math.min(s + 1, deliveryStep));
+  }
+
+  function handleBack() {
+    setError("");
+    setStep(s => Math.max(s - 1, 0));
+  }
+
+  // ── handleConfirm ─────────────────────────────────────────────────────────
+
+  async function handleConfirm() {
+    console.log("leadId:", leadId);
+    if (!leadId) {
+      setError("No lead selected. Cannot save requirement.");
+      setSaving(false);
+      return;
+    }
+    setError("");
+    setSaving(true);
+
+    try {
+      const isDesignOnly = designMode === "design_only";
+      const qty = isDesignOnly ? 0 : Number(quantity);
+      const lineItemDesignFee = isDesignOnly ? (designOnlyPrice || 0) : 0;
+      const lineItemUnitPrice = !isDesignOnly && slabPrice != null ? slabPrice : 0;
+      const lineItemTotal = isDesignOnly ? lineItemDesignFee : qty * lineItemUnitPrice;
+      const pricingStatus = lineItemTotal > 0 ? "PRICED" : "UNPRICED";
+
+      if (!isDesignOnly && (!qty || qty <= 0)) {
+        setError("Please enter a valid quantity.");
+        setSaving(false);
+        return;
+      }
+
+      if (!typeId) {
+        setError("Please select a product.");
+        setSaving(false);
+        return;
+      }
+
+      // Build requirement payload
+      const requirementData = {
+        leadId: Number(leadId),
+        categoryId: Number(categoryId),
+        typeId: Number(typeId),
+        subtypeId: subtypeId ? Number(subtypeId) : null,
+        quantity: qty,
+        specs: JSON.stringify(specs),
+        designStatus: designMode || null,
+        designNotes: designNotes || null,
+        fileFormat: null,
+        colourMode: null,
+        stylePreference: stylePreference || null,
+        colourPreference: colourPreference || null,
+        referenceNotes: referenceNotes || null,
+        brandColours: brandColours || null,
+        deliveryDate: deliveryDate || null,
+        specialInstructions: specialInstructions || null,
+      };
+
+      let savedRequirement;
+      if (leadId) {
+        if (prefill?.requirementId) {
+          savedRequirement = await updateRequirement(
+            prefill.requirementId,
+            requirementData,
+            files
+          );
+        } else {
+          savedRequirement = await createRequirement(requirementData, files);
+        }
+      }
+
+      // Save custom options
+      if (typeId) {
+        const saves = collectCustomOptionSaves(productFields || [], specs);
+        saves.forEach(({ fieldKey, valueRaw }) => {
+          saveCustomOption(
+            Number(typeId),
+            subtypeId ? Number(subtypeId) : null,
+            fieldKey,
+            valueRaw
+          ).catch(() => {});
+        });
+      }
+
+      // Build line item shape for quotation
+      const productName = [selectedType?.name, selectedSubtype?.name]
+        .filter(Boolean).join(" / ");
+      const optionsSummary = getVariantSummary(specs);
+
+      onConfirm({
+        id: prefill?.id ?? `item-${Date.now()}`,
+        requirementId: savedRequirement?.id ?? prefill?.requirementId ?? null,
+        productId: null,
+        typeId: Number(typeId),
+        subtypeId: subtypeId ? Number(subtypeId) : null,
+        typeName: selectedType?.name || "",
+        subtypeName: selectedSubtype?.name || null,
+        productName,
+        quantity: isDesignOnly ? 0 : qty,
+        unitPrice: lineItemUnitPrice,
+        pricePerUnit: lineItemUnitPrice,
+        lineTotal: lineItemTotal,
+        designCost: lineItemDesignFee,
+        pricingStatus,
+        designStatus: designMode || null,
+        specs,
+        variantFields: specs,
+        optionsSummary,
+        priceListEntryId: priceMatch?.id ?? null,
+      });
+
+      // Notify parent to refresh requirements list
+      if (onRequirementSaved) onRequirementSaved();
+
+    } catch (e) {
+      const msg = e?.response?.data?.message
+        || e?.response?.data?.error
+        || e?.message
+        || "Failed to save. Please try again.";
+      setError(msg);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  // ── Render ────────────────────────────────────────────────────────────────
 
   if (!open) return null;
 
+  const shouldReduceMotion = false;
+
   return (
     <>
-      <div className="modal fade show d-block" tabIndex="-1" role="dialog" aria-modal="true">
-        <div className="modal-dialog modal-dialog-centered modal-lg">
+      <div className="modal fade show" style={{ display: "block" }} tabIndex="-1">
+        <div className="modal-dialog modal-lg">
           <div className="modal-content">
             <div className="modal-header">
-              <h5 className="modal-title">{prefill?.id ? "Edit Item" : "Add Item"}</h5>
-              <button type="button" className="btn-close" onClick={onClose}></button>
+              <h5 className="modal-title">
+                {prefill?.id ? "Edit Item" : "Add Item"}
+              </h5>
+              <button type="button" className="btn-close" onClick={onClose} aria-label="Close" />
             </div>
 
             <div className="modal-body">
-              {/* Step breadcrumb */}
-              <div className="d-flex gap-2 align-items-center mb-4 small">
-                <span className={step >= 1 ? "fw-semibold text-primary" : "text-muted"}>
-                  1. Product Type
-                </span>
-                <i className="ti ti-chevron-right text-muted" />
-                <span className={step >= 2 ? "fw-semibold text-primary" : "text-muted"}>
-                  2. Subtype
-                </span>
-                <i className="ti ti-chevron-right text-muted" />
-                <span className={step >= 3 ? "fw-semibold text-primary" : "text-muted"}>
-                  3. Variant & Qty
-                </span>
-              </div>
+              <div className="lead-wizard">
 
-              {/* Step 1: Type selection */}
-              {step === 1 && (
-                <div>
-                  <p className="text-muted mb-3">Select a product category:</p>
-                  {types.length === 0 && (
-                    <div className="alert alert-warning">No products in price list yet.</div>
+                {/* Breadcrumb + Reset */}
+                <div className="d-flex align-items-center justify-content-between mb-2">
+                  <small className="text-muted">{breadcrumb}</small>
+                  {step > 0 && (
+                    <button
+                      type="button"
+                      className="btn btn-link btn-sm p-0"
+                      onClick={() => { setStep(0); setError(""); }}
+                    >
+                      Reset
+                    </button>
                   )}
-                  <div className="row g-2">
-                    {types.map((t) => (
-                      <div key={t.id} className="col-6 col-md-4">
-                        <div
-                          role="button"
-                          className={`border rounded p-3 text-center${Number(selectedTypeId) === Number(t.id) ? " border-primary bg-primary bg-opacity-10" : ""}`}
-                          style={{ cursor: "pointer" }}
-                          onClick={() => handleSelectType(t.id)}
-                        >
-                          {t.name}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
                 </div>
-              )}
 
-              {/* Step 2: Subtype selection */}
-              {step === 2 && (
-                <div>
-                  <button
-                    type="button"
-                    className="btn btn-link btn-sm p-0 mb-3 text-decoration-none"
-                    onClick={() => { setSelectedSubtypeId(null); setStep(1); }}
-                  >
-                    ← Back
-                  </button>
-                  <p className="text-muted mb-3">Select a subtype:</p>
-                  <div className="row g-2">
-                    {subtypes.map((s) => (
-                      <div key={s.id ?? "__none__"} className="col-6 col-md-4">
-                        <div
-                          role="button"
-                          className={`border rounded p-3 text-center${selectedSubtypeId === s.id ? " border-primary bg-primary bg-opacity-10" : ""}`}
-                          style={{ cursor: "pointer" }}
-                          onClick={() => handleSelectSubtype(s.id)}
-                        >
-                          {s.name || "(Default)"}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                {error && (
+                  <div className="alert alert-danger py-2 mb-3">{error}</div>
+                )}
+
+                {/* Progress bar */}
+                <div className="lead-wizard-progress-bar">
+                  <motion.div
+                    className="lead-wizard-progress"
+                    initial={shouldReduceMotion ? false : { width: "0%" }}
+                    animate={shouldReduceMotion ? {} : { width: `${((step + 1) / stepLabels.length) * 100}%` }}
+                    transition={{ duration: 0.35, ease: "easeOut" }}
+                  />
                 </div>
-              )}
 
-              {/* Step 3: Variant + Qty + Specs */}
-              {step === 3 && (
-                <div>
-                  <button
-                    type="button"
-                    className="btn btn-link btn-sm p-0 mb-3 text-decoration-none"
-                    onClick={() => {
-                      setSelectedEntryId(null);
-                      setStep(subtypes.length > 1 ? 2 : 1);
-                    }}
-                  >
-                    ← Back
-                  </button>
-
-                  {/* Variant table */}
-                  <div className="mb-3">
-                    <label className="form-label fw-semibold">Select Variant</label>
-                    {candidates.length === 0 ? (
-                      <div className="alert alert-warning mb-0">
-                        No products configured for this combination.
-                      </div>
-                    ) : (
-                      <div className="table-responsive">
-                        <table className="table table-hover table-bordered align-middle mb-0">
-                          <thead>
-                            <tr>
-                              <th style={{ width: 36 }}></th>
-                              <th>Variant</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {candidates.map((c) => {
-                              const isSelected = Number(selectedEntryId) === Number(c.id);
-                              return (
-                                <tr
-                                  key={c.id}
-                                  role="button"
-                                  style={{ cursor: "pointer", background: isSelected ? "var(--bs-primary-bg-subtle, #e8f0fe)" : "" }}
-                                  onClick={() => setSelectedEntryId(c.id)}
-                                >
-                                  <td className="text-center">
-                                    <input type="radio" readOnly checked={isSelected} onChange={() => {}} />
-                                  </td>
-                                  <td>{getVariantSummary(c.variantFields)}</td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Quantity + live price */}
-                  <div className="row g-3 mb-3 align-items-end">
-                    <div className="col-md-4">
-                      <label className="form-label fw-semibold">Quantity</label>
-                      <input
-                        type="number"
-                        className="form-control"
-                        value={quantity}
-                        onChange={handleQuantityChange}
-                        min={1}
-                        placeholder="Enter quantity"
-                      />
+                {/* Step circles */}
+                <motion.div
+                  className="lead-wizard-circles"
+                  initial={shouldReduceMotion ? false : { opacity: 0, y: 10 }}
+                  animate={shouldReduceMotion ? {} : { opacity: 1, y: 0 }}
+                  transition={{ duration: 0.2, delay: 0.05 }}
+                >
+                  {stepLabels.map((label, idx) => (
+                    <div
+                      key={label}
+                      className="lead-wizard-circle-item"
+                      onClick={() => { if (idx < step) { setStep(idx); setError(""); } }}
+                      style={{ cursor: idx < step ? "pointer" : "default" }}
+                    >
+                      <motion.div
+                        className={`lead-wizard-circle${step >= idx ? " active" : ""}`}
+                        initial={shouldReduceMotion ? false : { scale: 0.94 }}
+                        animate={shouldReduceMotion ? {} : { scale: 1 }}
+                        transition={{ duration: 0.2, delay: 0.08 + idx * 0.02 }}
+                      >
+                        <span style={{ fontSize: "0.75rem", fontWeight: 600 }}>{idx + 1}</span>
+                      </motion.div>
+                      <div className="lead-wizard-circle-label">{label}</div>
                     </div>
-                    <div className="col-md-8">
-                      <div className="border rounded p-2 bg-light">
-                        {unitPrice != null ? (
-                          <div className="d-flex justify-content-between align-items-center">
-                            <span>
-                              Rs.&nbsp;{unitPrice.toFixed(2)} / piece
-                              &nbsp;→&nbsp;
-                              <strong>Rs.&nbsp;{(lineTotal ?? 0).toLocaleString("en-IN", { maximumFractionDigits: 2 })}</strong>
-                            </span>
-                            {priceUpdated && (
-                              <span className="text-muted small ms-2">Price updated</span>
+                  ))}
+                </motion.div>
+
+                {/* Step content */}
+                <div className="lead-create-grid">
+                  <AnimatePresence mode="wait">
+
+                    {/* Step 0 — Product selection */}
+                    {step === 0 && (
+                      <motion.div
+                        key="step-0"
+                        initial={shouldReduceMotion ? false : { opacity: 0, x: 18, filter: "blur(4px)" }}
+                        animate={shouldReduceMotion ? {} : { opacity: 1, x: 0, filter: "blur(0px)" }}
+                        exit={shouldReduceMotion ? false : { opacity: 0, x: -18, filter: "blur(4px)" }}
+                        transition={{ duration: 0.26, ease: "easeOut" }}
+                        className="row g-3 lead-wizard-step-panel"
+                      >
+                        <div className="col-12">
+                          <div className="lead-form-field">
+                            <label className="form-label fw-semibold">
+                              Design Mode <span className="text-danger">*</span>
+                            </label>
+                            <div className="d-flex gap-4 mt-1">
+                              {[
+                                { value: "design_only", label: "Design Only" },
+                                { value: "production_only", label: "Production Only" },
+                                { value: "design_production", label: "Design + Production" },
+                              ].map((opt) => (
+                                <div key={opt.value} className="form-check">
+                                  <input
+                                    className="form-check-input"
+                                    type="radio"
+                                    name="designMode"
+                                    id={`designMode-${opt.value}`}
+                                    value={opt.value}
+                                    checked={designMode === opt.value}
+                                    onChange={() => { setDesignMode(opt.value); setFiles([]); }}
+                                  />
+                                  <label className="form-check-label" htmlFor={`designMode-${opt.value}`}>
+                                    {opt.label}
+                                  </label>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="col-md-6">
+                          <div className="lead-form-field">
+                            <label className="form-label fw-semibold">
+                              Category <span className="text-danger">*</span>
+                            </label>
+                            <select
+                              className="form-select"
+                              value={categoryId}
+                              onChange={e => handleCategoryChange(e.target.value)}
+                            >
+                              <option value="">Select category</option>
+                              {categories.map(c => (
+                                <option key={c.id} value={c.id}>{c.name}</option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+
+                        <div className="col-md-6">
+                          <div className="lead-form-field">
+                            <label className="form-label fw-semibold">
+                              Product <span className="text-danger">*</span>
+                            </label>
+                            <select
+                              className="form-select"
+                              value={typeId}
+                              onChange={e => handleTypeChange(e.target.value)}
+                              disabled={!categoryId}
+                            >
+                              <option value="">Select product</option>
+                              {typeOptions.map(t => (
+                                <option key={t.id} value={t.id}>{t.name}</option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+
+                        <div
+                          className="col-md-6"
+                          style={{ visibility: typeId && subtypeOptions.length > 0 ? "visible" : "hidden" }}
+                        >
+                          <div className="lead-form-field">
+                            <label className="form-label fw-semibold">Sub-product</label>
+                            <select
+                              className="form-select"
+                              value={subtypeId}
+                              onChange={e => setSubtypeId(e.target.value)}
+                            >
+                              <option value="">Select sub-type</option>
+                              {subtypeOptions.map(s => (
+                                <option key={s.id} value={s.id}>{s.name}</option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+
+                        {selectedCategory && (
+                          <div className="col-12">
+                            <div className="alert alert-info py-2 mb-0">
+                              {selectedType
+                                ? `Selected: ${selectedCategory.name} / ${selectedType.name}${selectedSubtype ? ` / ${selectedSubtype.name}` : ""}`
+                                : `Select a product under ${selectedCategory.name} to continue.`}
+                            </div>
+                          </div>
+                        )}
+                      </motion.div>
+                    )}
+
+                    {/* Spec steps */}
+                    {isSpecStep && (
+                      <motion.div
+                        key={`step-spec-${step}`}
+                        initial={shouldReduceMotion ? false : { opacity: 0, x: 18, filter: "blur(4px)" }}
+                        animate={shouldReduceMotion ? {} : { opacity: 1, x: 0, filter: "blur(0px)" }}
+                        exit={shouldReduceMotion ? false : { opacity: 0, x: -18, filter: "blur(4px)" }}
+                        transition={{ duration: 0.26, ease: "easeOut" }}
+                        className="row g-3 lead-wizard-step-panel"
+                      >
+                        {step === firstSpecStep && designMode !== "design_only" && (
+                          <div className="col-md-6">
+                            <div className="lead-form-field">
+                              <label className="form-label">
+                                Quantity <span className="text-danger">*</span>
+                              </label>
+                              <input
+                                className="form-control"
+                                type="number"
+                                min="1"
+                                value={quantity}
+                                onChange={e => setQuantity(e.target.value)}
+                                placeholder="Enter quantity"
+                              />
+                            </div>
+                          </div>
+                        )}
+
+                        {fieldsLoading ? (
+                          <div className="col-12 text-center py-4">
+                            <div className="spinner-border spinner-border-sm text-primary" />
+                            <div className="text-muted mt-2 small">Loading fields…</div>
+                          </div>
+                        ) : currentSpec.fields.length === 0 ? (
+                          <div className="col-12">
+                            <div className="alert alert-info py-2 mb-0">
+                              No specification fields for this product. Click Next to continue.
+                            </div>
+                          </div>
+                        ) : (
+                          currentSpec.fields
+                            .filter(field => {
+                              if (field.hidden) return false;
+                              if (field.dependsOn && field.dependsOn.trim() !== "") {
+                                return specs[field.dependsOn] === field.dependsOnValue;
+                              }
+                              return true;
+                            })
+                            .map(field => {
+                              if (field.type === "select") {
+                                const savedForField = field.allowCustom && !field.promptText
+                                  ? (customOptionsByFieldKey[field.key] || []) : [];
+                                const staticOpts = field.options.filter(o => o !== "Custom");
+                                const alreadyInStatic = new Set(staticOpts.map(o => o.toLowerCase()));
+                                const uniqueSaved = savedForField.filter(s => !alreadyInStatic.has(s.toLowerCase()));
+                                const effectiveOpts = [...staticOpts, ...uniqueSaved];
+                                return (
+                                  <div key={field.key} className="col-md-6">
+                                    <div className="lead-form-field">
+                                      <label className="form-label">{field.label}</label>
+                                      <div style={{ display: "flex", alignItems: "center" }}>
+                                        <select
+                                          className="form-select"
+                                          value={specs[field.key] || ""}
+                                          onChange={e => handleSelectSpecChange(field, e.target.value)}
+                                        >
+                                          <option value="">Select {field.label}</option>
+                                          {specs[field.key] === "Custom" && (
+                                            <option value="Custom">
+                                              {field.key === "size" && specs.customWidth
+                                                ? `Custom: ${specs.customWidth} × ${specs.customHeight} ${specs.customUnit || ""}`
+                                                : specs[`${field.key}Custom`]
+                                                  ? `Custom: ${specs[`${field.key}Custom`]}`
+                                                  : "Custom"}
+                                            </option>
+                                          )}
+                                          {effectiveOpts.map(opt => (
+                                            <option key={opt} value={opt}>{opt}</option>
+                                          ))}
+                                        </select>
+                                        {field.allowCustom && (
+                                          <button
+                                            type="button"
+                                            className="btn btn-sm btn-outline-secondary ms-1"
+                                            style={{ flexShrink: 0 }}
+                                            onClick={() => handleSelectSpecChange(field, "Custom")}
+                                          >
+                                            <i className="ti ti-plus" />
+                                          </button>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              }
+
+                              if (field.hasUnit && (field.type === "number" || field.type === "text")) {
+                                return (
+                                  <div key={field.key} className="col-md-6">
+                                    <div className="lead-form-field">
+                                      <label className="form-label">{field.label}</label>
+                                      <div style={{ display: "flex", alignItems: "stretch", width: "100%" }}>
+                                        <input
+                                          className="form-control unit-input"
+                                          type={field.type === "number" ? "number" : "text"}
+                                          value={specs[field.key] ?? ""}
+                                          onChange={e => handleSpecChange(field.key, e.target.value)}
+                                          placeholder={field.placeholder || ""}
+                                        />
+                                        <select
+                                          className="form-select unit-select"
+                                          value={specs[`${field.key}Unit`] ?? field.defaultUnit ?? ""}
+                                          onChange={e => handleSpecChange(`${field.key}Unit`, e.target.value)}
+                                        >
+                                          {(field.unitOptions || []).map(u => (
+                                            <option key={u} value={u}>{u}</option>
+                                          ))}
+                                        </select>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              }
+
+                              const measurementValue = specs["measurement"];
+                              const isDimensionField = ["length", "width", "height", "gusset", "depth", "diameter"].includes(field.key);
+                              const dimensionSuffix = isDimensionField && !field.hasUnit && measurementValue ? ` (in ${measurementValue})` : "";
+
+                              return (
+                                <div key={field.key} className="col-md-6">
+                                  <div className="lead-form-field">
+                                    <label className="form-label">{field.label}{dimensionSuffix}</label>
+                                    <input
+                                      className="form-control"
+                                      type={field.type === "number" ? "number" : "text"}
+                                      value={specs[field.key] ?? ""}
+                                      onChange={e => handleSpecChange(field.key, e.target.value)}
+                                      placeholder={field.placeholder || ""}
+                                    />
+                                  </div>
+                                </div>
+                              );
+                            })
+                        )}
+                      </motion.div>
+                    )}
+
+                    {/* Design step */}
+                    {step === designStep && (
+                      <motion.div
+                        key="step-design"
+                        initial={shouldReduceMotion ? false : { opacity: 0, x: 18, filter: "blur(4px)" }}
+                        animate={shouldReduceMotion ? {} : { opacity: 1, x: 0, filter: "blur(0px)" }}
+                        exit={shouldReduceMotion ? false : { opacity: 0, x: -18, filter: "blur(4px)" }}
+                        transition={{ duration: 0.26, ease: "easeOut" }}
+                        className="row g-3 lead-wizard-step-panel"
+                      >
+                        {/* Read-only design mode indicator */}
+                        <div className="col-12">
+                          <div className="alert alert-info py-2 mb-0">
+                            <strong>Design mode:</strong>{" "}
+                            {{
+                              design_only:       "Design Only",
+                              production_only:   "Production Only",
+                              design_production: "Design + Production",
+                            }[designMode] || designMode}
+                          </div>
+                        </div>
+
+                        {/* File upload for production_only */}
+                        {designMode === "production_only" && (
+                          <div className="col-12">
+                            <label className="form-label fw-semibold">Design Folder</label>
+                            <label
+                              className={`w-100 rounded-3 p-4 text-center ${isDragActive ? "border border-primary bg-light" : "border border-secondary-subtle"}`}
+                              onDragOver={e => { e.preventDefault(); e.stopPropagation(); setIsDragActive(true); }}
+                              onDragLeave={e => { e.preventDefault(); e.stopPropagation(); setIsDragActive(false); }}
+                              onDrop={async e => {
+                                e.preventDefault(); e.stopPropagation(); setIsDragActive(false);
+                                const dropped = Array.from(e.dataTransfer?.files || []);
+                                if (dropped.length) setFiles(prev => [...prev, ...dropped]);
+                              }}
+                              style={{ cursor: "pointer", borderStyle: "dashed" }}
+                            >
+                              <input
+                                type="file"
+                                className="d-none"
+                                multiple
+                                onChange={e => setFiles(prev => [...prev, ...Array.from(e.target.files || [])])}
+                              />
+                              <div className="fw-semibold mb-1">Drag and drop design files here</div>
+                              <small className="text-muted">or click to choose files</small>
+                            </label>
+                            {files.length > 0 && (
+                              <div className="mt-2">
+                                {files.map((f, i) => (
+                                  <div key={`${f.name}-${i}`} className="d-flex align-items-center gap-2 py-1">
+                                    <i className="ti ti-file text-muted" />
+                                    <span className="text-truncate" style={{ maxWidth: 320 }}>{f.name}</span>
+                                    <small className="text-muted">({(f.size / 1024).toFixed(1)} KB)</small>
+                                    <button
+                                      type="button"
+                                      className="btn btn-sm btn-outline-danger ms-auto"
+                                      onClick={() => setFiles(prev => prev.filter((_, idx) => idx !== i))}
+                                    >
+                                      <i className="ti ti-x" />
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
                             )}
                           </div>
-                        ) : quantity && selectedEntry ? (
-                          <span className="badge bg-danger">PRICE NOT FOUND for this quantity</span>
-                        ) : (
-                          <span className="text-muted small">Enter quantity to see price</span>
                         )}
-                      </div>
-                    </div>
-                  </div>
 
-                  {/* Inline specs */}
-                  {selectedTypeName && (
-                    <div className="border-top pt-3">
-                      <div className="fw-semibold mb-2">
-                        Customization&nbsp;
-                        <span className="text-muted small fw-normal">(optional)</span>
-                      </div>
-                      <SpecsInlineForm typeName={selectedTypeName} specs={specs} onChange={setSpecs} />
-                    </div>
+                        {/* Notes */}
+                        {designMode && (
+                          <div className="col-12">
+                            <label className="form-label">Design Notes</label>
+                            <textarea
+                              className="form-control"
+                              rows={3}
+                              value={designNotes}
+                              onChange={e => setDesignNotes(e.target.value)}
+                              placeholder="Any instructions about the design"
+                            />
+                          </div>
+                        )}
+                      </motion.div>
+                    )}
+
+                    {/* Delivery step */}
+                    {step === deliveryStep && (
+                      <motion.div
+                        key="step-delivery"
+                        initial={shouldReduceMotion ? false : { opacity: 0, x: 18, filter: "blur(4px)" }}
+                        animate={shouldReduceMotion ? {} : { opacity: 1, x: 0, filter: "blur(0px)" }}
+                        exit={shouldReduceMotion ? false : { opacity: 0, x: -18, filter: "blur(4px)" }}
+                        transition={{ duration: 0.26, ease: "easeOut" }}
+                        className="row g-3 lead-wizard-step-panel"
+                      >
+                        <div className="col-md-6">
+                          <div className="lead-form-field">
+                            <label className="form-label">Delivery Date</label>
+                            <input
+                              type="date"
+                              className="form-control"
+                              value={deliveryDate}
+                              onChange={e => setDeliveryDate(e.target.value)}
+                            />
+                          </div>
+                        </div>
+                        <div className="col-12">
+                          <div className="alert alert-secondary py-2 mb-3">
+                            Pricing is applied automatically from the price list when available. You can adjust unpriced items later in the quotation table.
+                          </div>
+                        </div>
+                        <div className="col-12">
+                          <label className="form-label">Special Instructions</label>
+                          <textarea
+                            className="form-control"
+                            rows={3}
+                            value={specialInstructions}
+                            onChange={e => setSpecialInstructions(e.target.value)}
+                            placeholder="Any special instructions for this order"
+                            style={{ resize: "vertical" }}
+                          />
+                        </div>
+                      </motion.div>
+                    )}
+
+                  </AnimatePresence>
+                </div>
+
+                {/* Navigation */}
+                <motion.div
+                  className="lead-wizard-nav"
+                  initial={shouldReduceMotion ? false : { opacity: 0, y: 8 }}
+                  animate={shouldReduceMotion ? {} : { opacity: 1, y: 0 }}
+                  transition={{ duration: 0.18, delay: 0.18 }}
+                >
+                  {step > 0 ? (
+                    <button type="button" className="btn btn-light" onClick={handleBack}>
+                      Previous
+                    </button>
+                  ) : (
+                    <div />
                   )}
-                </div>
-              )}
+                  {step < deliveryStep ? (
+                    <button type="button" className="btn btn-primary" onClick={handleNext}>
+                      Next
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="btn btn-success"
+                      onClick={handleConfirm}
+                      disabled={saving}
+                    >
+                      {saving
+                        ? <><span className="spinner-border spinner-border-sm me-2" />Saving...</>
+                        : prefill?.requirementId ? "Update Item" : "Add Item"
+                      }
+                    </button>
+                  )}
+                </motion.div>
 
-              {error && (
-                <div className="alert alert-danger mt-3 mb-0">
-                  <i className="ti ti-alert-circle me-2"></i>{error}
-                </div>
-              )}
-            </div>
-
-            {/* Footer only shown on step 3 */}
-            {step === 3 && (
-              <div className="modal-footer">
-                <button type="button" className="btn btn-outline-secondary" onClick={onClose}>
-                  Cancel
-                </button>
-                <button type="button" className="btn btn-primary" onClick={handleConfirm}>
-                  {prefill?.id ? "Update Item" : "Add Item"}
-                </button>
               </div>
-            )}
+            </div>
           </div>
         </div>
       </div>
-      <div className="modal-backdrop fade show"></div>
+      <div className="modal-backdrop fade show" />
+
+      {/* Custom spec dialog */}
+      {customSpecDialog.open && (
+        <div
+          className="modal fade show requirement-form-modal"
+          style={{ display: "block", backgroundColor: "rgba(0,0,0,0.35)" }}
+          tabIndex="-1"
+        >
+          <div className="modal-dialog modal-dialog-centered" style={{ maxWidth: "500px" }}>
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">
+                  {customSpecDialog.isFlexCustomSize
+                    ? "Enter Custom Size"
+                    : `Enter Custom ${customSpecDialog.field?.label}`}
+                </h5>
+                <button type="button" className="btn-close" onClick={closeCustomSpecDialog} aria-label="Close" />
+              </div>
+              <div className="modal-body" style={{ padding: "1.5rem" }}>
+                {customSpecDialog.isFlexCustomSize ? (
+                  <>
+                    <div className="lead-form-field mb-3">
+                      <label className="form-label">Unit <span className="text-danger">*</span></label>
+                      <select
+                        className="form-select"
+                        value={customSpecDialog.sizeUnit}
+                        onChange={e => setCustomSpecDialog(prev => ({ ...prev, sizeUnit: e.target.value }))}
+                      >
+                        {(customSpecDialog.field?.unitOptions?.length > 0
+                          ? customSpecDialog.field.unitOptions
+                          : ["mm", "cm", "ft", "inch"]
+                        ).map(u => (
+                          <option key={u} value={u}>
+                            {{ mm: "Millimeters (mm)", cm: "Centimeters (cm)", ft: "Feet (ft)", inch: "Inches (inch)" }[u] || u}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="lead-form-field mb-3">
+                      <label className="form-label">Width ({customSpecDialog.sizeUnit}) <span className="text-danger">*</span></label>
+                      <input
+                        className="form-control"
+                        type="number"
+                        autoFocus
+                        value={customSpecDialog.flexWidth}
+                        onChange={e => setCustomSpecDialog(prev => ({ ...prev, flexWidth: e.target.value }))}
+                        placeholder={`Enter width in ${customSpecDialog.sizeUnit}`}
+                      />
+                    </div>
+                    <div className="lead-form-field mb-3">
+                      <label className="form-label">Height ({customSpecDialog.sizeUnit}) <span className="text-danger">*</span></label>
+                      <input
+                        className="form-control"
+                        type="number"
+                        value={customSpecDialog.flexHeight}
+                        onChange={e => setCustomSpecDialog(prev => ({ ...prev, flexHeight: e.target.value }))}
+                        placeholder={`Enter height in ${customSpecDialog.sizeUnit}`}
+                        onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); saveCustomSpecDialog(); } }}
+                      />
+                    </div>
+                    {error && <div className="alert alert-danger mt-2 py-2 mb-0">{error}</div>}
+                  </>
+                ) : (
+                  <div className="lead-form-field">
+                    <label className="form-label">
+                      {customSpecDialog.isTextPrompt
+                        ? `${customSpecDialog.selectedOption} Details`
+                        : customSpecDialog.field?.label}
+                    </label>
+                    {customSpecDialog.isTextPrompt ? (
+                      <textarea
+                        className="form-control"
+                        autoFocus
+                        rows={customSpecDialog.textRows || 4}
+                        value={customSpecDialog.value}
+                        onChange={e => setCustomSpecDialog(prev => ({ ...prev, value: e.target.value }))}
+                        placeholder={`Enter ${customSpecDialog.selectedOption?.toLowerCase() || "details"}`}
+                      />
+                    ) : (
+                      <input
+                        className="form-control"
+                        autoFocus
+                        value={customSpecDialog.value}
+                        onChange={e => setCustomSpecDialog(prev => ({ ...prev, value: e.target.value }))}
+                        onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); saveCustomSpecDialog(); } }}
+                        placeholder={
+                          customSpecDialog.field?.customPlaceholder ||
+                          `Enter ${customSpecDialog.field?.label || "value"}`
+                        }
+                      />
+                    )}
+                  </div>
+                )}
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-light" onClick={closeCustomSpecDialog}>Cancel</button>
+                <button type="button" className="btn btn-primary" onClick={saveCustomSpecDialog}>Save</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Depth size dialog */}
+      {depthSizeDialog.open && (
+        <div
+          className="modal fade show requirement-form-modal"
+          style={{ display: "block", backgroundColor: "rgba(0,0,0,0.5)", zIndex: 1060 }}
+          tabIndex="-1"
+        >
+          <div className="modal-dialog modal-dialog-centered" style={{ maxWidth: "500px" }}>
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">Enter Custom Size</h5>
+                <button
+                  type="button"
+                  className="btn-close"
+                  onClick={() => setDepthSizeDialog({ open: false, width: "", height: "", depth: "", sizeUnit: "mm" })}
+                  aria-label="Close"
+                />
+              </div>
+              <div className="modal-body" style={{ padding: "1.5rem" }}>
+                <div className="lead-form-field mb-3">
+                  <label className="form-label">Unit <span className="text-danger">*</span></label>
+                  <select
+                    className="form-select"
+                    value={depthSizeDialog.sizeUnit}
+                    onChange={e => setDepthSizeDialog(prev => ({ ...prev, sizeUnit: e.target.value }))}
+                  >
+                    {(depthSizeDialog.field?.unitOptions?.length > 0
+                      ? depthSizeDialog.field.unitOptions
+                      : ["mm", "cm", "ft", "inch"]
+                    ).map(u => (
+                      <option key={u} value={u}>
+                        {{ mm: "Millimeters (mm)", cm: "Centimeters (cm)", ft: "Feet (ft)", inch: "Inches (inch)" }[u] || u}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="lead-form-field mb-3">
+                  <label className="form-label">Width ({depthSizeDialog.sizeUnit}) <span className="text-danger">*</span></label>
+                  <input
+                    className="form-control"
+                    type="number"
+                    autoFocus
+                    value={depthSizeDialog.width}
+                    onChange={e => setDepthSizeDialog(prev => ({ ...prev, width: e.target.value }))}
+                    placeholder={`Enter width in ${depthSizeDialog.sizeUnit}`}
+                  />
+                </div>
+                <div className="lead-form-field mb-3">
+                  <label className="form-label">Height ({depthSizeDialog.sizeUnit}) <span className="text-danger">*</span></label>
+                  <input
+                    className="form-control"
+                    type="number"
+                    value={depthSizeDialog.height}
+                    onChange={e => setDepthSizeDialog(prev => ({ ...prev, height: e.target.value }))}
+                    placeholder={`Enter height in ${depthSizeDialog.sizeUnit}`}
+                  />
+                </div>
+                <div className="lead-form-field mb-3">
+                  <label className="form-label">Depth ({depthSizeDialog.sizeUnit})</label>
+                  <input
+                    className="form-control"
+                    type="number"
+                    value={depthSizeDialog.depth}
+                    onChange={e => setDepthSizeDialog(prev => ({ ...prev, depth: e.target.value }))}
+                    placeholder={`Enter depth in ${depthSizeDialog.sizeUnit}`}
+                    onKeyDown={e => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        const w = String(depthSizeDialog.width || "").trim();
+                        const h = String(depthSizeDialog.height || "").trim();
+                        if (!w || !h) return;
+                        setSpecs(prev => ({
+                          ...prev, size: "Custom",
+                          customWidth: w, customHeight: h,
+                          customDepth: String(depthSizeDialog.depth || "").trim(),
+                          customUnit: depthSizeDialog.sizeUnit,
+                        }));
+                        setDepthSizeDialog({ open: false, width: "", height: "", depth: "", sizeUnit: "mm" });
+                      }
+                    }}
+                  />
+                </div>
+                {error && <div className="alert alert-danger mt-2 py-2 mb-0">{error}</div>}
+              </div>
+              <div className="modal-footer">
+                <button
+                  type="button"
+                  className="btn btn-light"
+                  onClick={() => setDepthSizeDialog({ open: false, width: "", height: "", depth: "", sizeUnit: "mm" })}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={() => {
+                    const w = String(depthSizeDialog.width || "").trim();
+                    const h = String(depthSizeDialog.height || "").trim();
+                    if (!w || !h) { setError("Please enter both width and height"); return; }
+                    setSpecs(prev => ({
+                      ...prev, size: "Custom",
+                      customWidth: w, customHeight: h,
+                      customDepth: String(depthSizeDialog.depth || "").trim(),
+                      customUnit: depthSizeDialog.sizeUnit,
+                    }));
+                    setDepthSizeDialog({ open: false, width: "", height: "", depth: "", sizeUnit: "mm" });
+                    setError("");
+                  }}
+                >
+                  Save
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

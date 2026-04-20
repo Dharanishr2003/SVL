@@ -82,18 +82,14 @@ export default function Sidebar() {
     "project-report",
   );
 
-  const hasServicesItems = canAccessAny("services", "service-categories", "service-types");
+  const hasServicesItems = canAccessAny("services", "service-categories", "service-types", "price-list");
 
-  const hasProjectItems = canAccess("clients");
   const canOpenEmployeeDashboard = canAccess("employee-dashboard");
   const canOpenAdminDashboard = canAccess("admin-dashboard");
   const canOpenSalesDashboard = canAccess("sales-dashboard");
   const hasDashboardItems = isEmployee
     ? canOpenEmployeeDashboard
     : canOpenAdminDashboard || canOpenEmployeeDashboard || canOpenSalesDashboard;
-
-  const hasRecruitmentItems =
-    canAccess("recruitment") && !isEmployee;
 
   const hasSettingsItems =
     isAdminEquivalent &&
@@ -297,46 +293,11 @@ export default function Sidebar() {
                 </ul>
               </li>
 
-              {hasProjectItems && (
-              <>
-              <li className="menu-title">
-                <span>PROJECTS</span>
-              </li>
-              <li>
-                <ul>
-                  {canAccess("clients") && (
-                  <li className="">
-                    <a href="/clients" className="">
-                      <i className="ti ti-users-group"></i>
-                      <span>Clients</span>
-                    </a>
-                  </li>
-                  )}
-                </ul>
-              </li>
-              </>
-              )}
               <li className="menu-title">
                 <span>CRM</span>
               </li>
               <li>
                 <ul>
-                  {canAccess("contacts") && (
-                  <li className="">
-                    <a href="/contacts" className="">
-                      <i className="ti ti-user-shield"></i>
-                      <span>Contacts</span>
-                    </a>
-                  </li>
-                  )}
-                  {canAccess("companies") && (
-                  <li className="">
-                    <a href="/companies" className="">
-                      <i className="ti ti-building"></i>
-                      <span>Companies</span>
-                    </a>
-                  </li>
-                  )}
                   {canAccess("design") && (
                   <li className="">
                     <a href="/design">
@@ -358,6 +319,14 @@ export default function Sidebar() {
                     <a href="/leads">
                       <i className="ti ti-user-check"></i>
                       <span>Leads</span>
+                    </a>
+                  </li>
+                  )}
+                  {canAccess("requirements") && (
+                  <li className="">
+                    <a href="/requirements">
+                      <i className="ti ti-clipboard-list"></i>
+                      <span>Requirements</span>
                     </a>
                   </li>
                   )}
@@ -811,38 +780,19 @@ export default function Sidebar() {
                         <a href="/services/service-types">Service Types</a>
                       </li>
                       )}
+                      {canAccessAny("services", "price-list") && (
+                      <li>
+                        <a href="/services/price-list">Price List</a>
+                      </li>
+                      )}
+                      {canAccessAny("services", "product-field-config") && (
+                      <li>
+                        <a href="/services/product-field-config">Product Field Config</a>
+                      </li>
+                      )}
                     </ul>
                   </li>
                   )}
-                </ul>
-              </li>
-              )}
-              {hasRecruitmentItems && (
-              <li className="menu-title">
-                <span>RECRUITMENT</span>
-              </li>
-              )}
-              {hasRecruitmentItems && (
-              <li>
-                <ul>
-                  <li className="">
-                    <a href="/job-grid">
-                      <i className="ti ti-timeline"></i>
-                      <span>Jobs</span>
-                    </a>
-                  </li>
-                  <li className="">
-                    <a href="/candidates-grid">
-                      <i className="ti ti-user-shield"></i>
-                      <span>Candidates</span>
-                    </a>
-                  </li>
-                  <li className="">
-                    <a href="/referrals">
-                      <i className="ti ti-ux-circle"></i>
-                      <span>Referrals</span>
-                    </a>
-                  </li>
                 </ul>
               </li>
               )}
@@ -984,7 +934,7 @@ export default function Sidebar() {
                     </ul>
                   </li>
                   )}
-                  {canAccessAny("vendor-management", "vendors", "brands", "vendor-types") && (
+                  {canAccessAny("vendor-management", "vendors", "vendor-orders", "brands", "vendor-types") && (
                   <li className="submenu">
                     <a href="javascript:void(0);" className=" ">
                       <i className="ti ti-building"></i>
@@ -995,6 +945,11 @@ export default function Sidebar() {
                       {canAccessAny("vendor-management", "vendors") && (
                       <li>
                         <a href="/stocks/vendors">Vendors</a>
+                      </li>
+                      )}
+                      {canAccessAny("vendor-management", "vendor-orders") && (
+                      <li>
+                        <a href="/stocks/vendor-orders">Vendor Orders</a>
                       </li>
                       )}
                       {canAccessAny("vendor-management", "brands") && (

@@ -2,7 +2,9 @@ package com.nexorcrm.backend.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nexorcrm.backend.entity.User;
+import com.nexorcrm.backend.entity.Vendor;
 import com.nexorcrm.backend.repo.UserRepository;
+import com.nexorcrm.backend.repo.VendorRepository;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -25,11 +27,13 @@ public class JwtFilter extends OncePerRequestFilter {
 
     private final JwtUtil jwtUtil;
     private final UserRepository userRepository;
+    private final VendorRepository vendorRepository;
     private final ObjectMapper objectMapper;
 
-    public JwtFilter(JwtUtil jwtUtil, UserRepository userRepository, ObjectMapper objectMapper) {
+    public JwtFilter(JwtUtil jwtUtil, UserRepository userRepository, VendorRepository vendorRepository, ObjectMapper objectMapper) {
         this.jwtUtil = jwtUtil;
         this.userRepository = userRepository;
+        this.vendorRepository = vendorRepository;
         this.objectMapper = objectMapper;
     }
 
@@ -48,20 +52,38 @@ public class JwtFilter extends OncePerRequestFilter {
             return;
         }
 
-        String email = jwtUtil.extractEmail(token);
-        User user = userRepository.findByEmailAndIsDeletedFalse(email).orElse(null);
-        if (user == null) {
-            writeUnauthorized(response, "User not found for token");
-            return;
-        }
-
         if (SecurityContextHolder.getContext().getAuthentication() == null) {
-            UsernamePasswordAuthenticationToken authentication =
-                    new UsernamePasswordAuthenticationToken(
-                            user.getEmail(),
-                            null,
-                            List.of(new SimpleGrantedAuthority("ROLE_" + user.getRole().name()))
-                    );
+            String tokenType = jwtUtil.extractTokenType(token);
+            UsernamePasswordAuthenticationToken authentication;
+            if (JwtUtil.TOKEN_TYPE_VENDOR.equalsIgnoreCase(tokenType)) {
+                Long vendorId = jwtUtil.extractVendorId(token);
+                if (vendorId == null) {
+                    writeUnauthorized(response, "Vendor not found for token");
+                    return;
+                }
+                Vendor vendor = vendorRepository.findById(vendorId).orElse(null);
+                if (vendor == null || vendor.isDeleted()) {
+                    writeUnauthorized(response, "Vendor not found for token");
+                    return;
+                }
+                authentication = new UsernamePasswordAuthenticationToken(
+                        vendor.getUsername(),
+                        null,
+                        List.of(new SimpleGrantedAuthority("ROLE_VENDOR"))
+                );
+            } else {
+                String email = jwtUtil.extractEmail(token);
+                User user = userRepository.findByEmailAndIsDeletedFalse(email).orElse(null);
+                if (user == null) {
+                    writeUnauthorized(response, "User not found for token");
+                    return;
+                }
+                authentication = new UsernamePasswordAuthenticationToken(
+                        user.getEmail(),
+                        null,
+                        List.of(new SimpleGrantedAuthority("ROLE_" + user.getRole().name()))
+                );
+            }
             authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
             SecurityContextHolder.getContext().setAuthentication(authentication);
         }

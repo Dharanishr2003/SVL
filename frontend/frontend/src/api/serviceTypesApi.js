@@ -6,6 +6,7 @@ export const getServiceTypes = () =>
 export const createServiceType = (data) =>
   api.post('/api/service-types', {
     name: data.name,
+    fieldConfigKey: data.fieldConfigKey,
     categoryId: data.categoryId,
     parentId: data.parentId || null
   }).then(r => r.data);
@@ -13,6 +14,7 @@ export const createServiceType = (data) =>
 export const updateServiceType = (id, data) =>
   api.put(`/api/service-types/${id}`, {
     name: data.name,
+    fieldConfigKey: data.fieldConfigKey,
     categoryId: data.categoryId,
     parentId: data.parentId || null
   }).then(r => r.data);

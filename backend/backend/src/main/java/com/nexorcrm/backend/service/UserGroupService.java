@@ -137,6 +137,7 @@ public class UserGroupService {
             "stock-requests",
             "vendor-management",
             "vendors",
+            "vendor-orders",
             "brands",
             "vendor-types",
             // Reports
@@ -166,6 +167,8 @@ public class UserGroupService {
             "services",
             "service-categories",
             "service-types",
+            "price-list",
+            "product-field-config",
             // Clients
             "clients",
             // Legacy keys

@@ -148,20 +148,8 @@ export const adminPhpRoutes = [
     component: "ClearCachePage",
   },
   {
-    path: "clients-grid",
-    component: "ClientsPage",
-  },
-  {
-    path: "clients",
-    component: "ClientsPage",
-  },
-  {
     path: "coming-soon",
     component: "ComingSoonPage",
-  },
-  {
-    path: "companies",
-    component: "CompaniesPage",
   },
   {
     path: "candidates",
@@ -170,14 +158,6 @@ export const adminPhpRoutes = [
   {
     path: "candidates-grid",
     component: "CandidatesPage",
-  },
-  {
-    path: "companies-grid",
-    component: "CompaniesPage",
-  },
-  {
-    path: "connected-apps",
-    component: "ConnectedAppsPage",
   },
   {
     path: "group-access",
@@ -192,15 +172,7 @@ export const adminPhpRoutes = [
     component: "ContactsPage",
   },
   {
-    path: "countries",
-    component: "CountriesPage",
-  },
-  {
-    path: "stocks",
-    component: "StocksDashboardPage",
-  },
-  {
-    path: "stocks/item",
+    path: "coocks/item",
     component: "StockItemPage",
   },
   {
@@ -218,6 +190,22 @@ export const adminPhpRoutes = [
   {
     path: "stocks/vendors/edit/:id",
     component: "EditVendorPage",
+  },
+  {
+    path: "stocks/vendors/:id",
+    component: "VendorDetailPage",
+  },
+  {
+    path: "stocks/vendor-orders",
+    component: "VendorOrdersPage",
+  },
+  {
+    path: "stocks/vendor-orders/new",
+    component: "VendorOrderCreatePage",
+  },
+  {
+    path: "stocks/vendor-orders/:id",
+    component: "VendorOrderDetailPage",
   },
   {
     path: "stocks/brands",
@@ -565,14 +553,6 @@ export const adminPhpRoutes = [
     component: "InvoiceDetailsPage",
   },
   {
-    path: "job-grid",
-    component: "JobGridPage",
-  },
-  {
-    path: "job-list",
-    component: "JobListPage",
-  },
-  {
     path: "job-details",
     component: "JobDetailsPage",
   },
@@ -611,6 +591,10 @@ export const adminPhpRoutes = [
   {
     path: "leads-dashboard",
     component: "LeadsDashboardPage",
+  },
+  {
+    path: "requirements",
+    component: "RequirementsPage",
   },
   // stock request workflow pages
   {
@@ -814,6 +798,10 @@ export const adminPhpRoutes = [
     component: "QuotationListPage",
   },
   {
+    path: "quotation-template",
+    component: "QuotationTemplatePage",
+  },
+  {
     path: "projects-grid",
     component: "ProjectsPage",
   },
@@ -828,10 +816,6 @@ export const adminPhpRoutes = [
   {
     path: "purchase-transaction",
     component: "PurchaseTransactionPage",
-  },
-  {
-    path: "referals",
-    component: "ReferalsPage",
   },
   {
     path: "register",
@@ -868,14 +852,6 @@ export const adminPhpRoutes = [
   {
     path: "resignation",
     component: "ResignationPage",
-  },
-  {
-    path: "referrals",
-    component: "ReferralsPage",
-  },
-  {
-    path: "refferals",
-    component: "ReferralsPage",
   },
   {
     path: "roles-permissions",
@@ -956,10 +932,6 @@ export const adminPhpRoutes = [
   {
     path: "tasks",
     component: "TasksPage",
-  },
-  {
-    path: "taxes",
-    component: "TaxesPage",
   },
   {
     path: "tax-rates",
@@ -1272,5 +1244,13 @@ export const adminPhpRoutes = [
   {
     path: "services/service-types",
     component: "ServiceTypesPage",
+  },
+  {
+    path: "services/price-list",
+    component: "PriceListPage",
+  },
+  {
+    path: "services/product-field-config",
+    component: "ProductFieldConfigPage",
   },
 ];

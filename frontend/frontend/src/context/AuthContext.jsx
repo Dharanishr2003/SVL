@@ -129,6 +129,10 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     attachAuthHandlers({
       handleAuthFailure: (error) => {
+        // Vendor portal uses its own auth stack; don't force staff logout redirects there.
+        if (window.location.pathname.startsWith("/vendor")) {
+          return;
+        }
         const status = error?.response?.status;
         // Ignore transient refresh failures; only logout on actual auth expiry.
         if (status !== 401 && status !== 403) {
@@ -159,6 +163,11 @@ export function AuthProvider({ children }) {
   // Restore session on every page load via the refresh cookie
   useEffect(() => {
     const restoreSession = async () => {
+      // Vendor portal uses a separate refresh endpoint/cookie; don't attempt staff refresh here.
+      if (window.location.pathname.startsWith("/vendor")) {
+        setLoading(false);
+        return;
+      }
       try {
         const response = await api.post("/api/auth/refresh", {});
         const nextAccess = response.data?.accessToken;

@@ -14,6 +14,9 @@ public class ServiceType {
     @Column(nullable = false, length = 255)
     private String name;
 
+    @Column(name = "field_config_key", length = 120)
+    private String fieldConfigKey;
+
     @ManyToOne
     @JoinColumn(name = "category_id", nullable = false)
     private ServiceCategory category;
@@ -45,6 +48,14 @@ public class ServiceType {
 
     public void setName(String name) {
         this.name = name;
+    }
+
+    public String getFieldConfigKey() {
+        return fieldConfigKey;
+    }
+
+    public void setFieldConfigKey(String fieldConfigKey) {
+        this.fieldConfigKey = fieldConfigKey;
     }
 
     public ServiceCategory getCategory() {

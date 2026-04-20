@@ -1,5 +1,6 @@
 package com.nexorcrm.backend.config;
 
+import com.nexorcrm.backend.entity.Vendor;
 import com.nexorcrm.backend.entity.User;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
@@ -21,6 +22,10 @@ import java.util.UUID;
 public class JwtUtil {
 
     private static final Logger log = LoggerFactory.getLogger(JwtUtil.class);
+
+    public static final String TOKEN_TYPE_CLAIM = "type";
+    public static final String TOKEN_TYPE_USER = "USER";
+    public static final String TOKEN_TYPE_VENDOR = "VENDOR";
 
     @Value("${security.jwt.secret:${JWT_SECRET:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}}")
     private String secret;
@@ -47,10 +52,25 @@ public class JwtUtil {
         Instant now = Instant.now();
         return Jwts.builder()
                 .subject(user.getEmail())
+                .claim(TOKEN_TYPE_CLAIM, TOKEN_TYPE_USER)
                 .claim("userId", user.getId())
                 .claim("email", user.getEmail())
                 .claim("role", user.getRole().name())
                 .claim("forcePasswordChange", user.isForcePasswordChange())
+                .issuedAt(Date.from(now))
+                .expiration(Date.from(now.plusSeconds(accessTokenExpiryMinutes * 60)))
+                .signWith(secretKey)
+                .compact();
+    }
+
+    public String generateVendorAccessToken(Vendor vendor) {
+        Instant now = Instant.now();
+        return Jwts.builder()
+                .subject("vendor:" + vendor.getId())
+                .claim(TOKEN_TYPE_CLAIM, TOKEN_TYPE_VENDOR)
+                .claim("vendorId", vendor.getId())
+                .claim("username", vendor.getUsername())
+                .claim("officialEmail", vendor.getOfficialEmail())
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(now.plusSeconds(accessTokenExpiryMinutes * 60)))
                 .signWith(secretKey)
@@ -78,12 +98,32 @@ public class JwtUtil {
         return parseClaims(token);
     }
 
+    public String extractTokenType(String token) {
+        String type = parseClaims(token).get(TOKEN_TYPE_CLAIM, String.class);
+        return StringUtils.hasText(type) ? type : TOKEN_TYPE_USER;
+    }
+
     public String extractEmail(String token) {
         return parseClaims(token).get("email", String.class);
     }
 
     public String extractRole(String token) {
         return parseClaims(token).get("role", String.class);
+    }
+
+    public Long extractVendorId(String token) {
+        Object value = parseClaims(token).get("vendorId");
+        if (value instanceof Number n) {
+            return n.longValue();
+        }
+        if (value instanceof String s) {
+            try {
+                return Long.parseLong(s);
+            } catch (NumberFormatException ignored) {
+                return null;
+            }
+        }
+        return null;
     }
 
     public boolean extractForcePasswordChange(String token) {

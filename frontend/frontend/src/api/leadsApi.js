@@ -39,7 +39,7 @@ export async function getAssignableLeadGroups() {
     }
     return []
   }
-    return rows
+  return rows
     .map((row) => ({
       id: row?.id,
       name: row?.name || '',
@@ -158,15 +158,9 @@ export async function sendLeadChatMessage(leadId, payload) {
 
 export async function sendLeadChatAttachment(leadId, { threadType, message, file }) {
   const formData = new FormData()
-  if (threadType) {
-    formData.append("threadType", threadType)
-  }
-  if (message) {
-    formData.append("message", message)
-  }
-  if (file) {
-    formData.append("file", file)
-  }
+  if (threadType) formData.append("threadType", threadType)
+  if (message) formData.append("message", message)
+  if (file) formData.append("file", file)
   const response = await api.post(`/api/v1/leads/${leadId}/chat/messages/file`, formData, {
     headers: { "Content-Type": "multipart/form-data" },
   })
@@ -185,7 +179,6 @@ export async function getLeadChatNotifications(since) {
   const response = await api.get(`/api/v1/leads/chat/notifications${query}`)
   return Array.isArray(response?.data) ? response.data : []
 }
-
 
 export async function recordLeadPayment(leadId, { amount, type }) {
   const response = await api.post(`/api/v1/leads/${leadId}/payment`, { amount, type })
@@ -222,8 +215,11 @@ export async function getImportableEmployees() {
   return Array.isArray(response?.data) ? response.data : []
 }
 
-export async function bulkCreateLeads(leads) {
-  const response = await api.post('/api/v1/leads/bulk', { leads })
+export async function bulkCreateLeads(leads, institutionName) {
+  const response = await api.post('/api/v1/leads/bulk', {
+    leads,
+    ...(institutionName ? { institutionName } : {}),
+  })
   return response?.data || {}
 }
 
@@ -262,5 +258,36 @@ export async function approveBudgetVerification(
     invoiceSgstPercent: sgstPercent ?? 0,
     ...extraPayload,
   })
+  return response?.data || {}
+}
+
+// ── Duplicate detection ──────────────────────────────────────────────────────
+
+/**
+ * Check a list of {mobile, email} contacts against existing leads.
+ * Returns an array of matches: [{ mobile, email, matchedLeadId, matchedLeadRef, matchedLeadName }]
+ */
+export async function checkDuplicateLeads(contacts) {
+  const response = await api.post('/api/v1/leads/check-duplicates', { contacts })
+  return Array.isArray(response?.data) ? response.data : []
+}
+
+/**
+ * Fetch all duplicate leads for the current user scope.
+ */
+export async function getDuplicateLeads(params = {}) {
+  const response = await api.get(`/api/v1/leads/duplicates${buildQuery(params)}`)
+  return Array.isArray(response?.data) ? response.data : []
+}
+
+/**
+ * Convert a duplicate lead into a real lead.
+ * The backend re-checks for duplicates; if still a match it returns
+ * { stillDuplicate: true, matchedLeadRef, matchedLeadName } so the
+ * frontend can warn the user before forcing through.
+ * Pass force=true to convert regardless of remaining matches.
+ */
+export async function convertDuplicateLead(leadId, force = false) {
+  const response = await api.patch(`/api/v1/leads/${leadId}/convert-duplicate`, { force })
   return response?.data || {}
 }

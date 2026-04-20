@@ -1,0 +1,109 @@
+<h2>Design Tab — Radio Button Layout</h2>
+<p class="subtitle">Three modes replace the current "Customer has design folder" toggle. Click each option to see what fields appear.</p>
+
+<div class="section">
+  <div class="mockup">
+    <div class="mockup-header">Design Tab — Interactive Preview</div>
+    <div class="mockup-body" style="font-family: system-ui, sans-serif; padding: 24px;">
+
+      <!-- Radio Buttons -->
+      <div style="margin-bottom: 20px;">
+        <label style="font-weight: 600; display: block; margin-bottom: 10px;">Design Mode</label>
+        <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+          <label id="lbl-design-only" onclick="selectMode('design-only')" style="display:flex;align-items:center;gap:8px;padding:10px 18px;border:2px solid #dee2e6;border-radius:8px;cursor:pointer;background:#fff;transition:all 0.15s;">
+            <input type="radio" name="designMode" value="design-only" style="accent-color:#0d6efd;"> Design Only
+          </label>
+          <label id="lbl-production-only" onclick="selectMode('production-only')" style="display:flex;align-items:center;gap:8px;padding:10px 18px;border:2px solid #dee2e6;border-radius:8px;cursor:pointer;background:#fff;transition:all 0.15s;">
+            <input type="radio" name="designMode" value="production-only"> Production Only
+          </label>
+          <label id="lbl-design-production" onclick="selectMode('design-production')" style="display:flex;align-items:center;gap:8px;padding:10px 18px;border:2px solid #dee2e6;border-radius:8px;cursor:pointer;background:#fff;transition:all 0.15s;">
+            <input type="radio" name="designMode" value="design-production"> Design + Production
+          </label>
+        </div>
+      </div>
+
+      <!-- Design Only Fields -->
+      <div id="panel-design-only" style="display:none;background:#f8f9fa;border-radius:8px;padding:16px;border:1px solid #dee2e6;">
+        <p style="font-size:13px;color:#6c757d;margin-bottom:12px;">Design work only — no printing. Collect the design brief.</p>
+        <label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px;">Note</label>
+        <textarea rows="3" placeholder="Any instructions from customer about the design" style="width:100%;border:1px solid #ced4da;border-radius:6px;padding:8px;font-size:13px;box-sizing:border-box;resize:vertical;"></textarea>
+      </div>
+
+      <!-- Production Only Fields -->
+      <div id="panel-production-only" style="display:none;background:#f8f9fa;border-radius:8px;padding:16px;border:1px solid #dee2e6;">
+        <p style="font-size:13px;color:#6c757d;margin-bottom:12px;">Customer has ready design files — upload folder and add notes.</p>
+        <label style="font-size:13px;font-weight:600;display:block;margin-bottom:6px;">Design Folder</label>
+        <div style="border:2px dashed #adb5bd;border-radius:8px;padding:24px;text-align:center;background:#fff;cursor:pointer;margin-bottom:12px;">
+          <div style="font-weight:600;margin-bottom:4px;">📁 Drag and drop the design folder here</div>
+          <small style="color:#6c757d;">or click to choose the folder</small>
+        </div>
+        <label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px;">Note</label>
+        <textarea rows="3" placeholder="Any instructions from customer about the file" style="width:100%;border:1px solid #ced4da;border-radius:6px;padding:8px;font-size:13px;box-sizing:border-box;resize:vertical;"></textarea>
+      </div>
+
+      <!-- Design + Production Fields -->
+      <div id="panel-design-production" style="display:none;background:#f8f9fa;border-radius:8px;padding:16px;border:1px solid #dee2e6;">
+        <p style="font-size:13px;color:#6c757d;margin-bottom:12px;">Full service — design work and printing. Collect the design brief.</p>
+        <label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px;">Note</label>
+        <textarea rows="3" placeholder="Any instructions from customer about the design" style="width:100%;border:1px solid #ced4da;border-radius:6px;padding:8px;font-size:13px;box-sizing:border-box;resize:vertical;"></textarea>
+      </div>
+
+      <div id="hint" style="font-size:13px;color:#adb5bd;margin-top:12px;">← Click a mode above to see its fields</div>
+    </div>
+  </div>
+</div>
+
+<script>
+function selectMode(mode) {
+  const panels = ['design-only', 'production-only', 'design-production'];
+  const labels = {
+    'design-only': document.getElementById('lbl-design-only'),
+    'production-only': document.getElementById('lbl-production-only'),
+    'design-production': document.getElementById('lbl-design-production'),
+  };
+  panels.forEach(p => {
+    document.getElementById('panel-' + p).style.display = 'none';
+    labels[p].style.border = '2px solid #dee2e6';
+    labels[p].style.background = '#fff';
+    labels[p].style.color = '#212529';
+  });
+  document.getElementById('panel-' + mode).style.display = 'block';
+  labels[mode].style.border = '2px solid #0d6efd';
+  labels[mode].style.background = '#e7f1ff';
+  labels[mode].style.color = '#0d6efd';
+  document.getElementById('hint').style.display = 'none';
+
+  // check the radio
+  document.querySelector('input[value="' + mode + '"]').checked = true;
+}
+</script>
+
+<div class="section">
+  <h3>Summary of Each Mode</h3>
+  <table style="width:100%;border-collapse:collapse;font-size:14px;">
+    <thead>
+      <tr style="background:#f1f3f5;">
+        <th style="padding:10px;text-align:left;border:1px solid #dee2e6;">Mode</th>
+        <th style="padding:10px;text-align:left;border:1px solid #dee2e6;">Fields Shown</th>
+        <th style="padding:10px;text-align:left;border:1px solid #dee2e6;">Use Case</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td style="padding:10px;border:1px solid #dee2e6;font-weight:600;">Design Only</td>
+        <td style="padding:10px;border:1px solid #dee2e6;">Notes only</td>
+        <td style="padding:10px;border:1px solid #dee2e6;">Customer wants design work, no printing yet</td>
+      </tr>
+      <tr style="background:#f8f9fa;">
+        <td style="padding:10px;border:1px solid #dee2e6;font-weight:600;">Production Only</td>
+        <td style="padding:10px;border:1px solid #dee2e6;">Folder upload + Notes</td>
+        <td style="padding:10px;border:1px solid #dee2e6;">Customer has ready files, just needs printing</td>
+      </tr>
+      <tr>
+        <td style="padding:10px;border:1px solid #dee2e6;font-weight:600;">Design + Production</td>
+        <td style="padding:10px;border:1px solid #dee2e6;">Notes only</td>
+        <td style="padding:10px;border:1px solid #dee2e6;">Full service — design brief then print</td>
+      </tr>
+    </tbody>
+  </table>
+</div>

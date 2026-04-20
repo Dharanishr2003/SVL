@@ -20,6 +20,11 @@ export async function getQuotations() {
   return response.data;
 }
 
+export async function getQuotationsByLead(leadId) {
+  const response = await api.get(`/api/quotations/lead/${normalizeId(leadId)}`);
+  return response.data;
+}
+
 export async function getQuotationById(id) {
   const response = await api.get(`/api/quotations/${normalizeId(id)}`);
   return response.data;

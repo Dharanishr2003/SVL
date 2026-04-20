@@ -1,0 +1,94 @@
+package com.nexorcrm.backend.service;
+
+import com.nexorcrm.backend.entity.QuotationTemplate;
+import com.nexorcrm.backend.repo.QuotationTemplateRepository;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.HashMap;
+import java.util.Map;
+
+@Service
+public class QuotationTemplateService {
+
+    private final QuotationTemplateRepository repo;
+
+    public QuotationTemplateService(QuotationTemplateRepository repo) {
+        this.repo = repo;
+    }
+
+    @Transactional(readOnly = true)
+    public Map<String, Object> get() {
+        return repo.findTopByOrderByIdAsc()
+                .map(this::toMap)
+                .orElseGet(HashMap::new);
+    }
+
+    @Transactional
+    public Map<String, Object> save(Map<String, Object> payload) {
+        QuotationTemplate tpl = repo.findTopByOrderByIdAsc().orElseGet(QuotationTemplate::new);
+        applyPayload(tpl, payload);
+        return toMap(repo.save(tpl));
+    }
+
+    private void applyPayload(QuotationTemplate tpl, Map<String, Object> p) {
+        if (p.containsKey("companyName"))       tpl.setCompanyName(str(p.get("companyName")));
+        if (p.containsKey("companyTagline"))    tpl.setCompanyTagline(str(p.get("companyTagline")));
+        if (p.containsKey("address"))           tpl.setAddress(str(p.get("address")));
+        if (p.containsKey("phone1"))            tpl.setPhone1(str(p.get("phone1")));
+        if (p.containsKey("phone2"))            tpl.setPhone2(str(p.get("phone2")));
+        if (p.containsKey("workPhone"))         tpl.setWorkPhone(str(p.get("workPhone")));
+        if (p.containsKey("email"))             tpl.setEmail(str(p.get("email")));
+        if (p.containsKey("website"))           tpl.setWebsite(str(p.get("website")));
+        if (p.containsKey("gstin"))             tpl.setGstin(str(p.get("gstin")));
+        if (p.containsKey("stateCode"))         tpl.setStateCode(str(p.get("stateCode")));
+        if (p.containsKey("stateName"))         tpl.setStateName(str(p.get("stateName")));
+        if (p.containsKey("udyamNumber"))       tpl.setUdyamNumber(str(p.get("udyamNumber")));
+        if (p.containsKey("logoBase64"))        tpl.setLogoBase64(str(p.get("logoBase64")));
+        if (p.containsKey("signatureBase64"))   tpl.setSignatureBase64(str(p.get("signatureBase64")));
+        if (p.containsKey("bankName"))          tpl.setBankName(str(p.get("bankName")));
+        if (p.containsKey("accountNumber"))     tpl.setAccountNumber(str(p.get("accountNumber")));
+        if (p.containsKey("ifscCode"))          tpl.setIfscCode(str(p.get("ifscCode")));
+        if (p.containsKey("branch"))            tpl.setBranch(str(p.get("branch")));
+        if (p.containsKey("validityDays"))      tpl.setValidityDays(toInt(p.get("validityDays"), 30));
+        if (p.containsKey("preparedByDefault")) tpl.setPreparedByDefault(str(p.get("preparedByDefault")));
+        if (p.containsKey("approvedByDefault")) tpl.setApprovedByDefault(str(p.get("approvedByDefault")));
+        if (p.containsKey("policyText"))        tpl.setPolicyText(str(p.get("policyText")));
+    }
+
+    private Map<String, Object> toMap(QuotationTemplate t) {
+        Map<String, Object> m = new HashMap<>();
+        m.put("companyName",        t.getCompanyName());
+        m.put("companyTagline",     t.getCompanyTagline());
+        m.put("address",            t.getAddress());
+        m.put("phone1",             t.getPhone1());
+        m.put("phone2",             t.getPhone2());
+        m.put("workPhone",          t.getWorkPhone());
+        m.put("email",              t.getEmail());
+        m.put("website",            t.getWebsite());
+        m.put("gstin",              t.getGstin());
+        m.put("stateCode",          t.getStateCode());
+        m.put("stateName",          t.getStateName());
+        m.put("udyamNumber",        t.getUdyamNumber());
+        m.put("logoBase64",         t.getLogoBase64());
+        m.put("signatureBase64",    t.getSignatureBase64());
+        m.put("bankName",           t.getBankName());
+        m.put("accountNumber",      t.getAccountNumber());
+        m.put("ifscCode",           t.getIfscCode());
+        m.put("branch",             t.getBranch());
+        m.put("validityDays",       t.getValidityDays() != null ? t.getValidityDays() : 30);
+        m.put("preparedByDefault",  t.getPreparedByDefault());
+        m.put("approvedByDefault",  t.getApprovedByDefault());
+        m.put("policyText",         t.getPolicyText());
+        return m;
+    }
+
+    private String str(Object v) {
+        return v == null ? null : v.toString();
+    }
+
+    private int toInt(Object v, int defaultVal) {
+        if (v == null) return defaultVal;
+        try { return Integer.parseInt(v.toString()); } catch (NumberFormatException e) { return defaultVal; }
+    }
+}
