@@ -959,7 +959,7 @@ export default function Sidebar() {
                       )}
                       {canAccessAny("vendor-management", "vendor-types") && (
                       <li>
-                        <a href="/stocks/vendor-types">Vendor Types</a>
+                        <a href="/stocks/vendor-types">Vendor / Company Type</a>
                       </li>
                       )}
                     </ul>

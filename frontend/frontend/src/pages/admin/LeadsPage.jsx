@@ -1665,7 +1665,10 @@ export default function LeadsPage() {
             </div>
           )}
 
-          <div className="table-responsive leads-table-wrap">
+          <div
+            className="table-responsive leads-table-wrap"
+            style={{ overflowX: "auto", WebkitOverflowScrolling: "touch", touchAction: "pan-x" }}
+          >
             <table className="table table-hover align-middle leads-table">
               <thead>
                 <tr>

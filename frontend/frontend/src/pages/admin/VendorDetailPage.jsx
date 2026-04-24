@@ -57,6 +57,7 @@ function BankBlock({ bank, index }) {
         <Field label="Branch Name" value={bank.bankBranchName} />
         <Field label="Account Type" value={bank.bankAccountType} />
         <Field label="UPI ID" value={bank.upiId} />
+        <Field label="UPI Number" value={bank.upiNumber || bank.upiNo || bank.upi_number} />
         <div className="vd-field full">
           <span className="vd-field-label">UPI QR Image</span>
           {hasQrImage ? (
@@ -190,7 +191,7 @@ export default function VendorDetailPage() {
         <div className="vd-info-card">
           <div className="vd-card-title">Basic Info</div>
           <div className="vd-fields cols-1">
-            <Field label="Vendor Name" value={vendor.vendorName} />
+            <Field label="Vendor / Company Name" value={vendor.vendorName} />
             <Field label="Contact Person" value={vendor.contactPerson} />
             <Field label="Phone" value={phoneDisplay} />
             <Field label="Username" value={vendor.username} />
@@ -206,7 +207,7 @@ export default function VendorDetailPage() {
           <div className="vd-card-title">Type & Services</div>
           <div className="vd-fields cols-1">
             <div className="vd-field">
-              <span className="vd-field-label">Vendor Types</span>
+              <span className="vd-field-label">Vendor / Company Types</span>
               {typeChips.length > 0 ? (
                 <div className="vd-chip-wrap">
                   {typeChips.map((c) => (

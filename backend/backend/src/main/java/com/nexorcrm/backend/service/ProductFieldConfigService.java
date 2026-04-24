@@ -1,17 +1,24 @@
 package com.nexorcrm.backend.service;
 
 import com.nexorcrm.backend.dto.ProductFieldConfigRequest;
+import com.nexorcrm.backend.entity.DimensionMaster;
 import com.nexorcrm.backend.dto.ProductFieldConfigResponse;
 import com.nexorcrm.backend.entity.ProductFieldConfig;
 import com.nexorcrm.backend.entity.ServiceType;
+import com.nexorcrm.backend.repo.DimensionMasterRepository;
 import com.nexorcrm.backend.repo.ProductFieldConfigRepository;
 import com.nexorcrm.backend.repo.ServiceTypeRepository;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.time.LocalDateTime;
+import java.util.Map;
 import java.util.List;
+import java.util.Locale;
 import java.util.stream.Collectors;
 
 @Service
@@ -19,10 +26,16 @@ public class ProductFieldConfigService {
 
     private final ProductFieldConfigRepository configRepository;
     private final ServiceTypeRepository serviceTypeRepository;
+    private final DimensionMasterRepository dimensionMasterRepository;
 
-    public ProductFieldConfigService(ProductFieldConfigRepository configRepository, ServiceTypeRepository serviceTypeRepository) {
+    public ProductFieldConfigService(
+            ProductFieldConfigRepository configRepository,
+            ServiceTypeRepository serviceTypeRepository,
+            DimensionMasterRepository dimensionMasterRepository
+    ) {
         this.configRepository = configRepository;
         this.serviceTypeRepository = serviceTypeRepository;
+        this.dimensionMasterRepository = dimensionMasterRepository;
     }
 
     @Transactional(readOnly = true)
@@ -129,10 +142,80 @@ public class ProductFieldConfigService {
         config.setDefaultUnit(request.getDefaultUnit());
         config.setEnable3rdDimension(request.getEnable3rdDimension() != null ? request.getEnable3rdDimension() : false);
         config.setThirdDimensionLabel(request.getThirdDimensionLabel());
-        config.setCustomDimensions(request.getCustomDimensions());
-        config.setCustomDimensionUnit(request.getCustomDimensionUnit());
-        config.setCustomSizeMode(request.getCustomSizeMode());
+        if (isSizeField(config)) {
+            String customSizeMode = normalizeText(request.getCustomSizeMode());
+            List<String> customDimensions = "text".equalsIgnoreCase(customSizeMode)
+                    ? null
+                    : sanitizeCustomDimensions(request.getCustomDimensions());
+            config.setCustomDimensions(customDimensions);
+            config.setCustomDimensionUnit(customDimensions == null || customDimensions.isEmpty()
+                    ? null
+                    : normalizeText(request.getCustomDimensionUnit()));
+            config.setCustomSizeMode(customSizeMode);
+        } else {
+            config.setCustomDimensions(null);
+            config.setCustomDimensionUnit(null);
+            config.setCustomSizeMode(null);
+        }
         config.setDependsOn(request.getDependsOn());
         config.setDependsOnValue(request.getDependsOnValue());
+    }
+
+    private boolean isSizeField(ProductFieldConfig config) {
+        return config.getFieldKey() != null && "size".equalsIgnoreCase(config.getFieldKey());
+    }
+
+    private String normalizeText(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private List<String> sanitizeCustomDimensions(List<String> requestedDimensions) {
+        if (requestedDimensions == null) {
+            return null;
+        }
+
+        Map<String, String> activeDimensionsByName = loadActiveDimensionsByName();
+        LinkedHashSet<String> sanitized = new LinkedHashSet<>();
+        for (String dimension : requestedDimensions) {
+            String normalized = normalizeDimensionLabel(dimension, activeDimensionsByName);
+            if (normalized != null) {
+                sanitized.add(normalized);
+            }
+        }
+
+        if (sanitized.isEmpty()) {
+            return null;
+        }
+
+        return new ArrayList<>(sanitized);
+    }
+
+    private Map<String, String> loadActiveDimensionsByName() {
+        Map<String, String> dimensionsByName = new HashMap<>();
+        for (DimensionMaster dimensionMaster : dimensionMasterRepository.findByIsActiveTrueOrderByNameAsc()) {
+            String name = normalizeText(dimensionMaster.getName());
+            if (name != null) {
+                dimensionsByName.put(name.toLowerCase(Locale.ROOT), name);
+            }
+        }
+        return dimensionsByName;
+    }
+
+    private String normalizeDimensionLabel(String value, Map<String, String> activeDimensionsByName) {
+        String normalized = normalizeText(value);
+        if (normalized == null) {
+            return null;
+        }
+
+        String canonical = activeDimensionsByName.get(normalized.toLowerCase(Locale.ROOT));
+        if (canonical != null) {
+            return canonical;
+        }
+
+        throw new IllegalArgumentException("Invalid custom dimension: " + normalized);
     }
 }

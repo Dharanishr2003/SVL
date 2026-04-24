@@ -511,7 +511,7 @@ export default function EditVendorPage() {
                 </div>
                 <div className="col-md-12">
                   <div className="mb-3">
-                    <label className="form-label">Vendor Type</label>
+                    <label className="form-label">Vendor Type / Comapany Name</label>
                     <VendorTypeSelect
                       selectedIds={form.vendorTypeIds}
                       onChange={(ids) =>

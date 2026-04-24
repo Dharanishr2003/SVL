@@ -76,6 +76,92 @@ const TYPE_BADGE_STYLE = {
   select: { background: "#e8f4fd", color: "#1a6fa8" },
 };
 
+const getCustomSizeUnitOptions = (form) => {
+  const selected = Array.isArray(form?.unitOptions) ? form.unitOptions.filter(Boolean) : [];
+  if (selected.length > 0) return selected;
+  return form?.customDimensionUnit ? [form.customDimensionUnit] : ["mm"];
+};
+
+const getPayloadUnitOptions = (form) => {
+  if (form?.allowCustom && form?.key === "size") {
+    return getCustomSizeUnitOptions(form);
+  }
+  return form?.hasUnit ? (form.unitOptions || []) : [];
+};
+
+const DEFAULT_SIZE_DIMENSIONS = ["Width", "Height"];
+
+const isSizeFieldKey = (fieldKey) => String(fieldKey || "").trim().toLowerCase() === "size";
+
+const sanitizeCustomDimensions = (fieldKey, dimensions, availableDimensions = []) => {
+  if (!isSizeFieldKey(fieldKey)) return [];
+  const hasAvailableDimensions = Array.isArray(availableDimensions) && availableDimensions.length > 0;
+  const dimensionNameMap = new Map(
+    (Array.isArray(availableDimensions) ? availableDimensions : [])
+      .map((dimension) => String(dimension?.name || "").trim())
+      .filter(Boolean)
+      .map((name) => [name.toLowerCase(), name])
+  );
+  const seen = new Set();
+  return (Array.isArray(dimensions) ? dimensions : [])
+    .map((value) => {
+      if (!hasAvailableDimensions) {
+        return String(value || "").trim();
+      }
+      const normalized = String(value || "").trim().toLowerCase();
+      return dimensionNameMap.get(normalized) || "";
+    })
+    .filter((value) => {
+      if (!value) return false;
+      const normalized = value.toLowerCase();
+      if (seen.has(normalized)) return false;
+      seen.add(normalized);
+      return true;
+    });
+};
+
+const getCustomSizeConfigForField = (fieldKey, source = {}, availableDimensions = []) => {
+  if (!isSizeFieldKey(fieldKey)) {
+    return {
+      customDimensions: [],
+      customDimensionUnit: null,
+      customSizeMode: null,
+    };
+  }
+
+  return {
+    customDimensions: sanitizeCustomDimensions(fieldKey, source.customDimensions, availableDimensions),
+    customDimensionUnit: source.customDimensionUnit || "mm",
+    customSizeMode: source.customSizeMode || null,
+  };
+};
+
+const buildCustomSizePayload = (fieldKey, source = {}, availableDimensions = []) => {
+  if (!isSizeFieldKey(fieldKey)) {
+    return {
+      customDimensions: null,
+      customDimensionUnit: null,
+      customSizeMode: null,
+    };
+  }
+
+  const customSizeMode = source.customSizeMode || null;
+  if (customSizeMode === "text") {
+    return {
+      customDimensions: null,
+      customDimensionUnit: null,
+      customSizeMode,
+    };
+  }
+
+  const customDimensions = sanitizeCustomDimensions(fieldKey, source.customDimensions, availableDimensions);
+  return {
+    customDimensions,
+    customDimensionUnit: customDimensions.length > 0 ? (source.customDimensionUnit || "mm") : null,
+    customSizeMode: null,
+  };
+};
+
 // ─── Unit Selector Block Component ──────────────────────────────────────────
 // ─── Depends On Block Component ──────────────────────────────────────────────
 function DependsOnBlock({ form, onChange, fields, currentFieldKey = null, isReviewMode = false }) {
@@ -291,7 +377,7 @@ export default function ProductFieldConfigPage() {
   const [newFieldForm, setNewFieldForm] = useState({
     label: "", key: "", type: "text", options: [], placeholder: "", required: false, hidden: false, allowCustom: false,
     dependsOn: "", dependsOnValue: "", hasDependency: false,
-    customDimensions: ["Width", "Height"], customDimensionUnit: "mm",
+    customDimensions: [], customDimensionUnit: "mm", customSizeMode: null,
     hasUnit: false, unitOptions: [], defaultUnit: "",
   });
 
@@ -397,8 +483,7 @@ export default function ProductFieldConfigPage() {
         hasUnit: f.hasUnit || false,
         unitOptions: f.unitOptions || [],
         defaultUnit: f.defaultUnit || "",
-        customDimensions: f.customDimensions || ["Width", "Height"],
-        customDimensionUnit: f.customDimensionUnit || "mm",
+        ...getCustomSizeConfigForField(f.fieldKey, f, dimensionMasters),
         dependsOn: dependency.dependsOn,
         dependsOnValue: dependency.dependsOnValue,
       });
@@ -460,7 +545,7 @@ export default function ProductFieldConfigPage() {
     setLibSearch("");
     setLibTypeFilter("all");
     setReviewFields([]);
-    setNewFieldForm({ label: "", key: "", type: "text", options: [], placeholder: "", required: false, hidden: false, allowCustom: false, dependsOn: "", dependsOnValue: "", hasDependency: false, customDimensions: ["Width", "Height"], customDimensionUnit: "mm", hasUnit: false, unitOptions: [], defaultUnit: "" });
+    setNewFieldForm({ label: "", key: "", type: "text", options: [], placeholder: "", required: false, hidden: false, allowCustom: false, dependsOn: "", dependsOnValue: "", hasDependency: false, customDimensions: [], customDimensionUnit: "mm", customSizeMode: null, hasUnit: false, unitOptions: [], defaultUnit: "" });
     setCopyProductCategoryId("");
     setCopyParentProductId("");
     setCopyProductId("");
@@ -518,6 +603,7 @@ export default function ProductFieldConfigPage() {
             hasUnit: f.hasUnit || false,
             unitOptions: f.unitOptions || [],
             defaultUnit: f.defaultUnit || "",
+            ...getCustomSizeConfigForField(f.fieldKey, f, dimensionMasters),
             dependsOn: dependency.dependsOn,
             dependsOnValue: dependency.dependsOnValue,
             hasDependency: dependency.hasDependency,
@@ -568,6 +654,7 @@ export default function ProductFieldConfigPage() {
         hasUnit: false,
         unitOptions: [],
         defaultUnit: "",
+        ...getCustomSizeConfigForField(f.key, { customDimensions: DEFAULT_SIZE_DIMENSIONS, customDimensionUnit: "mm" }, dimensionMasters),
         dependsOn: null,
         dependsOnValue: null,
         hasDependency: false,
@@ -592,6 +679,7 @@ export default function ProductFieldConfigPage() {
         hasUnit: f.hasUnit || false,
         unitOptions: f.unitOptions || [],
         defaultUnit: f.defaultUnit || "",
+        ...getCustomSizeConfigForField(f.key, f, dimensionMasters),
         dependsOn: f.dependsOn || null,
         dependsOnValue: f.dependsOnValue || null,
         hasDependency: f.hasDependency || false,
@@ -607,7 +695,7 @@ export default function ProductFieldConfigPage() {
 
   // ── Confirm & add ───────────────────────────────────────────────────────────
   const handleConfirmLibraryFields = async () => {
-    const toCreate = reviewFields.map(f => ({
+      const toCreate = reviewFields.map(f => ({
       label: f.label,
       fieldKey: f.key,
       fieldType: f.type,
@@ -619,8 +707,7 @@ export default function ProductFieldConfigPage() {
       unitOptions: f.unitOptions || [],
       defaultUnit: f.defaultUnit || "",
       isHidden: f.hidden,
-      customDimensions: f.customDimensions || ["Width", "Height"],
-      customDimensionUnit: f.customDimensionUnit || "mm",
+      ...buildCustomSizePayload(f.key, f, dimensionMasters),
       ...buildDependencyPayload(f),
     }));
     try {
@@ -651,11 +738,10 @@ export default function ProductFieldConfigPage() {
       placeholder: newFieldForm.placeholder,
       allowCustom: newFieldForm.allowCustom,
       hasUnit: newFieldForm.hasUnit || false,
-      unitOptions: newFieldForm.hasUnit ? (newFieldForm.unitOptions || []) : [],
+      unitOptions: getPayloadUnitOptions(newFieldForm),
       defaultUnit: newFieldForm.hasUnit ? (newFieldForm.defaultUnit || null) : null,
       isHidden: newFieldForm.hidden,
-      customDimensions: newFieldForm.customDimensions || ["Width", "Height"],
-      customDimensionUnit: newFieldForm.customDimensionUnit || "mm",
+      ...buildCustomSizePayload(newFieldForm.key, newFieldForm, dimensionMasters),
       ...buildDependencyPayload(newFieldForm),
     };
 
@@ -715,11 +801,10 @@ export default function ProductFieldConfigPage() {
       placeholder: editFieldForm.placeholder,
       allowCustom: editFieldForm.allowCustom || false,
       hasUnit: editFieldForm.hasUnit || false,
-      unitOptions: editFieldForm.hasUnit ? (editFieldForm.unitOptions || []) : [],
+      unitOptions: getPayloadUnitOptions(editFieldForm),
       defaultUnit: editFieldForm.hasUnit ? (editFieldForm.defaultUnit || null) : null,
       isHidden: editFieldForm.hidden,
-      customDimensions: editFieldForm.customDimensions || ["Width", "Height"],
-      customDimensionUnit: editFieldForm.customDimensionUnit || "mm",
+      ...buildCustomSizePayload(editFieldForm.key, editFieldForm, dimensionMasters),
       ...buildDependencyPayload(editFieldForm),
     };
     
@@ -1409,7 +1494,7 @@ export default function ProductFieldConfigPage() {
                             </div>
                             {(newFieldForm.allowCustom && newFieldForm.key === "size") && (
                               <div className="mt-3">
-                                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                                <div style={{ display: "inline-flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
                                   <label style={{ fontSize: 12, fontWeight: 600, color: "#555" }}>Custom dimension fields</label>
                                   <button
                                     type="button"
@@ -1437,7 +1522,7 @@ export default function ProductFieldConfigPage() {
                                     </label>
                                   ))}
                                 </div>
-                                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                                <div style={{ display: "inline-flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
                                   <label className="form-label" style={{ fontSize: 12, fontWeight: 600, marginBottom: 0 }}>Unit options</label>
                                   <button
                                     type="button"
@@ -1448,13 +1533,40 @@ export default function ProductFieldConfigPage() {
                                     + Manage
                                   </button>
                                 </div>
+                                <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
+                                  {unitMasters.map((unit) => {
+                                    const selectedUnits = getCustomSizeUnitOptions(newFieldForm);
+                                    return (
+                                      <label key={unit.id} style={{ display: "flex", alignItems: "center", gap: 4, cursor: "pointer", margin: 0 }}>
+                                        <input
+                                          type="checkbox"
+                                          className="form-check-input"
+                                          checked={selectedUnits.includes(unit.name)}
+                                          onChange={(e) => {
+                                            const current = getCustomSizeUnitOptions(newFieldForm);
+                                            const next = e.target.checked
+                                              ? [...current, unit.name]
+                                              : current.filter((u) => u !== unit.name);
+                                            setNewFieldForm((p) => ({
+                                              ...p,
+                                              unitOptions: next,
+                                              customDimensionUnit: next.includes(p.customDimensionUnit) ? p.customDimensionUnit : (next[0] || "mm"),
+                                            }));
+                                          }}
+                                        />
+                                        <span style={{ fontSize: 13 }}>{unit.name}</span>
+                                      </label>
+                                    );
+                                  })}
+                                </div>
+                                <label className="form-label" style={{ fontSize: 12, fontWeight: 600 }}>Default unit</label>
                                 <select
                                   className="form-select"
                                   style={{ fontSize: 13 }}
                                   value={newFieldForm.customDimensionUnit || "mm"}
                                   onChange={(e) => setNewFieldForm((p) => ({ ...p, customDimensionUnit: e.target.value }))}
                                 >
-                                  {unitMasters.map((u) => <option key={u.id} value={u.name}>{u.name}</option>)}
+                                  {getCustomSizeUnitOptions(newFieldForm).map((u) => <option key={u} value={u}>{u}</option>)}
                                 </select>
                               </div>
                             )}
@@ -1474,7 +1586,7 @@ export default function ProductFieldConfigPage() {
                             </label>
                             {newFieldForm.hasUnit && (
                               <div style={{ paddingTop: 12, borderTop: "1px solid #e9ecef", marginTop: 8 }}>
-                                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                                <div style={{ display: "inline-flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
                                   <label className="form-label" style={{ fontSize: 12, fontWeight: 600, marginBottom: 0 }}>
                                     Unit options
                                   </label>
@@ -1642,7 +1754,7 @@ export default function ProductFieldConfigPage() {
                                   </div>
                                   {(field.allowCustom && field.key === "size") && (
                                     <div className="mt-3">
-                                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                                      <div style={{ display: "inline-flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
                                         <label style={{ fontSize: 12, fontWeight: 600, color: "#555" }}>Custom dimension fields</label>
                                         <button
                                           type="button"
@@ -1670,7 +1782,7 @@ export default function ProductFieldConfigPage() {
                                           </label>
                                         ))}
                                       </div>
-                                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                                      <div style={{ display: "inline-flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
                                         <label className="form-label" style={{ fontSize: 12, fontWeight: 600, marginBottom: 0 }}>Unit options</label>
                                         <button
                                           type="button"
@@ -1681,13 +1793,39 @@ export default function ProductFieldConfigPage() {
                                           + Manage
                                         </button>
                                       </div>
+                                      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
+                                        {unitMasters.map((unit) => {
+                                          const selectedUnits = getCustomSizeUnitOptions(field);
+                                          return (
+                                            <label key={unit.id} style={{ display: "flex", alignItems: "center", gap: 4, cursor: "pointer", margin: 0 }}>
+                                              <input
+                                                type="checkbox"
+                                                className="form-check-input"
+                                                checked={selectedUnits.includes(unit.name)}
+                                                onChange={(e) => {
+                                                  const current = getCustomSizeUnitOptions(field);
+                                                  const next = e.target.checked
+                                                    ? [...current, unit.name]
+                                                    : current.filter((u) => u !== unit.name);
+                                                  updateReviewField(field.key, {
+                                                    unitOptions: next,
+                                                    customDimensionUnit: next.includes(field.customDimensionUnit) ? field.customDimensionUnit : (next[0] || "mm"),
+                                                  });
+                                                }}
+                                              />
+                                              <span style={{ fontSize: 13 }}>{unit.name}</span>
+                                            </label>
+                                          );
+                                        })}
+                                      </div>
+                                      <label className="form-label" style={{ fontSize: 12, fontWeight: 600 }}>Default unit</label>
                                       <select
                                         className="form-select"
                                         style={{ fontSize: 13 }}
                                         value={field.customDimensionUnit || "mm"}
                                         onChange={(e) => updateReviewField(field.key, { customDimensionUnit: e.target.value })}
                                       >
-                                        {unitMasters.map((u) => <option key={u.id} value={u.name}>{u.name}</option>)}
+                                        {getCustomSizeUnitOptions(field).map((u) => <option key={u} value={u}>{u}</option>)}
                                       </select>
                                     </div>
                                   )}
@@ -1708,7 +1846,7 @@ export default function ProductFieldConfigPage() {
                                   </label>
                                   {field.hasUnit && (
                                     <div style={{ paddingTop: 12, borderTop: "1px solid #e9ecef", marginTop: 8 }}>
-                                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                                      <div style={{ display: "inline-flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
                                         <label className="form-label" style={{ fontSize: 12, fontWeight: 600, marginBottom: 0 }}>
                                           Unit options
                                         </label>
@@ -1905,7 +2043,7 @@ export default function ProductFieldConfigPage() {
                       </div>
                       {(editFieldForm.allowCustom && editFieldForm.key === "size") && (
                         <div className="mt-3">
-                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                          <div style={{ display: "inline-flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
                             <label style={{ fontSize: 12, fontWeight: 600, color: "#555" }}>Custom dimension fields</label>
                             <button
                               type="button"
@@ -1933,7 +2071,7 @@ export default function ProductFieldConfigPage() {
                               </label>
                             ))}
                           </div>
-                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                          <div style={{ display: "inline-flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
                             <label className="form-label" style={{ fontSize: 12, fontWeight: 600, marginBottom: 0 }}>Unit options</label>
                             <button
                               type="button"
@@ -1944,13 +2082,40 @@ export default function ProductFieldConfigPage() {
                               + Manage
                             </button>
                           </div>
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
+                            {unitMasters.map((unit) => {
+                              const selectedUnits = getCustomSizeUnitOptions(editFieldForm);
+                              return (
+                                <label key={unit.id} style={{ display: "flex", alignItems: "center", gap: 4, cursor: "pointer", margin: 0 }}>
+                                  <input
+                                    type="checkbox"
+                                    className="form-check-input"
+                                    checked={selectedUnits.includes(unit.name)}
+                                    onChange={(e) => {
+                                      const current = getCustomSizeUnitOptions(editFieldForm);
+                                      const next = e.target.checked
+                                        ? [...current, unit.name]
+                                        : current.filter((u) => u !== unit.name);
+                                      setEditFieldForm((p) => ({
+                                        ...p,
+                                        unitOptions: next,
+                                        customDimensionUnit: next.includes(p.customDimensionUnit) ? p.customDimensionUnit : (next[0] || "mm"),
+                                      }));
+                                    }}
+                                  />
+                                  <span style={{ fontSize: 13 }}>{unit.name}</span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                          <label className="form-label" style={{ fontSize: 12, fontWeight: 600 }}>Default unit</label>
                           <select
                             className="form-select"
                             style={{ fontSize: 13 }}
                             value={editFieldForm.customDimensionUnit || "mm"}
                             onChange={(e) => setEditFieldForm((p) => ({ ...p, customDimensionUnit: e.target.value }))}
                           >
-                            {unitMasters.map((u) => <option key={u.id} value={u.name}>{u.name}</option>)}
+                            {getCustomSizeUnitOptions(editFieldForm).map((u) => <option key={u} value={u}>{u}</option>)}
                           </select>
                         </div>
                       )}
@@ -1977,7 +2142,7 @@ export default function ProductFieldConfigPage() {
                       </div>
                       {editFieldForm.hasUnit && (
                         <div style={{ paddingTop: 12, borderTop: "1px solid #e9ecef" }}>
-                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                          <div style={{ display: "inline-flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
                             <label className="form-label" style={{ fontSize: 12, fontWeight: 600, marginBottom: 0 }}>
                               Unit options
                             </label>

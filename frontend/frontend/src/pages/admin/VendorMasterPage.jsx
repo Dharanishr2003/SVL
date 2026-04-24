@@ -6,7 +6,8 @@ import {
   deleteVendor,
 } from "../../api/vendorsApi";
 import { getVendorTypes } from "../../api/vendorTypesApi";
-import { getStockCategories } from "../../api/stocksApi";
+import { getServiceCategories } from "../../api/serviceCategoriesApi";
+import { getServiceTypes } from "../../api/serviceTypesApi";
 import { extractApiErrorMessage } from "../../utils/errorMessage";
 import { useToast } from "../../components/system/ToastProvider";
 import useConfirmDialog from "../../components/system/useConfirmDialog";
@@ -25,20 +26,26 @@ export default function VendorMasterPage() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [showProductsModal, setShowProductsModal] = useState(false);
+  const [productsTarget, setProductsTarget] = useState(null);
+  const [popupMode, setPopupMode] = useState("types");
   
   // Lookup data
   const [vendorTypes, setVendorTypes] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [serviceTypes, setServiceTypes] = useState([]);
 
   // Load master data
   const loadMasterData = async () => {
     try {
-      const [types, cats] = await Promise.all([
+      const [types, cats, allTypes] = await Promise.all([
         getVendorTypes(),
-        getStockCategories(),
+        getServiceCategories(),
+        getServiceTypes(),
       ]);
       setVendorTypes(Array.isArray(types) ? types : []);
       setCategories(Array.isArray(cats) ? cats : []);
+      setServiceTypes(Array.isArray(allTypes) ? allTypes : []);
     } catch (e) {
       console.warn("Failed to load master data", e);
     }
@@ -97,7 +104,7 @@ export default function VendorMasterPage() {
   };
 
   const buildVendorUpdatePayload = (row, nextStatus) => ({
-    vendorName: row.vendorName || "",
+    vendorName : row.vendorName || "",
     contactPerson: row.contactPerson || "",
     phone: row.phone || "",
     email: row.email || "",
@@ -141,39 +148,63 @@ export default function VendorMasterPage() {
     }
   };
 
-  const closeBtn = (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width="14"
-      height="14"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="#000"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <line x1="6" y1="6" x2="18" y2="18" />
-      <line x1="18" y1="6" x2="6" y2="18" />
-    </svg>
-  );
-
-  // Helper to get vendor type names
-  const getVendorTypeNames = (ids) => {
-    if (!Array.isArray(ids) || ids.length === 0) return "—";
+  const getSelectedVendorTypes = (row) => {
+    const ids = Array.isArray(row?.vendorTypeIds) ? row.vendorTypeIds : [];
+    if (ids.length === 0) return [];
     return ids
-      .map((id) => vendorTypes.find((vt) => vt.id === id)?.typeName || "")
+      .map((id) => vendorTypes.find((type) => Number(type.id) === Number(id)))
+      .filter(Boolean)
+      .map((type) => ({
+        id: type.id,
+        name: type.typeName || "-",
+      }));
+  };
+
+  const getProductNames = (ids) => {
+    if (!Array.isArray(ids) || ids.length === 0) return "-";
+    return ids
+      .map((id) => categories.find((cat) => Number(cat.id) === Number(id))?.name || "")
       .filter(Boolean)
       .join(", ");
   };
 
-  // Helper to get product names
-  const getProductNames = (ids) => {
-    if (!Array.isArray(ids) || ids.length === 0) return "—";
-    return ids
-      .map((id) => categories.find((cat) => cat.id === id)?.name || "")
-      .filter(Boolean)
-      .join(", ");
+  const getSelectedServiceItems = (row) => {
+    const brandIds = Array.isArray(row?.brandIds) ? row.brandIds : [];
+    if (brandIds.length === 0) return [];
+
+    return brandIds
+      .map((id) => {
+        const selected = serviceTypes.find((type) => Number(type.id) === Number(id));
+        if (!selected) return null;
+
+        if (selected.parentId) {
+          const parent = serviceTypes.find((type) => Number(type.id) === Number(selected.parentId));
+          const category = categories.find(
+            (cat) => Number(cat.id) === Number(parent?.categoryId ?? selected.categoryId),
+          );
+          return {
+            id: selected.id,
+            categoryName: category?.name || "-",
+            typeName: parent?.name || "-",
+            subTypeName: selected.name || "-",
+          };
+        }
+
+        const category = categories.find((cat) => Number(cat.id) === Number(selected.categoryId));
+        return {
+          id: selected.id,
+          categoryName: category?.name || "-",
+          typeName: selected.name || "-",
+          subTypeName: "-",
+        };
+      })
+      .filter(Boolean);
+  };
+
+  const openProductsModal = (row, mode) => {
+    setPopupMode(mode);
+    setProductsTarget(row);
+    setShowProductsModal(true);
   };
 
   return (
@@ -209,6 +240,7 @@ export default function VendorMasterPage() {
               type="button"
               className="btn btn-primary d-flex align-items-center"
               onClick={() => setShowAddModal(true)}
+              style={{ whiteSpace: "nowrap" }}
             >
               <i className="ti ti-circle-plus me-2"></i>Add Vendor
             </button>
@@ -223,14 +255,17 @@ export default function VendorMasterPage() {
             </span>
           </div>
           <div className="card-body p-0">
-            <div className="custom-datatable-filter table-responsive">
+            <div
+              className="custom-datatable-filter table-responsive"
+              style={{ overflowX: "auto", WebkitOverflowScrolling: "touch", touchAction: "pan-x" }}
+            >
               <table className="table table-sm">
                 <thead className="thead-light">
                   <tr>
                     <th style={{ width: "50px" }}>#</th>
-                    <th>Vendor Name</th>
-                    <th>Official Email</th>
-                    <th>Vendor Types</th>
+                    <th>Vendor / Company Name</th>
+                    <th>Mobile</th>
+                    <th>Vendor / Company Types</th>
                     <th>Products</th>
                     <th>Status</th>
                     <th style={{ width: "80px" }}>Action</th>
@@ -250,12 +285,24 @@ export default function VendorMasterPage() {
                       <tr key={row.id}>
                         <td>{idx + 1}</td>
                         <td className="fw-semibold">{row.vendorName || "—"}</td>
-                        <td>{row.officialEmail || "—"}</td>
+                        <td>{row.phone || "—"}</td>
                         <td>
-                          <small>{getVendorTypeNames(row.vendorTypeIds)}</small>
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-outline-primary"
+                            onClick={() => openProductsModal(row, "types")}
+                          >
+                            View
+                          </button>
                         </td>
                         <td>
-                          <small>{getProductNames(row.productIds)}</small>
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-outline-primary"
+                            onClick={() => openProductsModal(row, "products")}
+                          >
+                            View
+                          </button>
                         </td>
                         <td>
                           <div className="d-flex align-items-center gap-2">
@@ -343,13 +390,6 @@ export default function VendorMasterPage() {
               <div className="modal-content">
                 <div className="modal-header">
                   <h4 className="modal-title">Confirm Delete</h4>
-                  <button
-                    type="button"
-                    className="btn-close custom-btn-close"
-                    onClick={() => setShowDeleteModal(false)}
-                  >
-                    {closeBtn}
-                  </button>
                 </div>
                 <div className="modal-body">
                   <p>
@@ -380,6 +420,95 @@ export default function VendorMasterPage() {
           <div className="modal-backdrop fade show" />
         </>
       )}
+
+      {/* Product Details Modal */}
+      {showProductsModal && (
+        <>
+          <div className="modal fade show" style={{ display: "block" }} tabIndex="-1">
+            <div className="modal-dialog modal-lg modal-dialog-centered">
+              <div className="modal-content">
+                <div className="modal-header">
+                  <h4 className="modal-title">
+                    {popupMode === "types" ? "Vendor Type Details" : "Product Details"}: {productsTarget?.vendorName || "Vendor"}
+                  </h4>
+                </div>
+                <div className="modal-body">
+                  {popupMode === "types" ? (
+                    <div className="mb-3">
+                      <h6 className="mb-2">Vendor / Company Types</h6>
+                      {getSelectedVendorTypes(productsTarget).length === 0 ? (
+                        <div>-</div>
+                      ) : (
+                        <div className="d-flex flex-wrap gap-2">
+                          {getSelectedVendorTypes(productsTarget).map((item) => (
+                            <span key={item.id} className="badge bg-light text-dark">
+                              {item.name}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <>
+                      <div className="mb-3">
+                        <h6 className="mb-2">Service Categories</h6>
+                        <div>{getProductNames(productsTarget?.productIds)}</div>
+                      </div>
+                      <div>
+                        <h6 className="mb-2">Selected Types / Sub-Types</h6>
+                        {getSelectedServiceItems(productsTarget).length === 0 ? (
+                          <div>-</div>
+                        ) : (
+                          <div
+                            className="table-responsive"
+                            style={{ overflowX: "auto", WebkitOverflowScrolling: "touch", touchAction: "pan-x" }}
+                          >
+                            <table className="table table-sm table-bordered mb-0">
+                              <thead>
+                                <tr>
+                                  <th style={{ width: "50px" }}>#</th>
+                                  <th>Category</th>
+                                  <th>Type</th>
+                                  <th>Sub-Type</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {getSelectedServiceItems(productsTarget).map((item, index) => (
+                                  <tr key={`${item.id}-${index}`}>
+                                    <td>{index + 1}</td>
+                                    <td>{item.categoryName}</td>
+                                    <td>{item.typeName}</td>
+                                    <td>{item.subTypeName}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+                <div className="modal-footer">
+                  <button
+                    type="button"
+                    className="btn btn-light"
+                    onClick={() => {
+                      setShowProductsModal(false);
+                      setProductsTarget(null);
+                    }}
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="modal-backdrop fade show" />
+        </>
+      )}
     </>
   );
 }
+
+

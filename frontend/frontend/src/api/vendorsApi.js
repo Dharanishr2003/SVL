@@ -45,6 +45,7 @@ function normalizeVendorResponse(row) {
           bankBranchName: detail?.bankBranchName || '',
           bankAccountType: detail?.bankAccountType || '',
           upiId: detail?.upiId || '',
+          upiNumber: detail?.upiNumber || detail?.upiNo || detail?.upi_number || '',
           upiQrImage: detail?.upiQrImage || '',
         }))
       : [],
@@ -78,6 +79,7 @@ function normalizeVendorPayload(vendor) {
           bankBranchName: detail?.bankBranchName || '',
           bankAccountType: detail?.bankAccountType || '',
           upiId: detail?.upiId || '',
+          upiNumber: detail?.upiNumber || detail?.upiNo || detail?.upi_number || '',
           upiQrImage: detail?.upiQrImage || '',
         }))
       : [],

@@ -33,8 +33,16 @@ public class DimensionMasterService {
         if (!StringUtils.hasText(normalized)) {
             throw new IllegalArgumentException("Dimension name is required");
         }
-        if (repository.existsByNameIgnoreCase(normalized)) {
-            throw new IllegalArgumentException("Dimension already exists");
+
+        DimensionMaster existing = repository.findFirstByNameIgnoreCase(normalized).orElse(null);
+        if (existing != null) {
+            if (Boolean.TRUE.equals(existing.getIsActive())) {
+                throw new IllegalArgumentException("Dimension already exists");
+            }
+
+            existing.setIsActive(true);
+            existing.setName(normalized);
+            return new DimensionMasterResponse(repository.save(existing));
         }
 
         DimensionMaster d = new DimensionMaster();

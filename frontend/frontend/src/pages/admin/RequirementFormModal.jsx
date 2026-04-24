@@ -4,10 +4,17 @@ import "./LeadsPage.css";
 import "./RequirementFormModal.css";
 import { createRequirement, updateRequirement } from "../../api/requirementApi";
 import { getCustomOptions, saveCustomOption } from "../../api/customOptionsApi";
-import { collectCustomOptionSaves } from "../../utils/customSizeUtils";
+import {
+  collectCustomOptionSaves,
+  getConfiguredSizeDimensions,
+  getCustomSizeEntries,
+  getCustomSizeStorageKeys,
+  getCustomSizeSummary,
+} from "../../utils/customSizeUtils";
 import { getFieldsByServiceType } from "../../api/productFieldConfigApi";
 
 const STYLE_PREF_OPTIONS = ["Minimal", "Bold", "Traditional", "Corporate", "Fun"];
+const LEGACY_CUSTOM_SIZE_FIELD_KEYS = new Set(["customWidth", "customHeight", "customDepth"]);
 
 function readEntryFile(entry) {
   return new Promise((resolve, reject) => {
@@ -36,6 +43,20 @@ function readDirectoryEntries(directoryEntry) {
 
     readBatch();
   });
+}
+
+function buildSizeDialogState(field, values, fallbackUnit = "mm") {
+  return {
+    open: true,
+    field,
+    value: "",
+    isFlexCustomSize: true,
+    dimensionValues: Object.fromEntries(
+      getCustomSizeEntries(field, values).map((entry) => [entry.key, entry.value])
+    ),
+    customSizeUnitLabel: fallbackUnit,
+    sizeUnit: field?.customDimensionUnit || fallbackUnit,
+  };
 }
 
 async function collectDroppedFiles(items) {
@@ -105,11 +126,9 @@ export default function RequirementFormModal({
     field: null,
     value: "",
     isFlexCustomSize: false,
-    flexWidth: "",
-    flexHeight: "",
+    dimensionValues: {},
     sizeUnit: "mm",
   });
-  const [depthSizeDialog, setDepthSizeDialog] = useState({ open: false, width: "", height: "", depth: "", sizeUnit: "mm" });
   // Map of fieldKey → string[] of saved custom options for current type/subtype
   const [customOptionsByFieldKey, setCustomOptionsByFieldKey] = useState({});
 
@@ -167,7 +186,14 @@ export default function RequirementFormModal({
       setDeliveryDate(initialRequirement?.deliveryDate || "");
       setSpecialInstructions(initialRequirement?.specialInstructions || "");
       setFiles([]);
-      setCustomSpecDialog({ open: false, field: null, value: "" });
+      setCustomSpecDialog({
+        open: false,
+        field: null,
+        value: "",
+        isFlexCustomSize: false,
+        dimensionValues: {},
+        sizeUnit: "mm",
+      });
     }
   }, [show, initialRequirement]);
 
@@ -216,7 +242,7 @@ export default function RequirementFormModal({
           isRequired: f.isRequired,
           placeholder: f.placeholder,
           allowCustom: f.allowCustom,
-          customDimensions: f.customDimensions || ["width", "height"],
+          customDimensions: Array.isArray(f.customDimensions) ? f.customDimensions : [],
           customDimensionUnit: f.customDimensionUnit || "mm",
           customSizeMode: f.customSizeMode || null,
           isHidden: f.isHidden,
@@ -353,94 +379,29 @@ export default function RequirementFormModal({
   }, []);
 
   const handleSelectSpecChange = useCallback((field, value) => {
-    // Handle custom size selection first so sticker size uses mm/inch instead of the generic custom popup.
     if (field.key === "size" && value === "Custom") {
-      // Some products (e.g. Reflector Flex) treat size as a text custom value (sizeCustom),
-      // not as width/height dimensions (customWidth/customHeight).
       if (field.customSizeMode === "text") {
         setCustomSpecDialog({
           open: true,
           field,
           value: String(specs[`${field.key}Custom`] || "").trim(),
           isFlexCustomSize: false,
-          flexWidth: "",
-          flexHeight: "",
+          dimensionValues: {},
           customSizeUnitLabel: "ft",
           sizeUnit: "mm",
         });
         return;
       }
 
-      const configDims = field.customDimensions || [];
-      const hasDimensionFields = configDims.length > 0
-        ? true
-        : (productFields || []).some((f) => f.key === "customWidth");
-      const hasDepthField = configDims.length > 0
-        ? (configDims.includes("Depth") || configDims.includes("depth"))
-        : (productFields || []).some((f) => f.key === "customDepth");
-      const unit = configDims.length > 0
-        ? (field.customDimensionUnit || "mm")
-        : null;
+      const configDims = getConfiguredSizeDimensions(field);
+      const unit = field.customDimensionUnit || "mm";
 
-      if (hasDimensionFields) {
-        if (hasDepthField) {
-          setDepthSizeDialog({
-            open: true,
-            field,
-            width: specs.customWidth || "",
-            height: specs.customHeight || "",
-            depth: specs.customDepth || "",
-            sizeUnit: unit || "mm",
-          });
-          return;
-        }
-
-        setCustomSpecDialog({
-          open: true,
-          field,
-          value: "",
-          isFlexCustomSize: true,
-          flexWidth: specs.customWidth || "",
-          flexHeight: specs.customHeight || "",
-          customSizeUnitLabel: unit || "mm",
-          sizeUnit: unit || "mm",
-        });
+      if (configDims.length > 0) {
+        setCustomSpecDialog(buildSizeDialogState(field, specs, unit || "mm"));
         return;
       }
 
-      // legacy fallback — name-based detection for existing products
-      const typeName = (selectedType?.name || "").toLowerCase().trim();
-      const subtypeName = (selectedSubtype?.name || "").toLowerCase().trim();
-      const isSticker = typeName.includes("sticker") || subtypeName.includes("sticker");
-      const isCard = typeName.includes("card") || subtypeName.includes("card");
-      const hasDepthFieldLegacy = (productFields || []).some((f) => f.key === "customDepth");
-      const useMm = hasDepthFieldLegacy || isSticker || isCard;
-      let unitLabel = "ft";
-      if (isSticker) unitLabel = "mm or inch";
-      else if (isCard || hasDepthFieldLegacy) unitLabel = "mm";
 
-      if (hasDepthFieldLegacy) {
-        setDepthSizeDialog({
-          open: true,
-          field,
-          width: specs.customWidth || "",
-          height: specs.customHeight || "",
-          depth: specs.customDepth || "",
-          sizeUnit: unit || (useMm ? "mm" : "ft"),
-        });
-        return;
-      }
-
-      setCustomSpecDialog({
-        open: true,
-        field,
-        value: "",
-        isFlexCustomSize: true,
-        flexWidth: specs.customWidth || "",
-        flexHeight: specs.customHeight || "",
-        customSizeUnitLabel: unitLabel,
-        sizeUnit: unit || (useMm ? "mm" : "ft"),
-      });
       return;
     }
 
@@ -453,8 +414,7 @@ export default function RequirementFormModal({
         isTextPrompt: true,
         textRows: field.textRows || 4,
         selectedOption: value,
-        flexWidth: "",
-        flexHeight: "",
+        dimensionValues: {},
         customSizeUnitLabel: "ft",
         sizeUnit: "mm",
       });
@@ -467,8 +427,7 @@ export default function RequirementFormModal({
         field,
         value: String(specs[`${field.key}Custom`] || "").trim(),
         isFlexCustomSize: false,
-        flexWidth: "",
-        flexHeight: "",
+        dimensionValues: {},
         customSizeUnitLabel: "ft",
         sizeUnit: "mm",
       });
@@ -482,19 +441,19 @@ export default function RequirementFormModal({
         // Avoid stale custom-size fields when a non-"Custom" option is selected.
         // This matters when we inject previously-saved custom sizes as normal options.
         if (field.key === "size") {
-          delete next.customWidth;
-          delete next.customHeight;
-          delete next.customDepth;
+          getCustomSizeStorageKeys(field).forEach((storageKey) => {
+            delete next[storageKey];
+          });
           delete next.customUnit;
           delete next.sizeCustom;
         }
       }
       return next;
     });
-  }, [specs, productFields, selectedType, selectedSubtype]);
+  }, [specs]);
 
   const closeCustomSpecDialog = useCallback(() => {
-    setCustomSpecDialog({ open: false, field: null, value: "", isFlexCustomSize: false, flexWidth: "", flexHeight: "", customSizeUnitLabel: "ft", sizeUnit: "mm" });
+    setCustomSpecDialog({ open: false, field: null, value: "", isFlexCustomSize: false, dimensionValues: {}, customSizeUnitLabel: "ft", sizeUnit: "mm" });
   }, []);
 
   const saveCustomSpecDialog = useCallback(() => {
@@ -503,22 +462,23 @@ export default function RequirementFormModal({
 
     // Handle flex printing custom size
     if (customSpecDialog.isFlexCustomSize) {
-      const width = String(customSpecDialog.flexWidth || "").trim();
-      const height = String(customSpecDialog.flexHeight || "").trim();
+      const entries = getCustomSizeEntries(field, customSpecDialog.dimensionValues);
+      const missing = entries.find((entry) => !String(customSpecDialog.dimensionValues?.[entry.key] || "").trim());
 
-      if (!width || !height) {
-        setError("Please enter both width and height");
+      if (missing) {
+        setError(`Please enter ${missing.label.toLowerCase()}`);
         return;
       }
+
+      const dimensionPayload = Object.fromEntries(entries.map((entry) => [entry.key, String(customSpecDialog.dimensionValues?.[entry.key] || "").trim()]));
 
       setSpecs((prev) => ({
         ...prev,
         [field.key]: "Custom",
-        customWidth: width,
-        customHeight: height,
+        ...dimensionPayload,
         customUnit: customSpecDialog.sizeUnit,
       }));
-      const sizeLabel = `${width} × ${height} ${customSpecDialog.sizeUnit}`;
+      const sizeLabel = getCustomSizeSummary(field, { size: "Custom", ...dimensionPayload, customUnit: customSpecDialog.sizeUnit }) || "Custom";
       saveCustomOption(
         typeId,
         subtypeId || null,
@@ -630,17 +590,16 @@ export default function RequirementFormModal({
       if (designMode !== "design_only") {
         if (!quantity || Number(quantity) <= 0) return false;
       
-      // For flex printing and agralic products with custom size, validate width and height
-      if (
-        specs.size === "Custom" &&
-        (selectedType?.name?.toLowerCase().includes("flex") || selectedType?.name?.toLowerCase().includes("agralic"))
-      ) {
-        // Only enforce width/height when this product actually uses flex-dimension custom size.
-        // Some products (e.g. Reflector Flex) store custom size as a text value (sizeCustom).
-        const hasDimensionSizeFields = (productFields || []).some((f) => f.key === "customWidth") &&
-          (productFields || []).some((f) => f.key === "customHeight");
-        if (hasDimensionSizeFields) {
-          return !!specs.customWidth && !!specs.customHeight && Number(specs.customWidth) > 0 && Number(specs.customHeight) > 0;
+      if (specs.size === "Custom") {
+        const sizeField = (productFields || []).find((f) => f.key === "size");
+        if (sizeField && sizeField.customSizeMode !== "text") {
+          const sizeEntries = getCustomSizeEntries(sizeField, specs);
+          if (sizeEntries.length > 0) {
+            return sizeEntries.every((entry) => {
+              const value = String(entry.value || "").trim();
+              return value && Number(value) > 0;
+            });
+          }
         }
       }
       }
@@ -671,11 +630,10 @@ export default function RequirementFormModal({
       else if (step >= firstSpecificationStep && step < designStep) {
       if (designMode !== "design_only" && (!quantity || Number(quantity) <= 0)) {
         setError("Please enter a valid quantity");
-      } else if (specs.size === "Custom" && (selectedType?.name?.toLowerCase().includes("flex") || selectedType?.name?.toLowerCase().includes("agralic"))) {
-        const hasDimensionSizeFields = (productFields || []).some((f) => f.key === "customWidth") &&
-          (productFields || []).some((f) => f.key === "customHeight");
-        if (hasDimensionSizeFields) {
-          setError("Please enter valid width and height for custom size");
+      } else if (specs.size === "Custom") {
+        const sizeField = (productFields || []).find((f) => f.key === "size");
+        if (sizeField && sizeField.customSizeMode !== "text" && getConfiguredSizeDimensions(sizeField).length > 0) {
+          setError("Please enter all selected custom dimensions for size");
         } else {
           setError("Please complete the specifications");
         }
@@ -1003,6 +961,7 @@ export default function RequirementFormModal({
                         ) : productFields.length > 0 ? (
                           [currentSpecification].flatMap((entry, sectionIndex) => {
                             const sectionFields = entry.fields.flatMap((field) => {
+                              if (LEGACY_CUSTOM_SIZE_FIELD_KEYS.has(field.key)) return [];
                               // Skip hidden fields
                               if (field.hidden) return [];
 
@@ -1048,7 +1007,7 @@ export default function RequirementFormModal({
                                           className="form-select"
                                           value={specs[field.key] || ""}
                                           onChange={(e) => handleSelectSpecChange(field, e.target.value)}
-                                          title={field.allowCustom && specs[field.key] === "Custom" ? (field.key === "size" ? (specs.customWidth || specs.customHeight ? `Custom: ${specs.customWidth} ${specs.customUnit || "ft"} × ${specs.customHeight} ${specs.customUnit || "ft"}${specs.customDepth ? ` × ${specs.customDepth} ${specs.customUnit || "ft"}` : ""}` : "Custom") : `Custom: ${specs[`${field.key}Custom`] || ""}`) : ""}
+                                          title={field.allowCustom && specs[field.key] === "Custom" ? (field.key === "size" ? (getCustomSizeSummary(field, specs) ? `Custom: ${getCustomSizeSummary(field, specs)}` : "Custom") : `Custom: ${specs[`${field.key}Custom`] || ""}`) : ""}
                                         >
                                           <option value="">Select {field.label}</option>
                                           {specs[field.key] === "Custom" && (() => {
@@ -1061,13 +1020,10 @@ export default function RequirementFormModal({
                                                   </option>
                                                 );
                                               }
-                                              const width = specs.customWidth;
-                                              const height = specs.customHeight;
-                                              const depth = specs.customDepth;
-                                              const unit = specs.customUnit || "ft";
+                                              const summary = getCustomSizeSummary(field, specs);
                                               return (
                                                 <option key="Custom" value="Custom">
-                                                  {width || height ? `Custom: ${width} ${unit} × ${height} ${unit}${depth ? ` × ${depth} ${unit}` : ""}` : "Custom"}
+                                                  {summary ? `Custom: ${summary}` : "Custom"}
                                                 </option>
                                               );
                                             }
@@ -1412,37 +1368,20 @@ export default function RequirementFormModal({
                         ))}
                       </select>
                     </div>
-                    <div className="lead-form-field mb-3">
-                      <label className="form-label">Width ({customSpecDialog.sizeUnit}) <span className="text-danger">*</span></label>
-                      <input
-                        className="form-control"
-                        type="number"
-                        autoFocus
-                        value={customSpecDialog.flexWidth}
-                        onChange={(e) =>
-                          setCustomSpecDialog((prev) => ({ ...prev, flexWidth: e.target.value }))
-                        }
-                        placeholder={`Enter width in ${customSpecDialog.sizeUnit}`}
-                      />
-                    </div>
-                    <div className="lead-form-field mb-3">
-                      <label className="form-label">Height ({customSpecDialog.sizeUnit}) <span className="text-danger">*</span></label>
-                      <input
-                        className="form-control"
-                        type="number"
-                        value={customSpecDialog.flexHeight}
-                        onChange={(e) =>
-                          setCustomSpecDialog((prev) => ({ ...prev, flexHeight: e.target.value }))
-                        }
-                        placeholder={`Enter height in ${customSpecDialog.sizeUnit}`}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault();
-                            saveCustomSpecDialog();
-                          }
-                        }}
-                      />
-                    </div>
+                    {getCustomSizeEntries(customSpecDialog.field, customSpecDialog.dimensionValues).map((entry, index) => (
+                      <div key={entry.key} className="lead-form-field mb-3">
+                        <label className="form-label">{entry.label} ({customSpecDialog.sizeUnit}) <span className="text-danger">*</span></label>
+                        <input
+                          className="form-control"
+                          type="number"
+                          autoFocus={index === 0}
+                          value={customSpecDialog.dimensionValues?.[entry.key] || ""}
+                          onChange={(e) => setCustomSpecDialog((prev) => ({ ...prev, dimensionValues: { ...(prev.dimensionValues || {}), [entry.key]: e.target.value } }))}
+                          placeholder={`Enter ${entry.label.toLowerCase()} in ${customSpecDialog.sizeUnit}`}
+                          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); saveCustomSpecDialog(); } }}
+                        />
+                      </div>
+                    ))}
                     {error && <div className="alert alert-danger mt-2 py-2 mb-0">{error}</div>}
                   </>
                 ) : (
@@ -1507,133 +1446,12 @@ export default function RequirementFormModal({
         </div>
       )}
 
-      {/* Depth Size popup for products with Width + Height + Depth */}
-      {depthSizeDialog.open && (
-        <div
-          className="modal fade show requirement-form-modal"
-          style={{ display: "block", backgroundColor: "rgba(0,0,0,0.5)", zIndex: 1060 }}
-          tabIndex="-1"
-        >
-          <div className="modal-dialog modal-dialog-centered" style={{ maxWidth: "500px" }}>
-            <div className="modal-content">
-              <div className="modal-header">
-                <h5 className="modal-title">Enter Custom Size</h5>
-                <button
-                  type="button"
-                  className="btn-close"
-                  onClick={() => setDepthSizeDialog({ open: false, width: "", height: "", depth: "", sizeUnit: "mm" })}
-                  aria-label="Close"
-                >
-                  ×
-                </button>
-              </div>
-              <div className="modal-body" style={{ padding: "1.5rem" }}>
-                <div className="lead-form-field mb-3">
-                  <label className="form-label">Unit <span className="text-danger">*</span></label>
-                  <select
-                    className="form-select"
-                    value={depthSizeDialog.sizeUnit}
-                    onChange={(e) => setDepthSizeDialog((prev) => ({ ...prev, sizeUnit: e.target.value }))}
-                  >
-                    {(depthSizeDialog.field?.unitOptions?.length > 0
-                      ? depthSizeDialog.field.unitOptions
-                      : ["mm", "cm", "ft", "inch"]
-                    ).map((u) => (
-                      <option key={u} value={u}>
-                        {{ mm: "Millimeters (mm)", cm: "Centimeters (cm)", ft: "Feet (ft)", inch: "Inches (inch)" }[u] || u}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="lead-form-field mb-3">
-                  <label className="form-label">Width ({depthSizeDialog.sizeUnit}) <span className="text-danger">*</span></label>
-                  <input
-                    className="form-control"
-                    type="number"
-                    autoFocus
-                    value={depthSizeDialog.width}
-                    onChange={(e) => setDepthSizeDialog((prev) => ({ ...prev, width: e.target.value }))}
-                    placeholder={`Enter width in ${depthSizeDialog.sizeUnit}`}
-                  />
-                </div>
-                <div className="lead-form-field mb-3">
-                  <label className="form-label">Height ({depthSizeDialog.sizeUnit}) <span className="text-danger">*</span></label>
-                  <input
-                    className="form-control"
-                    type="number"
-                    value={depthSizeDialog.height}
-                    onChange={(e) => setDepthSizeDialog((prev) => ({ ...prev, height: e.target.value }))}
-                    placeholder={`Enter height in ${depthSizeDialog.sizeUnit}`}
-                  />
-                </div>
-                <div className="lead-form-field mb-3">
-                  <label className="form-label">Depth ({depthSizeDialog.sizeUnit})</label>
-                  <input
-                    className="form-control"
-                    type="number"
-                    value={depthSizeDialog.depth}
-                    onChange={(e) => setDepthSizeDialog((prev) => ({ ...prev, depth: e.target.value }))}
-                    placeholder={`Enter depth in ${depthSizeDialog.sizeUnit}`}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        const w = String(depthSizeDialog.width || "").trim();
-                        const h = String(depthSizeDialog.height || "").trim();
-                        if (!w || !h) return;
-                        setSpecs((prev) => ({
-                          ...prev,
-                          size: "Custom",
-                          customWidth: w,
-                          customHeight: h,
-                          customDepth: String(depthSizeDialog.depth || "").trim(),
-                          customUnit: depthSizeDialog.sizeUnit,
-                        }));
-                        setDepthSizeDialog({ open: false, width: "", height: "", depth: "", sizeUnit: "mm" });
-                      }
-                    }}
-                  />
-                </div>
-                {error && <div className="alert alert-danger mt-2 py-2 mb-0">{error}</div>}
-              </div>
-              <div className="modal-footer">
-                <button
-                  type="button"
-                  className="btn btn-light"
-                  onClick={() => setDepthSizeDialog({ open: false, width: "", height: "", depth: "", sizeUnit: "mm" })}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  onClick={() => {
-                    const w = String(depthSizeDialog.width || "").trim();
-                    const h = String(depthSizeDialog.height || "").trim();
-                    if (!w || !h) {
-                      setError("Please enter both width and height");
-                      return;
-                    }
-                    setSpecs((prev) => ({
-                      ...prev,
-                      size: "Custom",
-                      customWidth: w,
-                      customHeight: h,
-                      customDepth: String(depthSizeDialog.depth || "").trim(),
-                      customUnit: depthSizeDialog.sizeUnit,
-                    }));
-                    setDepthSizeDialog({ open: false, width: "", height: "", depth: "", sizeUnit: "mm" });
-                    setError("");
-                  }}
-                >
-                  Save
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       <div className="modal-backdrop fade show" />
     </>
   );
 }
+
+
+
+

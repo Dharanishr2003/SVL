@@ -117,7 +117,7 @@ public class Vendor {
 
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
-
+    
     @PrePersist
     void onCreate() {
         if (createdAt == null) createdAt = LocalDateTime.now();

@@ -1,65 +1,84 @@
-/**
- * Build a canonical "valueRaw" string for a custom size, consistent between
- * RequirementFormModal and PriceListPage.
- *
- * Two storage patterns exist:
- *   1. Flex/Agralic style – separate customWidth / customHeight / customDepth / customUnit fields
- *   2. Text-prompt style  – a single `sizeCustom` string
- *
- * @param {object} fields  – the specs or variantFields object
- * @returns {string|null}  – formatted string, or null if not a custom size
- */
-export function buildSizeValueRaw(fields) {
-  if (!fields || fields.size !== 'Custom') return null;
+const DIMENSION_STORAGE_KEYS = {
+  width: "customWidth",
+  height: "customHeight",
+  depth: "customDepth",
+};
 
-  const w = String(fields.customWidth || '').trim();
-  const h = String(fields.customHeight || '').trim();
-
-  if (w && h) {
-    const d = String(fields.customDepth || '').trim();
-    const u = String(fields.customUnit || '').trim();
-    const dims = d ? `${w} × ${h} × ${d}` : `${w} × ${h}`;
-    return u ? `${dims} ${u}` : dims;
-  }
-
-  const textCustom = String(fields.sizeCustom || '').trim();
-  if (textCustom) return textCustom;
-
-  return null;
+export function normalizeDimensionLabel(label) {
+  return String(label || "").trim().toLowerCase();
 }
 
-/**
- * Build the valueRaw string for any allowCustom field.
- * For `size`, delegates to buildSizeValueRaw.
- * For all other fields, reads `fields[`${fieldKey}Custom`]`.
- *
- * @param {string} fieldKey  – e.g. "size", "colour", "pastingType"
- * @param {object} fields    – the specs or variantFields object
- * @returns {string|null}    – the raw value to persist, or null if nothing to save
- */
-export function buildCustomValueRaw(fieldKey, fields) {
-  if (!fields || fields[fieldKey] !== 'Custom') return null;
-  if (fieldKey === 'size') return buildSizeValueRaw(fields);
-  const val = String(fields[`${fieldKey}Custom`] || '').trim();
+export function getConfiguredSizeDimensions(fieldConfig) {
+  const configured = Array.isArray(fieldConfig?.customDimensions)
+    ? fieldConfig.customDimensions.filter(Boolean)
+    : [];
+  const seen = new Set();
+  return configured
+    .map((label) => String(label || "").trim())
+    .filter((label) => {
+      if (!label) return false;
+      const normalized = normalizeDimensionLabel(label);
+      if (!normalized || seen.has(normalized)) return false;
+      seen.add(normalized);
+      return true;
+    });
+}
+
+export function getSizeFieldConfig(fieldDefs) {
+  return (Array.isArray(fieldDefs) ? fieldDefs : []).find((field) => field?.key === "size") || null;
+}
+
+export function getDimensionStorageKey(label) {
+  return DIMENSION_STORAGE_KEYS[normalizeDimensionLabel(label)] || `customSize_${normalizeDimensionLabel(label)}`;
+}
+
+export function getCustomSizeEntries(fieldConfig, fields) {
+  return getConfiguredSizeDimensions(fieldConfig).map((label) => {
+    const key = getDimensionStorageKey(label);
+    return {
+      key,
+      label,
+      value: String(fields?.[key] || "").trim(),
+    };
+  });
+}
+
+export function getCustomSizeStorageKeys(fieldConfig) {
+  return getConfiguredSizeDimensions(fieldConfig).map((label) => getDimensionStorageKey(label));
+}
+
+export function getCustomSizeSummary(fieldConfig, fields) {
+  if (!fields || fields.size !== "Custom") return null;
+
+  const populated = getCustomSizeEntries(fieldConfig, fields).filter((entry) => entry.value);
+  if (populated.length) {
+    const unit = String(fields.customUnit || "").trim();
+    const dims = populated.map((entry) => `${entry.label}: ${entry.value}`).join(" x ");
+    return unit ? `${dims} ${unit}` : dims;
+  }
+
+  const textCustom = String(fields.sizeCustom || "").trim();
+  return textCustom || null;
+}
+
+export function buildSizeValueRaw(fields, fieldConfig = null) {
+  return getCustomSizeSummary(fieldConfig, fields);
+}
+
+export function buildCustomValueRaw(fieldKey, fields, fieldConfig = null) {
+  if (!fields || fields[fieldKey] !== "Custom") return null;
+  if (fieldKey === "size") return buildSizeValueRaw(fields, fieldConfig);
+  const val = String(fields[`${fieldKey}Custom`] || "").trim();
   return val || null;
 }
 
-/**
- * Collect all custom option saves needed for a fields object.
- * Returns an array of { fieldKey, valueRaw } for every allowCustom field
- * whose current value is "Custom" and which has a non-blank valueRaw.
- *
- * @param {Array}  fieldDefs  – the field config array (from productFields/fields)
- * @param {object} fields     – specs or variantFields
- * @returns {{ fieldKey: string, valueRaw: string }[]}
- */
 export function collectCustomOptionSaves(fieldDefs, fields) {
   if (!fieldDefs || !fields) return [];
   const results = [];
   for (const f of fieldDefs) {
-    if (f.type !== 'select' || !f.allowCustom || f.promptText) continue;
-    if (fields[f.key] !== 'Custom') continue;
-    const valueRaw = buildCustomValueRaw(f.key, fields);
+    if (f.type !== "select" || !f.allowCustom || f.promptText) continue;
+    if (fields[f.key] !== "Custom") continue;
+    const valueRaw = buildCustomValueRaw(f.key, fields, f);
     if (valueRaw) results.push({ fieldKey: f.key, valueRaw });
   }
   return results;

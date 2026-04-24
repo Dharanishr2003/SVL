@@ -33,8 +33,16 @@ public class UnitMasterService {
         if (!StringUtils.hasText(normalized)) {
             throw new IllegalArgumentException("Unit name is required");
         }
-        if (repository.existsByNameIgnoreCase(normalized)) {
-            throw new IllegalArgumentException("Unit already exists");
+
+        UnitMaster existing = repository.findFirstByNameIgnoreCase(normalized).orElse(null);
+        if (existing != null) {
+            if (Boolean.TRUE.equals(existing.getIsActive())) {
+                throw new IllegalArgumentException("Unit already exists");
+            }
+
+            existing.setIsActive(true);
+            existing.setName(normalized);
+            return new UnitMasterResponse(repository.save(existing));
         }
 
         UnitMaster u = new UnitMaster();

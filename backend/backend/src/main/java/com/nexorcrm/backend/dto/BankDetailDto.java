@@ -1,5 +1,7 @@
 package com.nexorcrm.backend.dto;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
+
 public class BankDetailDto {
 
     private String bankAccountHolderName;
@@ -9,6 +11,8 @@ public class BankDetailDto {
     private String bankBranchName;
     private String bankAccountType;
     private String upiId;
+    @JsonAlias({"upiNo", "upi_number"})
+    private String upiNumber;
     private String upiQrImage;
 
     public String getBankAccountHolderName() { return bankAccountHolderName; }
@@ -25,6 +29,8 @@ public class BankDetailDto {
     public void setBankAccountType(String bankAccountType) { this.bankAccountType = bankAccountType; }
     public String getUpiId() { return upiId; }
     public void setUpiId(String upiId) { this.upiId = upiId; }
+    public String getUpiNumber() { return upiNumber; }
+    public void setUpiNumber(String upiNumber) { this.upiNumber = upiNumber; }
     public String getUpiQrImage() { return upiQrImage; }
     public void setUpiQrImage(String upiQrImage) { this.upiQrImage = upiQrImage; }
 }

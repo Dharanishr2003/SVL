@@ -224,6 +224,7 @@ public class VendorService {
         dto.setBankBranchName(trimToNull(vendor.getBankBranchName()));
         dto.setBankAccountType(trimToNull(vendor.getBankAccountType()));
         dto.setUpiId(null);
+        dto.setUpiNumber(null);
         dto.setUpiQrImage(null);
         return dto;
     }
@@ -247,7 +248,12 @@ public class VendorService {
             dto.setBankBranchName(trimToNull(detail.getBankBranchName()));
             dto.setBankAccountType(trimToNull(detail.getBankAccountType()));
             dto.setUpiId(trimToNull(detail.getUpiId()));
+            dto.setUpiNumber(trimToNull(detail.getUpiNumber()));
             dto.setUpiQrImage(trimToNull(detail.getUpiQrImage()));
+
+            if (dto.getUpiNumber() != null && !dto.getUpiNumber().matches("\\d{10}")) {
+                throw new IllegalArgumentException("UPI number must be exactly 10 digits");
+            }
 
             boolean hasValue = Arrays.asList(
                     dto.getBankAccountHolderName(),
@@ -257,6 +263,7 @@ public class VendorService {
                     dto.getBankBranchName(),
                     dto.getBankAccountType(),
                     dto.getUpiId(),
+                    dto.getUpiNumber(),
                     dto.getUpiQrImage()
             ).stream().anyMatch(Objects::nonNull);
 

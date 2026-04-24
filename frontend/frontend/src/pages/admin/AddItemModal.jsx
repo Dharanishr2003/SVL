@@ -4,13 +4,22 @@ import { getFieldsByServiceType } from "../../api/productFieldConfigApi";
 import { getServiceCategories } from "../../api/serviceCategoriesApi";
 import { getServiceTypes } from "../../api/serviceTypesApi";
 import { getCustomOptions, saveCustomOption } from "../../api/customOptionsApi";
-import { collectCustomOptionSaves } from "../../utils/customSizeUtils";
+import {
+  collectCustomOptionSaves,
+  getConfiguredSizeDimensions,
+  getCustomSizeEntries,
+  getCustomSizeStorageKeys,
+  getSizeFieldConfig,
+  getCustomSizeSummary,
+} from "../../utils/customSizeUtils";
 import { createRequirement, updateRequirement } from "../../api/requirementApi";
 import "./LeadsPage.css";
 import "./RequirementFormModal.css";
 import "./AddItemModal.css";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
+
+const LEGACY_CUSTOM_SIZE_FIELD_KEYS = new Set(["customWidth", "customHeight", "customDepth"]);
 
 function findSlab(quantitySlabs, qty) {
   const list = Array.isArray(quantitySlabs) ? quantitySlabs : [];
@@ -25,19 +34,22 @@ function getDesignOnlyPrice(priceMatch) {
   return Number.isFinite(value) ? value : null;
 }
 
-function getVariantSummary(variantFields) {
+function getVariantSummary(variantFields, fieldDefs = []) {
   const source = variantFields || {};
-  const skipKeys = new Set(["customWidth", "customHeight", "customDepth", "customUnit"]);
+  const sizeField = getSizeFieldConfig(fieldDefs) || (source.customDimensions ? { customDimensions: source.customDimensions } : null);
+  const skipKeys = new Set([
+    "customUnit",
+    ...Object.keys(source).filter((key) => key === "customWidth" || key === "customHeight" || key === "customDepth" || key.startsWith("customSize_")),
+  ]);
   const entries = Object.entries(source)
     .filter(([key, value]) =>
       !key.endsWith("Custom") && !key.endsWith("Text") &&
       !skipKeys.has(key) && value !== "" && value != null)
     .map(([key, value]) => {
       if (value === "Custom") {
-        if (key === "size") {
-          const w = source.customWidth, h = source.customHeight;
-          const d = source.customDepth, u = source.customUnit || "";
-          if (w && h) return [key, d ? `${w} x ${h} x ${d} ${u}`.trim() : `${w} x ${h} ${u}`.trim()];
+        if (key === "size" && sizeField) {
+          const summary = getCustomSizeSummary(sizeField, source);
+          if (summary) return [key, summary];
         }
         if (source[`${key}Custom`]) return [key, source[`${key}Custom`]];
       }
@@ -46,6 +58,20 @@ function getVariantSummary(variantFields) {
   if (!entries.length) return "";
   const shown = entries.slice(0, 3).map(([, v]) => v).join(", ");
   return entries.length > 3 ? `${shown} +${entries.length - 3} more` : shown;
+}
+
+function buildSizeDialogState(field, values, fallbackUnit = "mm") {
+  return {
+    open: true,
+    field,
+    value: "",
+    isFlexCustomSize: true,
+    dimensionValues: Object.fromEntries(
+      getCustomSizeEntries(field, values).map((entry) => [entry.key, entry.value])
+    ),
+    customSizeUnitLabel: fallbackUnit,
+    sizeUnit: field?.customDimensionUnit || fallbackUnit,
+  };
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -76,11 +102,8 @@ export default function AddItemModal({
   const [customOptionsByFieldKey, setCustomOptionsByFieldKey] = useState({});
   const [customSpecDialog, setCustomSpecDialog] = useState({
     open: false, field: null, value: "",
-    isFlexCustomSize: false, flexWidth: "", flexHeight: "",
+    isFlexCustomSize: false, dimensionValues: {},
     customSizeUnitLabel: "ft", sizeUnit: "mm",
-  });
-  const [depthSizeDialog, setDepthSizeDialog] = useState({
-    open: false, width: "", height: "", depth: "", sizeUnit: "mm",
   });
 
   const [quantity, setQuantity] = useState("");
@@ -196,6 +219,9 @@ export default function AddItemModal({
           isRequired: f.isRequired,
           placeholder: f.placeholder,
           allowCustom: f.allowCustom,
+          customDimensions: Array.isArray(f.customDimensions) ? f.customDimensions : [],
+          customDimensionUnit: f.customDimensionUnit || "mm",
+          customSizeMode: f.customSizeMode || null,
           isHidden: f.isHidden,
           hidden: f.isHidden,
           hasUnit: f.hasUnit,
@@ -343,58 +369,17 @@ export default function AddItemModal({
         setCustomSpecDialog({
           open: true, field,
           value: String(specs[`${field.key}Custom`] || "").trim(),
-          isFlexCustomSize: false, flexWidth: "", flexHeight: "",
+          isFlexCustomSize: false, dimensionValues: {},
           customSizeUnitLabel: "ft", sizeUnit: "mm",
         });
         return;
       }
-      const configDims = field.customDimensions || [];
-      const hasDimensionFields = configDims.length > 0
-        ? true
-        : (productFields || []).some((f) => f.key === "customWidth");
-      const hasDepthField = configDims.length > 0
-        ? (configDims.includes("Depth") || configDims.includes("depth"))
-        : (productFields || []).some((f) => f.key === "customDepth");
-      const typeName = (selectedType?.name || "").toLowerCase().trim();
-      const subtypeName = (selectedSubtype?.name || "").toLowerCase().trim();
-      const isSticker = typeName.includes("sticker") || subtypeName.includes("sticker");
-      const isCard = typeName.includes("card") || subtypeName.includes("card");
-      const useMm = hasDepthField || isSticker || isCard;
-      const unit = configDims.length > 0
-        ? (field.customDimensionUnit || "mm")
-        : (isCard || hasDepthField ? "mm" : "ft");
-      let unitLabel = "ft";
-      if (isSticker) unitLabel = "mm or inch";
-      else if (isCard || hasDepthField) unitLabel = "mm";
-      if (hasDimensionFields && hasDepthField) {
-        setDepthSizeDialog({
-          open: true, field,
-          width: specs.customWidth || "",
-          height: specs.customHeight || "",
-          depth: specs.customDepth || "",
-          sizeUnit: unit,
-        });
-        return;
+      const configDims = getConfiguredSizeDimensions(field);
+      if (configDims.length > 0) {
+        setCustomSpecDialog(
+          buildSizeDialogState(field, specs, field.customDimensionUnit || "mm")
+        );
       }
-      if (hasDimensionFields) {
-        setCustomSpecDialog({
-          open: true, field, value: "",
-          isFlexCustomSize: true,
-          flexWidth: specs.customWidth || "",
-          flexHeight: specs.customHeight || "",
-          customSizeUnitLabel: unit,
-          sizeUnit: unit,
-        });
-        return;
-      }
-      setCustomSpecDialog({
-        open: true, field, value: "",
-        isFlexCustomSize: true,
-        flexWidth: specs.customWidth || "",
-        flexHeight: specs.customHeight || "",
-        customSizeUnitLabel: unitLabel,
-        sizeUnit: unit,
-      });
       return;
     }
 
@@ -406,7 +391,7 @@ export default function AddItemModal({
         isTextPrompt: true,
         textRows: field.textRows || 4,
         selectedOption: value,
-        flexWidth: "", flexHeight: "",
+        dimensionValues: {},
         customSizeUnitLabel: "ft", sizeUnit: "mm",
       });
       return;
@@ -416,7 +401,7 @@ export default function AddItemModal({
       setCustomSpecDialog({
         open: true, field,
         value: String(specs[`${field.key}Custom`] || "").trim(),
-        isFlexCustomSize: false, flexWidth: "", flexHeight: "",
+        isFlexCustomSize: false, dimensionValues: {},
         customSizeUnitLabel: "ft", sizeUnit: "mm",
       });
       return;
@@ -427,21 +412,21 @@ export default function AddItemModal({
       if (field.allowCustom && value !== "Custom") {
         delete next[`${field.key}Custom`];
         if (field.key === "size") {
-          delete next.customWidth;
-          delete next.customHeight;
-          delete next.customDepth;
+          getCustomSizeStorageKeys(field).forEach((storageKey) => {
+            delete next[storageKey];
+          });
           delete next.customUnit;
           delete next.sizeCustom;
         }
       }
       return next;
     });
-  }, [specs, productFields, selectedType, selectedSubtype]);
+  }, [specs]);
 
   const closeCustomSpecDialog = useCallback(() => {
     setCustomSpecDialog({
       open: false, field: null, value: "",
-      isFlexCustomSize: false, flexWidth: "", flexHeight: "",
+      isFlexCustomSize: false, dimensionValues: {},
       customSizeUnitLabel: "ft", sizeUnit: "mm",
     });
   }, []);
@@ -451,17 +436,19 @@ export default function AddItemModal({
     if (!field) return;
 
     if (customSpecDialog.isFlexCustomSize) {
-      const width = String(customSpecDialog.flexWidth || "").trim();
-      const height = String(customSpecDialog.flexHeight || "").trim();
-      if (!width || !height) { setError("Please enter both width and height"); return; }
+      const sizeEntries = getCustomSizeEntries(field, customSpecDialog.dimensionValues);
+      const missing = sizeEntries.find((entry) => !String(customSpecDialog.dimensionValues?.[entry.key] || "").trim());
+      if (missing) { setError(`Please enter ${missing.label.toLowerCase()}`); return; }
+      const dimensionPayload = Object.fromEntries(
+        sizeEntries.map((entry) => [entry.key, String(customSpecDialog.dimensionValues?.[entry.key] || "").trim()])
+      );
       setSpecs(prev => ({
         ...prev,
         [field.key]: "Custom",
-        customWidth: width,
-        customHeight: height,
+        ...dimensionPayload,
         customUnit: customSpecDialog.sizeUnit,
       }));
-      const sizeLabel = `${width} × ${height} ${customSpecDialog.sizeUnit}`;
+      const sizeLabel = getCustomSizeSummary(field, { size: "Custom", ...dimensionPayload, customUnit: customSpecDialog.sizeUnit }) || "Custom";
       saveCustomOption(typeId, subtypeId || null, "size", sizeLabel).catch(() => {});
       closeCustomSpecDialog();
       setError("");
@@ -640,7 +627,7 @@ export default function AddItemModal({
       // Build line item shape for quotation
       const productName = [selectedType?.name, selectedSubtype?.name]
         .filter(Boolean).join(" / ");
-      const optionsSummary = getVariantSummary(specs);
+      const optionsSummary = getVariantSummary(specs, productFields);
 
       onConfirm({
         id: prefill?.id ?? `item-${Date.now()}`,
@@ -908,6 +895,7 @@ export default function AddItemModal({
                         ) : (
                           currentSpec.fields
                             .filter(field => {
+                              if (LEGACY_CUSTOM_SIZE_FIELD_KEYS.has(field.key)) return false;
                               if (field.hidden) return false;
                               if (field.dependsOn && field.dependsOn.trim() !== "") {
                                 return specs[field.dependsOn] === field.dependsOnValue;
@@ -934,11 +922,11 @@ export default function AddItemModal({
                                         >
                                           <option value="">Select {field.label}</option>
                                           {specs[field.key] === "Custom" && (
-                                            <option value="Custom">
-                                              {field.key === "size" && specs.customWidth
-                                                ? `Custom: ${specs.customWidth} × ${specs.customHeight} ${specs.customUnit || ""}`
+                                          <option value="Custom">
+                                              {field.key === "size" && getCustomSizeSummary(field, specs)
+                                                ? `Custom: ${getCustomSizeSummary(field, specs)}`
                                                 : specs[`${field.key}Custom`]
-                                                  ? `Custom: ${specs[`${field.key}Custom`]}`
+                                                  ? `Custom: ${specs[`${field.key}Custom`]}` 
                                                   : "Custom"}
                                             </option>
                                           )}
@@ -1216,28 +1204,23 @@ export default function AddItemModal({
                         ))}
                       </select>
                     </div>
-                    <div className="lead-form-field mb-3">
-                      <label className="form-label">Width ({customSpecDialog.sizeUnit}) <span className="text-danger">*</span></label>
-                      <input
-                        className="form-control"
-                        type="number"
-                        autoFocus
-                        value={customSpecDialog.flexWidth}
-                        onChange={e => setCustomSpecDialog(prev => ({ ...prev, flexWidth: e.target.value }))}
-                        placeholder={`Enter width in ${customSpecDialog.sizeUnit}`}
-                      />
-                    </div>
-                    <div className="lead-form-field mb-3">
-                      <label className="form-label">Height ({customSpecDialog.sizeUnit}) <span className="text-danger">*</span></label>
-                      <input
-                        className="form-control"
-                        type="number"
-                        value={customSpecDialog.flexHeight}
-                        onChange={e => setCustomSpecDialog(prev => ({ ...prev, flexHeight: e.target.value }))}
-                        placeholder={`Enter height in ${customSpecDialog.sizeUnit}`}
-                        onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); saveCustomSpecDialog(); } }}
-                      />
-                    </div>
+                    {getCustomSizeEntries(customSpecDialog.field, customSpecDialog.dimensionValues).map((entry, index) => (
+                      <div key={entry.key} className="lead-form-field mb-3">
+                        <label className="form-label">{entry.label} ({customSpecDialog.sizeUnit}) <span className="text-danger">*</span></label>
+                        <input
+                          className="form-control"
+                          type="number"
+                          autoFocus={index === 0}
+                          value={customSpecDialog.dimensionValues?.[entry.key] || ""}
+                          onChange={e => setCustomSpecDialog(prev => ({
+                            ...prev,
+                            dimensionValues: { ...(prev.dimensionValues || {}), [entry.key]: e.target.value },
+                          }))}
+                          placeholder={`Enter ${entry.label.toLowerCase()} in ${customSpecDialog.sizeUnit}`}
+                          onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); saveCustomSpecDialog(); } }}
+                        />
+                      </div>
+                    ))}
                     {error && <div className="alert alert-danger mt-2 py-2 mb-0">{error}</div>}
                   </>
                 ) : (
@@ -1281,122 +1264,6 @@ export default function AddItemModal({
         </div>
       )}
 
-      {/* Depth size dialog */}
-      {depthSizeDialog.open && (
-        <div
-          className="modal fade show requirement-form-modal"
-          style={{ display: "block", backgroundColor: "rgba(0,0,0,0.5)", zIndex: 1060 }}
-          tabIndex="-1"
-        >
-          <div className="modal-dialog modal-dialog-centered" style={{ maxWidth: "500px" }}>
-            <div className="modal-content">
-              <div className="modal-header">
-                <h5 className="modal-title">Enter Custom Size</h5>
-                <button
-                  type="button"
-                  className="btn-close"
-                  onClick={() => setDepthSizeDialog({ open: false, width: "", height: "", depth: "", sizeUnit: "mm" })}
-                  aria-label="Close"
-                />
-              </div>
-              <div className="modal-body" style={{ padding: "1.5rem" }}>
-                <div className="lead-form-field mb-3">
-                  <label className="form-label">Unit <span className="text-danger">*</span></label>
-                  <select
-                    className="form-select"
-                    value={depthSizeDialog.sizeUnit}
-                    onChange={e => setDepthSizeDialog(prev => ({ ...prev, sizeUnit: e.target.value }))}
-                  >
-                    {(depthSizeDialog.field?.unitOptions?.length > 0
-                      ? depthSizeDialog.field.unitOptions
-                      : ["mm", "cm", "ft", "inch"]
-                    ).map(u => (
-                      <option key={u} value={u}>
-                        {{ mm: "Millimeters (mm)", cm: "Centimeters (cm)", ft: "Feet (ft)", inch: "Inches (inch)" }[u] || u}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="lead-form-field mb-3">
-                  <label className="form-label">Width ({depthSizeDialog.sizeUnit}) <span className="text-danger">*</span></label>
-                  <input
-                    className="form-control"
-                    type="number"
-                    autoFocus
-                    value={depthSizeDialog.width}
-                    onChange={e => setDepthSizeDialog(prev => ({ ...prev, width: e.target.value }))}
-                    placeholder={`Enter width in ${depthSizeDialog.sizeUnit}`}
-                  />
-                </div>
-                <div className="lead-form-field mb-3">
-                  <label className="form-label">Height ({depthSizeDialog.sizeUnit}) <span className="text-danger">*</span></label>
-                  <input
-                    className="form-control"
-                    type="number"
-                    value={depthSizeDialog.height}
-                    onChange={e => setDepthSizeDialog(prev => ({ ...prev, height: e.target.value }))}
-                    placeholder={`Enter height in ${depthSizeDialog.sizeUnit}`}
-                  />
-                </div>
-                <div className="lead-form-field mb-3">
-                  <label className="form-label">Depth ({depthSizeDialog.sizeUnit})</label>
-                  <input
-                    className="form-control"
-                    type="number"
-                    value={depthSizeDialog.depth}
-                    onChange={e => setDepthSizeDialog(prev => ({ ...prev, depth: e.target.value }))}
-                    placeholder={`Enter depth in ${depthSizeDialog.sizeUnit}`}
-                    onKeyDown={e => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        const w = String(depthSizeDialog.width || "").trim();
-                        const h = String(depthSizeDialog.height || "").trim();
-                        if (!w || !h) return;
-                        setSpecs(prev => ({
-                          ...prev, size: "Custom",
-                          customWidth: w, customHeight: h,
-                          customDepth: String(depthSizeDialog.depth || "").trim(),
-                          customUnit: depthSizeDialog.sizeUnit,
-                        }));
-                        setDepthSizeDialog({ open: false, width: "", height: "", depth: "", sizeUnit: "mm" });
-                      }
-                    }}
-                  />
-                </div>
-                {error && <div className="alert alert-danger mt-2 py-2 mb-0">{error}</div>}
-              </div>
-              <div className="modal-footer">
-                <button
-                  type="button"
-                  className="btn btn-light"
-                  onClick={() => setDepthSizeDialog({ open: false, width: "", height: "", depth: "", sizeUnit: "mm" })}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  onClick={() => {
-                    const w = String(depthSizeDialog.width || "").trim();
-                    const h = String(depthSizeDialog.height || "").trim();
-                    if (!w || !h) { setError("Please enter both width and height"); return; }
-                    setSpecs(prev => ({
-                      ...prev, size: "Custom",
-                      customWidth: w, customHeight: h,
-                      customDepth: String(depthSizeDialog.depth || "").trim(),
-                      customUnit: depthSizeDialog.sizeUnit,
-                    }));
-                    setDepthSizeDialog({ open: false, width: "", height: "", depth: "", sizeUnit: "mm" });
-                    setError("");
-                  }}
-                >
-                  Save
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </>
   );
 }

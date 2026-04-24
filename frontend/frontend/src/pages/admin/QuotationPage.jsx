@@ -18,6 +18,7 @@ import {
   downloadQuotationPdf,
   getQuotationDraft,
 } from "../../utils/quotationUtils";
+import { getCustomSizeSummary } from "../../utils/customSizeUtils";
 
 function safeJsonParse(value, fallback) {
   if (value == null) return fallback;
@@ -51,7 +52,14 @@ function toKeyValueSummary(value) {
 
 function getVariantSummary(variantFields) {
   const source = variantFields || {};
-  const skipKeys = new Set(["customWidth", "customHeight", "customDepth", "customUnit"]);
+  const skipKeys = new Set([
+    "customWidth",
+    "customHeight",
+    "customDepth",
+    "customUnit",
+    "customDimensions",
+    ...Object.keys(source).filter((key) => key.startsWith("customSize_")),
+  ]);
   const entries = Object.entries(source)
     .filter(([key, value]) =>
       !key.endsWith("Custom") && !key.endsWith("Text") &&
@@ -60,9 +68,8 @@ function getVariantSummary(variantFields) {
     .map(([key, value]) => {
       if (value === "Custom") {
         if (key === "size") {
-          const w = source.customWidth, h = source.customHeight;
-          const d = source.customDepth, u = source.customUnit || "";
-          if (w && h) return [key, d ? `${w} x ${h} x ${d} ${u}`.trim() : `${w} x ${h} ${u}`.trim()];
+          const summary = getCustomSizeSummary({ customDimensions: source.customDimensions }, source);
+          if (summary) return [key, summary];
         }
         if (source[`${key}Custom`]) return [key, source[`${key}Custom`]];
       }
@@ -92,7 +99,14 @@ function fullSpecsSummary(specs) {
   const raw = typeof specs === "string"
     ? (() => { try { return JSON.parse(specs); } catch { return {}; } })()
     : (specs || {});
-  const SKIP = new Set(["customWidth","customHeight","customDepth","customUnit"]);
+  const SKIP = new Set([
+    "customWidth",
+    "customHeight",
+    "customDepth",
+    "customUnit",
+    "customDimensions",
+    ...Object.keys(raw).filter((key) => key.startsWith("customSize_")),
+  ]);
   const entries = Object.entries(raw)
     .filter(([key, v]) =>
       !key.endsWith("Custom") && !key.endsWith("Text") &&
@@ -100,12 +114,9 @@ function fullSpecsSummary(specs) {
     )
     .map(([key, v]) => {
       if (v === "Custom") {
-        if (key === "size" && raw.customWidth && raw.customHeight) {
-          const d = raw.customDepth;
-          const u = raw.customUnit || "";
-          return d
-            ? `${raw.customWidth} × ${raw.customHeight} × ${d} ${u}`.trim()
-            : `${raw.customWidth} × ${raw.customHeight} ${u}`.trim();
+        if (key === "size") {
+          const summary = getCustomSizeSummary({ customDimensions: raw.customDimensions }, raw);
+          if (summary) return summary;
         }
         if (raw[`${key}Custom`]) return raw[`${key}Custom`];
       }
@@ -1589,3 +1600,5 @@ export default function QuotationPage() {
     </div>
   );
 }
+
+

@@ -1,12 +1,20 @@
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
+import { getCustomSizeSummary } from "./customSizeUtils";
 
 function fullSpecsSummary(specs) {
   const raw = typeof specs === "string"
     ? (() => { try { return JSON.parse(specs); } catch { return {}; } })()
     : (specs || {});
 
-  const skip = new Set(["customWidth", "customHeight", "customDepth", "customUnit"]);
+  const skip = new Set([
+    "customWidth",
+    "customHeight",
+    "customDepth",
+    "customUnit",
+    "customDimensions",
+    ...Object.keys(raw).filter((key) => key.startsWith("customSize_")),
+  ]);
 
   const entries = Object.entries(raw)
     .filter(([key, value]) =>
@@ -18,12 +26,9 @@ function fullSpecsSummary(specs) {
     )
     .map(([key, value]) => {
       if (value === "Custom") {
-        if (key === "size" && raw.customWidth && raw.customHeight) {
-          const depth = raw.customDepth;
-          const unit = raw.customUnit || "";
-          return depth
-            ? `${raw.customWidth}x${raw.customHeight}x${depth}${unit}`.trim()
-            : `${raw.customWidth}x${raw.customHeight}${unit}`.trim();
+        if (key === "size") {
+          const summary = getCustomSizeSummary({ customDimensions: raw.customDimensions }, raw);
+          if (summary) return summary;
         }
         return raw[`${key}Custom`] || null;
       }

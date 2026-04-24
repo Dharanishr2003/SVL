@@ -211,6 +211,7 @@ export default function BrandMasterPage() {
             <button
               type="button"
               className="btn btn-primary d-flex align-items-center"
+              style={{ whiteSpace: "nowrap" }}
               onClick={() => {
                 setForm(initialForm);
                 setShowAddModal(true);

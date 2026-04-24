@@ -41,6 +41,7 @@ const createEmptyBankDetail = () => ({
   bankBranchName: "",
   bankAccountType: "",
   upiId: "",
+  upiNumber: "",
   upiQrImage: "",
 });
 
@@ -80,6 +81,7 @@ const normalizeBankDetail = (detail) => ({
   bankBranchName: trimToNull(detail.bankBranchName),
   bankAccountType: trimToNull(detail.bankAccountType),
   upiId: trimToNull(detail.upiId),
+  upiNumber: trimToNull(detail.upiNumber ?? detail.upiNo ?? detail.upi_number),
   upiQrImage: trimToNull(detail.upiQrImage),
 });
 
@@ -212,6 +214,19 @@ function BankDetailsSection({ bankDetails, setBankField, addBank, removeBank, on
                   value={bank.upiId}
                   onChange={(e) => setBankField(index, "upiId", e.target.value)}
                   placeholder="name@bank"
+                />
+              </div>
+              <div className="avm-field">
+                <label className="avm-label">UPI Number</label>
+                <input
+                  className="avm-input"
+                  value={bank.upiNumber}
+                  onChange={(e) =>
+                    setBankField(index, "upiNumber", (e.target.value || "").replace(/\D/g, "").slice(0, 10))
+                  }
+                  inputMode="numeric"
+                  maxLength={10}
+                  placeholder="UPI-linked mobile number"
                 />
               </div>
             </div>
@@ -391,6 +406,14 @@ export default function AddVendorModal({ open, onClose, onCreated }) {
       if (mismatchIndex >= 0) {
         return `Bank ${mismatchIndex + 1}: account number and confirm account number must match`;
       }
+      const invalidUpiNumberIndex = form.bankDetails.findIndex((bank) => {
+        const upiNumber = (bank.upiNumber || "").trim();
+        if (!upiNumber) return false;
+        return !/^\d{10}$/.test(upiNumber);
+      });
+      if (invalidUpiNumberIndex >= 0) {
+        return `Bank ${invalidUpiNumberIndex + 1}: UPI number must be exactly 10 digits`;
+      }
     }
     return "";
   };
@@ -538,7 +561,7 @@ export default function AddVendorModal({ open, onClose, onCreated }) {
               <div className="avm-section-title">Basic Information</div>
               <div className="avm-grid">
                 <div className="avm-field full">
-                  <label className="avm-label">Vendor Name <span className="req">*</span></label>
+                  <label className="avm-label">Vendor / Company Name <span className="req">*</span></label>
                   <input
                     className="avm-input"
                     value={form.vendorName}
@@ -584,56 +607,13 @@ export default function AddVendorModal({ open, onClose, onCreated }) {
 
           {step === 1 && (
             <>
-              <div className="avm-section-title">Vendor Type</div>
-              <div className="avm-field" style={{ marginBottom: "1.25rem" }}>
-                <label className="avm-label">Vendor Types</label>
-                <select
-                  className="avm-select"
-                  value={vendorTypePick}
-                  onChange={(e) => {
-                    const id = Number(e.target.value);
-                    if (!id) return;
-                    if (!form.vendorTypeIds.includes(id)) {
-                      setField("vendorTypeIds", [...form.vendorTypeIds, id]);
-                    }
-                    setVendorTypePick("");
-                  }}
-                >
-                  <option value="">Select vendor type</option>
-                  {vendorTypes.map((vendorType) => (
-                    <option key={vendorType.id} value={vendorType.id}>
-                      {vendorType.typeName}
-                    </option>
-                  ))}
-                </select>
-                {form.vendorTypeIds.length > 0 && (
-                  <div className="avm-chip-wrap">
-                    {form.vendorTypeIds.map((id) => {
-                      const name = vendorTypes.find((item) => item.id === id)?.typeName;
-                      if (!name) return null;
-                      return (
-                        <span key={id} className="avm-chip">
-                          {name}
-                          <button
-                            type="button"
-                            className="avm-chip-remove"
-                            onClick={() =>
-                              setField("vendorTypeIds", form.vendorTypeIds.filter((value) => value !== id))
-                            }
-                          >
-                            x
-                          </button>
-                        </span>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
+         
+             
 
-              <div className="avm-section-title">Services</div>
+              <div className="avm-section-title">Product Details</div>
               <div className={`avm-cascade-row${hasSubtypes ? " three-cols" : ""}`}>
                 <div className="avm-field">
-                  <label className="avm-label">Service Category</label>
+                  <label className="avm-label">Product Category</label>
                   <select
                     className="avm-select"
                     value={pickCategoryId}
@@ -648,7 +628,7 @@ export default function AddVendorModal({ open, onClose, onCreated }) {
                   </select>
                 </div>
                 <div className="avm-field">
-                  <label className="avm-label">Service Type</label>
+                  <label className="avm-label">Product Type</label>
                   <select
                     className="avm-select"
                     value={pickTypeId}
@@ -713,7 +693,52 @@ export default function AddVendorModal({ open, onClose, onCreated }) {
 
           {step === 2 && (
             <>
+            
               <div className="avm-section-title">Company Information</div>
+               <div className="avm-field" style={{ marginBottom: "1.25rem" }}>
+                <label className="avm-label">Vendor / Company Type</label>
+                <select
+                  className="avm-select"
+                  value={vendorTypePick}
+                  onChange={(e) => {
+                    const id = Number(e.target.value);
+                    if (!id) return;
+                    if (!form.vendorTypeIds.includes(id)) {
+                      setField("vendorTypeIds", [...form.vendorTypeIds, id]);
+                    }
+                    setVendorTypePick("");
+                  }}
+                >
+                  <option value="">Select vendor / Company Type</option>
+                  {vendorTypes.map((vendorType) => (
+                    <option key={vendorType.id} value={vendorType.id}>
+                      {vendorType.typeName}
+                    </option>
+                  ))}
+                </select>
+                {form.vendorTypeIds.length > 0 && (
+                  <div className="avm-chip-wrap">
+                    {form.vendorTypeIds.map((id) => {
+                      const name = vendorTypes.find((item) => item.id === id)?.typeName;
+                      if (!name) return null;
+                      return (
+                        <span key={id} className="avm-chip">
+                          {name}
+                          <button
+                            type="button"
+                            className="avm-chip-remove"
+                            onClick={() =>
+                              setField("vendorTypeIds", form.vendorTypeIds.filter((value) => value !== id))
+                            }
+                          >
+                            x
+                          </button>
+                        </span>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
               <div className="avm-grid">
                 <div className="avm-field">
                   <label className="avm-label">Country of Registration <span className="req">*</span></label>

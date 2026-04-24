@@ -1,4 +1,22 @@
 /* ───────── product field configs by type name ───────── */
+function createCustomSizeField(options, {
+  label = "Size",
+  unit = "mm",
+  dimensions = ["width", "height"],
+  customPlaceholder = "Enter custom size",
+} = {}) {
+  return {
+    key: "size",
+    label,
+    type: "select",
+    options,
+    allowCustom: true,
+    customPlaceholder,
+    customDimensions: dimensions,
+    customDimensionUnit: unit,
+  };
+}
+
 export const BOX_PACKAGING_FIELDS = [
   { key: "lengthCm", label: "Length (cm)", type: "number" },
   { key: "widthCm", label: "Width (cm)", type: "number" },
@@ -89,26 +107,20 @@ export const PLAIN_CUSTOMIZED_BOX_FIELDS = [
 ];
 
 export const FLEX_PRINTING_FIELDS = [
-  { key: "size", label: "Size", type: "select", options: ["Small (2×1 ft)", "Medium (4×2 ft)", "Large (6×3 ft)", "Extra Large (8×4 ft)", "Custom"], allowCustom: true },
-  { key: "customWidth", label: "Width (ft)", type: "number", hidden: true },
-  { key: "customHeight", label: "Height (ft)", type: "number", hidden: true },
+  createCustomSizeField(["Small (2×1 ft)", "Medium (4×2 ft)", "Large (6×3 ft)", "Extra Large (8×4 ft)", "Custom"], { unit: "ft" }),
   { key: "orientation", label: "Orientation", type: "select", options: ["Horizontal", "Vertical"] },
   { key: "required", label: "Required", type: "select", options: ["Flex Only", "Flex with Frame"] },
 ];
 
 export const FLEX_WITH_COLOUR_FIELDS = [
-  { key: "size", label: "Size", type: "select", options: ["Small (2×1 ft)", "Medium (4×2 ft)", "Large (6×3 ft)", "Extra Large (8×4 ft)", "Custom"], allowCustom: true },
-  { key: "customWidth", label: "Width (ft)", type: "number", hidden: true },
-  { key: "customHeight", label: "Height (ft)", type: "number", hidden: true },
+  createCustomSizeField(["Small (2×1 ft)", "Medium (4×2 ft)", "Large (6×3 ft)", "Extra Large (8×4 ft)", "Custom"], { unit: "ft" }),
   { key: "orientation", label: "Orientation", type: "select", options: ["Horizontal", "Vertical"] },
   { key: "required", label: "Required", type: "select", options: ["Flex Only", "Flex with Frame"] },
   { key: "colour", label: "Colour", type: "select", options: ["Red", "Blue", "Green", "Yellow", "Custom"], allowCustom: true, customPlaceholder: "Enter custom colour" },
 ];
 
 export const FLEX_WITH_COLOUR_AND_VARIENT_FIELDS = [
-  { key: "size", label: "Size", type: "select", options: ["Small (2×1 ft)", "Medium (4×2 ft)", "Large (6×3 ft)", "Extra Large (8×4 ft)", "Custom"], allowCustom: true },
-  { key: "customWidth", label: "Width (ft)", type: "number", hidden: true },
-  { key: "customHeight", label: "Height (ft)", type: "number", hidden: true },
+  createCustomSizeField(["Small (2×1 ft)", "Medium (4×2 ft)", "Large (6×3 ft)", "Extra Large (8×4 ft)", "Custom"], { unit: "ft" }),
   { key: "orientation", label: "Orientation", type: "select", options: ["Horizontal", "Vertical"] },
   { key: "required", label: "Required", type: "select", options: ["Flex Only", "Flex with Frame"] },
   { key: "colour", label: "Colour", type: "select", options: ["Red", "Blue", "Green", "Yellow", "Custom"], allowCustom: true, customPlaceholder: "Enter custom colour" },
@@ -134,31 +146,22 @@ export const REFLECTOR_FLEX_FIELDS = [
 ];
 
 export const BLACK_LIGHT_FLEX_FIELDS = [
-  { key: "size", label: "Size", type: "select", options: ["Custom"], allowCustom: true },
-  { key: "customWidth", label: "Width (ft)", type: "number", hidden: true },
-  { key: "customHeight", label: "Height (ft)", type: "number", hidden: true },
+  createCustomSizeField(["Custom"], { unit: "ft" }),
   { key: "ledType", label: "Led Type", type: "select", options: ["Box", "Flex", "Back Side Led Tubelight"] },
 ];
 
 export const LED_CUTTING_WITH_LIGHTING_FIELDS = [
-  { key: "size", label: "Size", type: "select", options: ["Mock Small (2×1 ft)", "Mock Medium (4×2 ft)", "Mock Large (6×3 ft)", "Custom"], allowCustom: true },
-  { key: "customWidth", label: "Width (ft)", type: "number", hidden: true },
-  { key: "customHeight", label: "Height (ft)", type: "number", hidden: true },
+  createCustomSizeField(["Mock Small (2×1 ft)", "Mock Medium (4×2 ft)", "Mock Large (6×3 ft)", "Custom"], { unit: "ft" }),
   { key: "ledType", label: "Led Type", type: "select", options: ["Box", "Flex", "Back Side Led Tubelight"] },
 ];
 
 export const AGRALIC_2D_FIELDS = [
-  { key: "size", label: "Size", type: "select", options: ["Small (2×1 ft)", "Medium (4×2 ft)", "Large (6×3 ft)", "Extra Large (8×4 ft)", "Custom"], allowCustom: true },
-  { key: "customWidth", label: "Width (ft)", type: "number", hidden: true },
-  { key: "customHeight", label: "Height (ft)", type: "number", hidden: true },
+  createCustomSizeField(["Small (2×1 ft)", "Medium (4×2 ft)", "Large (6×3 ft)", "Extra Large (8×4 ft)", "Custom"], { unit: "ft" }),
   { key: "requirementDetails", label: "Requirement Details", type: "text", placeholder: "Enter requirement details" },
 ];
 
 export const AGRALIC_3D_FIELDS = [
-  { key: "size", label: "Size", type: "select", options: ["Small (2×1×1 ft)", "Medium (4×2×1.5 ft)", "Large (6×3×2 ft)", "Extra Large (8×4×2.5 ft)", "Custom"], allowCustom: true },
-  { key: "customWidth", label: "Width (ft)", type: "number", hidden: true },
-  { key: "customHeight", label: "Height (ft)", type: "number", hidden: true },
-  { key: "customDepth", label: "Depth (ft)", type: "number", hidden: true },
+  createCustomSizeField(["Small (2×1×1 ft)", "Medium (4×2×1.5 ft)", "Large (6×3×2 ft)", "Extra Large (8×4×2.5 ft)", "Custom"], { unit: "ft", dimensions: ["width", "height", "depth"] }),
   { key: "requirementDetails", label: "Requirement Details", type: "text", placeholder: "Enter requirement details" },
 ];
 
@@ -459,29 +462,21 @@ export const SWEET_BOX_FIELDS = [
 ];
 
 export const CAKE_BASE_FIELDS = [
-  { key: "size", label: "Size", type: "select", options: ["Small (6 inch)", "Medium (8 inch)", "Large (10 inch)", "Custom"], allowCustom: true },
-  { key: "customWidth", label: "Width (mm)", type: "number", hidden: true },
-  { key: "customHeight", label: "Height (mm)", type: "number", hidden: true },
+  createCustomSizeField(["Small (6 inch)", "Medium (8 inch)", "Large (10 inch)", "Custom"], { unit: "mm" }),
   { key: "colour", label: "Colour", type: "select", options: ["Gold", "Silver"] },
   { key: "printingMethod", label: "Printing Method", type: "select", options: ["With Printing", "Without Printing"] },
   { key: "shapeType", label: "Shape Type", type: "select", options: ["Round", "Square", "Dye Cut Model"] },
 ];
 
 export const BROWNIE_BOX_FIELDS = [
-  { key: "size", label: "Size", type: "select", options: ["Small (4×4×2 inch)", "Medium (6×6×3 inch)", "Large (8×8×4 inch)", "Custom"], allowCustom: true },
-  { key: "customWidth", label: "Width (mm)", type: "number", hidden: true },
-  { key: "customHeight", label: "Height (mm)", type: "number", hidden: true },
-  { key: "customDepth", label: "Depth (mm)", type: "number", hidden: true },
+  createCustomSizeField(["Small (4×4×2 inch)", "Medium (6×6×3 inch)", "Large (8×8×4 inch)", "Custom"], { unit: "mm", dimensions: ["width", "height", "depth"] }),
   { key: "productQty", label: "Product Qty", type: "select", options: ["1 Pcs", "3 Pcs", "4 Pcs", "6 Pcs", "9 Pcs"] },
   { key: "windowType", label: "Window Type", type: "select", options: ["With Window", "Without Window"] },
   { key: "gsm", label: "Gsm", type: "text", placeholder: "Enter GSM" },
 ];
 
 export const CUP_CAKEE_BOX_FIELDS = [
-  { key: "size", label: "Size", type: "select", options: ["Single (3×3×3 inch)", "4 Cavity (8×4×3 inch)", "6 Cavity (8×8×3 inch)", "Custom"], allowCustom: true },
-  { key: "customWidth", label: "Width (mm)", type: "number", hidden: true },
-  { key: "customHeight", label: "Height (mm)", type: "number", hidden: true },
-  { key: "customDepth", label: "Depth (mm)", type: "number", hidden: true },
+  createCustomSizeField(["Single (3×3×3 inch)", "4 Cavity (8×4×3 inch)", "6 Cavity (8×8×3 inch)", "Custom"], { unit: "mm", dimensions: ["width", "height", "depth"] }),
   { key: "gsm", label: "Gsm", type: "text", placeholder: "Enter GSM" },
   { key: "windowType", label: "Window Type", type: "select", options: ["With Window", "Without Window"] },
   { key: "partition", label: "Partition", type: "select", options: ["With Partition", "Without Partition"] },
@@ -490,10 +485,7 @@ export const CUP_CAKEE_BOX_FIELDS = [
 
 export const BENTO_BOX_FIELDS = [
   { key: "type", label: "Type", type: "select", options: ["Plastic", "Wood", "Bambo"] },
-  { key: "size", label: "Size", type: "select", options: ["Small (6×4×3 inch)", "Medium (8×6×4 inch)", "Large (10×8×5 inch)", "Custom"], allowCustom: true },
-  { key: "customWidth", label: "Width (mm)", type: "number", hidden: true },
-  { key: "customHeight", label: "Height (mm)", type: "number", hidden: true },
-  { key: "customDepth", label: "Depth (mm)", type: "number", hidden: true },
+  createCustomSizeField(["Small (6×4×3 inch)", "Medium (8×6×4 inch)", "Large (10×8×5 inch)", "Custom"], { unit: "mm", dimensions: ["width", "height", "depth"] }),
 ];
 
 export const SELFLOCK_MAILER_FLAP_BOX_FIELDS = [
@@ -806,3 +798,6 @@ export function matchProductFields(typeName, subtypeName, typeFieldConfigKey, su
 
   return resolveFieldSetByName(typeName);
 }
+
+
+

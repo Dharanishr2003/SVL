@@ -1,5 +1,6 @@
 // frontend/frontend/src/pages/admin/SpecsInlineForm.jsx
 import React from "react";
+import { getConfiguredSizeDimensions, getDimensionStorageKey } from "../../utils/customSizeUtils";
 import {
   ACCESSORY_FIELDS,
   AGRALIC_2D_FIELDS,
@@ -56,6 +57,8 @@ import {
   ZIPPER_POUCH_FIELDS,
   ZIPPER_POUCH_PLAIN_FIELDS,
 } from "../../utils/productFieldConfigs";
+
+const LEGACY_CUSTOM_SIZE_FIELD_KEYS = new Set(["customWidth", "customHeight", "customDepth"]);
 
 // Keys must match the typeName values returned by the backend price list API.
 // If a typeName has no entry here, SpecsInlineForm renders nothing — which is fine.
@@ -124,6 +127,24 @@ export default function SpecsInlineForm({ typeName, specs, onChange }) {
     onChange({ ...specs, [key]: value });
   }
 
+  function handleFieldValueChange(field, value) {
+    const next = { ...specs, [field.key]: value };
+
+    if (field.key === "size") {
+      if (value !== "Custom") {
+        getConfiguredSizeDimensions(field).forEach((dimension) => {
+          delete next[getDimensionStorageKey(dimension)];
+        });
+        delete next.customUnit;
+        delete next.sizeCustom;
+      } else if (field.customDimensionUnit) {
+        next.customUnit = field.customDimensionUnit;
+      }
+    }
+
+    onChange(next);
+  }
+
   // Build parent-key map for hidden fields before rendering.
   // Hidden fields are only visible when their preceding allowCustom field === "Custom".
   const hiddenParentMap = {};
@@ -135,6 +156,10 @@ export default function SpecsInlineForm({ typeName, specs, onChange }) {
 
   const rendered = [];
   for (const field of fields) {
+    if (LEGACY_CUSTOM_SIZE_FIELD_KEYS.has(field.key)) {
+      continue;
+    }
+
     if (field.hidden) {
       const parentKey = hiddenParentMap[field.key];
       if (!parentKey || specs[parentKey] !== "Custom") continue;
@@ -148,14 +173,14 @@ export default function SpecsInlineForm({ typeName, specs, onChange }) {
             <select
               className="form-select form-select-sm"
               value={specs[field.key] ?? ""}
-              onChange={(e) => handleChange(field.key, e.target.value)}
+              onChange={(e) => handleFieldValueChange(field, e.target.value)}
             >
               <option value="">--</option>
               {(field.options ?? []).map((opt) => (
                 <option key={opt} value={opt}>{opt}</option>
               ))}
             </select>
-            {field.allowCustom && specs[field.key] === "Custom" && (
+            {field.allowCustom && specs[field.key] === "Custom" && field.customSizeMode === "text" && (
               <input
                 type="text"
                 className="form-control form-control-sm mt-1"
@@ -163,6 +188,28 @@ export default function SpecsInlineForm({ typeName, specs, onChange }) {
                 value={specs[`${field.key}Custom`] ?? ""}
                 onChange={(e) => handleChange(`${field.key}Custom`, e.target.value)}
               />
+            )}
+            {field.key === "size" && specs[field.key] === "Custom" && field.customSizeMode !== "text" && getConfiguredSizeDimensions(field).length > 0 && (
+              <div className="mt-2">
+                {getConfiguredSizeDimensions(field).map((dimension) => {
+                  const storageKey = getDimensionStorageKey(dimension);
+                  return (
+                    <input
+                      key={storageKey}
+                      type="number"
+                      className="form-control form-control-sm mt-1"
+                      placeholder={`Enter ${dimension}${field.customDimensionUnit ? ` in ${field.customDimensionUnit}` : ""}`}
+                      value={specs[storageKey] ?? ""}
+                      onChange={(e) => onChange({
+                        ...specs,
+                        [field.key]: "Custom",
+                        customUnit: field.customDimensionUnit || specs.customUnit || "",
+                        [storageKey]: e.target.value,
+                      })}
+                    />
+                  );
+                })}
+              </div>
             )}
           </>
         ) : (
