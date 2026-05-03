@@ -18,6 +18,7 @@ import {
   addUnitMaster,
   deleteUnitMaster
 } from "../../api/productFieldConfigApi";
+import { getCustomOptions, deleteCustomOption } from "../../api/customOptionsApi";
 import "./ProductFieldConfigPage.css";
 
 // ─── Dynamic product tree data ────────────────────────────────────────────────
@@ -293,7 +294,14 @@ function buildDependencyPayload(form) {
   };
 }
 
-function OptionsEditor({ options = [], onChange }) {
+function OptionsEditor({
+  options = [],
+  onChange,
+  importedOptions = [],
+  onRemoveImported = null,
+  removingImportedOptionIds = {},
+  loadingImported = false,
+}) {
   const [input, setInput] = useState("");
 
   const addOption = () => {
@@ -304,6 +312,20 @@ function OptionsEditor({ options = [], onChange }) {
   };
 
   const removeOption = (idx) => onChange(options.filter((_, i) => i !== idx));
+  const normalizeOptionValue = (value) => String(value || "").trim().toLowerCase();
+  const configuredKeySet = new Set(options.map((option) => normalizeOptionValue(option)));
+  const importedUniqueByValue = new Map();
+  (Array.isArray(importedOptions) ? importedOptions : []).forEach((option) => {
+    const valueRaw = String(option?.valueRaw || "").trim();
+    if (!valueRaw) return;
+    const normalized = normalizeOptionValue(valueRaw);
+    if (configuredKeySet.has(normalized)) return;
+    if (!importedUniqueByValue.has(normalized)) {
+      importedUniqueByValue.set(normalized, option);
+    }
+  });
+  const importedRows = Array.from(importedUniqueByValue.values());
+  const totalRows = options.length + importedRows.length;
 
   return (
     <>
@@ -322,22 +344,45 @@ function OptionsEditor({ options = [], onChange }) {
           </button>
         </div>
       </div>
-      {options.length > 0 && (
+      {loadingImported && (
+        <div className="text-muted mt-2" style={{ fontSize: 12 }}>
+          Loading imported values...
+        </div>
+      )}
+      {totalRows > 0 && (
         <div className="pfc-options-list mt-3">
           <div className="pfc-options-header">
             <span className="text-muted" style={{ fontSize: 12 }}>
-              {options.length} option{options.length !== 1 ? "s" : ""}
+              {totalRows} option{totalRows !== 1 ? "s" : ""}
             </span>
           </div>
           <div className="pfc-options-items">
             {options.map((opt, idx) => (
-              <div key={idx} className="pfc-option-item">
+              <div key={`configured-${idx}-${opt}`} className="pfc-option-item">
                 <span className="pfc-option-value">{opt}</span>
                 <button type="button" className="btn btn-link btn-sm text-danger p-0" onClick={() => removeOption(idx)}>
                   <i className="ti ti-x" />
                 </button>
               </div>
             ))}
+            {importedRows.map((option) => (
+              <div key={`imported-${option.id || option.valueRaw}`} className="pfc-option-item">
+                <span className="pfc-option-value">{option.valueRaw}</span>
+                <button
+                  type="button"
+                  className="btn btn-link btn-sm text-danger p-0"
+                  disabled={!onRemoveImported || !!removingImportedOptionIds[option.id]}
+                  onClick={() => onRemoveImported && onRemoveImported(option)}
+                  title="Remove imported value"
+                  >
+                    {removingImportedOptionIds[option.id] ? (
+                      <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true" />
+                    ) : (
+                      <i className="ti ti-x" />
+                    )}
+                  </button>
+                </div>
+              ))}
           </div>
         </div>
       )}
@@ -406,6 +451,9 @@ export default function ProductFieldConfigPage() {
   const [newUnitName, setNewUnitName] = useState("");
   const [dimMasterError, setDimMasterError] = useState("");
   const [unitMasterError, setUnitMasterError] = useState("");
+  const [customOptionsByFieldKey, setCustomOptionsByFieldKey] = useState({});
+  const [customOptionsLoading, setCustomOptionsLoading] = useState(false);
+  const [removingCustomOptionIds, setRemovingCustomOptionIds] = useState({});
 
   // ── INIT DATA ─────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -516,6 +564,23 @@ export default function ProductFieldConfigPage() {
   }, [flatProducts, searchText]);
 
   const selectedProduct = flatProducts.find((p) => p.id === selectedProductId);
+  const selectedServiceType = useMemo(
+    () => serviceTypes.find((type) => String(type.id) === String(selectedProductId)),
+    [serviceTypes, selectedProductId]
+  );
+  const customOptionScope = useMemo(() => {
+    if (!selectedServiceType) return { typeId: null, subtypeId: null };
+    if (selectedServiceType.parentId) {
+      return {
+        typeId: Number(selectedServiceType.parentId),
+        subtypeId: Number(selectedServiceType.id),
+      };
+    }
+    return {
+      typeId: Number(selectedServiceType.id),
+      subtypeId: null,
+    };
+  }, [selectedServiceType]);
   const breadcrumb = selectedProduct
     ? `${selectedProduct.categoryName} › ${selectedProduct.parentName ? selectedProduct.parentName + " › " + selectedProduct.name : selectedProduct.name}`
     : "";
@@ -526,6 +591,40 @@ export default function ProductFieldConfigPage() {
   }, [selectedProductId, PRODUCT_CATEGORIES]);
 
   // ── Already-added keys ──────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!customOptionScope.typeId || !fields.length || isParentType) {
+      setCustomOptionsByFieldKey({});
+      setCustomOptionsLoading(false);
+      return;
+    }
+
+    const selectFields = fields.filter((field) => field.type === "select" && !field.hidden);
+    if (!selectFields.length) {
+      setCustomOptionsByFieldKey({});
+      setCustomOptionsLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setCustomOptionsLoading(true);
+    Promise.all(
+      selectFields.map((field) =>
+        getCustomOptions(customOptionScope.typeId, customOptionScope.subtypeId, field.key)
+          .then((options) => [field.key, Array.isArray(options) ? options : []])
+          .catch(() => [field.key, []])
+      )
+    )
+      .then((pairs) => {
+        if (cancelled) return;
+        setCustomOptionsByFieldKey(Object.fromEntries(pairs));
+      })
+      .finally(() => {
+        if (!cancelled) setCustomOptionsLoading(false);
+      });
+
+    return () => { cancelled = true; };
+  }, [fields, customOptionScope.typeId, customOptionScope.subtypeId, isParentType]);
+
   const alreadyAddedKeys = useMemo(() => new Set(fields.map((f) => f.key)), [fields]);
 
   // ── Filtered library ────────────────────────────────────────────────────────
@@ -837,6 +936,33 @@ export default function ProductFieldConfigPage() {
     });
   };
 
+  const handleDeleteImportedCustomOption = (fieldKey, option) => {
+    if (!option?.id) return;
+    showConfirm({
+      title: "Remove Imported Value",
+      message: `Remove "${option.valueRaw}" from imported custom values for ${fieldKey}?`,
+      onConfirm: async () => {
+        try {
+          setRemovingCustomOptionIds((prev) => ({ ...prev, [option.id]: true }));
+          await deleteCustomOption(option.id);
+          setCustomOptionsByFieldKey((prev) => ({
+            ...prev,
+            [fieldKey]: (prev[fieldKey] || []).filter((item) => item.id !== option.id),
+          }));
+          showSuccess("Imported custom value removed");
+        } catch (err) {
+          showError(extractApiErrorMessage(err) || "Failed to remove imported custom value");
+        } finally {
+          setRemovingCustomOptionIds((prev) => {
+            const next = { ...prev };
+            delete next[option.id];
+            return next;
+          });
+        }
+      },
+    });
+  };
+
   const handleAddDimension = async () => {
     const name = newDimName.trim();
     if (!name) return;
@@ -1048,6 +1174,7 @@ export default function ProductFieldConfigPage() {
                       <th>Label</th>
                       <th>Key</th>
                       <th style={{ width: 90 }}>Type</th>
+                      <th style={{ width: 120 }}>Requirement</th>
                       <th>Options</th>
                       <th>Condition</th>
                       <th style={{ width: 80 }}>Actions</th>
@@ -1073,6 +1200,18 @@ export default function ProductFieldConfigPage() {
                           <span className="badge" style={TYPE_BADGE_STYLE[field.type] || TYPE_BADGE_STYLE.text}>
                             {field.type}
                           </span>
+                        </td>
+
+                        <td>
+                          {field.required ? (
+                            <span className="badge bg-danger-subtle text-danger border border-danger-subtle">
+                              Compulsory
+                            </span>
+                          ) : (
+                            <span className="badge bg-secondary-subtle text-secondary border border-secondary-subtle">
+                              Optional
+                            </span>
+                          )}
                         </td>
 
                         {/* Option pills */}
@@ -1640,6 +1779,21 @@ export default function ProductFieldConfigPage() {
                         )}
 
                         <div className="mb-3">
+                          <label className="form-label d-flex align-items-center gap-2">
+                            <input
+                              type="checkbox"
+                              className="form-check-input m-0"
+                              checked={newFieldForm.required || false}
+                              onChange={(e) => setNewFieldForm((p) => ({ ...p, required: e.target.checked }))}
+                            />
+                            Compulsory field
+                          </label>
+                          <div className="form-text">
+                            If checked, this field must be filled whenever it is visible in forms.
+                          </div>
+                        </div>
+
+                        <div className="mb-3">
                           <label className="form-label">Placeholder</label>
                           <input
                             type="text"
@@ -1833,6 +1987,21 @@ export default function ProductFieldConfigPage() {
                               )}
 
                               {/* Checkboxes */}
+                              <div className="col-12">
+                                <label className="form-label d-flex align-items-center gap-2">
+                                  <input
+                                    type="checkbox"
+                                    className="form-check-input m-0"
+                                    checked={field.required || false}
+                                    onChange={(e) => updateReviewField(field.key, { required: e.target.checked })}
+                                  />
+                                  Compulsory field
+                                </label>
+                                <div className="form-text">
+                                  If checked, this field must be filled whenever it is visible in forms.
+                                </div>
+                              </div>
+
                               {(field.type === "text" || field.type === "number") && (
                                 <div className="col-12">
                                   <label className="form-label">
@@ -2022,6 +2191,21 @@ export default function ProductFieldConfigPage() {
                           disabled={editFieldForm.type === "select"}
                         />
                       </div>
+
+                      <div className="col-12">
+                        <label className="form-label d-flex align-items-center gap-2">
+                          <input
+                            type="checkbox"
+                            className="form-check-input m-0"
+                            checked={editFieldForm.required || false}
+                            onChange={(e) => setEditFieldForm((p) => ({ ...p, required: e.target.checked }))}
+                          />
+                          Compulsory field
+                        </label>
+                        <div className="form-text">
+                          If checked, this field must be filled whenever it is visible in forms.
+                        </div>
+                      </div>
                     </div>
                   </section>
 
@@ -2034,6 +2218,10 @@ export default function ProductFieldConfigPage() {
                       <OptionsEditor
                         options={editFieldForm.options || []}
                         onChange={(opts) => setEditFieldForm((p) => ({ ...p, options: opts }))}
+                        importedOptions={customOptionsByFieldKey[editFieldForm.key] || []}
+                        loadingImported={customOptionsLoading}
+                        removingImportedOptionIds={removingCustomOptionIds}
+                        onRemoveImported={(option) => handleDeleteImportedCustomOption(editFieldForm.key, option)}
                       />
                       <div className="mb-2">
                         <label className="form-label">

@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import PageHeader from "../../components/admin/PageHeader";
 import { getFieldsByServiceType } from "../../api/productFieldConfigApi";
 import { getPriceList, savePriceEntry, deletePriceEntry } from "../../api/priceListApi";
@@ -79,13 +80,64 @@ function variantBadges(variantFields, sizeFieldConfig = null) {
     });
 }
 
-function validateStep(step, form, subtypeOptions, pricingStep = 2) {
+function isVariantFieldVisible(field, variantFields = {}) {
+  if (!field || field.hidden || LEGACY_CUSTOM_SIZE_FIELD_KEYS.has(field.key)) return false;
+  if (!field.dependsOn || !field.dependsOn.trim()) return true;
+  return String(variantFields[field.dependsOn] ?? "") === String(field.dependsOnValue ?? "");
+}
+
+function hasRequiredVariantValue(field, values = {}) {
+  if (!field || field.type === "computed") return true;
+  const value = values[field.key];
+  if (value === "" || value == null) return false;
+
+  if (field.hasUnit && (field.unitOptions || []).length > 0) {
+    const unitValue = values[`${field.key}Unit`] ?? field.defaultUnit;
+    if (unitValue === "" || unitValue == null) return false;
+  }
+
+  if (field.key === "size" && value === "Custom") {
+    if (field.customSizeMode === "text") {
+      return String(values.sizeCustom || "").trim() !== "";
+    }
+    const sizeEntries = getCustomSizeEntries(field, values);
+    if (sizeEntries.length > 0) {
+      return sizeEntries.every((entry) => String(entry.value || "").trim() !== "" && Number(entry.value) > 0);
+    }
+    return String(getCustomSizeSummary(field, values) || "").trim() !== "";
+  }
+
+  if (field.allowCustom && value === "Custom") {
+    return String(values[`${field.key}Custom`] || "").trim() !== "";
+  }
+
+  return true;
+}
+
+function validateRequiredVariantFields(form, fieldDefs = []) {
+  const fields = Array.isArray(fieldDefs) ? fieldDefs : [];
+  const values = form.variantFields || {};
+  for (const field of fields) {
+    if (!field?.isRequired) continue;
+    if (!isVariantFieldVisible(field, values)) continue;
+    if (!hasRequiredVariantValue(field, values)) return `${field.label || field.key} is compulsory.`;
+  }
+  return null;
+}
+
+function validateStep(step, form, subtypeOptions, pricingStep = 2, fieldDefs = []) {
   if (step === 0) {
     if (!form.categoryId) return "Please select a category.";
     if (!form.typeId) return "Please select a product type.";
     if (subtypeOptions.length > 0 && !form.subtypeId) return "Please select a sub-product.";
   }
+  if (step > 0 && step < pricingStep) {
+    const variantErr = validateRequiredVariantFields(form, fieldDefs);
+    if (variantErr) return variantErr;
+  }
   if (step === pricingStep) {
+    const variantErr = validateRequiredVariantFields(form, fieldDefs);
+    if (variantErr) return variantErr;
     const valid = form.quantitySlabs.filter(
       (s) => s.minQty !== "" && s.maxQty !== "" && s.pricePerPiece !== "" && Number(s.pricePerPiece) > 0
     );
@@ -147,7 +199,9 @@ function VariantField({ field, value, variantFields, onChange, optionsOverride }
     return (
       <div className="col-md-6">
         <div className="lead-form-field">
-          <label className="form-label">{field.label}</label>
+          <label className="form-label">
+            {field.label}{field.isRequired && <span className="text-danger ms-1">*</span>}
+          </label>
           <div style={{ display: "flex", alignItems: "center" }}>
             <select
               className="form-select"
@@ -204,7 +258,9 @@ function VariantField({ field, value, variantFields, onChange, optionsOverride }
     return (
       <div className="col-md-6">
         <div className="lead-form-field">
-          <label className="form-label">{field.label}</label>
+          <label className="form-label">
+            {field.label}{field.isRequired && <span className="text-danger ms-1">*</span>}
+          </label>
           <div style={{ display: "flex", alignItems: "stretch", width: "100%" }}>
             <input
               className="form-control unit-input"
@@ -238,7 +294,9 @@ function VariantField({ field, value, variantFields, onChange, optionsOverride }
   return (
     <div className="col-md-6">
       <div className="lead-form-field">
-        <label className="form-label">{field.label}{dimensionSuffix}</label>
+        <label className="form-label">
+          {field.label}{dimensionSuffix}{field.isRequired && <span className="text-danger ms-1">*</span>}
+        </label>
         <input
           type={field.type === "number" ? "number" : "text"}
           className="form-control"
@@ -260,6 +318,7 @@ function WizardModal({ title, form, setForm, step, setStep, onClose, onSave, onP
     customSizeUnitLabel: "ft", textRows: 4, selectedOption: "",
   });
   const [dialogError, setDialogError] = useState("");
+  const [formError, setFormError] = useState("");
   const [customOptionsByFieldKey, setCustomOptionsByFieldKey] = useState({});
 
   const typeOptions = useMemo(
@@ -366,14 +425,14 @@ function WizardModal({ title, form, setForm, step, setStep, onClose, onSave, onP
     return () => { cancelled = true; };
   }, [form.typeId, form.subtypeId]);
 
-  // Fetch saved custom options for all allowCustom select fields for this wizard scope
+  // Fetch saved imported/custom options for select fields for this wizard scope
   useEffect(() => {
     if (!form.typeId) { setCustomOptionsByFieldKey({}); return; }
-    const allowCustomFields = (fields || []).filter((f) => f.type === "select" && f.allowCustom && !f.promptText);
-    if (!allowCustomFields.length) { setCustomOptionsByFieldKey({}); return; }
+    const selectFields = (fields || []).filter((f) => f.type === "select" && !f.promptText);
+    if (!selectFields.length) { setCustomOptionsByFieldKey({}); return; }
 
     Promise.all(
-      allowCustomFields.map((f) =>
+      selectFields.map((f) =>
         getCustomOptions(form.typeId, form.subtypeId || null, f.key)
           .then((opts) => [f.key, (opts || []).map((o) => o.valueRaw)])
           .catch(() => [f.key, []])
@@ -554,8 +613,9 @@ function WizardModal({ title, form, setForm, step, setStep, onClose, onSave, onP
     setForm((p) => ({ ...p, quantitySlabs: p.quantitySlabs.filter((_, idx) => idx !== i) }));
 
   function handleSavePrice() {
-    const err = validateStep(pricingStep, form, subtypeOptions, pricingStep);
-    if (err) return;
+    setFormError("");
+    const err = validateStep(pricingStep, form, subtypeOptions, pricingStep, fields);
+    if (err) { setFormError(err); return; }
 
   const validSlabs = form.quantitySlabs
       .filter((s) => s.minQty !== "" && s.maxQty !== "" && s.pricePerPiece !== "")
@@ -627,7 +687,7 @@ function WizardModal({ title, form, setForm, step, setStep, onClose, onSave, onP
               <div className="lead-wizard">
                   <StepCircles step={step} stepLabels={stepLabels} />
 
-                  {error && <div className="alert alert-danger py-2 mb-3">{error}</div>}
+                  {(error || formError) && <div className="alert alert-danger py-2 mb-3">{error || formError}</div>}
 
                   <div className="lead-create-grid">
                     {/* Step 0 — Category / Type / Subtype */}
@@ -724,13 +784,9 @@ function WizardModal({ title, form, setForm, step, setStep, onClose, onSave, onP
                         ) : (
                           currentVariant.fields.map((field) => {
                             if (LEGACY_CUSTOM_SIZE_FIELD_KEYS.has(field.key)) return null;
-                            if (field.hidden) return null;
-                            if (field.dependsOn && field.dependsOn.trim() !== "") {
-                              const parentValue = form.variantFields[field.dependsOn];
-                              if (parentValue !== field.dependsOnValue) return null;
-                            }
+                            if (!isVariantFieldVisible(field, form.variantFields)) return null;
                             let optionsOverride = undefined;
-                            if (field.type === "select" && field.allowCustom && !field.promptText) {
+                            if (field.type === "select" && !field.promptText) {
                               const savedForField = customOptionsByFieldKey[field.key] || [];
                               const staticOpts = (field.options || []).filter((o) => o !== "Custom");
                               const alreadyInStatic = new Set(staticOpts.map((o) => String(o).toLowerCase()));
@@ -1034,6 +1090,7 @@ function WizardModal({ title, form, setForm, step, setStep, onClose, onSave, onP
 
 /* ── Main page ────────────────────────────────────────────────────────── */
 export default function PriceListPage() {
+  const navigate = useNavigate();
   const [rows, setRows] = useState([]);
   const [search, setSearch] = useState("");
   const [selectedCategoryId, setSelectedCategoryId] = useState(null);
@@ -1121,7 +1178,9 @@ export default function PriceListPage() {
           .map((id) => String(id))
       )
     );
-    const missingIds = serviceIds.filter((id) => !sizeFieldConfigsByServiceId[id]);
+    const missingIds = serviceIds.filter(
+      (id) => !Object.prototype.hasOwnProperty.call(sizeFieldConfigsByServiceId, id)
+    );
     if (!missingIds.length) return;
 
     let cancelled = false;
@@ -1186,7 +1245,7 @@ export default function PriceListPage() {
 
   /* ── wizard action handler ── */
   function handleWizardAction(action, form, step, setStep, setError, entryId, subtypeOptions, fieldDefs, pricingStep = 2) {
-    const err = validateStep(step, form, subtypeOptions, pricingStep);
+    const err = validateStep(step, form, subtypeOptions, pricingStep, fieldDefs);
     if (err) { setError(err); return; }
     setError("");
 
@@ -1309,7 +1368,14 @@ export default function PriceListPage() {
 
       <div className="leads-page-body">
         {/* Toolbar */}
-        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "1rem" }}>
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem", marginBottom: "1rem" }}>
+          <button
+            className="btn btn-outline-info leads-toolbar-btn"
+            onClick={() => navigate("/services/price-list/import")}
+          >
+            <i className="ti ti-upload me-1" />
+            Import Price List
+          </button>
           <button
             className="btn btn-success leads-toolbar-btn leads-primary-action"
             onClick={() => {

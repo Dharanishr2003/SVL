@@ -31,4 +31,10 @@ public class CustomFieldOptionController {
     public CustomFieldOptionResponse upsert(@RequestBody CustomFieldOptionRequest req) {
         return service.upsert(req);
     }
+
+    @DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void delete(@PathVariable Long id) {
+        service.delete(id);
+    }
 }

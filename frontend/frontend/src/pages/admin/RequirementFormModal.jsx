@@ -59,6 +59,56 @@ function buildSizeDialogState(field, values, fallbackUnit = "mm") {
   };
 }
 
+function isConfiguredFieldVisible(field, specs = {}) {
+  if (!field || field.hidden || LEGACY_CUSTOM_SIZE_FIELD_KEYS.has(field.key)) return false;
+  if (field.dependsOn && field.dependsOn.trim() !== "") {
+    return String(specs[field.dependsOn] ?? "") === String(field.dependsOnValue ?? "");
+  }
+  return true;
+}
+
+function hasConfiguredFieldValue(field, specs = {}) {
+  if (!field || field.type === "computed") return true;
+  const value = specs[field.key];
+  if (value == null || String(value).trim() === "") return false;
+
+  if (field.hasUnit && (field.unitOptions || []).length > 0) {
+    const unitValue = specs[`${field.key}Unit`] ?? field.defaultUnit;
+    if (unitValue == null || String(unitValue).trim() === "") return false;
+  }
+
+  if (field.type === "select" && field.allowCustom && value === "Custom") {
+    if (field.key === "size") {
+      if (field.customSizeMode === "text") {
+        return String(specs.sizeCustom || "").trim() !== "";
+      }
+      const sizeEntries = getCustomSizeEntries(field, specs);
+      if (sizeEntries.length > 0) {
+        return sizeEntries.every((entry) => String(entry.value || "").trim() !== "" && Number(entry.value) > 0);
+      }
+      return String(getCustomSizeSummary(field, specs) || "").trim() !== "";
+    }
+    return String(specs[`${field.key}Custom`] || "").trim() !== "";
+  }
+
+  return true;
+}
+
+function getMissingCompulsoryField(fields = [], specs = {}) {
+  return fields.find((field) =>
+    field.isRequired && isConfiguredFieldVisible(field, specs) && !hasConfiguredFieldValue(field, specs)
+  );
+}
+
+function renderFieldLabel(field, suffix = "") {
+  return (
+    <>
+      {field.label}{suffix}
+      {field.isRequired && <span className="text-danger ms-1">*</span>}
+    </>
+  );
+}
+
 async function collectDroppedFiles(items) {
   const collected = [];
 
@@ -277,15 +327,15 @@ export default function RequirementFormModal({
     return () => { cancelled = true; };
   }, [typeId, subtypeId]);
 
-  // Fetch saved custom options for all allowCustom fields whenever type/subtype changes
+  // Fetch saved imported/custom options for select fields whenever type/subtype changes
   useEffect(() => {
     if (!typeId) { setCustomOptionsByFieldKey({}); return; }
-    const allowCustomFields = (productFields || []).filter(
-      (f) => f.type === "select" && f.allowCustom && !f.promptText
+    const selectFields = (productFields || []).filter(
+      (f) => f.type === "select" && !f.promptText
     );
-    if (!allowCustomFields.length) { setCustomOptionsByFieldKey({}); return; }
+    if (!selectFields.length) { setCustomOptionsByFieldKey({}); return; }
     Promise.all(
-      allowCustomFields.map((f) =>
+      selectFields.map((f) =>
         getCustomOptions(typeId, subtypeId || null, f.key)
           .then((opts) => [f.key, (opts || []).map((o) => o.valueRaw)])
           .catch(() => [f.key, []])
@@ -587,6 +637,7 @@ export default function RequirementFormModal({
       return true;
     }
     if (s >= firstSpecificationStep && s < designStep) {
+      if (getMissingCompulsoryField(productFields, specs)) return false;
       if (designMode !== "design_only") {
         if (!quantity || Number(quantity) <= 0) return false;
       
@@ -628,7 +679,10 @@ export default function RequirementFormModal({
         }
       }
       else if (step >= firstSpecificationStep && step < designStep) {
-      if (designMode !== "design_only" && (!quantity || Number(quantity) <= 0)) {
+      const missingField = getMissingCompulsoryField(productFields, specs);
+      if (missingField) {
+        setError(`Please fill compulsory field: ${missingField.label || missingField.key}`);
+      } else if (designMode !== "design_only" && (!quantity || Number(quantity) <= 0)) {
         setError("Please enter a valid quantity");
       } else if (specs.size === "Custom") {
         const sizeField = (productFields || []).find((f) => f.key === "size");
@@ -659,6 +713,13 @@ export default function RequirementFormModal({
     setError("");
     setSaving(true);
     try {
+      const missingField = getMissingCompulsoryField(productFields, specs);
+      if (missingField) {
+        setError(`Please fill compulsory field: ${missingField.label || missingField.key}`);
+        setSaving(false);
+        return;
+      }
+
       const data = {
         leadId,
         categoryId: Number(categoryId),
@@ -978,7 +1039,7 @@ export default function RequirementFormModal({
                                 return (
                                   <div key={field.key} className="col-md-6">
                                     <div className="lead-form-field">
-                                      <label className="form-label">{field.label}</label>
+                                      <label className="form-label">{renderFieldLabel(field)}</label>
                                       <input
                                         className="form-control"
                                         value={val}
@@ -990,7 +1051,7 @@ export default function RequirementFormModal({
                               }
                               if (field.type === "select") {
                                 // Inject saved custom options for any allowCustom field
-                                const savedForField = field.allowCustom && !field.promptText
+                                const savedForField = !field.promptText
                                   ? (customOptionsByFieldKey[field.key] || [])
                                   : [];
                                 const staticOpts = field.options.filter((o) => o !== "Custom");
@@ -1001,7 +1062,7 @@ export default function RequirementFormModal({
                                 const result = [
                                   <div key={field.key} className="col-md-6">
                                     <div className="lead-form-field">
-                                      <label className="form-label">{field.label}</label>
+                                      <label className="form-label">{renderFieldLabel(field)}</label>
                                       <div style={{ display: "flex", alignItems: "center" }}>
                                         <select
                                           className="form-select"
@@ -1095,7 +1156,7 @@ export default function RequirementFormModal({
                               return (
                                 <div key={field.key} className="col-md-6">
                                   <div className="lead-form-field">
-                                    <label className="form-label">{field.label}{dimensionSuffix}</label>
+                                    <label className="form-label">{renderFieldLabel(field, dimensionSuffix)}</label>
                                     <input
                                       className="form-control"
                                       type={field.type === "number" ? "number" : "text"}

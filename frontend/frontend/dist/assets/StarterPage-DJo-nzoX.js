@@ -1,0 +1,1 @@
+import{j as a}from"./index-CV36RHer.js";function s(){return a.jsx("div",{className:"card",children:a.jsxs("div",{className:"card-body",children:[a.jsx("h4",{className:"mb-2",children:"Starter"}),a.jsx("p",{className:"mb-0",children:"Layout working confirmation."})]})})}export{s as default};

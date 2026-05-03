@@ -41,3 +41,9 @@ export function saveCustomOption(typeId, subtypeId, fieldKey, valueRaw) {
     .post('/api/v1/custom-options', { typeId: t, subtypeId: st, fieldKey: k, valueRaw: v })
     .then((r) => r.data);
 }
+
+export function deleteCustomOption(id) {
+  const optionId = Number(id);
+  if (!Number.isFinite(optionId)) return Promise.resolve();
+  return api.delete(`/api/v1/custom-options/${optionId}`);
+}

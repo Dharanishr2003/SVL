@@ -4,6 +4,7 @@ import com.nexorcrm.backend.dto.CustomFieldOptionRequest;
 import com.nexorcrm.backend.dto.CustomFieldOptionResponse;
 import com.nexorcrm.backend.entity.CustomFieldOption;
 import com.nexorcrm.backend.repo.CustomFieldOptionRepository;
+import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -60,6 +61,16 @@ public class CustomFieldOptionService {
                     opt.setValueNorm(norm);
                     return toResponse(repo.save(opt));
                 });
+    }
+
+    @Transactional
+    public void delete(Long id) {
+        if (id == null) return;
+        try {
+            repo.deleteById(id);
+        } catch (EmptyResultDataAccessException ignored) {
+            // Idempotent delete: treat missing row as success.
+        }
     }
 
     static String normalize(String value) {

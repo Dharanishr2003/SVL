@@ -1250,6 +1250,10 @@ export const adminPhpRoutes = [
     component: "PriceListPage",
   },
   {
+    path: "services/price-list/import",
+    component: "PriceListImportPage",
+  },
+  {
     path: "services/product-field-config",
     component: "ProductFieldConfigPage",
   },

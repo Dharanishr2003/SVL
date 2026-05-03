@@ -56,3 +56,20 @@ export function savePriceEntry(entry) {
 export function deletePriceEntry(id) {
   return api.delete(`/api/price-list/${id}`);
 }
+
+export async function importPriceEntries(entries) {
+  const results = [];
+  for (const entry of entries || []) {
+    try {
+      const saved = await savePriceEntry(entry);
+      results.push({ ok: true, entry: saved });
+    } catch (error) {
+      results.push({ ok: false, entry, error });
+    }
+  }
+  return {
+    created: results.filter((result) => result.ok).length,
+    failed: results.filter((result) => !result.ok).length,
+    results,
+  };
+}
