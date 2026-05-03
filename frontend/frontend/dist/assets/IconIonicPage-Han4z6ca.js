@@ -1,1 +1,0 @@
-import{j as s}from"./index-CV36RHer.js";function c(){return s.jsx("div",{className:"card",children:s.jsxs("div",{className:"card-body",children:[s.jsx("h4",{className:"mb-2",children:"Icon Ionic"}),s.jsx("p",{className:"mb-0",children:"Layout working confirmation."})]})})}export{c as default};
