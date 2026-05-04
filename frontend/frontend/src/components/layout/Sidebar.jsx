@@ -499,7 +499,7 @@ export default function Sidebar() {
               )}
               <li>
                 <ul>
-                  {canAccessAny("employees", "employees-list", "departments", "designations", "policy") && (
+                  {canAccessAny("employees", "employees-list", "departments", "designations", "policy", "head-offices", "branches") && (
                   <li className="submenu">
                     <a href="javascript:void(0);" className=" ">
                       <i className="ti ti-users"></i>
@@ -514,6 +514,20 @@ export default function Sidebar() {
                         </a>
                       </li>
                       )}
+                       {canAccessAny("employees", "head-offices") && (
+                      <li>
+                        <a href="/head-offices" className="">
+                          Head Offices
+                        </a>
+                      </li>
+                      )}
+                      {canAccessAny("employees", "branches") && (
+                      <li>
+                        <a href="/branches" className="">
+                          Branches
+                        </a>
+                      </li>
+                      )}
                       {canAccessAny("employees", "departments") && (
                       <li>
                         <a href="/departments" className="">
@@ -521,6 +535,8 @@ export default function Sidebar() {
                         </a>
                       </li>
                       )}
+                     
+                      
                       {canAccessAny("employees", "designations") && (
                       <li>
                         <a href="/designations" className="">

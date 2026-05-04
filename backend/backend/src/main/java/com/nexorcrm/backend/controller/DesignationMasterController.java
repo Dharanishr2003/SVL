@@ -19,8 +19,8 @@ public class DesignationMasterController {
     }
 
     @GetMapping
-    public List<DesignationMasterResponse> list() {
-        return service.list();
+    public List<DesignationMasterResponse> list(@RequestParam(value = "departmentId", required = false) Long departmentId) {
+        return service.list(departmentId);
     }
 
     @PostMapping

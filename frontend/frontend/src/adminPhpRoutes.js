@@ -276,6 +276,14 @@ export const adminPhpRoutes = [
     component: "DepartmentsPage",
   },
   {
+    path: "head-offices",
+    component: "HeadOfficesPage",
+  },
+  {
+    path: "branches",
+    component: "BranchesPage",
+  },
+  {
     path: "designations",
     component: "DesignationsPage",
   },

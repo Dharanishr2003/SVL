@@ -3,6 +3,7 @@ package com.nexorcrm.backend.dto;
 public class DepartmentMasterResponse {
     private Long id;
     private String name;
+    private Long branchId;
     private String status;
     private Long employeeCount; // optional for UI
 
@@ -11,6 +12,9 @@ public class DepartmentMasterResponse {
 
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
+
+    public Long getBranchId() { return branchId; }
+    public void setBranchId(Long branchId) { this.branchId = branchId; }
 
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }

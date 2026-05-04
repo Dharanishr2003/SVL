@@ -1,8 +1,11 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useLocation } from "react-router-dom";
-import { getEmployees, createEmployee, updateEmployee, deleteEmployee } from "../../api/employeesApi";
-import { getDepartmentsMaster } from "../../api/departmentsApi";
+import { getEmployees, createEmployee, updateEmployee, deleteEmployee, onboardEmployee, updateOnboardEmployee } from "../../api/employeesApi";
+import { getDepartmentsMaster, getDepartmentsMasterByBranch } from "../../api/departmentsApi";
 import { getDesignations } from "../../api/designationsApi";
+import { getHeadOffices } from "../../api/headOfficesApi";
+import { getBranches } from "../../api/branchesApi";
+import EmployeeWizardModal from "../../components/admin/EmployeeWizardModal";
 import {
   getDepartments as getOrgDepartments,
   getInstitutionCategories,
@@ -40,6 +43,64 @@ const EMPTY_FORM = {
   img: "assets/img/users/user-32.jpg",
 };
 
+const EMPTY_ONBOARD_FORM = {
+  nameInCaps: "",
+  employeeIdNumber: "",
+  fatherName: "",
+  motherName: "",
+  personalContactNumber: "",
+  alternateContactNumber: "",
+  location: "",
+  pinCode: "",
+  state: "",
+  currentAddress: "",
+  permanentAddress: "",
+  personalEmail: "",
+  officialEmail: "",
+  dateOfBirth: "",
+  dateOfJoining: "",
+  maritalStatus: "",
+  spouseName: "",
+  bloodGroup: "",
+  panCardNo: "",
+  aadharCardNo: "",
+  candidatePhoto: null,
+  uploadCandidateAadharCard: null,
+  uploadCandidatePanCard: null,
+  uploadBankPassBookCopy: null,
+  uploadExperienceCertificate: null,
+  uploadGraduationCertificate: null,
+  uploadGraduationMarksheet: null,
+  uploadHscMarkSheet: null,
+  uploadSslcMarkSheet: null,
+  uploadCommunityCertificate: null,
+  bankAccountHolderName: "",
+  bankAccountNumber: "",
+  ifscCode: "",
+  bankAndBranch: "",
+  employmentDetails1: "",
+  employmentDetails2: "",
+  graduationDetails: "",
+  hscMarkAndYear: "",
+  sslcMarkAndYear: "",
+  emergencyContactName1: "",
+  emergencyContactRelation1: "",
+  emergencyContactPhone1: "",
+  emergencyContactName2: "",
+  emergencyContactRelation2: "",
+  emergencyContactPhone2: "",
+  friendRefName1: "",
+  friendRefContact1: "",
+  friendRefName2: "",
+  friendRefContact2: "",
+  branchToJoin: "",
+  platformSource: "",
+  pfUan: "",
+  esiNo: "",
+  declarationDate: "",
+  declarationPlace: "",
+};
+
 function toUiRow(item) {
   return {
     id: item?.id ?? null,
@@ -67,6 +128,7 @@ function toUiRow(item) {
     joinDate: item?.joinDate || "",
     status: String(item?.status || "ACTIVE").toUpperCase(),
     img: item?.img || "assets/img/users/user-32.jpg",
+    _raw: item,
   };
 }
 
@@ -135,6 +197,24 @@ export default function EmployeesPage() {
   const [orgDepartments, setOrgDepartments] = useState([]);
   const [orgTeams, setOrgTeams] = useState([]);
 
+  const [showOnboardWizard, setShowOnboardWizard] = useState(false);
+  const [onboardStep, setOnboardStep] = useState(0);
+  const [onboardForm, setOnboardForm] = useState(EMPTY_ONBOARD_FORM);
+  const [onboardMode, setOnboardMode] = useState("create"); // create | edit
+  const [onboardEditId, setOnboardEditId] = useState(null);
+  const [hoLoading, setHoLoading] = useState(false);
+  const [headOffices, setHeadOffices] = useState([]);
+  const [branches, setBranches] = useState([]);
+  const [branchLoading, setBranchLoading] = useState(false);
+  const [onboardDepartments, setOnboardDepartments] = useState([]);
+  const [deptLoading, setDeptLoading] = useState(false);
+  const [onboardDesignations, setOnboardDesignations] = useState([]);
+  const [desigLoading, setDesigLoading] = useState(false);
+  const [onboardHeadOfficeId, setOnboardHeadOfficeId] = useState("");
+  const [onboardBranchId, setOnboardBranchId] = useState("");
+  const [onboardDepartmentId, setOnboardDepartmentId] = useState("");
+  const [onboardDesignationId, setOnboardDesignationId] = useState("");
+
   const gridView = location.pathname.endsWith("/employees-grid");
 
   const loadData = async () => {
@@ -170,6 +250,94 @@ export default function EmployeesPage() {
   useEffect(() => {
     loadMeta();
   }, []);
+
+  useEffect(() => {
+    if (!showOnboardWizard) return;
+    (async () => {
+      setHoLoading(true);
+      try {
+        const data = await getHeadOffices();
+        setHeadOffices(Array.isArray(data) ? data : []);
+      } catch (e) {
+        setHeadOffices([]);
+        showError(extractApiErrorMessage(e, "Failed to load head offices"));
+      } finally {
+        setHoLoading(false);
+      }
+    })();
+  }, [showOnboardWizard, showError]);
+
+  useEffect(() => {
+    (async () => {
+      if (!onboardHeadOfficeId) {
+        setBranches([]);
+        setOnboardBranchId("");
+        setOnboardDepartments([]);
+        setOnboardDepartmentId("");
+        setOnboardDesignations([]);
+        setOnboardDesignationId("");
+        return;
+      }
+      setBranchLoading(true);
+      try {
+        const data = await getBranches(onboardHeadOfficeId);
+        setBranches(Array.isArray(data) ? data : []);
+      } catch {
+        setBranches([]);
+      } finally {
+        setBranchLoading(false);
+      }
+      setOnboardBranchId("");
+      setOnboardDepartments([]);
+      setOnboardDepartmentId("");
+      setOnboardDesignations([]);
+      setOnboardDesignationId("");
+    })();
+  }, [onboardHeadOfficeId]);
+
+  useEffect(() => {
+    (async () => {
+      if (!onboardBranchId) {
+        setOnboardDepartments([]);
+        setOnboardDepartmentId("");
+        setOnboardDesignations([]);
+        setOnboardDesignationId("");
+        return;
+      }
+      setDeptLoading(true);
+      try {
+        const deps = await getDepartmentsMasterByBranch(onboardBranchId);
+        setOnboardDepartments(Array.isArray(deps) ? deps : []);
+      } catch {
+        setOnboardDepartments([]);
+      } finally {
+        setDeptLoading(false);
+      }
+      setOnboardDepartmentId("");
+      setOnboardDesignations([]);
+      setOnboardDesignationId("");
+    })();
+  }, [onboardBranchId]);
+
+  useEffect(() => {
+    (async () => {
+      if (!onboardDepartmentId) {
+        setOnboardDesignations([]);
+        setOnboardDesignationId("");
+        return;
+      }
+      setDesigLoading(true);
+      try {
+        const list = await getDesignations(onboardDepartmentId);
+        setOnboardDesignations(Array.isArray(list) ? list : []);
+      } catch {
+        setOnboardDesignations([]);
+      } finally {
+        setDesigLoading(false);
+      }
+      setOnboardDesignationId("");
+    })();
+  }, [onboardDepartmentId]);
 
   useEffect(() => {
     let active = true;
@@ -364,64 +532,218 @@ export default function EmployeesPage() {
 
 
   const openAdd = () => {
-    const role = String(currentUser?.role || "").toUpperCase();
-    const managerTeam =
-      String(orgSelection?.teamName || "").trim() ||
-      String(currentUser?.team || "").trim();
-    const defaultForm = {
-      ...EMPTY_FORM,
-      institutionType: String(currentUser?.institutionType || "").trim(),
-      userDepartmentName:
-        String(orgSelection?.departmentName || "").trim() ||
-        String(currentUser?.departmentName || "").trim(),
-      team: role === "MANAGER" ? managerTeam : "",
-    };
-    setForm(defaultForm);
-    if (role === "SUPER_ADMIN") {
-      setOrgInstitutionId("");
-      setOrgCategoryId("");
-      setOrgTypeId("");
-      setOrgDepartmentId("");
-      setOrgTeamId("");
-    } else {
-      setOrgInstitutionId(String(orgSelection?.institutionId || ""));
-      setOrgCategoryId(String(orgSelection?.categoryId || ""));
-      setOrgTypeId(String(orgSelection?.typeId || ""));
-      setOrgDepartmentId(String(orgSelection?.departmentId || ""));
-      setOrgTeamId(role === "MANAGER" ? String(orgSelection?.teamId || "") : "");
-    }
-    setIsEdit(false);
-    setPhoneError("");
-    setShowModal(true);
+    setOnboardMode("create");
+    setOnboardEditId(null);
+    setOnboardStep(0);
+    setOnboardForm(EMPTY_ONBOARD_FORM);
+    setOnboardHeadOfficeId("");
+    setOnboardBranchId("");
+    setOnboardDepartmentId("");
+    setOnboardDesignationId("");
+    setShowOnboardWizard(true);
   };
 
   const openEdit = (emp) => {
-    setForm({
-      employeeCode: emp.employeeCode || "",
-      name: emp.name || "",
-      email: emp.email || "",
-      countryCode: emp.countryCode || defaultCountryOption.value,
-      phone: emp.phone || "",
-      dept: emp.dept || "",
-      institution: emp.institution || "",
-      institutionCategory: emp.institutionCategory || "",
-      institutionType: emp.institutionType || "",
-      userDepartmentName: emp.userDepartmentName || "",
-      team: emp.team || "",
-      designation: emp.designation || "",
-      joinDate: emp.joinDate || "",
-      status: String(emp.status || "ACTIVE").toUpperCase(),
-      img: emp.img || "assets/img/users/user-32.jpg",
+    const raw = emp?._raw || {};
+    setOnboardMode("edit");
+    setOnboardEditId(raw?.id ?? emp?.id ?? null);
+    setOnboardStep(0);
+    setOnboardHeadOfficeId(raw?.headOfficeId ? String(raw.headOfficeId) : "");
+    setOnboardBranchId(raw?.branchId ? String(raw.branchId) : "");
+    setOnboardDepartmentId(raw?.departmentMasterId ? String(raw.departmentMasterId) : "");
+    setOnboardDesignationId(raw?.designationMasterId ? String(raw.designationMasterId) : "");
+    setOnboardForm({
+      ...EMPTY_ONBOARD_FORM,
+      nameInCaps: raw?.name ? String(raw.name).toUpperCase() : "",
+      employeeIdNumber: raw?.employeeIdNumber || "",
+      fatherName: raw?.fatherName || "",
+      motherName: raw?.motherName || "",
+      personalContactNumber: raw?.personalContactNumber || "",
+      alternateContactNumber: raw?.alternateContactNumber || "",
+      location: raw?.location || "",
+      pinCode: raw?.pinCode || "",
+      state: raw?.state || "",
+      currentAddress: raw?.currentAddress || "",
+      permanentAddress: raw?.permanentAddress || "",
+      personalEmail: raw?.personalEmail || "",
+      officialEmail: raw?.officialEmail || "",
+      dateOfBirth: raw?.dateOfBirth || "",
+      dateOfJoining: raw?.joinDate || "",
+      maritalStatus: raw?.maritalStatus || "",
+      spouseName: raw?.spouseName || "",
+      bloodGroup: raw?.bloodGroup || "",
+      panCardNo: raw?.panCardNo || "",
+      aadharCardNo: raw?.aadharCardNo || "",
+      bankAccountHolderName: raw?.bankAccountHolderName || "",
+      bankAccountNumber: raw?.bankAccountNumber || "",
+      ifscCode: raw?.ifscCode || "",
+      bankAndBranch: raw?.bankAndBranch || "",
+      employmentDetails1: raw?.employmentDetails1 || "",
+      employmentDetails2: raw?.employmentDetails2 || "",
+      graduationDetails: raw?.graduationDetails || "",
+      hscMarkAndYear: raw?.hscMarkAndYear || "",
+      sslcMarkAndYear: raw?.sslcMarkAndYear || "",
+      emergencyContactName1: raw?.emergencyContactName1 || "",
+      emergencyContactRelation1: raw?.emergencyContactRelation1 || "",
+      emergencyContactPhone1: raw?.emergencyContactPhone1 || "",
+      emergencyContactName2: raw?.emergencyContactName2 || "",
+      emergencyContactRelation2: raw?.emergencyContactRelation2 || "",
+      emergencyContactPhone2: raw?.emergencyContactPhone2 || "",
+      friendRefName1: raw?.friendRefName1 || "",
+      friendRefContact1: raw?.friendRefContact1 || "",
+      friendRefName2: raw?.friendRefName2 || "",
+      friendRefContact2: raw?.friendRefContact2 || "",
+      branchToJoin: raw?.branchToJoin || "",
+      platformSource: raw?.platformSource || "",
+      pfUan: raw?.pfUan || "",
+      esiNo: raw?.esiNo || "",
+      declarationDate: raw?.declarationDate || "",
+      declarationPlace: raw?.declarationPlace || "",
+      // files cannot be prefilled
+      candidatePhoto: null,
+      uploadCandidateAadharCard: null,
+      uploadCandidatePanCard: null,
+      uploadBankPassBookCopy: null,
+      uploadExperienceCertificate: null,
+      uploadGraduationCertificate: null,
+      uploadGraduationMarksheet: null,
+      uploadHscMarkSheet: null,
+      uploadSslcMarkSheet: null,
+      uploadCommunityCertificate: null,
     });
-    setSelectedId(emp.id);
-    const institutionMatch = orgInstitutions.find(
-      (item) =>
-        String(item?.name || "").toLowerCase() ===
-        String(emp.institution || "").toLowerCase(),
+    setShowOnboardWizard(true);
+  };
+
+  const hasText = (v) => typeof v === "string" && v.trim().length > 0;
+
+  const validateOnboardStep = (step) => {
+    if (step === 0) {
+      if (!onboardHeadOfficeId) return "Head Office is required";
+      if (!onboardBranchId) return "Branch is required";
+      if (!onboardDepartmentId) return "Department is required";
+      if (!onboardDesignationId) return "Team / Designation is required";
+      return "";
+    }
+    if (step === 1) {
+      if (!hasText(onboardForm.nameInCaps)) return "Name In Caps is required";
+      if (!hasText(onboardForm.employeeIdNumber)) return "Employee ID Number is required";
+      if (!hasText(onboardForm.fatherName)) return "Father’s Name is required";
+      if (!hasText(onboardForm.motherName)) return "Mother's Name is required";
+      if (!hasText(onboardForm.personalContactNumber)) return "Personal Contact Number is required";
+      if (!hasText(onboardForm.alternateContactNumber)) return "Alternate Contact Number is required";
+      if (!hasText(onboardForm.location)) return "Location is required";
+      if (!hasText(onboardForm.pinCode)) return "Pin Code is required";
+      if (!hasText(onboardForm.state)) return "State is required";
+      if (!hasText(onboardForm.currentAddress)) return "Current Address is required";
+      if (!hasText(onboardForm.permanentAddress)) return "Permanent Address is required";
+      if (!hasText(onboardForm.personalEmail)) return "Personal Email is required";
+      if (!hasText(onboardForm.officialEmail)) return "Official Email is required";
+      if (!hasText(onboardForm.dateOfBirth)) return "Date of Birth is required";
+      if (!hasText(onboardForm.dateOfJoining)) return "Date of Joining is required";
+      if (!hasText(onboardForm.maritalStatus)) return "Marital Status is required";
+      if (String(onboardForm.maritalStatus).toUpperCase() === "MARRIED" && !hasText(onboardForm.spouseName)) {
+        return "Spouse Name is required";
+      }
+      if (!hasText(onboardForm.bloodGroup)) return "Blood Group is required";
+      if (!hasText(onboardForm.panCardNo)) return "Pan Card No is required";
+      if (!hasText(onboardForm.aadharCardNo)) return "Aadhar Card No is required";
+      if (onboardMode === "create" && !onboardForm.candidatePhoto) return "Candidate Photo is required";
+      return "";
+    }
+    if (step === 2) {
+      if (onboardMode === "create") {
+        if (!onboardForm.uploadCandidateAadharCard) return "Upload Candidate Aadhar Card is required";
+        if (!onboardForm.uploadCandidatePanCard) return "Upload Candidate Pan Card is required";
+        if (!onboardForm.uploadBankPassBookCopy) return "Upload Bank Pass Book / Cancelled Cheque is required";
+        if (!onboardForm.uploadGraduationCertificate) return "Graduation Certificate is required";
+        if (!onboardForm.uploadGraduationMarksheet) return "Graduation Marksheet is required";
+        if (!onboardForm.uploadHscMarkSheet) return "HSC Mark Sheet is required";
+        if (!onboardForm.uploadSslcMarkSheet) return "SSLC Mark Sheet is required";
+        if (!onboardForm.uploadCommunityCertificate) return "Community Certificate is required";
+      }
+      return "";
+    }
+    if (step === 3) {
+      if (!hasText(onboardForm.bankAccountHolderName)) return "Bank Account Holder Name is required";
+      if (!hasText(onboardForm.bankAccountNumber)) return "Bank Account Number is required";
+      if (!hasText(onboardForm.ifscCode)) return "IFSC Code is required";
+      if (!hasText(onboardForm.bankAndBranch)) return "Bank & Branch is required";
+      if (!hasText(onboardForm.employmentDetails1)) return "Employment Details 1 is required";
+      if (!hasText(onboardForm.employmentDetails2)) return "Employment Details 2 is required";
+      if (!hasText(onboardForm.graduationDetails)) return "Graduation Details is required";
+      if (!hasText(onboardForm.hscMarkAndYear)) return "HSC Mark & Year is required";
+      if (!hasText(onboardForm.sslcMarkAndYear)) return "SSLC Mark & Year is required";
+      if (!hasText(onboardForm.emergencyContactName1)) return "Emergency Contact Name 1 is required";
+      if (!hasText(onboardForm.emergencyContactRelation1)) return "Emergency Contact Relationship 1 is required";
+      if (!hasText(onboardForm.emergencyContactPhone1)) return "Emergency Contact No 1 is required";
+      if (!hasText(onboardForm.emergencyContactName2)) return "Emergency Contact Name 2 is required";
+      if (!hasText(onboardForm.emergencyContactRelation2)) return "Emergency Contact Relationship 2 is required";
+      if (!hasText(onboardForm.emergencyContactPhone2)) return "Emergency Contact No 2 is required";
+      if (!hasText(onboardForm.friendRefName1)) return "Friend / Ex-Colleague Name 1 is required";
+      if (!hasText(onboardForm.friendRefContact1)) return "Friend / Ex-Colleague Contact 1 is required";
+      if (!hasText(onboardForm.friendRefName2)) return "Friend / Ex-Colleague Name 2 is required";
+      if (!hasText(onboardForm.friendRefContact2)) return "Friend / Ex-Colleague Contact 2 is required";
+      if (!hasText(onboardForm.branchToJoin)) return "Branch to Join is required";
+      if (!hasText(onboardForm.platformSource)) return "Platform Source is required";
+      if (!hasText(onboardForm.pfUan)) return "PF UAN is required";
+      if (!hasText(onboardForm.esiNo)) return "ESI No is required";
+      if (!hasText(onboardForm.declarationDate)) return "Declaration Date is required";
+      if (!hasText(onboardForm.declarationPlace)) return "Declaration Place is required";
+      return "";
+    }
+    return "";
+  };
+
+  const handleOnboardNext = () => {
+    const msg = validateOnboardStep(onboardStep);
+    if (msg) {
+      showError(msg);
+      return;
+    }
+    setOnboardStep((s) => Math.min(3, s + 1));
+  };
+
+  const handleOnboardPrev = () => setOnboardStep((s) => Math.max(0, s - 1));
+
+  const handleOnboardSubmit = async () => {
+    const msg = validateOnboardStep(3);
+    if (msg) {
+      showError(msg);
+      return;
+    }
+
+    const selectedDesignation = (onboardDesignations || []).find(
+      (d) => String(d.id) === String(onboardDesignationId),
     );
-    setOrgInstitutionId(institutionMatch?.id ? String(institutionMatch.id) : "");
-    setIsEdit(true);
-    setShowModal(true);
+
+    const fd = new FormData();
+    fd.append("headOfficeId", onboardHeadOfficeId);
+    fd.append("branchId", onboardBranchId);
+    fd.append("departmentMasterId", onboardDepartmentId);
+    fd.append("designationMasterId", onboardDesignationId);
+    if (selectedDesignation?.name) fd.append("designation", selectedDesignation.name);
+
+    Object.entries(onboardForm).forEach(([key, val]) => {
+      if (val === null || typeof val === "undefined" || val === "") return;
+      fd.append(key, val);
+    });
+
+    setSaving(true);
+    try {
+      if (onboardMode === "edit" && onboardEditId) {
+        await updateOnboardEmployee(onboardEditId, fd);
+        showSuccess("Employee updated");
+      } else {
+        await onboardEmployee(fd);
+        showSuccess("Employee added");
+      }
+      setShowOnboardWizard(false);
+      await loadData();
+    } catch (e) {
+      showError(extractApiErrorMessage(e, onboardMode === "edit" ? "Failed to update employee" : "Failed to add employee"));
+    } finally {
+      setSaving(false);
+    }
   };
 
   const departmentOptions = useMemo(() => {
@@ -675,6 +997,32 @@ export default function EmployeesPage() {
           </div>
         </div>
       </div>
+
+      {showOnboardWizard && (
+        <EmployeeWizardModal
+          wizardStep={onboardStep}
+          form={onboardForm}
+          setForm={setOnboardForm}
+          headOfficeId={onboardHeadOfficeId}
+          setHeadOfficeId={setOnboardHeadOfficeId}
+          branchId={onboardBranchId}
+          setBranchId={setOnboardBranchId}
+          departmentId={onboardDepartmentId}
+          setDepartmentId={setOnboardDepartmentId}
+          designationId={onboardDesignationId}
+          setDesignationId={setOnboardDesignationId}
+          headOffices={[...headOffices].sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))}
+          branches={[...branches].sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))}
+          departments={[...onboardDepartments].sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))}
+          designations={[...onboardDesignations].sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))}
+          loadingMasters={hoLoading || branchLoading || deptLoading || desigLoading}
+          saving={saving}
+          onNext={handleOnboardNext}
+          onPrev={handleOnboardPrev}
+          onSubmit={handleOnboardSubmit}
+          onClose={() => setShowOnboardWizard(false)}
+        />
+      )}
 
       {showModal && (
         <>

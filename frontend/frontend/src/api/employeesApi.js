@@ -15,6 +15,20 @@ export async function createEmployee(payload) {
   return response?.data || null;
 }
 
+export async function onboardEmployee(formData) {
+  const response = await api.post("/api/employees/onboard", formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+  return response?.data || null;
+}
+
+export async function updateOnboardEmployee(id, formData) {
+  const response = await api.put(`/api/employees/${id}/onboard`, formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+  return response?.data || null;
+}
+
 export async function updateEmployee(id, payload) {
   const response = await api.put(`/api/employees/${id}`, payload);
   return response?.data || null;

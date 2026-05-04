@@ -7,8 +7,9 @@ public class DesignationMasterRequest {
     @NotBlank
     private String name;
 
-    @NotBlank
     private String department;
+
+    private Long departmentMasterId;
 
     private String status; // ACTIVE / INACTIVE
 
@@ -17,6 +18,9 @@ public class DesignationMasterRequest {
 
     public String getDepartment() { return department; }
     public void setDepartment(String department) { this.department = department; }
+
+    public Long getDepartmentMasterId() { return departmentMasterId; }
+    public void setDepartmentMasterId(Long departmentMasterId) { this.departmentMasterId = departmentMasterId; }
 
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }

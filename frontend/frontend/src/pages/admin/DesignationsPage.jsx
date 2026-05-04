@@ -6,13 +6,16 @@ import {
   getDesignations,
   updateDesignation,
 } from "../../api/designationsApi";
-import { getDepartmentsMaster } from "../../api/departmentsApi";
+import { getDepartmentsMasterByBranch } from "../../api/departmentsApi";
+import { getHeadOffices } from "../../api/headOfficesApi";
+import { getBranches } from "../../api/branchesApi";
 import { getEmployees } from "../../api/employeesApi";
 import { extractApiErrorMessage } from "../../utils/errorMessage";
 import { useToast } from "../../components/system/ToastProvider";
 
 const initialForm = {
   name: "",
+  departmentId: "",
   department: "",
   status: "ACTIVE",
 };
@@ -20,6 +23,15 @@ const initialForm = {
 export default function DesignationsPage() {
   const [rows, setRows] = useState([]);
   const [departments, setDepartments] = useState([]);
+  const [headOffices, setHeadOffices] = useState([]);
+  const [branches, setBranches] = useState([]);
+  const [selectedHeadOfficeId, setSelectedHeadOfficeId] = useState("");
+  const [selectedBranchId, setSelectedBranchId] = useState("");
+  const [selectedDepartmentId, setSelectedDepartmentId] = useState("");
+  const [modalHeadOfficeId, setModalHeadOfficeId] = useState("");
+  const [modalBranchId, setModalBranchId] = useState("");
+  const [modalBranches, setModalBranches] = useState([]);
+  const [modalDepartments, setModalDepartments] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(false);
   const [metaLoading, setMetaLoading] = useState(false);
@@ -36,7 +48,7 @@ export default function DesignationsPage() {
   const load = async () => {
     setLoading(true);
     try {
-      const data = await getDesignations();
+      const data = selectedDepartmentId ? await getDesignations(selectedDepartmentId) : await getDesignations();
       setRows(Array.isArray(data) ? data : []);
     } catch (e) {
       setRows([]);
@@ -49,10 +61,10 @@ export default function DesignationsPage() {
   const loadMeta = async () => {
     setMetaLoading(true);
     try {
-      const deps = await getDepartmentsMaster();
-      setDepartments(Array.isArray(deps) ? deps : []);
+      const hos = await getHeadOffices();
+      setHeadOffices(Array.isArray(hos) ? hos : []);
     } catch (e) {
-      showError(extractApiErrorMessage(e, "Failed to load departments"));
+      showError(extractApiErrorMessage(e, "Failed to load masters"));
     } finally {
       setMetaLoading(false);
     }
@@ -68,22 +80,103 @@ export default function DesignationsPage() {
   };
 
   useEffect(() => {
-    load();
     loadMeta();
     loadEmployees();
   }, []);
+
+  useEffect(() => {
+    load();
+  }, [selectedDepartmentId]);
+
+  useEffect(() => {
+    (async () => {
+      if (!selectedHeadOfficeId) {
+        setBranches([]);
+        setSelectedBranchId("");
+        setDepartments([]);
+        setSelectedDepartmentId("");
+        return;
+      }
+      try {
+        const data = await getBranches(selectedHeadOfficeId);
+        setBranches(Array.isArray(data) ? data : []);
+      } catch {
+        setBranches([]);
+      }
+      setSelectedBranchId("");
+      setDepartments([]);
+      setSelectedDepartmentId("");
+    })();
+  }, [selectedHeadOfficeId]);
+
+  useEffect(() => {
+    (async () => {
+      if (!selectedBranchId) {
+        setDepartments([]);
+        setSelectedDepartmentId("");
+        return;
+      }
+      try {
+        const deps = await getDepartmentsMasterByBranch(selectedBranchId);
+        setDepartments(Array.isArray(deps) ? deps : []);
+      } catch {
+        setDepartments([]);
+      }
+      setSelectedDepartmentId("");
+    })();
+  }, [selectedBranchId]);
+
+  useEffect(() => {
+    (async () => {
+      if (!modalHeadOfficeId) {
+        setModalBranches([]);
+        setModalBranchId("");
+        setModalDepartments([]);
+        setForm((prev) => ({ ...prev, departmentId: "" }));
+        setEditForm((prev) => ({ ...prev, departmentId: "" }));
+        return;
+      }
+      try {
+        const data = await getBranches(modalHeadOfficeId);
+        setModalBranches(Array.isArray(data) ? data : []);
+      } catch {
+        setModalBranches([]);
+      }
+      setModalBranchId("");
+      setModalDepartments([]);
+      setForm((prev) => ({ ...prev, departmentId: "" }));
+      setEditForm((prev) => ({ ...prev, departmentId: "" }));
+    })();
+  }, [modalHeadOfficeId]);
+
+  useEffect(() => {
+    (async () => {
+      if (!modalBranchId) {
+        setModalDepartments([]);
+        setForm((prev) => ({ ...prev, departmentId: "" }));
+        setEditForm((prev) => ({ ...prev, departmentId: "" }));
+        return;
+      }
+      try {
+        const deps = await getDepartmentsMasterByBranch(modalBranchId);
+        setModalDepartments(Array.isArray(deps) ? deps : []);
+      } catch {
+        setModalDepartments([]);
+      }
+      setForm((prev) => ({ ...prev, departmentId: "" }));
+      setEditForm((prev) => ({ ...prev, departmentId: "" }));
+    })();
+  }, [modalBranchId]);
 
   const orderedRows = useMemo(
     () => [...rows].sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""))),
     [rows],
   );
 
-  const departmentOptions = useMemo(() => {
-    const names = (departments || [])
-      .map((d) => d?.name)
-      .filter((v) => typeof v === "string" && v.trim().length > 0);
-    return Array.from(new Set(names)).sort((a, b) => a.localeCompare(b));
-  }, [departments]);
+  const orderedDepartments = useMemo(
+    () => [...(departments || [])].sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""))),
+    [departments],
+  );
 
   const designationCounts = useMemo(() => {
     const map = new Map();
@@ -101,15 +194,18 @@ export default function DesignationsPage() {
       showError("Designation name is required");
       return;
     }
-    if (!form.department.trim()) {
+    if (!form.departmentId) {
       showError("Department is required");
       return;
     }
     setSaving(true);
     try {
+      const deptSource = (modalDepartments && modalDepartments.length > 0) ? modalDepartments : orderedDepartments;
+      const dept = deptSource.find((d) => String(d.id) === String(form.departmentId));
       await createDesignation({
         name: form.name.trim(),
-        department: form.department.trim(),
+        departmentMasterId: Number(form.departmentId),
+        department: dept?.name || form.department || "",
         status: form.status,
       });
       setForm(initialForm);
@@ -124,8 +220,13 @@ export default function DesignationsPage() {
   };
 
   const openEdit = (row) => {
+    setModalHeadOfficeId("");
+    setModalBranchId("");
+    setModalBranches([]);
+    setModalDepartments([]);
     setEditForm({
       name: row?.name || "",
+      departmentId: String(row?.departmentMasterId || ""),
       department: row?.department || "",
       status: String(row?.status || "ACTIVE").toUpperCase(),
     });
@@ -140,15 +241,18 @@ export default function DesignationsPage() {
       showError("Designation name is required");
       return;
     }
-    if (!editForm.department.trim()) {
+    if (!editForm.departmentId) {
       showError("Department is required");
       return;
     }
     setSaving(true);
     try {
+      const deptSource = (modalDepartments && modalDepartments.length > 0) ? modalDepartments : orderedDepartments;
+      const dept = deptSource.find((d) => String(d.id) === String(editForm.departmentId));
       await updateDesignation(selectedId, {
         name: editForm.name.trim(),
-        department: editForm.department.trim(),
+        departmentMasterId: Number(editForm.departmentId),
+        department: dept?.name || editForm.department || "",
         status: editForm.status,
       });
       showSuccess("Designation updated");
@@ -203,11 +307,64 @@ export default function DesignationsPage() {
               </ol>
             </nav>
           </div>
-          <div className="mb-2">
+          <div className="mb-2 d-flex align-items-center gap-2 flex-wrap">
+            <select
+              className="form-select"
+              style={{ width: 220 }}
+              value={selectedHeadOfficeId}
+              onChange={(e) => setSelectedHeadOfficeId(e.target.value)}
+              disabled={metaLoading}
+            >
+              <option value="">Select Head Office</option>
+              {[...headOffices]
+                .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))
+                .map((h) => (
+                  <option key={h.id} value={h.id}>
+                    {h.name}
+                  </option>
+                ))}
+            </select>
+            <select
+              className="form-select"
+              style={{ width: 220 }}
+              value={selectedBranchId}
+              onChange={(e) => setSelectedBranchId(e.target.value)}
+              disabled={!selectedHeadOfficeId}
+            >
+              <option value="">{selectedHeadOfficeId ? "Select Branch" : "Select Head Office first"}</option>
+              {[...branches]
+                .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))
+                .map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name}
+                  </option>
+                ))}
+            </select>
+            <select
+              className="form-select"
+              style={{ width: 240 }}
+              value={selectedDepartmentId}
+              onChange={(e) => setSelectedDepartmentId(e.target.value)}
+              disabled={!selectedBranchId}
+            >
+              <option value="">{selectedBranchId ? "Select Department" : "Select Branch first"}</option>
+              {orderedDepartments.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.name}
+                </option>
+              ))}
+            </select>
             <button
               type="button"
               className="btn btn-primary d-flex align-items-center"
-              onClick={() => setShowAddModal(true)}
+              onClick={() => {
+                setModalHeadOfficeId("");
+                setModalBranchId("");
+                setModalBranches([]);
+                setModalDepartments([]);
+                setForm(initialForm);
+                setShowAddModal(true);
+              }}
             >
               <i className="ti ti-circle-plus me-2"></i>Add Designation
             </button>
@@ -312,6 +469,86 @@ export default function DesignationsPage() {
                     <div className="row">
                       <div className="col-md-12">
                         <div className="mb-3">
+                          <label className="form-label">Head Office</label>
+                          <select
+                            className="form-select"
+                            value={modalHeadOfficeId}
+                            onChange={(e) => setModalHeadOfficeId(e.target.value)}
+                            disabled={metaLoading}
+                          >
+                            <option value="">Select</option>
+                            {[...headOffices]
+                              .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))
+                              .map((h) => (
+                                <option key={h.id} value={h.id}>
+                                  {h.name}
+                                </option>
+                              ))}
+                          </select>
+                        </div>
+                      </div>
+                      <div className="col-md-12">
+                        <div className="mb-3">
+                          <label className="form-label">Branch</label>
+                          <select
+                            className="form-select"
+                            value={modalBranchId}
+                            onChange={(e) => setModalBranchId(e.target.value)}
+                            disabled={!modalHeadOfficeId}
+                          >
+                            <option value="">{modalHeadOfficeId ? "Select" : "Select Head Office first"}</option>
+                            {[...modalBranches]
+                              .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))
+                              .map((b) => (
+                                <option key={b.id} value={b.id}>
+                                  {b.name}
+                                </option>
+                              ))}
+                          </select>
+                        </div>
+                      </div>
+                      <div className="col-md-12">
+                        <div className="mb-3">
+                          <label className="form-label">Head Office</label>
+                          <select
+                            className="form-select"
+                            value={modalHeadOfficeId}
+                            onChange={(e) => setModalHeadOfficeId(e.target.value)}
+                            disabled={metaLoading}
+                          >
+                            <option value="">Select</option>
+                            {[...headOffices]
+                              .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))
+                              .map((h) => (
+                                <option key={h.id} value={h.id}>
+                                  {h.name}
+                                </option>
+                              ))}
+                          </select>
+                        </div>
+                      </div>
+                      <div className="col-md-12">
+                        <div className="mb-3">
+                          <label className="form-label">Branch</label>
+                          <select
+                            className="form-select"
+                            value={modalBranchId}
+                            onChange={(e) => setModalBranchId(e.target.value)}
+                            disabled={!modalHeadOfficeId}
+                          >
+                            <option value="">{modalHeadOfficeId ? "Select" : "Select Head Office first"}</option>
+                            {[...modalBranches]
+                              .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))
+                              .map((b) => (
+                                <option key={b.id} value={b.id}>
+                                  {b.name}
+                                </option>
+                              ))}
+                          </select>
+                        </div>
+                      </div>
+                      <div className="col-md-12">
+                        <div className="mb-3">
                           <label className="form-label">Designation Name</label>
                           <input
                             type="text"
@@ -326,14 +563,16 @@ export default function DesignationsPage() {
                           <label className="form-label">Department</label>
                           <select
                             className="form-select"
-                            value={form.department}
-                            onChange={(e) => setForm((prev) => ({ ...prev, department: e.target.value }))}
-                            disabled={metaLoading}
+                            value={form.departmentId}
+                            onChange={(e) => setForm((prev) => ({ ...prev, departmentId: e.target.value }))}
+                            disabled={!modalBranchId}
                           >
                             <option value="">Select</option>
-                            {departmentOptions.map((name) => (
-                              <option key={name} value={name}>
-                                {name}
+                            {[...modalDepartments]
+                              .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))
+                              .map((d) => (
+                              <option key={d.id} value={d.id}>
+                                {d.name}
                               </option>
                             ))}
                           </select>
@@ -403,18 +642,16 @@ export default function DesignationsPage() {
                           <label className="form-label">Department</label>
                           <select
                             className="form-select"
-                            value={editForm.department}
-                            onChange={(e) => setEditForm((prev) => ({ ...prev, department: e.target.value }))}
-                            disabled={metaLoading}
+                            value={editForm.departmentId}
+                            onChange={(e) => setEditForm((prev) => ({ ...prev, departmentId: e.target.value }))}
+                            disabled={!modalBranchId}
                           >
                             <option value="">Select</option>
-                            {editForm.department &&
-                              !departmentOptions.includes(editForm.department) && (
-                                <option value={editForm.department}>{editForm.department}</option>
-                              )}
-                            {departmentOptions.map((name) => (
-                              <option key={name} value={name}>
-                                {name}
+                            {[...modalDepartments]
+                              .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))
+                              .map((d) => (
+                              <option key={d.id} value={d.id}>
+                                {d.name}
                               </option>
                             ))}
                           </select>

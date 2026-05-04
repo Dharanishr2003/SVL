@@ -19,8 +19,8 @@ public class DepartmentMasterController {
     }
 
     @GetMapping
-    public List<DepartmentMasterResponse> list() {
-        return service.list();
+    public List<DepartmentMasterResponse> list(@RequestParam(value = "branchId", required = false) Long branchId) {
+        return service.list(branchId);
     }
 
     @PostMapping

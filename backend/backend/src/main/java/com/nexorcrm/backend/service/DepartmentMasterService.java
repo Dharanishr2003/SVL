@@ -19,8 +19,11 @@ public class DepartmentMasterService {
         this.repository = repository;
     }
 
-    public List<DepartmentMasterResponse> list() {
-        return repository.findByDeletedFalseOrderByIdDesc()
+    public List<DepartmentMasterResponse> list(Long branchId) {
+        var items = branchId == null
+                ? repository.findByDeletedFalseOrderByIdDesc()
+                : repository.findByBranchIdAndDeletedFalseOrderByIdDesc(branchId);
+        return items
                 .stream()
                 .map(this::toResponse)
                 .toList();
@@ -28,12 +31,20 @@ public class DepartmentMasterService {
 
     public DepartmentMasterResponse create(DepartmentMasterRequest request) {
         String name = normalizeName(request.getName());
-        if (repository.existsByNameIgnoreCaseAndDeletedFalse(name)) {
-            throw new IllegalArgumentException("Department already exists");
+        Long branchId = request.getBranchId();
+        if (branchId == null) {
+            if (repository.existsByNameIgnoreCaseAndDeletedFalse(name)) {
+                throw new IllegalArgumentException("Department already exists");
+            }
+        } else {
+            if (repository.existsByBranchIdAndNameIgnoreCaseAndDeletedFalse(branchId, name)) {
+                throw new IllegalArgumentException("Department already exists for this branch");
+            }
         }
 
         DepartmentMaster d = new DepartmentMaster();
         d.setName(name);
+        d.setBranchId(branchId);
         d.setStatus(normalizeStatus(request.getStatus()));
         d = repository.save(d);
         return toResponse(d);
@@ -47,7 +58,24 @@ public class DepartmentMasterService {
             throw new EntityNotFoundException("Department not found");
         }
 
-        d.setName(normalizeName(request.getName()));
+        Long branchId = request.getBranchId();
+        String nextName = normalizeName(request.getName());
+        if (branchId == null) {
+            if (!nextName.equalsIgnoreCase(d.getName())
+                    && repository.existsByNameIgnoreCaseAndDeletedFalse(nextName)) {
+                throw new IllegalArgumentException("Department already exists");
+            }
+        } else {
+            boolean changedScope = d.getBranchId() == null || !branchId.equals(d.getBranchId());
+            boolean changedName = !nextName.equalsIgnoreCase(d.getName());
+            if ((changedScope || changedName)
+                    && repository.existsByBranchIdAndNameIgnoreCaseAndDeletedFalse(branchId, nextName)) {
+                throw new IllegalArgumentException("Department already exists for this branch");
+            }
+        }
+
+        d.setName(nextName);
+        d.setBranchId(branchId);
         d.setStatus(normalizeStatus(request.getStatus()));
         d = repository.save(d);
         return toResponse(d);
@@ -74,6 +102,7 @@ public class DepartmentMasterService {
         DepartmentMasterResponse r = new DepartmentMasterResponse();
         r.setId(d.getId());
         r.setName(d.getName());
+        r.setBranchId(d.getBranchId());
         r.setStatus(d.getStatus());
         r.setEmployeeCount(0L); // keep for frontend compatibility
         return r;

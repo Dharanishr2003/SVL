@@ -1,7 +1,9 @@
 import api from "../utils/api";
 
-export async function getDesignations() {
-  const response = await api.get("/api/designations");
+export async function getDesignations(departmentId) {
+  const response = await api.get("/api/designations", {
+    params: departmentId ? { departmentId } : {},
+  });
   return Array.isArray(response?.data) ? response.data : [];
 }
 

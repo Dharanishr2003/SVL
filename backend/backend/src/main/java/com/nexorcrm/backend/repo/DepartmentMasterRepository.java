@@ -7,5 +7,7 @@ import java.util.List;
 
 public interface DepartmentMasterRepository extends JpaRepository<DepartmentMaster, Long> {
     List<DepartmentMaster> findByDeletedFalseOrderByIdDesc();
+    List<DepartmentMaster> findByBranchIdAndDeletedFalseOrderByIdDesc(Long branchId);
     boolean existsByNameIgnoreCaseAndDeletedFalse(String name);
+    boolean existsByBranchIdAndNameIgnoreCaseAndDeletedFalse(Long branchId, String name);
 }

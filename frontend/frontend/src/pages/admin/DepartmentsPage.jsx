@@ -3,14 +3,18 @@ import { Link } from "react-router-dom";
 import {
   createDepartmentMaster,
   getDepartmentsMaster,
+  getDepartmentsMasterByBranch,
   updateDepartmentMaster,
   deleteDepartmentMaster,
 } from "../../api/departmentsApi";
+import { getHeadOffices } from "../../api/headOfficesApi";
+import { getBranches } from "../../api/branchesApi";
 import { getEmployees } from "../../api/employeesApi";
 import { extractApiErrorMessage } from "../../utils/errorMessage";
 import { useToast } from "../../components/system/ToastProvider";
 
 const initialForm = {
+  branchId: "",
   name: "",
   status: "ACTIVE",
 };
@@ -18,6 +22,12 @@ const initialForm = {
 export default function DepartmentsPage() {
   const [rows, setRows] = useState([]);
   const [employees, setEmployees] = useState([]);
+  const [headOffices, setHeadOffices] = useState([]);
+  const [branches, setBranches] = useState([]);
+  const [selectedHeadOfficeId, setSelectedHeadOfficeId] = useState("");
+  const [selectedBranchId, setSelectedBranchId] = useState("");
+  const [modalHeadOfficeId, setModalHeadOfficeId] = useState("");
+  const [modalBranches, setModalBranches] = useState([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const { showSuccess, showError } = useToast();
@@ -32,7 +42,9 @@ export default function DepartmentsPage() {
   const load = async () => {
     setLoading(true);
     try {
-      const data = await getDepartmentsMaster();
+      const data = selectedBranchId
+        ? await getDepartmentsMasterByBranch(selectedBranchId)
+        : await getDepartmentsMaster();
       setRows(Array.isArray(data) ? data : []);
     } catch (e) {
       setRows([]);
@@ -44,7 +56,52 @@ export default function DepartmentsPage() {
 
   useEffect(() => {
     load();
+  }, [selectedBranchId]);
+
+  const loadMeta = async () => {
+    try {
+      const data = await getHeadOffices();
+      setHeadOffices(Array.isArray(data) ? data : []);
+    } catch {
+      setHeadOffices([]);
+    }
+  };
+
+  useEffect(() => {
+    loadMeta();
   }, []);
+
+  useEffect(() => {
+    (async () => {
+      if (!selectedHeadOfficeId) {
+        setBranches([]);
+        setSelectedBranchId("");
+        return;
+      }
+      try {
+        const data = await getBranches(selectedHeadOfficeId);
+        setBranches(Array.isArray(data) ? data : []);
+      } catch {
+        setBranches([]);
+      }
+      setSelectedBranchId("");
+    })();
+  }, [selectedHeadOfficeId]);
+
+  useEffect(() => {
+    (async () => {
+      if (!modalHeadOfficeId) {
+        setModalBranches([]);
+        return;
+      }
+      try {
+        const data = await getBranches(modalHeadOfficeId);
+        setModalBranches(Array.isArray(data) ? data : []);
+      } catch {
+        setModalBranches([]);
+      }
+    })();
+  }, [modalHeadOfficeId]);
 
   const loadEmployees = async () => {
     try {
@@ -76,6 +133,10 @@ export default function DepartmentsPage() {
 
   const handleAddDepartment = async (e) => {
     e.preventDefault();
+    if (!form.branchId) {
+      showError("Branch is required");
+      return;
+    }
     if (!form.name.trim()) {
       showError("Department name is required");
       return;
@@ -83,6 +144,7 @@ export default function DepartmentsPage() {
     setSaving(true);
     try {
       await createDepartmentMaster({
+        branchId: Number(form.branchId),
         name: form.name.trim(),
         status: form.status,
       });
@@ -98,7 +160,9 @@ export default function DepartmentsPage() {
   };
 
   const openEdit = (row) => {
+    setModalHeadOfficeId(selectedHeadOfficeId || "");
     setEditForm({
+      branchId: String(row?.branchId || ""),
       name: row?.name || "",
       status: String(row?.status || "ACTIVE").toUpperCase(),
     });
@@ -109,6 +173,10 @@ export default function DepartmentsPage() {
   const handleEditDepartment = async (e) => {
     e.preventDefault();
     if (!selectedId) return;
+    if (!editForm.branchId) {
+      showError("Branch is required");
+      return;
+    }
     if (!editForm.name.trim()) {
       showError("Department name is required");
       return;
@@ -116,6 +184,7 @@ export default function DepartmentsPage() {
     setSaving(true);
     try {
       await updateDepartmentMaster(selectedId, {
+        branchId: Number(editForm.branchId),
         name: editForm.name.trim(),
         status: editForm.status,
       });
@@ -171,11 +240,46 @@ export default function DepartmentsPage() {
               </ol>
             </nav>
           </div>
-          <div className="mb-2">
+          <div className="mb-2 d-flex align-items-center gap-2 flex-wrap">
+            <select
+              className="form-select"
+              style={{ width: 240 }}
+              value={selectedHeadOfficeId}
+              onChange={(e) => setSelectedHeadOfficeId(e.target.value)}
+            >
+              <option value="">Select Head Office</option>
+              {[...headOffices]
+                .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))
+                .map((h) => (
+                  <option key={h.id} value={h.id}>
+                    {h.name}
+                  </option>
+                ))}
+            </select>
+            <select
+              className="form-select"
+              style={{ width: 240 }}
+              value={selectedBranchId}
+              onChange={(e) => setSelectedBranchId(e.target.value)}
+              disabled={!selectedHeadOfficeId}
+            >
+              <option value="">{selectedHeadOfficeId ? "Select Branch" : "Select Head Office first"}</option>
+              {[...branches]
+                .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))
+                .map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name}
+                  </option>
+                ))}
+            </select>
             <button
               type="button"
               className="btn btn-primary d-flex align-items-center"
-              onClick={() => setShowAddModal(true)}
+              onClick={() => {
+                setModalHeadOfficeId(selectedHeadOfficeId || "");
+                setForm((prev) => ({ ...initialForm, branchId: "" }));
+                setShowAddModal(true);
+              }}
             >
               <i className="ti ti-circle-plus me-2"></i>Add Department
             </button>
@@ -278,6 +382,48 @@ export default function DepartmentsPage() {
                     <div className="row">
                       <div className="col-md-12">
                         <div className="mb-3">
+                          <label className="form-label">Head Office</label>
+                          <select
+                            className="form-select"
+                            value={modalHeadOfficeId}
+                            onChange={(e) => {
+                              setModalHeadOfficeId(e.target.value);
+                              setForm((prev) => ({ ...prev, branchId: "" }));
+                            }}
+                          >
+                            <option value="">Select</option>
+                            {[...headOffices]
+                              .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))
+                              .map((h) => (
+                                <option key={h.id} value={h.id}>
+                                  {h.name}
+                                </option>
+                              ))}
+                          </select>
+                        </div>
+                      </div>
+                      <div className="col-md-12">
+                        <div className="mb-3">
+                          <label className="form-label">Branch</label>
+                          <select
+                            className="form-select"
+                            value={form.branchId}
+                            onChange={(e) => setForm((prev) => ({ ...prev, branchId: e.target.value }))}
+                            disabled={!modalHeadOfficeId}
+                          >
+                            <option value="">{modalHeadOfficeId ? "Select" : "Select Head Office first"}</option>
+                            {[...modalBranches]
+                              .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))
+                              .map((b) => (
+                                <option key={b.id} value={b.id}>
+                                  {b.name}
+                                </option>
+                              ))}
+                          </select>
+                        </div>
+                      </div>
+                      <div className="col-md-12">
+                        <div className="mb-3">
                           <label className="form-label">Department Name</label>
                           <input
                             type="text"
@@ -335,6 +481,48 @@ export default function DepartmentsPage() {
                 <form onSubmit={handleEditDepartment}>
                   <div className="modal-body pb-0">
                     <div className="row">
+                      <div className="col-md-12">
+                        <div className="mb-3">
+                          <label className="form-label">Head Office</label>
+                          <select
+                            className="form-select"
+                            value={modalHeadOfficeId}
+                            onChange={(e) => {
+                              setModalHeadOfficeId(e.target.value);
+                              setEditForm((prev) => ({ ...prev, branchId: "" }));
+                            }}
+                          >
+                            <option value="">Select</option>
+                            {[...headOffices]
+                              .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))
+                              .map((h) => (
+                                <option key={h.id} value={h.id}>
+                                  {h.name}
+                                </option>
+                              ))}
+                          </select>
+                        </div>
+                      </div>
+                      <div className="col-md-12">
+                        <div className="mb-3">
+                          <label className="form-label">Branch</label>
+                          <select
+                            className="form-select"
+                            value={editForm.branchId}
+                            onChange={(e) => setEditForm((prev) => ({ ...prev, branchId: e.target.value }))}
+                            disabled={!modalHeadOfficeId}
+                          >
+                            <option value="">{modalHeadOfficeId ? "Select" : "Select Head Office first"}</option>
+                            {[...modalBranches]
+                              .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))
+                              .map((b) => (
+                                <option key={b.id} value={b.id}>
+                                  {b.name}
+                                </option>
+                              ))}
+                          </select>
+                        </div>
+                      </div>
                       <div className="col-md-12">
                         <div className="mb-3">
                           <label className="form-label">Department Name</label>

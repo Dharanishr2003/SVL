@@ -14,6 +14,9 @@ public class DepartmentMaster {
     @Column(nullable = false, length = 120)
     private String name;
 
+    @Column(name = "branch_id")
+    private Long branchId;
+
     @Column(nullable = false, length = 20)
     private String status; // ACTIVE / INACTIVE
 
@@ -44,6 +47,9 @@ public class DepartmentMaster {
 
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
+
+    public Long getBranchId() { return branchId; }
+    public void setBranchId(Long branchId) { this.branchId = branchId; }
 
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }

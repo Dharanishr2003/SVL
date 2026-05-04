@@ -1,0 +1,553 @@
+import { useEffect } from "react";
+import "./UserWizardModal.css";
+
+export default function EmployeeWizardModal({
+  wizardStep,
+  form,
+  setForm,
+  headOfficeId,
+  setHeadOfficeId,
+  branchId,
+  setBranchId,
+  departmentId,
+  setDepartmentId,
+  designationId,
+  setDesignationId,
+  headOffices,
+  branches,
+  departments,
+  designations,
+  loadingMasters,
+  saving,
+  onNext,
+  onPrev,
+  onSubmit,
+  onClose,
+}) {
+  const totalSteps = 4;
+
+  useEffect(() => {
+    if (!headOfficeId) {
+      setBranchId("");
+      setDepartmentId("");
+      setDesignationId("");
+    }
+  }, [headOfficeId, setBranchId, setDepartmentId, setDesignationId]);
+
+  useEffect(() => {
+    if (!branchId) {
+      setDepartmentId("");
+      setDesignationId("");
+    }
+  }, [branchId, setDepartmentId, setDesignationId]);
+
+  useEffect(() => {
+    if (!departmentId) {
+      setDesignationId("");
+    }
+  }, [departmentId, setDesignationId]);
+
+  const stepPercent = `${((wizardStep + 1) / totalSteps) * 100}%`;
+
+  return (
+    <>
+      <div className="modal fade show" style={{ display: "block" }} tabIndex="-1">
+        <div className="modal-dialog modal-xl modal-dialog-centered">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h5 className="modal-title">Add Employee</h5>
+              <button className="btn-close" onClick={onClose} />
+            </div>
+
+            <div className="user-wizard">
+              <div className="wizard-progress-bar">
+                <div className="wizard-progress" style={{ width: stepPercent }} />
+              </div>
+
+              <div className="wizard-circles-container">
+                <div className="wizard-circle-item">
+                  <div className={`wizard-circle ${wizardStep >= 0 ? "active" : ""}`}>
+                    <i className="ti ti-sitemap" />
+                  </div>
+                  <div className="wizard-circle-label">Hierarchy</div>
+                </div>
+                <div className="wizard-circle-item">
+                  <div className={`wizard-circle ${wizardStep >= 1 ? "active" : ""}`}>
+                    <i className="ti ti-user" />
+                  </div>
+                  <div className="wizard-circle-label">Personal</div>
+                </div>
+                <div className="wizard-circle-item">
+                  <div className={`wizard-circle ${wizardStep >= 2 ? "active" : ""}`}>
+                    <i className="ti ti-file-upload" />
+                  </div>
+                  <div className="wizard-circle-label">Documents</div>
+                </div>
+                <div className="wizard-circle-item">
+                  <div className={`wizard-circle ${wizardStep >= 3 ? "active" : ""}`}>
+                    <i className="ti ti-clipboard-text" />
+                  </div>
+                  <div className="wizard-circle-label">Other</div>
+                </div>
+              </div>
+
+              <div className="wizard-content">
+                {wizardStep === 0 && (
+                  <div className="row g-3">
+                    <div className="col-md-3">
+                      <label className="form-label">Head Office *</label>
+                      <select
+                        className="form-select user-wizard-input"
+                        value={headOfficeId}
+                        onChange={(e) => setHeadOfficeId(e.target.value)}
+                        disabled={loadingMasters}
+                      >
+                        <option value="">Select</option>
+                        {headOffices.map((h) => (
+                          <option key={h.id} value={h.id}>
+                            {h.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="col-md-3">
+                      <label className="form-label">Branch *</label>
+                      <select
+                        className="form-select user-wizard-input"
+                        value={branchId}
+                        onChange={(e) => setBranchId(e.target.value)}
+                        disabled={!headOfficeId || loadingMasters}
+                      >
+                        <option value="">Select</option>
+                        {branches.map((b) => (
+                          <option key={b.id} value={b.id}>
+                            {b.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="col-md-3">
+                      <label className="form-label">Department *</label>
+                      <select
+                        className="form-select user-wizard-input"
+                        value={departmentId}
+                        onChange={(e) => setDepartmentId(e.target.value)}
+                        disabled={!branchId || loadingMasters}
+                      >
+                        <option value="">Select</option>
+                        {departments.map((d) => (
+                          <option key={d.id} value={d.id}>
+                            {d.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="col-md-3">
+                      <label className="form-label">Team / Designation *</label>
+                      <select
+                        className="form-select user-wizard-input"
+                        value={designationId}
+                        onChange={(e) => setDesignationId(e.target.value)}
+                        disabled={!departmentId || loadingMasters}
+                      >
+                        <option value="">Select</option>
+                        {designations.map((d) => (
+                          <option key={d.id} value={d.id}>
+                            {d.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                )}
+
+                {wizardStep === 1 && (
+                  <div className="row g-3">
+                    <div className="col-md-6">
+                      <label className="form-label">Name In Caps (As per Aadhar) *</label>
+                      <input
+                        type="text"
+                        className="form-control user-wizard-input"
+                        value={form.nameInCaps}
+                        onChange={(e) => setForm((p) => ({ ...p, nameInCaps: e.target.value.toUpperCase() }))}
+                      />
+                    </div>
+                    <div className="col-md-6">
+                      <label className="form-label">Employee ID Number *</label>
+                      <input
+                        type="text"
+                        className="form-control user-wizard-input"
+                        value={form.employeeIdNumber}
+                        onChange={(e) => setForm((p) => ({ ...p, employeeIdNumber: e.target.value }))}
+                      />
+                    </div>
+                    <div className="col-md-6">
+                      <label className="form-label">Father’s Name *</label>
+                      <input
+                        type="text"
+                        className="form-control user-wizard-input"
+                        value={form.fatherName}
+                        onChange={(e) => setForm((p) => ({ ...p, fatherName: e.target.value }))}
+                      />
+                    </div>
+                    <div className="col-md-6">
+                      <label className="form-label">Mother's Name *</label>
+                      <input
+                        type="text"
+                        className="form-control user-wizard-input"
+                        value={form.motherName}
+                        onChange={(e) => setForm((p) => ({ ...p, motherName: e.target.value }))}
+                      />
+                    </div>
+                    <div className="col-md-6">
+                      <label className="form-label">Personal Contact Number *</label>
+                      <input
+                        type="text"
+                        className="form-control user-wizard-input"
+                        value={form.personalContactNumber}
+                        onChange={(e) => setForm((p) => ({ ...p, personalContactNumber: e.target.value }))}
+                      />
+                    </div>
+                    <div className="col-md-6">
+                      <label className="form-label">Alternate Contact Number *</label>
+                      <input
+                        type="text"
+                        className="form-control user-wizard-input"
+                        value={form.alternateContactNumber}
+                        onChange={(e) => setForm((p) => ({ ...p, alternateContactNumber: e.target.value }))}
+                      />
+                    </div>
+                    <div className="col-md-4">
+                      <label className="form-label">Location *</label>
+                      <input
+                        type="text"
+                        className="form-control user-wizard-input"
+                        value={form.location}
+                        onChange={(e) => setForm((p) => ({ ...p, location: e.target.value }))}
+                      />
+                    </div>
+                    <div className="col-md-4">
+                      <label className="form-label">Pin Code *</label>
+                      <input
+                        type="text"
+                        className="form-control user-wizard-input"
+                        value={form.pinCode}
+                        onChange={(e) => setForm((p) => ({ ...p, pinCode: e.target.value }))}
+                      />
+                    </div>
+                    <div className="col-md-4">
+                      <label className="form-label">State *</label>
+                      <input
+                        type="text"
+                        className="form-control user-wizard-input"
+                        value={form.state}
+                        onChange={(e) => setForm((p) => ({ ...p, state: e.target.value }))}
+                      />
+                    </div>
+                    <div className="col-md-6">
+                      <label className="form-label">Current Address *</label>
+                      <textarea
+                        rows={2}
+                        className="form-control user-wizard-input"
+                        value={form.currentAddress}
+                        onChange={(e) => setForm((p) => ({ ...p, currentAddress: e.target.value }))}
+                      />
+                    </div>
+                    <div className="col-md-6">
+                      <label className="form-label">Permanent Address *</label>
+                      <textarea
+                        rows={2}
+                        className="form-control user-wizard-input"
+                        value={form.permanentAddress}
+                        onChange={(e) => setForm((p) => ({ ...p, permanentAddress: e.target.value }))}
+                      />
+                    </div>
+                    <div className="col-md-6">
+                      <label className="form-label">Personal Email *</label>
+                      <input
+                        type="email"
+                        className="form-control user-wizard-input"
+                        value={form.personalEmail}
+                        onChange={(e) => setForm((p) => ({ ...p, personalEmail: e.target.value }))}
+                      />
+                    </div>
+                    <div className="col-md-6">
+                      <label className="form-label">Official Email *</label>
+                      <input
+                        type="email"
+                        className="form-control user-wizard-input"
+                        value={form.officialEmail}
+                        onChange={(e) => setForm((p) => ({ ...p, officialEmail: e.target.value }))}
+                      />
+                    </div>
+                    <div className="col-md-4">
+                      <label className="form-label">Date of Birth *</label>
+                      <input
+                        type="date"
+                        className="form-control user-wizard-input"
+                        value={form.dateOfBirth}
+                        onChange={(e) => setForm((p) => ({ ...p, dateOfBirth: e.target.value }))}
+                      />
+                    </div>
+                    <div className="col-md-4">
+                      <label className="form-label">Date of Joining *</label>
+                      <input
+                        type="date"
+                        className="form-control user-wizard-input"
+                        value={form.dateOfJoining}
+                        onChange={(e) => setForm((p) => ({ ...p, dateOfJoining: e.target.value }))}
+                      />
+                    </div>
+                    <div className="col-md-4">
+                      <label className="form-label">Marital Status *</label>
+                      <select
+                        className="form-select user-wizard-input"
+                        value={form.maritalStatus}
+                        onChange={(e) => setForm((p) => ({ ...p, maritalStatus: e.target.value }))}
+                      >
+                        <option value="">Select</option>
+                        <option value="MARRIED">Married</option>
+                        <option value="SINGLE">Single</option>
+                      </select>
+                    </div>
+                    <div className="col-md-4">
+                      <label className="form-label">If Married Spouse Name *</label>
+                      <input
+                        type="text"
+                        className="form-control user-wizard-input"
+                        value={form.spouseName}
+                        onChange={(e) => setForm((p) => ({ ...p, spouseName: e.target.value }))}
+                        disabled={String(form.maritalStatus || "").toUpperCase() !== "MARRIED"}
+                      />
+                    </div>
+                    <div className="col-md-4">
+                      <label className="form-label">Blood Group *</label>
+                      <input
+                        type="text"
+                        className="form-control user-wizard-input"
+                        value={form.bloodGroup}
+                        onChange={(e) => setForm((p) => ({ ...p, bloodGroup: e.target.value }))}
+                      />
+                    </div>
+                    <div className="col-md-4">
+                      <label className="form-label">Pan Card No *</label>
+                      <input
+                        type="text"
+                        className="form-control user-wizard-input"
+                        value={form.panCardNo}
+                        onChange={(e) => setForm((p) => ({ ...p, panCardNo: e.target.value }))}
+                      />
+                    </div>
+                    <div className="col-md-6">
+                      <label className="form-label">Aadhar Card No *</label>
+                      <input
+                        type="text"
+                        className="form-control user-wizard-input"
+                        value={form.aadharCardNo}
+                        onChange={(e) => setForm((p) => ({ ...p, aadharCardNo: e.target.value }))}
+                      />
+                    </div>
+                    <div className="col-md-6">
+                      <label className="form-label">Candidate Photo *</label>
+                      <input
+                        type="file"
+                        className="form-control user-wizard-input"
+                        accept="image/*"
+                        onChange={(e) => setForm((p) => ({ ...p, candidatePhoto: e.target.files?.[0] || null }))}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {wizardStep === 2 && (
+                  <div className="row g-3">
+                    <div className="col-md-6">
+                      <label className="form-label">Upload Candidate Aadhar Card *</label>
+                      <input type="file" className="form-control user-wizard-input" onChange={(e) => setForm((p) => ({ ...p, uploadCandidateAadharCard: e.target.files?.[0] || null }))} />
+                    </div>
+                    <div className="col-md-6">
+                      <label className="form-label">Upload Candidate Pan Card *</label>
+                      <input type="file" className="form-control user-wizard-input" onChange={(e) => setForm((p) => ({ ...p, uploadCandidatePanCard: e.target.files?.[0] || null }))} />
+                    </div>
+                    <div className="col-md-6">
+                      <label className="form-label">Upload Bank Pass Book / Cancelled Cheque *</label>
+                      <input type="file" className="form-control user-wizard-input" onChange={(e) => setForm((p) => ({ ...p, uploadBankPassBookCopy: e.target.files?.[0] || null }))} />
+                    </div>
+                    <div className="col-md-6">
+                      <label className="form-label">Employment Details (Upload Experience Certificate)</label>
+                      <input type="file" className="form-control user-wizard-input" onChange={(e) => setForm((p) => ({ ...p, uploadExperienceCertificate: e.target.files?.[0] || null }))} />
+                    </div>
+                    <div className="col-md-6">
+                      <label className="form-label">Graduation Certificate *</label>
+                      <input type="file" className="form-control user-wizard-input" onChange={(e) => setForm((p) => ({ ...p, uploadGraduationCertificate: e.target.files?.[0] || null }))} />
+                    </div>
+                    <div className="col-md-6">
+                      <label className="form-label">Graduation Marksheet *</label>
+                      <input type="file" className="form-control user-wizard-input" onChange={(e) => setForm((p) => ({ ...p, uploadGraduationMarksheet: e.target.files?.[0] || null }))} />
+                    </div>
+                    <div className="col-md-6">
+                      <label className="form-label">HSC Mark Sheet *</label>
+                      <input type="file" className="form-control user-wizard-input" onChange={(e) => setForm((p) => ({ ...p, uploadHscMarkSheet: e.target.files?.[0] || null }))} />
+                    </div>
+                    <div className="col-md-6">
+                      <label className="form-label">SSLC Mark Sheet *</label>
+                      <input type="file" className="form-control user-wizard-input" onChange={(e) => setForm((p) => ({ ...p, uploadSslcMarkSheet: e.target.files?.[0] || null }))} />
+                    </div>
+                    <div className="col-md-6">
+                      <label className="form-label">Community Certificate *</label>
+                      <input type="file" className="form-control user-wizard-input" onChange={(e) => setForm((p) => ({ ...p, uploadCommunityCertificate: e.target.files?.[0] || null }))} />
+                    </div>
+                  </div>
+                )}
+
+                {wizardStep === 3 && (
+                  <div className="row g-3">
+                    <div className="col-md-6">
+                      <label className="form-label">Bank Account Holder Name *</label>
+                      <input type="text" className="form-control user-wizard-input" value={form.bankAccountHolderName} onChange={(e) => setForm((p) => ({ ...p, bankAccountHolderName: e.target.value }))} />
+                    </div>
+                    <div className="col-md-6">
+                      <label className="form-label">Bank Account Number *</label>
+                      <input type="text" className="form-control user-wizard-input" value={form.bankAccountNumber} onChange={(e) => setForm((p) => ({ ...p, bankAccountNumber: e.target.value }))} />
+                    </div>
+                    <div className="col-md-4">
+                      <label className="form-label">IFSC Code *</label>
+                      <input type="text" className="form-control user-wizard-input" value={form.ifscCode} onChange={(e) => setForm((p) => ({ ...p, ifscCode: e.target.value }))} />
+                    </div>
+                    <div className="col-md-8">
+                      <label className="form-label">Bank & Branch *</label>
+                      <input type="text" className="form-control user-wizard-input" value={form.bankAndBranch} onChange={(e) => setForm((p) => ({ ...p, bankAndBranch: e.target.value }))} />
+                    </div>
+                    <div className="col-md-6">
+                      <label className="form-label">Employment Details (Last Two Organizations) 1 *</label>
+                      <textarea rows={2} className="form-control user-wizard-input" value={form.employmentDetails1} onChange={(e) => setForm((p) => ({ ...p, employmentDetails1: e.target.value }))} />
+                    </div>
+                    <div className="col-md-6">
+                      <label className="form-label">Employment Details (Last Two Organizations) 2 *</label>
+                      <textarea rows={2} className="form-control user-wizard-input" value={form.employmentDetails2} onChange={(e) => setForm((p) => ({ ...p, employmentDetails2: e.target.value }))} />
+                    </div>
+                    <div className="col-md-4">
+                      <label className="form-label">Graduation Details *</label>
+                      <select className="form-select user-wizard-input" value={form.graduationDetails} onChange={(e) => setForm((p) => ({ ...p, graduationDetails: e.target.value }))}>
+                        <option value="">Select</option>
+                        <option value="UG">UG</option>
+                        <option value="PG">PG</option>
+                        <option value="DIPLOMA">Diploma</option>
+                        <option value="OTHERS">Others</option>
+                      </select>
+                    </div>
+                    <div className="col-md-4">
+                      <label className="form-label">HSC Mark & Year *</label>
+                      <input type="text" className="form-control user-wizard-input" value={form.hscMarkAndYear} onChange={(e) => setForm((p) => ({ ...p, hscMarkAndYear: e.target.value }))} />
+                    </div>
+                    <div className="col-md-4">
+                      <label className="form-label">SSLC Mark & Year *</label>
+                      <input type="text" className="form-control user-wizard-input" value={form.sslcMarkAndYear} onChange={(e) => setForm((p) => ({ ...p, sslcMarkAndYear: e.target.value }))} />
+                    </div>
+
+                    <div className="col-12">
+                      <hr className="my-1" />
+                      <h6 className="mb-0">Emergency Contacts</h6>
+                    </div>
+                    <div className="col-md-4">
+                      <label className="form-label">Name 1 *</label>
+                      <input type="text" className="form-control user-wizard-input" value={form.emergencyContactName1} onChange={(e) => setForm((p) => ({ ...p, emergencyContactName1: e.target.value }))} />
+                    </div>
+                    <div className="col-md-4">
+                      <label className="form-label">Relationship 1 *</label>
+                      <input type="text" className="form-control user-wizard-input" value={form.emergencyContactRelation1} onChange={(e) => setForm((p) => ({ ...p, emergencyContactRelation1: e.target.value }))} />
+                    </div>
+                    <div className="col-md-4">
+                      <label className="form-label">Contact No 1 *</label>
+                      <input type="text" className="form-control user-wizard-input" value={form.emergencyContactPhone1} onChange={(e) => setForm((p) => ({ ...p, emergencyContactPhone1: e.target.value }))} />
+                    </div>
+                    <div className="col-md-4">
+                      <label className="form-label">Name 2 *</label>
+                      <input type="text" className="form-control user-wizard-input" value={form.emergencyContactName2} onChange={(e) => setForm((p) => ({ ...p, emergencyContactName2: e.target.value }))} />
+                    </div>
+                    <div className="col-md-4">
+                      <label className="form-label">Relationship 2 *</label>
+                      <input type="text" className="form-control user-wizard-input" value={form.emergencyContactRelation2} onChange={(e) => setForm((p) => ({ ...p, emergencyContactRelation2: e.target.value }))} />
+                    </div>
+                    <div className="col-md-4">
+                      <label className="form-label">Contact No 2 *</label>
+                      <input type="text" className="form-control user-wizard-input" value={form.emergencyContactPhone2} onChange={(e) => setForm((p) => ({ ...p, emergencyContactPhone2: e.target.value }))} />
+                    </div>
+
+                    <div className="col-12">
+                      <hr className="my-1" />
+                      <h6 className="mb-0">Friends / Ex-Colleagues</h6>
+                    </div>
+                    <div className="col-md-6">
+                      <label className="form-label">Name 1 *</label>
+                      <input type="text" className="form-control user-wizard-input" value={form.friendRefName1} onChange={(e) => setForm((p) => ({ ...p, friendRefName1: e.target.value }))} />
+                    </div>
+                    <div className="col-md-6">
+                      <label className="form-label">Contact No 1 *</label>
+                      <input type="text" className="form-control user-wizard-input" value={form.friendRefContact1} onChange={(e) => setForm((p) => ({ ...p, friendRefContact1: e.target.value }))} />
+                    </div>
+                    <div className="col-md-6">
+                      <label className="form-label">Name 2 *</label>
+                      <input type="text" className="form-control user-wizard-input" value={form.friendRefName2} onChange={(e) => setForm((p) => ({ ...p, friendRefName2: e.target.value }))} />
+                    </div>
+                    <div className="col-md-6">
+                      <label className="form-label">Contact No 2 *</label>
+                      <input type="text" className="form-control user-wizard-input" value={form.friendRefContact2} onChange={(e) => setForm((p) => ({ ...p, friendRefContact2: e.target.value }))} />
+                    </div>
+
+                    <div className="col-md-6">
+                      <label className="form-label">In Which Branch You Need to Join *</label>
+                      <input type="text" className="form-control user-wizard-input" value={form.branchToJoin} onChange={(e) => setForm((p) => ({ ...p, branchToJoin: e.target.value }))} />
+                    </div>
+                    <div className="col-md-6">
+                      <label className="form-label">From Which Platform You Came to Know *</label>
+                      <input type="text" className="form-control user-wizard-input" value={form.platformSource} onChange={(e) => setForm((p) => ({ ...p, platformSource: e.target.value }))} />
+                    </div>
+                    <div className="col-md-6">
+                      <label className="form-label">If PF Account Available (UAN) *</label>
+                      <input type="text" className="form-control user-wizard-input" value={form.pfUan} onChange={(e) => setForm((p) => ({ ...p, pfUan: e.target.value }))} />
+                    </div>
+                    <div className="col-md-6">
+                      <label className="form-label">ESI No (If Available) *</label>
+                      <input type="text" className="form-control user-wizard-input" value={form.esiNo} onChange={(e) => setForm((p) => ({ ...p, esiNo: e.target.value }))} />
+                    </div>
+                    <div className="col-md-6">
+                      <label className="form-label">Declaration (Date) *</label>
+                      <input type="date" className="form-control user-wizard-input" value={form.declarationDate} onChange={(e) => setForm((p) => ({ ...p, declarationDate: e.target.value }))} />
+                    </div>
+                    <div className="col-md-6">
+                      <label className="form-label">Declaration (Place) *</label>
+                      <input type="text" className="form-control user-wizard-input" value={form.declarationPlace} onChange={(e) => setForm((p) => ({ ...p, declarationPlace: e.target.value }))} />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="wizard-nav">
+                {wizardStep > 0 ? (
+                  <button className="btn btn-light" onClick={onPrev} disabled={saving}>
+                    Previous
+                  </button>
+                ) : (
+                  <div></div>
+                )}
+                <div className="wizard-nav-spacer"></div>
+                {wizardStep < totalSteps - 1 ? (
+                  <button className="btn btn-primary" onClick={onNext} disabled={saving}>
+                    Next
+                  </button>
+                ) : (
+                  <button className="btn btn-primary" onClick={onSubmit} disabled={saving}>
+                    {saving ? "Saving..." : "Create"}
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div className="modal-backdrop fade show user-wizard-modal-backdrop" />
+    </>
+  );
+}
+

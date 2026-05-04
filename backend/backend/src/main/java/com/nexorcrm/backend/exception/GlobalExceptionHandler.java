@@ -11,6 +11,8 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.MultipartException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -86,6 +88,18 @@ public class GlobalExceptionHandler {
         // Avoid leaking low-level DB errors to the UI; callers can adjust the request.
         log.warn("Data integrity violation: {}", ex.getMostSpecificCause() == null ? ex.getMessage() : ex.getMostSpecificCause().getMessage());
         return buildError(HttpStatus.BAD_REQUEST, "Bad Request", "Invalid request");
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<Map<String, Object>> handleMaxUpload(MaxUploadSizeExceededException ex) {
+        return buildError(HttpStatus.PAYLOAD_TOO_LARGE, "Payload Too Large", "Upload too large. Please reduce file sizes and try again.");
+    }
+
+    @ExceptionHandler(MultipartException.class)
+    public ResponseEntity<Map<String, Object>> handleMultipart(MultipartException ex) {
+        // Commonly thrown for multipart parse issues (too many parts, exceeded limits, invalid form data).
+        log.warn("Multipart error: {}", ex.getMessage());
+        return buildError(HttpStatus.BAD_REQUEST, "Bad Request", "Failed to upload form. Please check file count/size and try again.");
     }
 
     @ExceptionHandler(Exception.class)

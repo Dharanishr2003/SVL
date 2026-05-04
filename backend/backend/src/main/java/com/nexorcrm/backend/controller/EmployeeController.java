@@ -2,8 +2,10 @@ package com.nexorcrm.backend.controller;
 
 import com.nexorcrm.backend.dto.EmployeeRequest;
 import com.nexorcrm.backend.dto.EmployeeResponse;
+import com.nexorcrm.backend.dto.EmployeeOnboardRequest;
 import com.nexorcrm.backend.service.EmployeeService;
 import jakarta.validation.Valid;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -31,6 +33,16 @@ public class EmployeeController {
     @PostMapping
     public EmployeeResponse create(@Valid @RequestBody EmployeeRequest request) {
         return employeeService.create(request);
+    }
+
+    @PostMapping(value = "/onboard", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public EmployeeResponse onboard(@ModelAttribute EmployeeOnboardRequest request) {
+        return employeeService.onboard(request);
+    }
+
+    @PutMapping(value = "/{id}/onboard", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public EmployeeResponse onboardUpdate(@PathVariable Long id, @ModelAttribute EmployeeOnboardRequest request) {
+        return employeeService.onboardUpdate(id, request);
     }
 
     @PutMapping("/{id}")

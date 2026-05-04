@@ -5,6 +5,13 @@ export async function getDepartmentsMaster() {
   return Array.isArray(response?.data) ? response.data : [];
 }
 
+export async function getDepartmentsMasterByBranch(branchId) {
+  const response = await api.get("/api/departments", {
+    params: branchId ? { branchId } : {},
+  });
+  return Array.isArray(response?.data) ? response.data : [];
+}
+
 export async function createDepartmentMaster(payload) {
   const response = await api.post("/api/departments", payload);
   return response?.data || null;
