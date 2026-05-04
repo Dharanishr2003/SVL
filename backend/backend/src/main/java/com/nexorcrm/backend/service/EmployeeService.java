@@ -3,8 +3,12 @@ package com.nexorcrm.backend.service;
 import com.nexorcrm.backend.dto.EmployeeRequest;
 import com.nexorcrm.backend.dto.EmployeeResponse;
 import com.nexorcrm.backend.dto.EmployeeOnboardRequest;
+import com.nexorcrm.backend.entity.DepartmentMaster;
+import com.nexorcrm.backend.entity.DesignationMaster;
 import com.nexorcrm.backend.entity.Employee;
+import com.nexorcrm.backend.repo.DepartmentMasterRepository;
 import com.nexorcrm.backend.repo.EmployeeRepository;
+import com.nexorcrm.backend.repo.DesignationMasterRepository;
 import com.nexorcrm.backend.repo.UserRepository;
 import com.nexorcrm.backend.util.PhoneValidationUtil;
 import jakarta.persistence.EntityNotFoundException;
@@ -26,13 +30,22 @@ public class EmployeeService {
 
     private final EmployeeRepository employeeRepository;
     private final UserRepository userRepository;
+    private final DepartmentMasterRepository departmentMasterRepository;
+    private final DesignationMasterRepository designationMasterRepository;
 
     @Value("${app.upload-dir:uploads}")
     private String uploadDir;
 
-    public EmployeeService(EmployeeRepository employeeRepository, UserRepository userRepository) {
+    public EmployeeService(
+            EmployeeRepository employeeRepository,
+            UserRepository userRepository,
+            DepartmentMasterRepository departmentMasterRepository,
+            DesignationMasterRepository designationMasterRepository
+    ) {
         this.employeeRepository = employeeRepository;
         this.userRepository = userRepository;
+        this.departmentMasterRepository = departmentMasterRepository;
+        this.designationMasterRepository = designationMasterRepository;
     }
 
     public List<EmployeeResponse> list() {
@@ -263,6 +276,24 @@ public class EmployeeService {
         e.setBranchId(r.getBranchId());
         e.setDepartmentMasterId(r.getDepartmentMasterId());
         e.setDesignationMasterId(r.getDesignationMasterId());
+
+        // Derive display fields used by listings/legacy UI.
+        if (r.getDepartmentMasterId() != null) {
+            DepartmentMaster dept = departmentMasterRepository.findById(r.getDepartmentMasterId()).orElse(null);
+            if (dept != null && Boolean.FALSE.equals(dept.getDeleted())) {
+                e.setDepartmentName(dept.getName());
+                // keep dept (legacy) aligned for existing screens
+                e.setDept(dept.getName());
+            }
+        }
+
+        if (r.getDesignationMasterId() != null) {
+            DesignationMaster desig = designationMasterRepository.findById(r.getDesignationMasterId()).orElse(null);
+            if (desig != null && Boolean.FALSE.equals(desig.getDeleted())) {
+                e.setDesignation(desig.getName());
+            }
+        }
+
         e.setStatus("ACTIVE");
         if (e.getImg() == null || e.getImg().isBlank()) {
             e.setImg("assets/img/users/user-32.jpg");

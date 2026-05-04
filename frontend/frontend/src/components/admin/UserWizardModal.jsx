@@ -234,20 +234,20 @@ export default function UserWizardModal({
                       </div>
                       <div className="col-md-6">
                         <label className="form-label">Country Code</label>
-                        <select
-                          className="form-select user-wizard-input"
-                          value={phoneCountryCode}
-                          onChange={(e) => {
-                            setPhoneCountryCode(e.target.value);
-                          }}
-                        >
-                          {COUNTRY_CODE_OPTIONS.map((opt) => (
-                            <option key={opt.value} value={opt.value}>
-                              {opt.label}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
+                  <select
+                      className="form-select user-wizard-input"
+                      value={phoneCountryCode}
+                      onChange={(e) => {
+                        setPhoneCountryCode(e.target.value);
+                      }}
+                    >
+                      {COUNTRY_CODE_OPTIONS.map((opt, index) => (
+                        <option key={`${opt.value}-${index}`} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                                          </div>
                       <div className="col-md-6">
                         <label className="form-label">Phone Number</label>
                         <input

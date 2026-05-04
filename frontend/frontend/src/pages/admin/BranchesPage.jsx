@@ -16,6 +16,24 @@ const initialForm = {
   status: "ACTIVE",
 };
 
+function isActiveMaster(item) {
+  return String(item?.status || "ACTIVE").toUpperCase() !== "INACTIVE";
+}
+
+function withInactiveSelected(items, selectedId) {
+  const list = Array.isArray(items) ? items : [];
+  const active = list.filter(isActiveMaster);
+  if (!selectedId) return active;
+
+  const selected = list.find((it) => String(it?.id) === String(selectedId));
+  if (!selected || isActiveMaster(selected)) return active;
+
+  return [
+    ...active,
+    { ...selected, name: `${selected?.name || "Selected"} (Inactive)` },
+  ];
+}
+
 export default function BranchesPage() {
   const { showSuccess, showError } = useToast();
   const [rows, setRows] = useState([]);
@@ -24,7 +42,13 @@ export default function BranchesPage() {
   const [metaLoading, setMetaLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  const [selectedHeadOfficeId, setSelectedHeadOfficeId] = useState("");
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [filters, setFilters] = useState({
+    headOfficeId: "",
+    status: "",
+    q: "",
+  });
+  const [draftFilters, setDraftFilters] = useState(filters);
 
   const [form, setForm] = useState(initialForm);
   const [editForm, setEditForm] = useState(initialForm);
@@ -66,21 +90,38 @@ export default function BranchesPage() {
   }, []);
 
   useEffect(() => {
-    load(selectedHeadOfficeId);
-  }, [selectedHeadOfficeId]);
+    load(filters.headOfficeId);
+  }, [filters.headOfficeId]);
 
   const headOfficeOptions = useMemo(
     () =>
-      [...headOffices].sort((a, b) =>
+      [...headOffices]
+        .filter(isActiveMaster)
+        .sort((a, b) =>
         String(a.name || "").localeCompare(String(b.name || "")),
       ),
     [headOffices],
   );
 
+  const editHeadOfficeOptions = useMemo(() => {
+    const list = withInactiveSelected(headOffices, editForm.headOfficeId);
+    return [...list].sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
+  }, [headOffices, editForm.headOfficeId]);
+
   const orderedRows = useMemo(
     () => [...rows].sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""))),
     [rows],
   );
+
+  const filteredRows = useMemo(() => {
+    const q = String(filters.q || "").trim().toLowerCase();
+    return orderedRows.filter((row) => {
+      const status = String(row?.status || "ACTIVE").toUpperCase();
+      const statusOk = !filters.status || status === String(filters.status).toUpperCase();
+      const qOk = !q || String(row?.name || "").toLowerCase().includes(q);
+      return statusOk && qOk;
+    });
+  }, [orderedRows, filters.q, filters.status]);
 
   const handleAdd = async (e) => {
     e.preventDefault();
@@ -102,7 +143,7 @@ export default function BranchesPage() {
       showSuccess("Branch added");
       setForm((prev) => ({ ...initialForm, headOfficeId: prev.headOfficeId || "" }));
       setShowAddModal(false);
-      await load(selectedHeadOfficeId);
+      await load(filters.headOfficeId);
     } catch (e2) {
       showError(extractApiErrorMessage(e2, "Failed to add branch"));
     } finally {
@@ -141,7 +182,7 @@ export default function BranchesPage() {
       showSuccess("Branch updated");
       setShowEditModal(false);
       setSelectedId(null);
-      await load(selectedHeadOfficeId);
+      await load(filters.headOfficeId);
     } catch (e2) {
       showError(extractApiErrorMessage(e2, "Failed to update branch"));
     } finally {
@@ -164,7 +205,7 @@ export default function BranchesPage() {
       setShowDeleteModal(false);
       setSelectedId(null);
       setDeleteTarget(null);
-      await load(selectedHeadOfficeId);
+      await load(filters.headOfficeId);
     } catch (e2) {
       showError(extractApiErrorMessage(e2, "Failed to delete branch"));
     } finally {
@@ -193,30 +234,122 @@ export default function BranchesPage() {
             </nav>
           </div>
           <div className="d-flex align-items-center gap-2">
-            <select
-              className="form-select"
-              style={{ width: 260 }}
-              value={selectedHeadOfficeId}
-              onChange={(e) => setSelectedHeadOfficeId(e.target.value)}
-              disabled={metaLoading}
+            
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => {
+                setForm((prev) => ({ ...initialForm, headOfficeId: filters.headOfficeId || prev.headOfficeId || "" }));
+                setShowAddModal(true);
+              }}
             >
-              <option value="">All Head Offices</option>
-              {headOfficeOptions.map((ho) => (
-                <option key={ho.id} value={ho.id}>
-                  {ho.name}
-                </option>
-              ))}
-            </select>
-            <button type="button" className="btn btn-primary" onClick={() => {
-              setForm((prev) => ({ ...initialForm, headOfficeId: selectedHeadOfficeId || prev.headOfficeId || "" }));
-              setShowAddModal(true);
-            }}>
               Add Branch
             </button>
           </div>
         </div>
 
         <div className="card">
+          <div className="card-header d-flex align-items-center justify-content-between">
+            <h5 >Branch List</h5>
+            <button
+              type="button"
+              className="btn btn-outline-warning leads-toolbar-btn"
+              onClick={() => {
+                setDraftFilters(filters);
+                setFilterOpen(true);
+              }}
+            >
+              <i className="ti ti-filter me-1" />
+              Filter
+            </button>
+          </div>
+          {filterOpen && (
+            <>
+              <div
+                className="position-fixed top-0 start-0 w-100 h-100"
+                style={{ background: "rgba(0,0,0,0.35)", zIndex: 1048 }}
+                onClick={() => setFilterOpen(false)}
+              />
+              <div
+                className="position-fixed top-0 end-0 h-100 bg-white border-start shadow"
+                style={{ width: 380, zIndex: 1049 }}
+              >
+                <div className="d-flex align-items-center justify-content-between p-3 border-bottom">
+                  <h6 className="mb-0">Filters</h6>
+                  <button type="button" className="btn-close" onClick={() => setFilterOpen(false)} />
+                </div>
+
+                <div className="p-3">
+                  
+                  <div className="mb-3">
+                    <label className="form-label">Head Office</label>
+                    <select
+                      className="form-select"
+                      value={draftFilters.headOfficeId}
+                      onChange={(e) =>
+                        setDraftFilters((prev) => ({ ...prev, headOfficeId: e.target.value }))
+                      }
+                      disabled={metaLoading}
+                    >
+                      <option value="">All</option>
+                      {headOfficeOptions.map((ho) => (
+                        <option key={ho.id} value={ho.id}>
+                          {ho.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="mb-3">
+                    <label className="form-label">Status</label>
+                    <select
+                      className="form-select"
+                      value={draftFilters.status}
+                      onChange={(e) =>
+                        setDraftFilters((prev) => ({ ...prev, status: e.target.value }))
+                      }
+                    >
+                      <option value="">All</option>
+                      <option value="ACTIVE">Active</option>
+                      <option value="INACTIVE">Inactive</option>
+                    </select>
+                  </div>
+
+                  <div className="mb-3">
+                    <label className="form-label">Search</label>
+                    <input
+                      className="form-control"
+                      value={draftFilters.q}
+                      onChange={(e) =>
+                        setDraftFilters((prev) => ({ ...prev, q: e.target.value }))
+                      }
+                      placeholder="Branch name"
+                    />
+                  </div>
+                </div>
+
+                <div className="p-3 border-top d-flex gap-2">
+                  <button
+                    type="button"
+                    className="btn btn-light w-50"
+                    onClick={() => setDraftFilters({ headOfficeId: "", status: "", q: "" })}
+                  >
+                    Clear
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-primary w-50"
+                    onClick={() => {
+                      setFilters(draftFilters);
+                      setFilterOpen(false);
+                    }}
+                  >
+                    Apply
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
           <div className="card-body">
             {loading ? (
               <div>Loading...</div>
@@ -232,14 +365,14 @@ export default function BranchesPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {orderedRows.length === 0 ? (
+                    {filteredRows.length === 0 ? (
                       <tr>
                         <td colSpan={4} className="text-center py-4">
                           No branches found
                         </td>
                       </tr>
                     ) : (
-                      orderedRows.map((row) => (
+                      filteredRows.map((row) => (
                         <tr key={row.id}>
                           <td>
                             {headOffices.find((h) => String(h.id) === String(row.headOfficeId))?.name ||
@@ -298,7 +431,7 @@ export default function BranchesPage() {
                             disabled={metaLoading}
                           >
                             <option value="">Select</option>
-                            {headOfficeOptions.map((ho) => (
+                            {editHeadOfficeOptions.map((ho) => (
                               <option key={ho.id} value={ho.id}>
                                 {ho.name}
                               </option>
@@ -452,4 +585,3 @@ export default function BranchesPage() {
     </>
   );
 }
-

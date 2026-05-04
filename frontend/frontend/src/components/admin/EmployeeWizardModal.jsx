@@ -1,10 +1,11 @@
-import { useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import "./UserWizardModal.css";
 
 export default function EmployeeWizardModal({
   wizardStep,
   form,
   setForm,
+  mode = "create",
   headOfficeId,
   setHeadOfficeId,
   branchId,
@@ -25,6 +26,67 @@ export default function EmployeeWizardModal({
   onClose,
 }) {
   const totalSteps = 4;
+  const [viewer, setViewer] = useState(null); // { title, url }
+  const [viewerObjectUrl, setViewerObjectUrl] = useState(null);
+
+  const apiBase = useMemo(
+    () => (import.meta.env.VITE_API_URL || "http://localhost:8081").replace(/\/+$/, ""),
+    [],
+  );
+
+  const toFileUrl = (path) => {
+    if (!path) return "";
+    const normalized = String(path).startsWith("/") ? String(path) : `/${path}`;
+    return `${apiBase}${normalized}`;
+  };
+
+  const getDisplayName = (path) => {
+    if (!path) return "";
+    const clean = String(path).split("?")[0];
+    const parts = clean.split("/");
+    return parts[parts.length - 1] || clean;
+  };
+
+  useEffect(() => {
+    return () => {
+      if (viewerObjectUrl) {
+        URL.revokeObjectURL(viewerObjectUrl);
+      }
+    };
+  }, [viewerObjectUrl]);
+
+  const openViewer = async (title, fileOrPath) => {
+    try {
+      if (viewerObjectUrl) {
+        URL.revokeObjectURL(viewerObjectUrl);
+        setViewerObjectUrl(null);
+      }
+
+      if (!fileOrPath) return;
+
+      if (fileOrPath instanceof File) {
+        const objectUrl = URL.createObjectURL(fileOrPath);
+        setViewerObjectUrl(objectUrl);
+        setViewer({ title, url: objectUrl });
+        return;
+      }
+
+      const url = toFileUrl(fileOrPath);
+      const res = await fetch(url, { credentials: "include" });
+      if (!res.ok) {
+        // fallback to direct open
+        window.open(url, "_blank", "noreferrer");
+        return;
+      }
+      const blob = await res.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      setViewerObjectUrl(objectUrl);
+      setViewer({ title, url: objectUrl });
+    } catch {
+      const url = fileOrPath instanceof File ? null : toFileUrl(fileOrPath);
+      if (url) window.open(url, "_blank", "noreferrer");
+    }
+  };
 
   useEffect(() => {
     if (!headOfficeId) {
@@ -69,7 +131,7 @@ export default function EmployeeWizardModal({
                   <div className={`wizard-circle ${wizardStep >= 0 ? "active" : ""}`}>
                     <i className="ti ti-sitemap" />
                   </div>
-                  <div className="wizard-circle-label">Hierarchy</div>
+                  <div className="wizard-circle-label">Branch Deatails</div>
                 </div>
                 <div className="wizard-circle-item">
                   <div className={`wizard-circle ${wizardStep >= 1 ? "active" : ""}`}>
@@ -91,10 +153,10 @@ export default function EmployeeWizardModal({
                 </div>
               </div>
 
-              <div className="wizard-content">
+              <div className="wizard-content" style={{ minHeight: 300 }}>
                 {wizardStep === 0 && (
                   <div className="row g-3">
-                    <div className="col-md-3">
+                    <div className="col-md-6">
                       <label className="form-label">Head Office *</label>
                       <select
                         className="form-select user-wizard-input"
@@ -110,7 +172,7 @@ export default function EmployeeWizardModal({
                         ))}
                       </select>
                     </div>
-                    <div className="col-md-3">
+                    <div className="col-md-6">
                       <label className="form-label">Branch *</label>
                       <select
                         className="form-select user-wizard-input"
@@ -126,7 +188,7 @@ export default function EmployeeWizardModal({
                         ))}
                       </select>
                     </div>
-                    <div className="col-md-3">
+                    <div className="col-md-6">
                       <label className="form-label">Department *</label>
                       <select
                         className="form-select user-wizard-input"
@@ -142,7 +204,7 @@ export default function EmployeeWizardModal({
                         ))}
                       </select>
                     </div>
-                    <div className="col-md-3">
+                    <div className="col-md-6">
                       <label className="form-label">Team / Designation *</label>
                       <select
                         className="form-select user-wizard-input"
@@ -217,7 +279,7 @@ export default function EmployeeWizardModal({
                         onChange={(e) => setForm((p) => ({ ...p, alternateContactNumber: e.target.value }))}
                       />
                     </div>
-                    <div className="col-md-4">
+                    <div className="col-md-6">
                       <label className="form-label">Location *</label>
                       <input
                         type="text"
@@ -226,7 +288,8 @@ export default function EmployeeWizardModal({
                         onChange={(e) => setForm((p) => ({ ...p, location: e.target.value }))}
                       />
                     </div>
-                    <div className="col-md-4">
+                    
+                    <div className="col-md-6">
                       <label className="form-label">Pin Code *</label>
                       <input
                         type="text"
@@ -235,13 +298,22 @@ export default function EmployeeWizardModal({
                         onChange={(e) => setForm((p) => ({ ...p, pinCode: e.target.value }))}
                       />
                     </div>
-                    <div className="col-md-4">
+                    <div className="col-md-6">
                       <label className="form-label">State *</label>
                       <input
                         type="text"
                         className="form-control user-wizard-input"
                         value={form.state}
                         onChange={(e) => setForm((p) => ({ ...p, state: e.target.value }))}
+                      />
+                    </div>
+                    <div className="col-md-6">
+                      <label className="form-label">Date of Joining *</label>
+                      <input
+                        type="date"
+                        className="form-control user-wizard-input"
+                        value={form.dateOfJoining}
+                        onChange={(e) => setForm((p) => ({ ...p, dateOfJoining: e.target.value }))}
                       />
                     </div>
                     <div className="col-md-6">
@@ -280,7 +352,7 @@ export default function EmployeeWizardModal({
                         onChange={(e) => setForm((p) => ({ ...p, officialEmail: e.target.value }))}
                       />
                     </div>
-                    <div className="col-md-4">
+                    <div className="col-md-6">
                       <label className="form-label">Date of Birth *</label>
                       <input
                         type="date"
@@ -289,16 +361,25 @@ export default function EmployeeWizardModal({
                         onChange={(e) => setForm((p) => ({ ...p, dateOfBirth: e.target.value }))}
                       />
                     </div>
-                    <div className="col-md-4">
-                      <label className="form-label">Date of Joining *</label>
-                      <input
-                        type="date"
-                        className="form-control user-wizard-input"
-                        value={form.dateOfJoining}
-                        onChange={(e) => setForm((p) => ({ ...p, dateOfJoining: e.target.value }))}
-                      />
-                    </div>
-                    <div className="col-md-4">
+                    <div className="col-md-6">
+  <label className="form-label">Blood Group *</label>
+  <select
+    className="form-select user-wizard-input"
+    value={form.bloodGroup}
+    onChange={(e) => setForm((p) => ({ ...p, bloodGroup: e.target.value }))}
+  >
+    <option value="">Select</option>
+    <option value="A+">A+</option>
+    <option value="A-">A-</option>
+    <option value="B+">B+</option>
+    <option value="B-">B-</option>
+    <option value="AB+">AB+</option>
+    <option value="AB-">AB-</option>
+    <option value="O+">O+</option>
+    <option value="O-">O-</option>
+  </select>
+</div>
+                    <div className="col-md-6">
                       <label className="form-label">Marital Status *</label>
                       <select
                         className="form-select user-wizard-input"
@@ -310,7 +391,7 @@ export default function EmployeeWizardModal({
                         <option value="SINGLE">Single</option>
                       </select>
                     </div>
-                    <div className="col-md-4">
+                    <div className="col-md-6">
                       <label className="form-label">If Married Spouse Name *</label>
                       <input
                         type="text"
@@ -320,16 +401,8 @@ export default function EmployeeWizardModal({
                         disabled={String(form.maritalStatus || "").toUpperCase() !== "MARRIED"}
                       />
                     </div>
-                    <div className="col-md-4">
-                      <label className="form-label">Blood Group *</label>
-                      <input
-                        type="text"
-                        className="form-control user-wizard-input"
-                        value={form.bloodGroup}
-                        onChange={(e) => setForm((p) => ({ ...p, bloodGroup: e.target.value }))}
-                      />
-                    </div>
-                    <div className="col-md-4">
+                    
+                    <div className="col-md-6">
                       <label className="form-label">Pan Card No *</label>
                       <input
                         type="text"
@@ -347,6 +420,12 @@ export default function EmployeeWizardModal({
                         onChange={(e) => setForm((p) => ({ ...p, aadharCardNo: e.target.value }))}
                       />
                     </div>
+                    
+                  </div>
+                )}
+
+                {wizardStep === 2 && (
+                  <div className="row g-3">
                     <div className="col-md-6">
                       <label className="form-label">Candidate Photo *</label>
                       <input
@@ -355,47 +434,172 @@ export default function EmployeeWizardModal({
                         accept="image/*"
                         onChange={(e) => setForm((p) => ({ ...p, candidatePhoto: e.target.files?.[0] || null }))}
                       />
+                      {(form.candidatePhoto || form.candidatePhotoPath) && (
+                        <div className="mt-1 small">
+                          <a
+                            href="#"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              openViewer("Candidate Photo", form.candidatePhoto || form.candidatePhotoPath);
+                            }}
+                          >
+                            {form.candidatePhoto ? form.candidatePhoto.name : getDisplayName(form.candidatePhotoPath)} (View)
+                          </a>
+                        </div>
+                      )}
                     </div>
-                  </div>
-                )}
-
-                {wizardStep === 2 && (
-                  <div className="row g-3">
                     <div className="col-md-6">
                       <label className="form-label">Upload Candidate Aadhar Card *</label>
                       <input type="file" className="form-control user-wizard-input" onChange={(e) => setForm((p) => ({ ...p, uploadCandidateAadharCard: e.target.files?.[0] || null }))} />
+                      {(form.uploadCandidateAadharCard || form.aadharCardPath) && (
+                        <div className="mt-1 small">
+                          <a
+                            href="#"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              openViewer("Aadhar Card", form.uploadCandidateAadharCard || form.aadharCardPath);
+                            }}
+                          >
+                            {form.uploadCandidateAadharCard ? form.uploadCandidateAadharCard.name : getDisplayName(form.aadharCardPath)} (View)
+                          </a>
+                        </div>
+                      )}
                     </div>
                     <div className="col-md-6">
                       <label className="form-label">Upload Candidate Pan Card *</label>
                       <input type="file" className="form-control user-wizard-input" onChange={(e) => setForm((p) => ({ ...p, uploadCandidatePanCard: e.target.files?.[0] || null }))} />
+                      {(form.uploadCandidatePanCard || form.panCardPath) && (
+                        <div className="mt-1 small">
+                          <a
+                            href="#"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              openViewer("PAN Card", form.uploadCandidatePanCard || form.panCardPath);
+                            }}
+                          >
+                            {form.uploadCandidatePanCard ? form.uploadCandidatePanCard.name : getDisplayName(form.panCardPath)} (View)
+                          </a>
+                        </div>
+                      )}
                     </div>
                     <div className="col-md-6">
                       <label className="form-label">Upload Bank Pass Book / Cancelled Cheque *</label>
                       <input type="file" className="form-control user-wizard-input" onChange={(e) => setForm((p) => ({ ...p, uploadBankPassBookCopy: e.target.files?.[0] || null }))} />
+                      {(form.uploadBankPassBookCopy || form.bankPassbookPath) && (
+                        <div className="mt-1 small">
+                          <a
+                            href="#"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              openViewer("Bank Passbook / Cheque", form.uploadBankPassBookCopy || form.bankPassbookPath);
+                            }}
+                          >
+                            {form.uploadBankPassBookCopy ? form.uploadBankPassBookCopy.name : getDisplayName(form.bankPassbookPath)} (View)
+                          </a>
+                        </div>
+                      )}
                     </div>
                     <div className="col-md-6">
                       <label className="form-label">Employment Details (Upload Experience Certificate)</label>
                       <input type="file" className="form-control user-wizard-input" onChange={(e) => setForm((p) => ({ ...p, uploadExperienceCertificate: e.target.files?.[0] || null }))} />
+                      {(form.uploadExperienceCertificate || form.experienceCertificatePath) && (
+                        <div className="mt-1 small">
+                          <a
+                            href="#"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              openViewer("Experience Certificate", form.uploadExperienceCertificate || form.experienceCertificatePath);
+                            }}
+                          >
+                            {form.uploadExperienceCertificate ? form.uploadExperienceCertificate.name : getDisplayName(form.experienceCertificatePath)} (View)
+                          </a>
+                        </div>
+                      )}
                     </div>
                     <div className="col-md-6">
                       <label className="form-label">Graduation Certificate *</label>
                       <input type="file" className="form-control user-wizard-input" onChange={(e) => setForm((p) => ({ ...p, uploadGraduationCertificate: e.target.files?.[0] || null }))} />
+                      {(form.uploadGraduationCertificate || form.graduationCertificatePath) && (
+                        <div className="mt-1 small">
+                          <a
+                            href="#"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              openViewer("Graduation Certificate", form.uploadGraduationCertificate || form.graduationCertificatePath);
+                            }}
+                          >
+                            {form.uploadGraduationCertificate ? form.uploadGraduationCertificate.name : getDisplayName(form.graduationCertificatePath)} (View)
+                          </a>
+                        </div>
+                      )}
                     </div>
                     <div className="col-md-6">
                       <label className="form-label">Graduation Marksheet *</label>
                       <input type="file" className="form-control user-wizard-input" onChange={(e) => setForm((p) => ({ ...p, uploadGraduationMarksheet: e.target.files?.[0] || null }))} />
+                      {(form.uploadGraduationMarksheet || form.graduationMarksheetPath) && (
+                        <div className="mt-1 small">
+                          <a
+                            href="#"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              openViewer("Graduation Marksheet", form.uploadGraduationMarksheet || form.graduationMarksheetPath);
+                            }}
+                          >
+                            {form.uploadGraduationMarksheet ? form.uploadGraduationMarksheet.name : getDisplayName(form.graduationMarksheetPath)} (View)
+                          </a>
+                        </div>
+                      )}
                     </div>
                     <div className="col-md-6">
                       <label className="form-label">HSC Mark Sheet *</label>
                       <input type="file" className="form-control user-wizard-input" onChange={(e) => setForm((p) => ({ ...p, uploadHscMarkSheet: e.target.files?.[0] || null }))} />
+                      {(form.uploadHscMarkSheet || form.hscMarksheetPath) && (
+                        <div className="mt-1 small">
+                          <a
+                            href="#"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              openViewer("HSC Marksheet", form.uploadHscMarkSheet || form.hscMarksheetPath);
+                            }}
+                          >
+                            {form.uploadHscMarkSheet ? form.uploadHscMarkSheet.name : getDisplayName(form.hscMarksheetPath)} (View)
+                          </a>
+                        </div>
+                      )}
                     </div>
                     <div className="col-md-6">
                       <label className="form-label">SSLC Mark Sheet *</label>
                       <input type="file" className="form-control user-wizard-input" onChange={(e) => setForm((p) => ({ ...p, uploadSslcMarkSheet: e.target.files?.[0] || null }))} />
+                      {(form.uploadSslcMarkSheet || form.sslcMarksheetPath) && (
+                        <div className="mt-1 small">
+                          <a
+                            href="#"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              openViewer("SSLC Marksheet", form.uploadSslcMarkSheet || form.sslcMarksheetPath);
+                            }}
+                          >
+                            {form.uploadSslcMarkSheet ? form.uploadSslcMarkSheet.name : getDisplayName(form.sslcMarksheetPath)} (View)
+                          </a>
+                        </div>
+                      )}
                     </div>
                     <div className="col-md-6">
                       <label className="form-label">Community Certificate *</label>
                       <input type="file" className="form-control user-wizard-input" onChange={(e) => setForm((p) => ({ ...p, uploadCommunityCertificate: e.target.files?.[0] || null }))} />
+                      {(form.uploadCommunityCertificate || form.communityCertificatePath) && (
+                        <div className="mt-1 small">
+                          <a
+                            href="#"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              openViewer("Community Certificate", form.uploadCommunityCertificate || form.communityCertificatePath);
+                            }}
+                          >
+                            {form.uploadCommunityCertificate ? form.uploadCommunityCertificate.name : getDisplayName(form.communityCertificatePath)} (View)
+                          </a>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
@@ -410,11 +614,11 @@ export default function EmployeeWizardModal({
                       <label className="form-label">Bank Account Number *</label>
                       <input type="text" className="form-control user-wizard-input" value={form.bankAccountNumber} onChange={(e) => setForm((p) => ({ ...p, bankAccountNumber: e.target.value }))} />
                     </div>
-                    <div className="col-md-4">
+                    <div className="col-md-6">
                       <label className="form-label">IFSC Code *</label>
                       <input type="text" className="form-control user-wizard-input" value={form.ifscCode} onChange={(e) => setForm((p) => ({ ...p, ifscCode: e.target.value }))} />
                     </div>
-                    <div className="col-md-8">
+                    <div className="col-md-6">
                       <label className="form-label">Bank & Branch *</label>
                       <input type="text" className="form-control user-wizard-input" value={form.bankAndBranch} onChange={(e) => setForm((p) => ({ ...p, bankAndBranch: e.target.value }))} />
                     </div>
@@ -440,6 +644,7 @@ export default function EmployeeWizardModal({
                       <label className="form-label">HSC Mark & Year *</label>
                       <input type="text" className="form-control user-wizard-input" value={form.hscMarkAndYear} onChange={(e) => setForm((p) => ({ ...p, hscMarkAndYear: e.target.value }))} />
                     </div>
+                    
                     <div className="col-md-4">
                       <label className="form-label">SSLC Mark & Year *</label>
                       <input type="text" className="form-control user-wizard-input" value={form.sslcMarkAndYear} onChange={(e) => setForm((p) => ({ ...p, sslcMarkAndYear: e.target.value }))} />
@@ -538,7 +743,7 @@ export default function EmployeeWizardModal({
                   </button>
                 ) : (
                   <button className="btn btn-primary" onClick={onSubmit} disabled={saving}>
-                    {saving ? "Saving..." : "Create"}
+                    {saving ? "Saving..." : (mode === "edit" ? "Update" : "Create")}
                   </button>
                 )}
               </div>
@@ -547,7 +752,28 @@ export default function EmployeeWizardModal({
         </div>
       </div>
       <div className="modal-backdrop fade show user-wizard-modal-backdrop" />
+
+      {viewer?.url && (
+        <>
+          <div className="modal fade show" style={{ display: "block", zIndex: 1060 }} tabIndex="-1">
+            <div className="modal-dialog modal-xl modal-dialog-centered">
+              <div className="modal-content">
+                <div className="modal-header">
+                  <h5 className="modal-title">{viewer.title || "View File"}</h5>
+                  <button className="btn-close" onClick={() => setViewer(null)} />
+                </div>
+                <div className="modal-body" style={{ height: "75vh" }}>
+                  <iframe title="file-viewer" src={viewer.url} style={{ width: "100%", height: "100%", border: 0 }} />
+                </div>
+                <div className="modal-footer">
+                  <button className="btn btn-primary" onClick={() => setViewer(null)}>Close</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="modal-backdrop fade show" style={{ zIndex: 1055 }} onClick={() => setViewer(null)} />
+        </>
+      )}
     </>
   );
 }
-

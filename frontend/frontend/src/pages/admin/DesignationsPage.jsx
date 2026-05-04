@@ -6,7 +6,7 @@ import {
   getDesignations,
   updateDesignation,
 } from "../../api/designationsApi";
-import { getDepartmentsMasterByBranch } from "../../api/departmentsApi";
+import { getDepartmentsMaster, getDepartmentsMasterByBranch } from "../../api/departmentsApi";
 import { getHeadOffices } from "../../api/headOfficesApi";
 import { getBranches } from "../../api/branchesApi";
 import { getEmployees } from "../../api/employeesApi";
@@ -20,14 +20,41 @@ const initialForm = {
   status: "ACTIVE",
 };
 
+function isActiveMaster(item) {
+  return String(item?.status || "ACTIVE").toUpperCase() !== "INACTIVE";
+}
+
+function withInactiveSelected(items, selectedId) {
+  const list = Array.isArray(items) ? items : [];
+  const active = list.filter(isActiveMaster);
+  if (!selectedId) return active;
+
+  const selected = list.find((it) => String(it?.id) === String(selectedId));
+  if (!selected || isActiveMaster(selected)) return active;
+
+  return [
+    ...active,
+    { ...selected, name: `${selected?.name || "Selected"} (Inactive)` },
+  ];
+}
+
 export default function DesignationsPage() {
   const [rows, setRows] = useState([]);
   const [departments, setDepartments] = useState([]);
+  const [allDepartments, setAllDepartments] = useState([]);
   const [headOffices, setHeadOffices] = useState([]);
   const [branches, setBranches] = useState([]);
-  const [selectedHeadOfficeId, setSelectedHeadOfficeId] = useState("");
-  const [selectedBranchId, setSelectedBranchId] = useState("");
-  const [selectedDepartmentId, setSelectedDepartmentId] = useState("");
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [filters, setFilters] = useState({
+    headOfficeId: "",
+    branchId: "",
+    departmentId: "",
+    status: "",
+    q: "",
+  });
+  const [draftFilters, setDraftFilters] = useState(filters);
+  const [filterBranches, setFilterBranches] = useState([]);
+  const [filterDepartments, setFilterDepartments] = useState([]);
   const [modalHeadOfficeId, setModalHeadOfficeId] = useState("");
   const [modalBranchId, setModalBranchId] = useState("");
   const [modalBranches, setModalBranches] = useState([]);
@@ -48,7 +75,7 @@ export default function DesignationsPage() {
   const load = async () => {
     setLoading(true);
     try {
-      const data = selectedDepartmentId ? await getDesignations(selectedDepartmentId) : await getDesignations();
+      const data = filters.departmentId ? await getDesignations(filters.departmentId) : await getDesignations();
       setRows(Array.isArray(data) ? data : []);
     } catch (e) {
       setRows([]);
@@ -61,8 +88,9 @@ export default function DesignationsPage() {
   const loadMeta = async () => {
     setMetaLoading(true);
     try {
-      const hos = await getHeadOffices();
+      const [hos, deps] = await Promise.all([getHeadOffices(), getDepartmentsMaster()]);
       setHeadOffices(Array.isArray(hos) ? hos : []);
+      setAllDepartments(Array.isArray(deps) ? deps : []);
     } catch (e) {
       showError(extractApiErrorMessage(e, "Failed to load masters"));
     } finally {
@@ -86,45 +114,39 @@ export default function DesignationsPage() {
 
   useEffect(() => {
     load();
-  }, [selectedDepartmentId]);
+  }, [filters.departmentId]);
 
   useEffect(() => {
     (async () => {
-      if (!selectedHeadOfficeId) {
+      if (!filters.headOfficeId) {
         setBranches([]);
-        setSelectedBranchId("");
         setDepartments([]);
-        setSelectedDepartmentId("");
         return;
       }
       try {
-        const data = await getBranches(selectedHeadOfficeId);
+        const data = await getBranches(filters.headOfficeId);
         setBranches(Array.isArray(data) ? data : []);
       } catch {
         setBranches([]);
       }
-      setSelectedBranchId("");
       setDepartments([]);
-      setSelectedDepartmentId("");
     })();
-  }, [selectedHeadOfficeId]);
+  }, [filters.headOfficeId]);
 
   useEffect(() => {
     (async () => {
-      if (!selectedBranchId) {
+      if (!filters.branchId) {
         setDepartments([]);
-        setSelectedDepartmentId("");
         return;
       }
       try {
-        const deps = await getDepartmentsMasterByBranch(selectedBranchId);
+        const deps = await getDepartmentsMasterByBranch(filters.branchId);
         setDepartments(Array.isArray(deps) ? deps : []);
       } catch {
         setDepartments([]);
       }
-      setSelectedDepartmentId("");
     })();
-  }, [selectedBranchId]);
+  }, [filters.branchId]);
 
   useEffect(() => {
     (async () => {
@@ -133,7 +155,6 @@ export default function DesignationsPage() {
         setModalBranchId("");
         setModalDepartments([]);
         setForm((prev) => ({ ...prev, departmentId: "" }));
-        setEditForm((prev) => ({ ...prev, departmentId: "" }));
         return;
       }
       try {
@@ -145,7 +166,6 @@ export default function DesignationsPage() {
       setModalBranchId("");
       setModalDepartments([]);
       setForm((prev) => ({ ...prev, departmentId: "" }));
-      setEditForm((prev) => ({ ...prev, departmentId: "" }));
     })();
   }, [modalHeadOfficeId]);
 
@@ -154,7 +174,6 @@ export default function DesignationsPage() {
       if (!modalBranchId) {
         setModalDepartments([]);
         setForm((prev) => ({ ...prev, departmentId: "" }));
-        setEditForm((prev) => ({ ...prev, departmentId: "" }));
         return;
       }
       try {
@@ -164,18 +183,72 @@ export default function DesignationsPage() {
         setModalDepartments([]);
       }
       setForm((prev) => ({ ...prev, departmentId: "" }));
-      setEditForm((prev) => ({ ...prev, departmentId: "" }));
     })();
   }, [modalBranchId]);
+
+  useEffect(() => {
+    (async () => {
+      const hoId = draftFilters.headOfficeId;
+      if (!filterOpen || !hoId) {
+        setFilterBranches([]);
+        return;
+      }
+      try {
+        const data = await getBranches(hoId);
+        setFilterBranches(Array.isArray(data) ? data : []);
+      } catch {
+        setFilterBranches([]);
+      }
+    })();
+  }, [filterOpen, draftFilters.headOfficeId]);
+
+  useEffect(() => {
+    (async () => {
+      const branchId = draftFilters.branchId;
+      if (!filterOpen || !branchId) {
+        setFilterDepartments([]);
+        return;
+      }
+      try {
+        const deps = await getDepartmentsMasterByBranch(branchId);
+        setFilterDepartments(Array.isArray(deps) ? deps : []);
+      } catch {
+        setFilterDepartments([]);
+      }
+    })();
+  }, [filterOpen, draftFilters.branchId]);
 
   const orderedRows = useMemo(
     () => [...rows].sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""))),
     [rows],
   );
 
+  const filteredRows = useMemo(() => {
+    const q = String(filters.q || "").trim().toLowerCase();
+    const deptIdSet = new Set((departments || []).map((d) => String(d.id)));
+    return orderedRows.filter((row) => {
+      const status = String(row?.status || "ACTIVE").toUpperCase();
+      const statusOk = !filters.status || status === String(filters.status).toUpperCase();
+      const qOk = !q || String(row?.name || "").toLowerCase().includes(q);
+      const deptOk =
+        !filters.departmentId ||
+        String(row?.departmentMasterId || "") === String(filters.departmentId);
+      const branchOk =
+        !filters.branchId ||
+        !!filters.departmentId ||
+        deptIdSet.has(String(row?.departmentMasterId || ""));
+      return statusOk && qOk && deptOk && branchOk;
+    });
+  }, [orderedRows, filters.q, filters.status, filters.departmentId, filters.branchId, departments]);
+
   const orderedDepartments = useMemo(
     () => [...(departments || [])].sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""))),
     [departments],
+  );
+
+  const orderedAllDepartments = useMemo(
+    () => [...(allDepartments || [])].sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""))),
+    [allDepartments],
   );
 
   const designationCounts = useMemo(() => {
@@ -308,52 +381,6 @@ export default function DesignationsPage() {
             </nav>
           </div>
           <div className="mb-2 d-flex align-items-center gap-2 flex-wrap">
-            <select
-              className="form-select"
-              style={{ width: 220 }}
-              value={selectedHeadOfficeId}
-              onChange={(e) => setSelectedHeadOfficeId(e.target.value)}
-              disabled={metaLoading}
-            >
-              <option value="">Select Head Office</option>
-              {[...headOffices]
-                .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))
-                .map((h) => (
-                  <option key={h.id} value={h.id}>
-                    {h.name}
-                  </option>
-                ))}
-            </select>
-            <select
-              className="form-select"
-              style={{ width: 220 }}
-              value={selectedBranchId}
-              onChange={(e) => setSelectedBranchId(e.target.value)}
-              disabled={!selectedHeadOfficeId}
-            >
-              <option value="">{selectedHeadOfficeId ? "Select Branch" : "Select Head Office first"}</option>
-              {[...branches]
-                .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))
-                .map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.name}
-                  </option>
-                ))}
-            </select>
-            <select
-              className="form-select"
-              style={{ width: 240 }}
-              value={selectedDepartmentId}
-              onChange={(e) => setSelectedDepartmentId(e.target.value)}
-              disabled={!selectedBranchId}
-            >
-              <option value="">{selectedBranchId ? "Select Department" : "Select Branch first"}</option>
-              {orderedDepartments.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.name}
-                </option>
-              ))}
-            </select>
             <button
               type="button"
               className="btn btn-primary d-flex align-items-center"
@@ -372,8 +399,165 @@ export default function DesignationsPage() {
         </div>
 
         <div className="card">
-          <div className="card-header">
+          {filterOpen && (
+            <>
+              <div
+                className="position-fixed top-0 start-0 w-100 h-100"
+                style={{ background: "rgba(0,0,0,0.35)", zIndex: 1048 }}
+                onClick={() => setFilterOpen(false)}
+              />
+              <div
+                className="position-fixed top-0 end-0 h-100 bg-white border-start shadow"
+                style={{ width: 380, zIndex: 1049 }}
+              >
+                <div className="d-flex align-items-center justify-content-between p-3 border-bottom">
+                  <h6 className="mb-0">Filters</h6>
+                  <button type="button" className="btn-close" onClick={() => setFilterOpen(false)} />
+                </div>
+
+                <div className="p-3">
+                  <div className="mb-3">
+                    <label className="form-label">Head Office</label>
+                    <select
+                      className="form-select"
+                      value={draftFilters.headOfficeId}
+                      onChange={(e) => {
+                        const headOfficeId = e.target.value;
+                        setDraftFilters((prev) => ({
+                          ...prev,
+                          headOfficeId,
+                          branchId: "",
+                          departmentId: "",
+                        }));
+                      }}
+                      disabled={metaLoading}
+                    >
+                      <option value="">All</option>
+                      {[...headOffices]
+                        .filter(isActiveMaster)
+                        .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))
+                        .map((h) => (
+                          <option key={h.id} value={h.id}>
+                            {h.name}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+
+                  <div className="mb-3">
+                    <label className="form-label">Branch</label>
+                    <select
+                      className="form-select"
+                      value={draftFilters.branchId}
+                      onChange={(e) => {
+                        const branchId = e.target.value;
+                        setDraftFilters((prev) => ({
+                          ...prev,
+                          branchId,
+                          departmentId: "",
+                        }));
+                      }}
+                      disabled={!draftFilters.headOfficeId}
+                    >
+                      <option value="">{draftFilters.headOfficeId ? "All" : "Select head office first"}</option>
+                      {[...filterBranches]
+                        .filter(isActiveMaster)
+                        .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))
+                        .map((b) => (
+                          <option key={b.id} value={b.id}>
+                            {b.name}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+
+                  <div className="mb-3">
+                    <label className="form-label">Department</label>
+                    <select
+                      className="form-select"
+                      value={draftFilters.departmentId}
+                      onChange={(e) =>
+                        setDraftFilters((prev) => ({ ...prev, departmentId: e.target.value }))
+                      }
+                      disabled={!draftFilters.branchId}
+                    >
+                      <option value="">{draftFilters.branchId ? "All" : "Select branch first"}</option>
+                      {[...filterDepartments]
+                        .filter(isActiveMaster)
+                        .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))
+                        .map((d) => (
+                          <option key={d.id} value={d.id}>
+                            {d.name}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+
+                  <div className="mb-3">
+                    <label className="form-label">Status</label>
+                    <select
+                      className="form-select"
+                      value={draftFilters.status}
+                      onChange={(e) =>
+                        setDraftFilters((prev) => ({ ...prev, status: e.target.value }))
+                      }
+                    >
+                      <option value="">All</option>
+                      <option value="ACTIVE">Active</option>
+                      <option value="INACTIVE">Inactive</option>
+                    </select>
+                  </div>
+
+                  <div className="mb-3">
+                    <label className="form-label">Search</label>
+                    <input
+                      className="form-control"
+                      value={draftFilters.q}
+                      onChange={(e) =>
+                        setDraftFilters((prev) => ({ ...prev, q: e.target.value }))
+                      }
+                      placeholder="Designation name"
+                    />
+                  </div>
+                </div>
+
+                <div className="p-3 border-top d-flex gap-2">
+                  <button
+                    type="button"
+                    className="btn btn-light w-50"
+                    onClick={() =>
+                      setDraftFilters({ headOfficeId: "", branchId: "", departmentId: "", status: "", q: "" })
+                    }
+                  >
+                    Clear
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-primary w-50"
+                    onClick={() => {
+                      setFilters(draftFilters);
+                      setFilterOpen(false);
+                    }}
+                  >
+                    Apply
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
+          <div className="card-header d-flex align-items-center justify-content-between">
             <h5>Designation List</h5>
+             <button
+              type="button"
+              className="btn btn-outline-warning leads-toolbar-btn"
+              onClick={() => {
+                setDraftFilters(filters);
+                setFilterOpen(true);
+              }}
+            >
+              <i className="ti ti-filter me-1" />
+              Filter
+            </button>
           </div>
           <div className="card-body p-0">
             <div className="custom-datatable-filter table-responsive">
@@ -392,12 +576,14 @@ export default function DesignationsPage() {
                     <tr>
                       <td colSpan={5}>Loading...</td>
                     </tr>
-                  ) : orderedRows.length === 0 ? (
+                  ) : filteredRows.length === 0 ? (
                     <tr>
-                      <td colSpan={5}>No designations found</td>
+                      <td colSpan={5} className="text-center py-4 text-muted">
+                        No designations found
+                      </td>
                     </tr>
                   ) : (
-                    orderedRows.map((row) => {
+                    filteredRows.map((row) => {
                       const active = String(row?.status || "ACTIVE").toUpperCase() !== "INACTIVE";
                       return (
                         <tr key={row.id || `${row.name}-${row.department}`}>
@@ -466,132 +652,113 @@ export default function DesignationsPage() {
                 </div>
                 <form onSubmit={handleAddDesignation}>
                   <div className="modal-body pb-0">
-                    <div className="row">
-                      <div className="col-md-12">
-                        <div className="mb-3">
-                          <label className="form-label">Head Office</label>
-                          <select
-                            className="form-select"
-                            value={modalHeadOfficeId}
-                            onChange={(e) => setModalHeadOfficeId(e.target.value)}
-                            disabled={metaLoading}
-                          >
-                            <option value="">Select</option>
-                            {[...headOffices]
-                              .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))
-                              .map((h) => (
-                                <option key={h.id} value={h.id}>
-                                  {h.name}
-                                </option>
-                              ))}
-                          </select>
-                        </div>
-                      </div>
-                      <div className="col-md-12">
-                        <div className="mb-3">
-                          <label className="form-label">Branch</label>
-                          <select
-                            className="form-select"
-                            value={modalBranchId}
-                            onChange={(e) => setModalBranchId(e.target.value)}
-                            disabled={!modalHeadOfficeId}
-                          >
-                            <option value="">{modalHeadOfficeId ? "Select" : "Select Head Office first"}</option>
-                            {[...modalBranches]
-                              .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))
-                              .map((b) => (
-                                <option key={b.id} value={b.id}>
-                                  {b.name}
-                                </option>
-                              ))}
-                          </select>
-                        </div>
-                      </div>
-                      <div className="col-md-12">
-                        <div className="mb-3">
-                          <label className="form-label">Head Office</label>
-                          <select
-                            className="form-select"
-                            value={modalHeadOfficeId}
-                            onChange={(e) => setModalHeadOfficeId(e.target.value)}
-                            disabled={metaLoading}
-                          >
-                            <option value="">Select</option>
-                            {[...headOffices]
-                              .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))
-                              .map((h) => (
-                                <option key={h.id} value={h.id}>
-                                  {h.name}
-                                </option>
-                              ))}
-                          </select>
-                        </div>
-                      </div>
-                      <div className="col-md-12">
-                        <div className="mb-3">
-                          <label className="form-label">Branch</label>
-                          <select
-                            className="form-select"
-                            value={modalBranchId}
-                            onChange={(e) => setModalBranchId(e.target.value)}
-                            disabled={!modalHeadOfficeId}
-                          >
-                            <option value="">{modalHeadOfficeId ? "Select" : "Select Head Office first"}</option>
-                            {[...modalBranches]
-                              .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))
-                              .map((b) => (
-                                <option key={b.id} value={b.id}>
-                                  {b.name}
-                                </option>
-                              ))}
-                          </select>
-                        </div>
-                      </div>
-                      <div className="col-md-12">
-                        <div className="mb-3">
-                          <label className="form-label">Designation Name</label>
-                          <input
-                            type="text"
-                            className="form-control"
-                            value={form.name}
-                            onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
-                          />
-                        </div>
-                      </div>
-                      <div className="col-md-12">
-                        <div className="mb-3">
-                          <label className="form-label">Department</label>
-                          <select
-                            className="form-select"
-                            value={form.departmentId}
-                            onChange={(e) => setForm((prev) => ({ ...prev, departmentId: e.target.value }))}
-                            disabled={!modalBranchId}
-                          >
-                            <option value="">Select</option>
-                            {[...modalDepartments]
-                              .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))
-                              .map((d) => (
-                              <option key={d.id} value={d.id}>
-                                {d.name}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      </div>
-                      <div className="col-md-12">
-                        <div className="mb-3">
-                          <label className="form-label">Status</label>
-                          <select
-                            className="form-select"
-                            value={form.status}
-                            onChange={(e) => setForm((prev) => ({ ...prev, status: e.target.value }))}
-                          >
-                            <option value="ACTIVE">Active</option>
-                            <option value="INACTIVE">Inactive</option>
-                          </select>
-                        </div>
-                      </div>
-                    </div>
+                 <div className="row">
+
+  {/* Head Office */}
+  <div className="col-md-12">
+    <div className="mb-3">
+      <label className="form-label">Head Office</label>
+      <select
+        className="form-select"
+        value={modalHeadOfficeId}
+        onChange={(e) => setModalHeadOfficeId(e.target.value)}
+        disabled={metaLoading}
+      >
+        <option value="">Select</option>
+        {[...withInactiveSelected(headOffices, modalHeadOfficeId)]
+          .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))
+          .map((h) => (
+            <option key={h.id} value={h.id}>
+              {h.name}
+            </option>
+          ))}
+      </select>
+    </div>
+  </div>
+
+  {/* Branch */}
+  <div className="col-md-12">
+    <div className="mb-3">
+      <label className="form-label">Branch</label>
+      <select
+        className="form-select"
+        value={modalBranchId}
+        onChange={(e) => setModalBranchId(e.target.value)}
+        disabled={!modalHeadOfficeId}
+      >
+        <option value="">
+          {modalHeadOfficeId ? "Select" : "Select Head Office first"}
+        </option>
+        {[...withInactiveSelected(modalBranches, modalBranchId)]
+          .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))
+          .map((b) => (
+            <option key={b.id} value={b.id}>
+              {b.name}
+            </option>
+          ))}
+      </select>
+    </div>
+  </div>
+  {/* Department Name */}
+<div className="col-md-12">
+    <div className="mb-3">
+      <label className="form-label">Department</label>
+      <select
+        className="form-select"
+        value={form.departmentId}
+        onChange={(e) =>
+          setForm((prev) => ({ ...prev, departmentId: e.target.value }))
+        }
+        disabled={!modalBranchId}
+      >
+        <option value="">Select</option>
+        {[...modalDepartments]
+          .filter(isActiveMaster)
+          .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))
+          .map((d) => (
+            <option key={d.id} value={d.id}>
+              {d.name}
+            </option>
+          ))}
+      </select>
+    </div>
+  </div>
+  {/* Designation Name */}
+  <div className="col-md-12">
+    <div className="mb-3">
+      <label className="form-label">Designation Name</label>
+      <input
+        type="text"
+        className="form-control"
+        value={editForm.name}
+        onChange={(e) =>
+          setEditForm((prev) => ({ ...prev, name: e.target.value }))
+        }
+      />
+    </div>
+  </div>
+
+  
+  
+
+  {/* Status */}
+  <div className="col-md-12">
+    <div className="mb-3">
+      <label className="form-label">Status</label>
+      <select
+        className="form-select"
+        value={form.status}
+        onChange={(e) =>
+          setForm((prev) => ({ ...prev, status: e.target.value }))
+        }
+      >
+        <option value="ACTIVE">Active</option>
+        <option value="INACTIVE">Inactive</option>
+      </select>
+    </div>
+  </div>
+
+</div>
                   </div>
                   <div className="modal-footer">
                     <button type="button" className="btn btn-light me-2" onClick={() => setShowAddModal(false)}>
@@ -626,51 +793,111 @@ export default function DesignationsPage() {
                 <form onSubmit={handleEditDesignation}>
                   <div className="modal-body pb-0">
                     <div className="row">
-                      <div className="col-md-12">
-                        <div className="mb-3">
-                          <label className="form-label">Designation Name</label>
-                          <input
-                            type="text"
-                            className="form-control"
-                            value={editForm.name}
-                            onChange={(e) => setEditForm((prev) => ({ ...prev, name: e.target.value }))}
-                          />
-                        </div>
-                      </div>
-                      <div className="col-md-12">
-                        <div className="mb-3">
-                          <label className="form-label">Department</label>
-                          <select
-                            className="form-select"
-                            value={editForm.departmentId}
-                            onChange={(e) => setEditForm((prev) => ({ ...prev, departmentId: e.target.value }))}
-                            disabled={!modalBranchId}
-                          >
-                            <option value="">Select</option>
-                            {[...modalDepartments]
-                              .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))
-                              .map((d) => (
-                              <option key={d.id} value={d.id}>
-                                {d.name}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      </div>
-                      <div className="col-md-12">
-                        <div className="mb-3">
-                          <label className="form-label">Status</label>
-                          <select
-                            className="form-select"
-                            value={editForm.status}
-                            onChange={(e) => setEditForm((prev) => ({ ...prev, status: e.target.value }))}
-                          >
-                            <option value="ACTIVE">Active</option>
-                            <option value="INACTIVE">Inactive</option>
-                          </select>
-                        </div>
-                      </div>
-                    </div>
+
+  {/* Head Office */}
+  <div className="col-md-12">
+    <div className="mb-3">
+      <label className="form-label">Head Office</label>
+      <select
+        className="form-select"
+        value={modalHeadOfficeId}
+        onChange={(e) => setModalHeadOfficeId(e.target.value)}
+        disabled={metaLoading}
+      >
+        <option value="">Select</option>
+        {[...headOffices]
+          .filter(isActiveMaster)
+          .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))
+          .map((h) => (
+            <option key={h.id} value={h.id}>
+              {h.name}
+            </option>
+          ))}
+      </select>
+    </div>
+  </div>
+
+  {/* Branch */}
+  <div className="col-md-12">
+    <div className="mb-3">
+      <label className="form-label">Branch</label>
+      <select
+        className="form-select"
+        value={modalBranchId}
+        onChange={(e) => setModalBranchId(e.target.value)}
+        disabled={!modalHeadOfficeId}
+      >
+        <option value="">
+          {modalHeadOfficeId ? "Select" : "Select Head Office first"}
+        </option>
+        {[...modalBranches]
+          .filter(isActiveMaster)
+          .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))
+          .map((b) => (
+            <option key={b.id} value={b.id}>
+              {b.name}
+            </option>
+          ))}
+      </select>
+    </div>
+  </div>
+
+  {/* Designation Name */}
+  <div className="col-md-12">
+    <div className="mb-3">
+      <label className="form-label">Designation Name</label>
+      <input
+        type="text"
+        className="form-control"
+        value={form.name}
+        onChange={(e) =>
+          setForm((prev) => ({ ...prev, name: e.target.value }))
+        }
+      />
+    </div>
+  </div>
+
+  {/* Department */}
+  <div className="col-md-12">
+    <div className="mb-3">
+      <label className="form-label">Department</label>
+      <select
+        className="form-select"
+        value={editForm.departmentId}
+        onChange={(e) =>
+          setEditForm((prev) => ({ ...prev, departmentId: e.target.value }))
+        }
+      >
+        <option value="">Select</option>
+        {[...withInactiveSelected((modalDepartments && modalDepartments.length > 0) ? modalDepartments : orderedAllDepartments, editForm.departmentId)]
+          .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))
+          .map((d) => (
+            <option key={d.id} value={d.id}>
+              {d.name}
+            </option>
+          ))}
+      </select>
+    </div>
+  </div>
+
+  {/* Status */}
+  <div className="col-md-12">
+    <div className="mb-3">
+      <label className="form-label">Status</label>
+      <select
+        className="form-select"
+        value={editForm.status}
+        onChange={(e) =>
+          setEditForm((prev) => ({ ...prev, status: e.target.value }))
+        }
+      >
+        <option value="ACTIVE">Active</option>
+        <option value="INACTIVE">Inactive</option>
+      </select>
+    </div>
+  </div>
+
+</div>
                   </div>
                   <div className="modal-footer">
                     <button type="button" className="btn btn-light me-2" onClick={() => setShowEditModal(false)}>

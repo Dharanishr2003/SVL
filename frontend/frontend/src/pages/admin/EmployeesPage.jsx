@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { getEmployees, createEmployee, updateEmployee, deleteEmployee, onboardEmployee, updateOnboardEmployee } from "../../api/employeesApi";
 import { getDepartmentsMaster, getDepartmentsMasterByBranch } from "../../api/departmentsApi";
@@ -99,17 +99,53 @@ const EMPTY_ONBOARD_FORM = {
   esiNo: "",
   declarationDate: "",
   declarationPlace: "",
+  // existing file paths (edit mode display only)
+  candidatePhotoPath: "",
+  aadharCardPath: "",
+  panCardPath: "",
+  bankPassbookPath: "",
+  experienceCertificatePath: "",
+  graduationCertificatePath: "",
+  graduationMarksheetPath: "",
+  hscMarksheetPath: "",
+  sslcMarksheetPath: "",
+  communityCertificatePath: "",
 };
+
+function isActiveMaster(item) {
+  return String(item?.status || "ACTIVE").toUpperCase() !== "INACTIVE";
+}
+
+function withInactiveSelected(items, selectedId) {
+  const list = Array.isArray(items) ? items : [];
+  const active = list.filter(isActiveMaster);
+  if (!selectedId) return active;
+
+  const selected = list.find((it) => String(it?.id) === String(selectedId));
+  if (!selected || isActiveMaster(selected)) return active;
+
+  // keep the selected inactive value visible in edit mode
+  return [
+    ...active,
+    { ...selected, name: `${selected?.name || "Selected"} (Inactive)` },
+  ];
+}
 
 function toUiRow(item) {
   return {
     id: item?.id ?? null,
     employeeCode: item?.employeeCode || item?.employeeId || "",
     name: item?.name || "",
-    email: item?.email || "",
+    email: item?.email || item?.officialEmail || item?.personalEmail || "",
     countryCode: item?.countryCode || defaultCountryOption.value,
-    phone: item?.phone || "",
-    dept: item?.dept || item?.department || "",
+    phone: item?.phone || item?.personalContactNumber || "",
+    dept:
+      item?.dept ||
+      item?.department ||
+      item?.departmentName ||
+      item?.userDepartmentName ||
+      item?.orgDepartmentName ||
+      "",
     institution: item?.institution || item?.institutionName || "",
     institutionCategory:
       item?.institutionCategory ||
@@ -202,6 +238,9 @@ export default function EmployeesPage() {
   const [onboardForm, setOnboardForm] = useState(EMPTY_ONBOARD_FORM);
   const [onboardMode, setOnboardMode] = useState("create"); // create | edit
   const [onboardEditId, setOnboardEditId] = useState(null);
+  const prevOnboardHeadOfficeIdRef = useRef(null);
+  const prevOnboardBranchIdRef = useRef(null);
+  const prevOnboardDepartmentIdRef = useRef(null);
   const [hoLoading, setHoLoading] = useState(false);
   const [headOffices, setHeadOffices] = useState([]);
   const [branches, setBranches] = useState([]);
@@ -217,6 +256,59 @@ export default function EmployeesPage() {
 
   const gridView = location.pathname.endsWith("/employees-grid");
 
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [filters, setFilters] = useState({
+    headOfficeId: "",
+    branchId: "",
+    departmentId: "",
+    designationId: "",
+  });
+  const [filterBranches, setFilterBranches] = useState([]);
+  const [filterDepartments, setFilterDepartments] = useState([]);
+  const [filterDesignations, setFilterDesignations] = useState([]);
+  const [filterLoading, setFilterLoading] = useState(false);
+
+  const activeHeadOffices = useMemo(() => (headOffices || []).filter(isActiveMaster), [headOffices]);
+  const activeFilterBranches = useMemo(() => (filterBranches || []).filter(isActiveMaster), [filterBranches]);
+  const activeFilterDepartments = useMemo(() => (filterDepartments || []).filter(isActiveMaster), [filterDepartments]);
+  const activeFilterDesignations = useMemo(() => (filterDesignations || []).filter(isActiveMaster), [filterDesignations]);
+  const activeBranches = useMemo(() => (branches || []).filter(isActiveMaster), [branches]);
+  const activeOnboardDepartments = useMemo(() => (onboardDepartments || []).filter(isActiveMaster), [onboardDepartments]);
+  const activeOnboardDesignations = useMemo(() => (onboardDesignations || []).filter(isActiveMaster), [onboardDesignations]);
+
+  const wizardHeadOffices = useMemo(() => {
+    if (onboardMode !== "edit") return activeHeadOffices;
+    return withInactiveSelected(headOffices, onboardHeadOfficeId);
+  }, [activeHeadOffices, headOffices, onboardMode, onboardHeadOfficeId]);
+
+  const wizardBranches = useMemo(() => {
+    if (onboardMode !== "edit") return activeBranches;
+    return withInactiveSelected(branches, onboardBranchId);
+  }, [activeBranches, branches, onboardMode, onboardBranchId]);
+
+  const wizardDepartments = useMemo(() => {
+    if (onboardMode !== "edit") return activeOnboardDepartments;
+    return withInactiveSelected(onboardDepartments, onboardDepartmentId);
+  }, [activeOnboardDepartments, onboardDepartments, onboardMode, onboardDepartmentId]);
+
+  const wizardDesignations = useMemo(() => {
+    if (onboardMode !== "edit") return activeOnboardDesignations;
+    return withInactiveSelected(onboardDesignations, onboardDesignationId);
+  }, [activeOnboardDesignations, onboardDesignations, onboardMode, onboardDesignationId]);
+
+  const filteredRows = useMemo(() => {
+    return rows.filter((emp) => {
+      const raw = emp?._raw || {};
+      return (
+        (!filters.headOfficeId || String(raw.headOfficeId || "") === String(filters.headOfficeId)) &&
+        (!filters.branchId || String(raw.branchId || "") === String(filters.branchId)) &&
+        (!filters.departmentId || String(raw.departmentMasterId || "") === String(filters.departmentId)) &&
+        (!filters.designationId || String(raw.designationMasterId || "") === String(filters.designationId))
+      );
+    });
+  }, [rows, filters]);
+
+ 
   const loadData = async () => {
     setLoading(true);
     try {
@@ -252,7 +344,6 @@ export default function EmployeesPage() {
   }, []);
 
   useEffect(() => {
-    if (!showOnboardWizard) return;
     (async () => {
       setHoLoading(true);
       try {
@@ -265,33 +356,104 @@ export default function EmployeesPage() {
         setHoLoading(false);
       }
     })();
-  }, [showOnboardWizard, showError]);
+  }, [showError]);
+
+  // Filter drawer cascading options
+  useEffect(() => {
+    (async () => {
+      const hoId = filters.headOfficeId;
+      setFilterBranches([]);
+      setFilterDepartments([]);
+      setFilterDesignations([]);
+      if (!hoId) return;
+      setFilterLoading(true);
+      try {
+        const list = await getBranches(hoId);
+        setFilterBranches(Array.isArray(list) ? list : []);
+      } catch {
+        setFilterBranches([]);
+      } finally {
+        setFilterLoading(false);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters.headOfficeId]);
+
+  useEffect(() => {
+    (async () => {
+      const branchId = filters.branchId;
+      setFilterDepartments([]);
+      setFilterDesignations([]);
+      if (!branchId) return;
+      setFilterLoading(true);
+      try {
+        const deps = await getDepartmentsMasterByBranch(branchId);
+        setFilterDepartments(Array.isArray(deps) ? deps : []);
+      } catch {
+        setFilterDepartments([]);
+      } finally {
+        setFilterLoading(false);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters.branchId]);
+
+  useEffect(() => {
+    (async () => {
+      const deptId = filters.departmentId;
+      setFilterDesignations([]);
+      if (!deptId) return;
+      setFilterLoading(true);
+      try {
+        const list = await getDesignations(deptId);
+        setFilterDesignations(Array.isArray(list) ? list : []);
+      } catch {
+        setFilterDesignations([]);
+      } finally {
+        setFilterLoading(false);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters.departmentId]);
 
   useEffect(() => {
     (async () => {
       if (!onboardHeadOfficeId) {
         setBranches([]);
-        setOnboardBranchId("");
-        setOnboardDepartments([]);
-        setOnboardDepartmentId("");
-        setOnboardDesignations([]);
-        setOnboardDesignationId("");
+        if (onboardMode === "create") {
+          setOnboardBranchId("");
+          setOnboardDepartments([]);
+          setOnboardDepartmentId("");
+          setOnboardDesignations([]);
+          setOnboardDesignationId("");
+        }
         return;
       }
       setBranchLoading(true);
       try {
         const data = await getBranches(onboardHeadOfficeId);
-        setBranches(Array.isArray(data) ? data : []);
+        const list = Array.isArray(data) ? data : [];
+        setBranches(list);
+        // Keep existing selection for edit mode if still valid
+        if (onboardMode === "edit") {
+          const valid = onboardBranchId && list.some((b) => String(b.id) === String(onboardBranchId));
+          if (!valid) setOnboardBranchId("");
+        }
       } catch {
         setBranches([]);
       } finally {
         setBranchLoading(false);
       }
-      setOnboardBranchId("");
-      setOnboardDepartments([]);
-      setOnboardDepartmentId("");
-      setOnboardDesignations([]);
-      setOnboardDesignationId("");
+      const prevHo = prevOnboardHeadOfficeIdRef.current;
+      const hoChanged = prevHo !== null && String(prevHo) !== String(onboardHeadOfficeId);
+      prevOnboardHeadOfficeIdRef.current = onboardHeadOfficeId;
+      if (onboardMode === "create" || hoChanged) {
+        setOnboardBranchId("");
+        setOnboardDepartments([]);
+        setOnboardDepartmentId("");
+        setOnboardDesignations([]);
+        setOnboardDesignationId("");
+      }
     })();
   }, [onboardHeadOfficeId]);
 
@@ -299,23 +461,35 @@ export default function EmployeesPage() {
     (async () => {
       if (!onboardBranchId) {
         setOnboardDepartments([]);
-        setOnboardDepartmentId("");
-        setOnboardDesignations([]);
-        setOnboardDesignationId("");
+        if (onboardMode === "create") {
+          setOnboardDepartmentId("");
+          setOnboardDesignations([]);
+          setOnboardDesignationId("");
+        }
         return;
       }
       setDeptLoading(true);
       try {
         const deps = await getDepartmentsMasterByBranch(onboardBranchId);
-        setOnboardDepartments(Array.isArray(deps) ? deps : []);
+        const list = Array.isArray(deps) ? deps : [];
+        setOnboardDepartments(list);
+        if (onboardMode === "edit") {
+          const valid = onboardDepartmentId && list.some((d) => String(d.id) === String(onboardDepartmentId));
+          if (!valid) setOnboardDepartmentId("");
+        }
       } catch {
         setOnboardDepartments([]);
       } finally {
         setDeptLoading(false);
       }
-      setOnboardDepartmentId("");
-      setOnboardDesignations([]);
-      setOnboardDesignationId("");
+      const prevBranch = prevOnboardBranchIdRef.current;
+      const branchChanged = prevBranch !== null && String(prevBranch) !== String(onboardBranchId);
+      prevOnboardBranchIdRef.current = onboardBranchId;
+      if (onboardMode === "create" || branchChanged) {
+        setOnboardDepartmentId("");
+        setOnboardDesignations([]);
+        setOnboardDesignationId("");
+      }
     })();
   }, [onboardBranchId]);
 
@@ -323,19 +497,31 @@ export default function EmployeesPage() {
     (async () => {
       if (!onboardDepartmentId) {
         setOnboardDesignations([]);
-        setOnboardDesignationId("");
+        if (onboardMode === "create") {
+          setOnboardDesignationId("");
+        }
         return;
       }
       setDesigLoading(true);
       try {
         const list = await getDesignations(onboardDepartmentId);
-        setOnboardDesignations(Array.isArray(list) ? list : []);
+        const items = Array.isArray(list) ? list : [];
+        setOnboardDesignations(items);
+        if (onboardMode === "edit") {
+          const valid = onboardDesignationId && items.some((d) => String(d.id) === String(onboardDesignationId));
+          if (!valid) setOnboardDesignationId("");
+        }
       } catch {
         setOnboardDesignations([]);
       } finally {
         setDesigLoading(false);
       }
-      setOnboardDesignationId("");
+      const prevDept = prevOnboardDepartmentIdRef.current;
+      const deptChanged = prevDept !== null && String(prevDept) !== String(onboardDepartmentId);
+      prevOnboardDepartmentIdRef.current = onboardDepartmentId;
+      if (onboardMode === "create" || deptChanged) {
+        setOnboardDesignationId("");
+      }
     })();
   }, [onboardDepartmentId]);
 
@@ -534,6 +720,9 @@ export default function EmployeesPage() {
   const openAdd = () => {
     setOnboardMode("create");
     setOnboardEditId(null);
+    prevOnboardHeadOfficeIdRef.current = null;
+    prevOnboardBranchIdRef.current = null;
+    prevOnboardDepartmentIdRef.current = null;
     setOnboardStep(0);
     setOnboardForm(EMPTY_ONBOARD_FORM);
     setOnboardHeadOfficeId("");
@@ -547,6 +736,9 @@ export default function EmployeesPage() {
     const raw = emp?._raw || {};
     setOnboardMode("edit");
     setOnboardEditId(raw?.id ?? emp?.id ?? null);
+    prevOnboardHeadOfficeIdRef.current = null;
+    prevOnboardBranchIdRef.current = null;
+    prevOnboardDepartmentIdRef.current = null;
     setOnboardStep(0);
     setOnboardHeadOfficeId(raw?.headOfficeId ? String(raw.headOfficeId) : "");
     setOnboardBranchId(raw?.branchId ? String(raw.branchId) : "");
@@ -599,6 +791,16 @@ export default function EmployeesPage() {
       esiNo: raw?.esiNo || "",
       declarationDate: raw?.declarationDate || "",
       declarationPlace: raw?.declarationPlace || "",
+      candidatePhotoPath: raw?.candidatePhotoPath || "",
+      aadharCardPath: raw?.aadharCardPath || "",
+      panCardPath: raw?.panCardPath || "",
+      bankPassbookPath: raw?.bankPassbookPath || "",
+      experienceCertificatePath: raw?.experienceCertificatePath || "",
+      graduationCertificatePath: raw?.graduationCertificatePath || "",
+      graduationMarksheetPath: raw?.graduationMarksheetPath || "",
+      hscMarksheetPath: raw?.hscMarksheetPath || "",
+      sslcMarksheetPath: raw?.sslcMarksheetPath || "",
+      communityCertificatePath: raw?.communityCertificatePath || "",
       // files cannot be prefilled
       candidatePhoto: null,
       uploadCandidateAadharCard: null,
@@ -647,11 +849,11 @@ export default function EmployeesPage() {
       if (!hasText(onboardForm.bloodGroup)) return "Blood Group is required";
       if (!hasText(onboardForm.panCardNo)) return "Pan Card No is required";
       if (!hasText(onboardForm.aadharCardNo)) return "Aadhar Card No is required";
-      if (onboardMode === "create" && !onboardForm.candidatePhoto) return "Candidate Photo is required";
       return "";
     }
     if (step === 2) {
       if (onboardMode === "create") {
+              if (onboardMode === "create" && !onboardForm.candidatePhoto) return "Candidate Photo is required";
         if (!onboardForm.uploadCandidateAadharCard) return "Upload Candidate Aadhar Card is required";
         if (!onboardForm.uploadCandidatePanCard) return "Upload Candidate Pan Card is required";
         if (!onboardForm.uploadBankPassBookCopy) return "Upload Bank Pass Book / Cancelled Cheque is required";
@@ -668,8 +870,8 @@ export default function EmployeesPage() {
       if (!hasText(onboardForm.bankAccountNumber)) return "Bank Account Number is required";
       if (!hasText(onboardForm.ifscCode)) return "IFSC Code is required";
       if (!hasText(onboardForm.bankAndBranch)) return "Bank & Branch is required";
-      if (!hasText(onboardForm.employmentDetails1)) return "Employment Details 1 is required";
-      if (!hasText(onboardForm.employmentDetails2)) return "Employment Details 2 is required";
+      // if (!hasText(onboardForm.employmentDetails1)) return "Employment Details 1 is required";
+      // if (!hasText(onboardForm.employmentDetails2)) return "Employment Details 2 is required";
       if (!hasText(onboardForm.graduationDetails)) return "Graduation Details is required";
       if (!hasText(onboardForm.hscMarkAndYear)) return "HSC Mark & Year is required";
       if (!hasText(onboardForm.sslcMarkAndYear)) return "SSLC Mark & Year is required";
@@ -724,6 +926,7 @@ export default function EmployeesPage() {
     if (selectedDesignation?.name) fd.append("designation", selectedDesignation.name);
 
     Object.entries(onboardForm).forEach(([key, val]) => {
+      if (key.endsWith("Path")) return;
       if (val === null || typeof val === "undefined" || val === "") return;
       fd.append(key, val);
     });
@@ -893,7 +1096,7 @@ export default function EmployeesPage() {
       <div className="container-fluid">
         <div className="d-flex justify-content-between align-items-center mb-3">
           <h4 className="mb-0">Employees Grid</h4>
-          <button className="btn btn-primary" onClick={openAdd}>Add Employee</button>
+          <button className="btn btn-primary" onClick={openAdd}>Add Employee +</button>
         </div>
         <div className="row">
           {loading ? <div>Loading...</div> : employeeGridData.map((emp, idx) => (
@@ -934,12 +1137,158 @@ export default function EmployeesPage() {
     <div className="container-fluid">
       <div className="d-flex justify-content-between align-items-center mb-3">
         <h4 className="mb-0">Employees</h4>
-        <button className="btn btn-primary" onClick={openAdd}>Add Employee</button>
+        <button className="btn btn-primary" onClick={openAdd}>Add Employee +</button>
       </div>
       <div className="card">
-        <div className="card-header">
+        <div className="card-header d-flex justify-content-between align-items-center">
           <h5 className="mb-0">Employee List</h5>
+        
+          <button
+                className="btn btn-outline-warning leads-toolbar-btn"
+                onClick={() => setFilterOpen((prev) => !prev)}
+              >
+                <i className="ti ti-filter me-1" />
+                Filter
+              </button>
         </div>
+      {filterOpen && (
+        <>
+          <div
+            className="position-fixed top-0 start-0 w-100 h-100"
+            style={{ background: "rgba(189, 172, 172, 0.35)", zIndex: 1048 }}
+            onClick={() => setFilterOpen(false)}
+          />
+          <div
+            className="position-fixed top-0 end-0 h-100 bg-white border-start shadow"
+            style={{ width: 380, zIndex: 1049 }}
+          >
+            <div className="d-flex align-items-center justify-content-between p-3 border-bottom">
+              <h6 className="mb-0">Filters</h6>
+              <button type="button" className="btn-close" onClick={() => setFilterOpen(false)} />
+            </div>
+
+            <div className="p-3">
+              <div className="mb-3">
+                <label className="form-label">Head Office</label>
+                <select
+                  className="form-select"
+                  value={filters.headOfficeId}
+                  onChange={(e) => {
+                    const headOfficeId = e.target.value;
+                    setFilters((prev) => ({
+                      ...prev,
+                      headOfficeId,
+                      branchId: "",
+                      departmentId: "",
+                      designationId: "",
+                    }));
+                  }}
+                  disabled={filterLoading || hoLoading}
+                >
+                  <option value="">All</option>
+                  {[...activeHeadOffices]
+                    .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))
+                    .map((h) => (
+                      <option key={h.id} value={h.id}>
+                        {h.name}
+                      </option>
+                    ))}
+                </select>
+              </div>
+
+              <div className="mb-3">
+                <label className="form-label">Branch</label>
+                <select
+                  className="form-select"
+                  value={filters.branchId}
+                  onChange={(e) => {
+                    const branchId = e.target.value;
+                    setFilters((prev) => ({
+                      ...prev,
+                      branchId,
+                      departmentId: "",
+                      designationId: "",
+                    }));
+                  }}
+                  disabled={!filters.headOfficeId || filterLoading}
+                >
+                  <option value="">All</option>
+                  {[...activeFilterBranches]
+                    .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))
+                    .map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.name}
+                      </option>
+                    ))}
+                </select>
+              </div>
+
+              <div className="mb-3">
+                <label className="form-label">Department</label>
+                <select
+                  className="form-select"
+                  value={filters.departmentId}
+                  onChange={(e) => {
+                    const departmentId = e.target.value;
+                    setFilters((prev) => ({
+                      ...prev,
+                      departmentId,
+                      designationId: "",
+                    }));
+                  }}
+                  disabled={!filters.branchId || filterLoading}
+                >
+                  <option value="">All</option>
+                  {[...activeFilterDepartments]
+                    .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))
+                    .map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.name}
+                      </option>
+                    ))}
+                </select>
+              </div>
+
+              <div className="mb-3">
+                <label className="form-label">Designation</label>
+                <select
+                  className="form-select"
+                  value={filters.designationId}
+                  onChange={(e) => setFilters((prev) => ({ ...prev, designationId: e.target.value }))}
+                  disabled={!filters.departmentId || filterLoading}
+                >
+                  <option value="">All</option>
+                  {[...activeFilterDesignations]
+                    .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))
+                    .map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.name}
+                      </option>
+                    ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="p-3 border-top d-flex gap-2">
+              <button
+                type="button"
+                className="btn btn-light w-50"
+                onClick={() => {
+                  setFilters({ headOfficeId: "", branchId: "", departmentId: "", designationId: "" });
+                  setFilterBranches([]);
+                  setFilterDepartments([]);
+                  setFilterDesignations([]);
+                }}
+              >
+                Clear
+              </button>
+              <button type="button" className="btn btn-primary w-50" onClick={() => setFilterOpen(false)}>
+                Apply
+              </button>
+            </div>
+          </div>
+        </>
+      )}
         <div className="card-body p-0">
           <div className="table-responsive">
             <table className="table table-striped table-hover mb-0">
@@ -957,52 +1306,75 @@ export default function EmployeesPage() {
                 </tr>
               </thead>
               <tbody>
-                {loading ? <tr><td colSpan="9">Loading...</td></tr> : rows.map((emp) => (
-                  <tr key={emp.id}>
-                    <td>{emp.employeeCode || "-"}</td>
-                    <td>
-                      <div className="d-flex align-items-center">
-                        <img
-                          src={emp.img || "assets/img/users/user-32.jpg"}
-                          alt={emp.name}
-                          className="rounded-circle me-2"
-                          width="34"
-                          height="34"
-                        />
-                        <span>{emp.name}</span>
-                      </div>
-                    </td>
-                    <td>{emp.email}</td>
-                    <td>{emp.phone}</td>
-                    <td>{emp.dept || "-"}</td>
-                    <td>{emp.designation}</td>
-                    <td>{emp.joinDate || "-"}</td>
-                    <td>
-                      <span
-                        className={`badge ${
-                          emp.status === "ACTIVE" ? "badge-success" : "badge-danger"
-                        }`}
-                      >
-                        {emp.status === "ACTIVE" ? "Active" : "Inactive"}
-                      </span>
-                    </td>
-                    <td>
-                      <button className="btn btn-sm btn-outline-primary" onClick={() => openEdit(emp)}><EditGlyph size={12} /></button>
-                      <button className="btn btn-sm btn-outline-danger ms-1" onClick={() => confirmDelete(emp.id)}><TrashGlyph size={12} /></button>
+                {loading ? (
+                  <tr>
+                    <td colSpan="9">Loading...</td>
+                  </tr>
+                ) : filteredRows.length === 0 ? (
+                  <tr>
+                    <td colSpan="9" className="text-center py-4 text-muted">
+                      No employees found
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  filteredRows.map((emp) => (
+                    <tr key={emp.id}>
+                      <td>{emp.employeeCode || "-"}</td>
+                      <td>
+                        <div className="d-flex align-items-center">
+                         <img
+  src={
+    emp._raw?.candidatePhotoPath
+      ? `http://localhost:8081/${emp._raw.candidatePhotoPath}`
+      : "assets/img/users/user-32.jpg"
+  }
+  alt={emp.name}
+  className="rounded-circle me-2"
+  width="34"
+  height="34"
+  onError={(e) => (e.target.src = "assets/img/users/user-32.jpg")}
+/>
+                          <span>{emp.name}</span>
+                        </div>
+                      </td>
+                      <td>{emp.email}</td>
+                      <td>{emp.phone}</td>
+                      <td>{emp.dept || "-"}</td>
+                      <td>{emp.designation}</td>
+                      <td>{emp.joinDate || "-"}</td>
+                      <td>
+                        <span
+                          className={`badge ${
+                            emp.status === "ACTIVE" ? "badge-success" : "badge-danger"
+                          }`}
+                        >
+                          {emp.status === "ACTIVE" ? "Active" : "Inactive"}
+                        </span>
+                      </td>
+                      <td>
+                        <button className="btn btn-sm btn-outline-primary" onClick={() => openEdit(emp)}>
+                          <EditGlyph size={12} />
+                        </button>
+                        <button className="btn btn-sm btn-outline-danger ms-1" onClick={() => confirmDelete(emp.id)}>
+                          <TrashGlyph size={12} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
         </div>
       </div>
 
+
       {showOnboardWizard && (
         <EmployeeWizardModal
           wizardStep={onboardStep}
           form={onboardForm}
           setForm={setOnboardForm}
+          mode={onboardMode}
           headOfficeId={onboardHeadOfficeId}
           setHeadOfficeId={setOnboardHeadOfficeId}
           branchId={onboardBranchId}
@@ -1011,10 +1383,10 @@ export default function EmployeesPage() {
           setDepartmentId={setOnboardDepartmentId}
           designationId={onboardDesignationId}
           setDesignationId={setOnboardDesignationId}
-          headOffices={[...headOffices].sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))}
-          branches={[...branches].sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))}
-          departments={[...onboardDepartments].sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))}
-          designations={[...onboardDesignations].sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))}
+          headOffices={[...wizardHeadOffices].sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))}
+          branches={[...wizardBranches].sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))}
+          departments={[...wizardDepartments].sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))}
+          designations={[...wizardDesignations].sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))}
           loadingMasters={hoLoading || branchLoading || deptLoading || desigLoading}
           saving={saving}
           onNext={handleOnboardNext}
