@@ -33,6 +33,8 @@ import java.security.SecureRandom;
 import java.time.format.DateTimeFormatter;
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Service
@@ -40,6 +42,7 @@ public class EmployeeProfileFormService {
 
     private static final String HMAC_ALG = "HmacSHA256";
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
+    private static final Pattern HANDLEBARS_TOKEN_PATTERN = Pattern.compile("\\{\\{\\s*([A-Za-z0-9_]+)\\s*\\}\\}");
 
     private static final Set<EmployeePublicFieldKey> EXCLUDED_PUBLIC_FIELDS = EnumSet.of(
             EmployeePublicFieldKey.INSTITUTION,
@@ -67,7 +70,7 @@ public class EmployeeProfileFormService {
     @Value("${app.employee-form.token-ttl-days:${EMPLOYEE_FORM_TOKEN_TTL_DAYS:7}}")
     private int tokenTtlDays;
 
-    @Value("${app.employee-form.public-base-url:${EMPLOYEE_FORM_PUBLIC_BASE_URL:http://127.0.0.1:5173/employee-form}}")
+    @Value("${app.employee-form.public-base-url:${EMPLOYEE_FORM_PUBLIC_BASE_URL:http://localhost:5173/employee-form}}")
     private String publicBaseUrl;
 
     @Value("${app.mail.from-name:SVL}")
@@ -149,22 +152,14 @@ public class EmployeeProfileFormService {
         Employee employee = employeeRepository.findById(employeeId)
                 .orElseThrow(() -> new EntityNotFoundException("Employee not found"));
 
-        // If an active unused token exists, the offer letter (with link) is already sent and still pending submission.
-        LocalDateTime now = LocalDateTime.now();
-        tokenRepository.findTopByEmployeeIdAndScopeAndRevokedAtIsNullAndUsedAtIsNullAndExpiresAtAfterOrderByCreatedAtDesc(
-                employeeId,
-                EmployeeTokenScope.MISSING_FIELDS,
-                now
-        ).ifPresent(existing -> {
-            String expiry = existing.getExpiresAt() == null
-                    ? ""
-                    : existing.getExpiresAt().toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE);
-            String msg = expiry.isBlank()
-                    ? "Offer letter already sent."
-                    : "Offer letter already sent. Link valid until " + expiry + ".";
-            throw new ResponseStatusException(HttpStatus.CONFLICT, msg);
-        });
+        String recipientEmail = firstNonBlank(employee.getPersonalEmail(), employee.getEmail());
+        if (!StringUtils.hasText(recipientEmail)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Employee personal email is missing");
+        }
 
+        // Always generate a fresh token when sending an offer letter from admin UI.
+        // This avoids blocking retries and prevents "Offer letter already sent" errors.
+        LocalDateTime now = LocalDateTime.now();
         tokenRepository.revokeActiveTokens(employeeId, now);
 
         String token = generateToken();
@@ -180,7 +175,7 @@ public class EmployeeProfileFormService {
 
         String publicUrl = buildPublicUrl(token);
 
-        if (StringUtils.hasText(employee.getEmail())) {
+        if (StringUtils.hasText(recipientEmail)) {
             var template = emailTemplateService.getOne(EmailTemplateKey.OFFER_LETTER_TEMPLATE.getKey());
             String subjectTemplate = template == null ? null : template.getSubject();
             String bodyTemplate = template == null ? null : template.getBody();
@@ -189,7 +184,7 @@ public class EmployeeProfileFormService {
             String body = renderOfferLetterText(bodyTemplate, employee, publicUrl, row.getExpiresAt());
 
             // Admin-triggered email: bypass cooldown.
-            emailNotificationService.notifyNowIfEnabled(employee.getEmail(), subject, body);
+            emailNotificationService.notifyNowIfEnabled(recipientEmail, subject, body);
         }
 
         EmployeeFormLinkResponse res = new EmployeeFormLinkResponse();
@@ -208,6 +203,11 @@ public class EmployeeProfileFormService {
         Employee employee = employeeRepository.findById(employeeId)
                 .orElseThrow(() -> new EntityNotFoundException("Employee not found"));
 
+        String recipientEmail = firstNonBlank(employee.getPersonalEmail(), employee.getEmail());
+        if (!StringUtils.hasText(recipientEmail)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Employee personal email is missing");
+        }
+
         LocalDateTime now = LocalDateTime.now();
         tokenRepository.revokeActiveTokens(employeeId, now);
 
@@ -224,14 +224,14 @@ public class EmployeeProfileFormService {
 
         String publicUrl = buildPublicUrl(token);
 
-        if (StringUtils.hasText(employee.getEmail())) {
+        if (StringUtils.hasText(recipientEmail)) {
             var template = emailTemplateService.getOne(EmailTemplateKey.OFFER_LETTER_TEMPLATE.getKey());
             String subjectTemplate = template == null ? null : template.getSubject();
             String bodyTemplate = template == null ? null : template.getBody();
 
             String subject = renderOfferLetterText(subjectTemplate, employee, publicUrl, row.getExpiresAt());
             String body = renderOfferLetterText(bodyTemplate, employee, publicUrl, row.getExpiresAt());
-            emailNotificationService.notifyNowIfEnabled(employee.getEmail(), subject, body);
+            emailNotificationService.notifyNowIfEnabled(recipientEmail, subject, body);
         }
 
         EmployeeFormLinkResponse res = new EmployeeFormLinkResponse();
@@ -242,19 +242,165 @@ public class EmployeeProfileFormService {
         return res;
     }
 
+    /**
+     * Generates a fresh profile-completion link (MISSING_FIELDS scope) and emails it using PROFILE_COMPLETION_TEMPLATE.
+     * The public page itself hides already-approved fields, so the employee only sees pending/rejected items.
+     */
+    @Transactional
+    public EmployeeFormLinkResponse resendProfileCompletionMail(Long employeeId) {
+        Employee employee = employeeRepository.findById(employeeId)
+                .orElseThrow(() -> new EntityNotFoundException("Employee not found"));
+
+        String recipientEmail = firstNonBlank(employee.getPersonalEmail(), employee.getEmail());
+        if (!StringUtils.hasText(recipientEmail)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Employee personal email is missing");
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        tokenRepository.revokeActiveTokens(employeeId, now);
+
+        String token = generateToken();
+        String tokenHash = hmacHash(tokenSecret, token);
+
+        EmployeeProfileToken row = new EmployeeProfileToken();
+        row.setEmployeeId(employeeId);
+        row.setTokenHash(tokenHash);
+        row.setScope(EmployeeTokenScope.MISSING_FIELDS);
+        row.setCreatedAt(now);
+        row.setExpiresAt(now.plusDays(Math.max(1, tokenTtlDays)));
+        tokenRepository.save(row);
+
+        String publicUrl = buildPublicUrl(token);
+
+        var template = emailTemplateService.getOne(EmailTemplateKey.PROFILE_COMPLETION_TEMPLATE.getKey());
+        String subjectTemplate = template == null ? null : template.getSubject();
+        String bodyTemplate = template == null ? null : template.getBody();
+
+        String subject = renderTemplateText(subjectTemplate, employee, publicUrl, row.getExpiresAt(), false);
+        String body = renderTemplateText(bodyTemplate, employee, publicUrl, row.getExpiresAt(), false);
+        body = upsertProfileCompletionLinkSection(
+                body,
+                publicUrl,
+                row.getExpiresAt() == null ? "" : row.getExpiresAt().toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE)
+        );
+        emailNotificationService.notifyNowIfEnabled(recipientEmail, subject, body);
+
+        EmployeeFormLinkResponse res = new EmployeeFormLinkResponse();
+        res.setEmployeeId(employeeId);
+        res.setScope(row.getScope());
+        res.setExpiresAt(row.getExpiresAt());
+        res.setPublicUrl(publicUrl);
+        return res;
+    }
+
+    private static String upsertProfileCompletionLinkSection(String body, String publicUrl, String expiry) {
+        String text = body == null ? "" : body;
+        String url = publicUrl == null ? "" : publicUrl;
+        String exp = expiry == null ? "" : expiry;
+
+        String section = "Profile Completion Link: " + url
+                + (StringUtils.hasText(exp) ? ("\nValid until: " + exp) : "");
+
+        // If link section already exists, keep it as-is.
+        if (StringUtils.hasText(url) && text.contains("Profile Completion Link:") && text.contains(url)) {
+            return text;
+        }
+
+        // Remove old "Complete Your Profile" link line to avoid duplicates.
+        text = text.replaceAll("(?m)^\\s*👉\\s*\\*\\*Complete Your Profile\\*\\*:\\s*.*\\R?", "");
+
+        // Prefer inserting right after the common anchor line in templates.
+        String anchor = "Please use the secure link below to complete your profile:";
+        int idx = text.indexOf(anchor);
+        if (idx >= 0) {
+            int insertAt = idx + anchor.length();
+            return text.substring(0, insertAt) + "\n\n" + section + text.substring(insertAt);
+        }
+
+        // Fallback: append to end.
+        if (!text.endsWith("\n") && !text.isEmpty()) text = text + "\n";
+        return text + "\n" + section;
+    }
+
     private String renderOfferLetterText(String templateText, Employee employee, String profileCompletionUrl, LocalDateTime expiresAt) {
+        return renderTemplateText(templateText, employee, profileCompletionUrl, expiresAt, true);
+    }
+
+    private String renderTemplateText(
+            String templateText,
+            Employee employee,
+            String profileCompletionUrl,
+            LocalDateTime expiresAt,
+            boolean appendLinkIfMissing
+    ) {
         String text = templateText == null ? "" : templateText;
-        String employeeName = employee == null ? "" : String.valueOf(employee.getName() == null ? "" : employee.getName());
-        String designation = employee == null ? "" : String.valueOf(employee.getDesignation() == null ? "" : employee.getDesignation());
-        String companyName = StringUtils.hasText(mailFromName) ? mailFromName : "SVL";
+        String employeeName = employee == null ? "" : String.valueOf(employee.getName() == null ? "" : employee.getName()).trim();
+        String designation = employee == null ? "" : String.valueOf(employee.getDesignation() == null ? "" : employee.getDesignation()).trim();
+        String companyName = StringUtils.hasText(mailFromName) ? mailFromName.trim() : "SVL";
         String expiry = expiresAt == null ? "" : expiresAt.toLocalDate().format(DateTimeFormatter.ISO_LOCAL_DATE);
 
-        text = text.replace("{{employee_name}}", employeeName);
-        text = text.replace("{{designation}}", designation);
-        text = text.replace("{{company_name}}", companyName);
-        text = text.replace("[Profile Completion Link]", profileCompletionUrl == null ? "" : profileCompletionUrl);
-        text = text.replace("[Expiry Date]", expiry);
+        // Resolve org names for common template placeholders.
+        String branchName = "";
+        String deptName = "";
+        if (employee != null) {
+            branchName = employee.getBranchId() == null ? "" : branchMasterRepository.findById(employee.getBranchId())
+                    .map(BranchMaster::getName).orElse("");
+            deptName = employee.getDepartmentMasterId() == null ? "" : departmentMasterRepository.findById(employee.getDepartmentMasterId())
+                    .map(DepartmentMaster::getName).orElse("");
+        }
+
+        Map<String, String> tokens = new HashMap<>();
+        tokens.put("employee_name", employeeName);
+        tokens.put("designation", designation);
+        tokens.put("company_name", companyName);
+        // Also support camelCase token variants.
+        tokens.put("employeeName", employeeName);
+        tokens.put("companyName", companyName);
+
+        // Common bracket placeholders present in seeded templates.
+        text = replaceBracket(text, "Profile Completion Link", profileCompletionUrl == null ? "" : profileCompletionUrl);
+        text = replaceBracket(text, "Expiry Date", expiry);
+        text = replaceBracket(text, "Department Name", deptName);
+        text = replaceBracket(text, "Branch Name", branchName);
+        text = replaceBracket(text, "Designation", designation);
+
+        // Replace {{tokens}} last so templates that contain bracket placeholders inside tokens still work.
+        text = renderHandlebarsTokens(text, tokens);
+
+        // Safety net: only for email bodies (never for subjects).
+        if (appendLinkIfMissing && StringUtils.hasText(profileCompletionUrl) && !text.contains(profileCompletionUrl)) {
+            text = text
+                    + "\n\nProfile Completion Link: " + profileCompletionUrl
+                    + (StringUtils.hasText(expiry) ? ("\nValid until: " + expiry) : "");
+        }
         return text;
+    }
+
+    private static String firstNonBlank(String a, String b) {
+        if (StringUtils.hasText(a)) return a.trim();
+        if (StringUtils.hasText(b)) return b.trim();
+        return "";
+    }
+
+    private static String replaceBracket(String text, String label, String value) {
+        String out = text == null ? "" : text;
+        String v = value == null ? "" : value;
+        return out.replace("[" + label + "]", v);
+    }
+
+    private static String renderHandlebarsTokens(String template, Map<String, String> values) {
+        if (template == null || template.isEmpty()) return "";
+        if (values == null || values.isEmpty()) return template;
+
+        Matcher m = HANDLEBARS_TOKEN_PATTERN.matcher(template);
+        StringBuffer out = new StringBuffer(template.length());
+        while (m.find()) {
+            String key = m.group(1);
+            String replacement = values.getOrDefault(key, "");
+            m.appendReplacement(out, Matcher.quoteReplacement(replacement == null ? "" : replacement));
+        }
+        m.appendTail(out);
+        return out.toString();
     }
 
     @Transactional(readOnly = true)
@@ -740,40 +886,11 @@ public class EmployeeProfileFormService {
     private record TokenContext(Long employeeId, EmployeeTokenScope scope, LocalDateTime expiresAt, EmployeeProfileToken row) {}
 
     private String buildPublicUrl(String token) {
-        String base = normalizePublicBaseUrl(String.valueOf(publicBaseUrl == null ? "" : publicBaseUrl).trim());
+        String base = String.valueOf(publicBaseUrl == null ? "" : publicBaseUrl).trim();
         if (base.endsWith("/")) {
             return base + token;
         }
         return base + "/" + token;
-    }
-
-    /**
-     * Some environments/browsers resolve "localhost" differently (IPv6 ::1 vs IPv4 127.0.0.1).
-     * To avoid "works in Edge but not in Chrome" issues during local development, rewrite
-     * localhost URLs to 127.0.0.1 when generating public links.
-     *
-     * For production, set EMPLOYEE_FORM_PUBLIC_BASE_URL to your real public domain.
-     */
-    private static String normalizePublicBaseUrl(String baseUrl) {
-        if (!StringUtils.hasText(baseUrl)) return "";
-        try {
-            URI uri = URI.create(baseUrl.trim());
-            if ("localhost".equalsIgnoreCase(uri.getHost())) {
-                URI fixed = new URI(
-                        uri.getScheme(),
-                        uri.getUserInfo(),
-                        "127.0.0.1",
-                        uri.getPort(),
-                        uri.getPath(),
-                        uri.getQuery(),
-                        uri.getFragment()
-                );
-                return fixed.toString();
-            }
-        } catch (Exception ignored) {
-            // Keep original baseUrl if parsing fails.
-        }
-        return baseUrl.trim();
     }
 
     private static String generateToken() {

@@ -41,7 +41,7 @@ public class EmailNotificationService {
 
     public void notifyIfAllowed(String recipientEmail, String subject, String body) {
         if (!enabled) {
-            log.debug("Email notifications disabled.");
+            log.warn("Email notifications disabled (app.mail.enabled=false). Skipping email to {}.", recipientEmail);
             return;
         }
         if (!StringUtils.hasText(recipientEmail)) {
@@ -80,7 +80,7 @@ public class EmailNotificationService {
      */
     public void notifyNowIfEnabled(String recipientEmail, String subject, String body) {
         if (!enabled) {
-            log.debug("Email notifications disabled.");
+            log.warn("Email notifications disabled (app.mail.enabled=false). Skipping email to {}.", recipientEmail);
             return;
         }
         if (!StringUtils.hasText(recipientEmail)) {

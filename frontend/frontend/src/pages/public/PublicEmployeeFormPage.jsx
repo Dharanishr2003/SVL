@@ -43,6 +43,28 @@ export default function PublicEmployeeFormPage() {
   const fieldList = useMemo(() => (data?.fields || []), [data]);
   const uploadList = useMemo(() => (data?.uploads || []), [data]);
 
+  const editableFieldList = useMemo(
+    () =>
+      fieldList.filter((f) => {
+        const status = String(f?.status || "").toUpperCase();
+        // In update links, approved fields should not appear again.
+        if (status === "APPROVED") return false;
+        // Respect backend "editable" hint.
+        return f?.editable !== false;
+      }),
+    [fieldList],
+  );
+
+  const editableUploadList = useMemo(
+    () =>
+      uploadList.filter((u) => {
+        const status = String(u?.status || "").toUpperCase();
+        if (status === "APPROVED") return false;
+        return u?.editable !== false;
+      }),
+    [uploadList],
+  );
+
   const hiddenScalarKeys = useMemo(
     () =>
       new Set([
@@ -78,7 +100,7 @@ export default function PublicEmployeeFormPage() {
     setSaving(true);
     try {
       const fd = new FormData();
-      fieldList.forEach((f) => {
+      editableFieldList.forEach((f) => {
         const fieldKey = f.fieldKey;
         const val = form[fieldKey];
         const initial = initialForm[fieldKey];
@@ -88,7 +110,7 @@ export default function PublicEmployeeFormPage() {
         }
       });
 
-      uploadList.forEach((u) => {
+      editableUploadList.forEach((u) => {
         const docType = u.docType;
         const v = files[docType];
         if (!v) return;
@@ -130,6 +152,7 @@ export default function PublicEmployeeFormPage() {
   }
 
   const noFields = (data.fields || []).length === 0 && (data.uploads || []).length === 0;
+  const noEditableFields = editableFieldList.length === 0 && editableUploadList.length === 0;
 
   return (
     <div className="container py-5">
@@ -143,12 +166,12 @@ export default function PublicEmployeeFormPage() {
               </div>
             </div>
             <div className="card-body">
-              {noFields ? (
+              {noFields || noEditableFields ? (
                 <div className="alert alert-success mb-0">No fields required at this time.</div>
               ) : (
                 <form onSubmit={handleSubmit}>
                   {/* Org details (read-only names) and other scalar fields */}
-                  {fieldList
+                  {editableFieldList
                     .filter((f) => !hiddenScalarKeys.has(f.fieldKey))
                     .map((f) => {
                     const rejected = String(f.status || "").toUpperCase() === "REJECTED";
@@ -300,7 +323,7 @@ export default function PublicEmployeeFormPage() {
                     </div>
                   </div>
 
-                  {uploadList
+                  {editableUploadList
                     .filter((u) => u.docType !== "PHOTO")
                     .map((u) => {
                     const rejected = String(u.status || "").toUpperCase() === "REJECTED";

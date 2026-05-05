@@ -53,4 +53,9 @@ public class EmployeeProfileController {
             return ResponseEntity.badRequest().body(Map.of("message", ex.getMessage()));
         }
     }
+
+    @PostMapping("/{employeeId}/resend-profile-completion-mail")
+    public EmployeeFormLinkResponse resendProfileCompletionMail(@PathVariable Long employeeId) {
+        return employeeProfileFormService.resendProfileCompletionMail(employeeId);
+    }
 }

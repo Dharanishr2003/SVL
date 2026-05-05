@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import {
   getEmployeeVerification,
-  resendRejectedEmployeeLink,
+  resendProfileCompletionMail,
   verifyEmployeeFields,
 } from "../../api/employeesApi";
 import { useToast } from "../../components/system/ToastProvider";
@@ -58,10 +58,10 @@ export default function EmployeeVerificationPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [employeeId]);
 
-  const hasRejected = useMemo(() => {
-    const anyFieldRejected = (data?.fields || []).some((f) => String(f.status || "").toUpperCase() === "REJECTED");
-    const anyDocRejected = (data?.documents || []).some((d) => String(d.status || "").toUpperCase() === "REJECTED");
-    return anyFieldRejected || anyDocRejected;
+  const hasNonApproved = useMemo(() => {
+    const anyFieldNonApproved = (data?.fields || []).some((f) => String(f.status || "").toUpperCase() !== "APPROVED");
+    const anyDocNonApproved = (data?.documents || []).some((d) => String(d.status || "").toUpperCase() !== "APPROVED");
+    return anyFieldNonApproved || anyDocNonApproved;
   }, [data]);
 
   async function handleSave() {
@@ -103,14 +103,14 @@ export default function EmployeeVerificationPage() {
     }
   }
 
-  async function handleResendRejected() {
+  async function handleResendProfileCompletionMail() {
     setSaving(true);
     try {
-      const res = await resendRejectedEmployeeLink(employeeId);
+      const res = await resendProfileCompletionMail(employeeId);
       setLastLink(res?.publicUrl || null);
-      showSuccess("Rejected-fields link generated");
+      showSuccess("Profile completion mail sent");
     } catch (e) {
-      showError(extractApiErrorMessage(e, "Failed to resend rejected link"));
+      showError(extractApiErrorMessage(e, "Failed to resend profile completion mail"));
     } finally {
       setSaving(false);
     }
@@ -148,17 +148,17 @@ export default function EmployeeVerificationPage() {
                 <div>
                   <button
                     className="btn btn-outline-primary"
-                    onClick={handleResendRejected}
-                    disabled={saving || !hasRejected}
-                    title={!hasRejected ? "No rejected fields/files" : ""}
+                    onClick={handleResendProfileCompletionMail}
+                    disabled={saving || !hasNonApproved}
+                    title={!hasNonApproved ? "No pending/rejected fields/files" : ""}
                   >
-                    Resend Rejected Link
+                    Resend Mail to Complete Profile
                   </button>
                 </div>
               </div>
               {lastLink ? (
                 <div className="card-footer">
-                  <div className="fw-medium mb-1">Rejected-fields link</div>
+                  <div className="fw-medium mb-1">Profile completion link</div>
                   <div className="d-flex gap-2 align-items-center">
                     <input className="form-control" readOnly value={lastLink} />
                     <button

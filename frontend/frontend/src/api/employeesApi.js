@@ -69,6 +69,11 @@ export async function resendRejectedEmployeeLink(employeeId) {
   return response?.data || null;
 }
 
+export async function resendProfileCompletionMail(employeeId) {
+  const response = await api.post(`/api/employees/${employeeId}/resend-profile-completion-mail`);
+  return response?.data || null;
+}
+
 export async function getPublicEmployeeForm(token) {
   const response = await api.get(`/api/public/employee-form/${token}`);
   return response?.data || null;

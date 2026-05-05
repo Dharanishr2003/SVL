@@ -9,6 +9,7 @@ import {
   updateOnboardEmployee,
   sendOfferLetterEmail,
   resendOfferLetterEmail,
+  resendProfileCompletionMail,
 } from "../../api/employeesApi";
 import { getDepartmentsMaster, getDepartmentsMasterByBranch } from "../../api/departmentsApi";
 import { getDesignations } from "../../api/designationsApi";
@@ -283,18 +284,35 @@ export default function EmployeesPage() {
     profileStatus: "",
   });
 
-  async function handleSendOfferLetter(emp) {
-    try {
-      const res = await sendOfferLetterEmail(emp.id);
-      setGeneratedLink(res?.publicUrl || "");
-      setGeneratedLinkEmployee(emp);
-      setLinkModalOpen(true);
-      showSuccess("Offer letter sent");
-      await loadData();
-    } catch (e) {
-      showError(extractApiErrorMessage(e, "Failed to send offer letter"));
-    }
-  }
+  async function handleSendOfferLetter(emp) { 
+    try { 
+      const res = await sendOfferLetterEmail(emp.id); 
+      setGeneratedLink(res?.publicUrl || ""); 
+      setGeneratedLinkEmployee(emp); 
+      setLinkModalOpen(true); 
+      showSuccess("Offer letter sent"); 
+      await loadData(); 
+    } catch (e) { 
+      const status = e?.response?.status;
+      // If the offer letter (and link) was already sent and is still active, send the profile-completion mail instead.
+      if (status === 409) {
+        try {
+          const res = await resendProfileCompletionMail(emp.id);
+          setGeneratedLink(res?.publicUrl || "");
+          setGeneratedLinkEmployee(emp);
+          setLinkModalOpen(true);
+          showSuccess("Profile completion mail sent");
+          await loadData();
+          return;
+        } catch (e2) {
+          showError(extractApiErrorMessage(e2, "Failed to send profile completion mail"));
+          return;
+        }
+      }
+
+      showError(extractApiErrorMessage(e, "Failed to send offer letter")); 
+    } 
+  } 
 
   async function handleResendOfferLetter(emp) {
     try {
@@ -1216,6 +1234,20 @@ export default function EmployeesPage() {
             </div>
 
             <div className="p-3">
+               <div className="mb-3">
+                <label className="form-label">Profile Status</label>
+                <select
+                  className="form-select"
+                  value={filters.profileStatus}
+                  onChange={(e) => setFilters((prev) => ({ ...prev, profileStatus: e.target.value }))}
+                  disabled={filterLoading}
+                >
+                  <option value="">All</option>
+                  <option value="DRAFT">DRAFT</option>
+                  <option value="PENDING_VERIFICATION">PENDING_VERIFICATION</option>
+                  <option value="VERIFIED">VERIFIED</option>
+                </select>
+              </div>
               <div className="mb-3">
                 <label className="form-label">Head Office</label>
                 <select
@@ -1244,20 +1276,7 @@ export default function EmployeesPage() {
                 </select>
               </div>
 
-              <div className="mb-3">
-                <label className="form-label">Profile Status</label>
-                <select
-                  className="form-select"
-                  value={filters.profileStatus}
-                  onChange={(e) => setFilters((prev) => ({ ...prev, profileStatus: e.target.value }))}
-                  disabled={filterLoading}
-                >
-                  <option value="">All</option>
-                  <option value="DRAFT">DRAFT</option>
-                  <option value="PENDING_VERIFICATION">PENDING_VERIFICATION</option>
-                  <option value="VERIFIED">VERIFIED</option>
-                </select>
-              </div>
+             
 
               {filters.headOfficeId ? (
                 <div className="mb-3">
