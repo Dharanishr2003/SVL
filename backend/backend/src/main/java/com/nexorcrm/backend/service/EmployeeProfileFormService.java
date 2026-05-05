@@ -180,8 +180,10 @@ public class EmployeeProfileFormService {
             String subjectTemplate = template == null ? null : template.getSubject();
             String bodyTemplate = template == null ? null : template.getBody();
 
-            String subject = renderOfferLetterText(subjectTemplate, employee, publicUrl, row.getExpiresAt());
-            String body = renderOfferLetterText(bodyTemplate, employee, publicUrl, row.getExpiresAt());
+            // Never append the profile-completion link into the email subject.
+            String subject = renderTemplateText(subjectTemplate, employee, publicUrl, row.getExpiresAt(), false);
+            // Body may include the link (either via template placeholders or safety net append).
+            String body = renderTemplateText(bodyTemplate, employee, publicUrl, row.getExpiresAt(), true);
 
             // Admin-triggered email: bypass cooldown.
             emailNotificationService.notifyNowIfEnabled(recipientEmail, subject, body);
@@ -229,8 +231,10 @@ public class EmployeeProfileFormService {
             String subjectTemplate = template == null ? null : template.getSubject();
             String bodyTemplate = template == null ? null : template.getBody();
 
-            String subject = renderOfferLetterText(subjectTemplate, employee, publicUrl, row.getExpiresAt());
-            String body = renderOfferLetterText(bodyTemplate, employee, publicUrl, row.getExpiresAt());
+            // Never append the profile-completion link into the email subject.
+            String subject = renderTemplateText(subjectTemplate, employee, publicUrl, row.getExpiresAt(), false);
+            // Body may include the link (either via template placeholders or safety net append).
+            String body = renderTemplateText(bodyTemplate, employee, publicUrl, row.getExpiresAt(), true);
             emailNotificationService.notifyNowIfEnabled(recipientEmail, subject, body);
         }
 
@@ -515,6 +519,10 @@ public class EmployeeProfileFormService {
         EmployeeVerificationResponse res = new EmployeeVerificationResponse();
         res.setEmployeeId(employeeId);
         res.setProfileStatus(employee.getProfileStatus());
+        boolean everGenerated = tokenRepository.existsByEmployeeId(employeeId);
+        res.setProfileLinkEverGenerated(everGenerated);
+        // Backward-compatible field for older frontend builds.
+        res.setProfileCompletionMailSent(everGenerated);
 
         for (EmployeePublicFieldKey fk : EmployeePublicFieldKey.values()) {
             if (EXCLUDED_PUBLIC_FIELDS.contains(fk)) continue;

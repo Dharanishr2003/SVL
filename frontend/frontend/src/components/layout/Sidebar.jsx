@@ -551,6 +551,13 @@ export default function Sidebar() {
                         </a>
                       </li>
                       )}
+                      {canAccessAny("employees", "email-settings") && (
+                      <li>
+                        <a href="/email-settings" className="">
+                          Mail Settings
+                        </a>
+                      </li>
+                      )}
                       {canAccessAny("employees", "email-template") && (
                       <li>
                         <a href="/email-template" className="">

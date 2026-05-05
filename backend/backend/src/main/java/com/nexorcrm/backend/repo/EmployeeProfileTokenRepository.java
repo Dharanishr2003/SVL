@@ -16,6 +16,10 @@ public interface EmployeeProfileTokenRepository extends JpaRepository<EmployeePr
 
     Optional<EmployeeProfileToken> findFirstByTokenHash(String tokenHash);
 
+    boolean existsByEmployeeId(Long employeeId);
+
+    boolean existsByEmployeeIdAndScope(Long employeeId, EmployeeTokenScope scope);
+
     Optional<EmployeeProfileToken> findTopByEmployeeIdAndScopeAndRevokedAtIsNullAndUsedAtIsNullAndExpiresAtAfterOrderByCreatedAtDesc(
             Long employeeId,
             EmployeeTokenScope scope,

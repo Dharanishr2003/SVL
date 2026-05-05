@@ -5,6 +5,7 @@ import com.nexorcrm.backend.repo.EmailNotificationLogRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.mail.javamail.JavaMailSenderImpl;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.slf4j.Logger;
@@ -12,6 +13,7 @@ import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.Properties;
 import java.util.Optional;
 
 @Service
@@ -20,6 +22,7 @@ public class EmailNotificationService {
     private static final Logger log = LoggerFactory.getLogger(EmailNotificationService.class);
     private final JavaMailSender mailSender;
     private final EmailNotificationLogRepository logRepository;
+    private final MailSettingsService mailSettingsService;
 
     @Value("${app.mail.enabled:false}")
     private boolean enabled;
@@ -34,13 +37,27 @@ public class EmailNotificationService {
     private long cooldownMinutes;
 
     public EmailNotificationService(JavaMailSender mailSender,
-                                    EmailNotificationLogRepository logRepository) {
+                                    EmailNotificationLogRepository logRepository,
+                                    MailSettingsService mailSettingsService) {
         this.mailSender = mailSender;
         this.logRepository = logRepository;
+        this.mailSettingsService = mailSettingsService;
+    }
+
+    public boolean isMailEnabled() {
+        MailSettingsService.ResolvedMailSettings db = mailSettingsService.resolve();
+        if (db != null) {
+            return db.enabled;
+        }
+        return enabled;
+    }
+
+    public void sendTestEmail(String toAddress) {
+        sendEmailInternal(toAddress, "Test Email", "This is a test email from SVL ERP.", true);
     }
 
     public void notifyIfAllowed(String recipientEmail, String subject, String body) {
-        if (!enabled) {
+        if (!isMailEnabled()) {
             log.warn("Email notifications disabled (app.mail.enabled=false). Skipping email to {}.", recipientEmail);
             return;
         }
@@ -62,7 +79,7 @@ public class EmailNotificationService {
         }
 
         try {
-            sendEmail(normalized, subject, body);
+            sendEmailInternal(normalized, subject, body, false);
 
             EmailNotificationLog logRow = existing.orElseGet(EmailNotificationLog::new);
             logRow.setRecipientEmail(normalized);
@@ -79,7 +96,7 @@ public class EmailNotificationService {
      * Useful for admin-triggered onboarding emails (e.g., offer letter).
      */
     public void notifyNowIfEnabled(String recipientEmail, String subject, String body) {
-        if (!enabled) {
+        if (!isMailEnabled()) {
             log.warn("Email notifications disabled (app.mail.enabled=false). Skipping email to {}.", recipientEmail);
             return;
         }
@@ -93,7 +110,7 @@ public class EmailNotificationService {
         Optional<EmailNotificationLog> existing = logRepository.findTopByRecipientEmailOrderByLastSentAtDesc(normalized);
 
         try {
-            sendEmail(normalized, subject, body);
+            sendEmailInternal(normalized, subject, body, false);
 
             EmailNotificationLog logRow = existing.orElseGet(EmailNotificationLog::new);
             logRow.setRecipientEmail(normalized);
@@ -105,16 +122,57 @@ public class EmailNotificationService {
         }
     }
 
-    private void sendEmail(String normalizedRecipientEmail, String subject, String body) {
+    private void sendEmailInternal(String normalizedRecipientEmail, String subject, String body, boolean bypassEnabledCheck) {
+        if (!bypassEnabledCheck && !isMailEnabled()) {
+            return;
+        }
+
+        MailSettingsService.ResolvedMailSettings db = mailSettingsService.resolve();
+        JavaMailSender sender = db != null ? buildSender(db) : mailSender;
+        String resolvedFromAddress = db != null && StringUtils.hasText(db.fromAddress) ? db.fromAddress : fromAddress;
+        String resolvedFromName = db != null && StringUtils.hasText(db.fromName) ? db.fromName : fromName;
+        String resolvedCc = db != null ? db.cc : null;
+        String resolvedBcc = db != null ? db.bcc : null;
+
         SimpleMailMessage message = new SimpleMailMessage();
         message.setTo(normalizedRecipientEmail);
-        if (StringUtils.hasText(fromAddress)) {
-            message.setFrom(StringUtils.hasText(fromName)
-                    ? String.format("%s <%s>", fromName, fromAddress)
-                    : fromAddress);
+        String[] ccList = splitEmails(resolvedCc);
+        if (ccList.length > 0) message.setCc(ccList);
+        String[] bccList = splitEmails(resolvedBcc);
+        if (bccList.length > 0) message.setBcc(bccList);
+        if (StringUtils.hasText(resolvedFromAddress)) {
+            message.setFrom(StringUtils.hasText(resolvedFromName)
+                    ? String.format("%s <%s>", resolvedFromName, resolvedFromAddress)
+                    : resolvedFromAddress);
         }
         message.setSubject(subject);
         message.setText(body);
-        mailSender.send(message);
+        sender.send(message);
+    }
+
+    private static String[] splitEmails(String value) {
+        if (!StringUtils.hasText(value)) return new String[0];
+        return java.util.Arrays.stream(value.split(","))
+                .map(String::trim)
+                .filter(StringUtils::hasText)
+                .toArray(String[]::new);
+    }
+
+    private static JavaMailSender buildSender(MailSettingsService.ResolvedMailSettings settings) {
+        JavaMailSenderImpl impl = new JavaMailSenderImpl();
+        if (StringUtils.hasText(settings.host)) {
+            impl.setHost(settings.host);
+        }
+        impl.setPort(settings.port > 0 ? settings.port : 587);
+        if (StringUtils.hasText(settings.username)) {
+            impl.setUsername(settings.username);
+        }
+        if (StringUtils.hasText(settings.password)) {
+            impl.setPassword(settings.password);
+        }
+        Properties props = impl.getJavaMailProperties();
+        props.put("mail.smtp.auth", String.valueOf(settings.smtpAuth));
+        props.put("mail.smtp.starttls.enable", String.valueOf(settings.starttls));
+        return impl;
     }
 }

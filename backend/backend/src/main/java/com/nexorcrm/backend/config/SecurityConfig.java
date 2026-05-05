@@ -41,6 +41,14 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(cors -> cors.configurationSource(corsConfigurationSource))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .headers(headers -> headers
+                        // Allow the frontend (separate origin) to embed preview iframes for uploaded documents.
+                        // We rely on CSP `frame-ancestors` instead of X-Frame-Options (which cannot express multiple origins in modern browsers).
+                        .frameOptions(frame -> frame.disable())
+                        .contentSecurityPolicy(csp -> csp.policyDirectives(
+                                "frame-ancestors 'self' " + frontendUrl + " http://localhost:5173 http://127.0.0.1:5173"
+                        ))
+                )
                 .exceptionHandling(ex -> ex
                         .authenticationEntryPoint((request, response, authException) -> {
                             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
@@ -72,6 +80,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/policies/*/file").permitAll()
                         .requestMatchers("/api/public/employee-form/**").permitAll()
                         .requestMatchers("/uploads/**").permitAll()
+                        .requestMatchers("/api/settings/**").hasRole("SUPER_ADMIN")
                         // Vendor portal endpoints should be accessible to vendor accounts, but these endpoints are also used
                         // by staff screens. Keep both authorized.
                         .requestMatchers("/api/vendor-orders/**").hasAnyRole("VENDOR", "SUPER_ADMIN", "ADMIN", "MANAGER", "EMPLOYEE")

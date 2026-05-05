@@ -483,7 +483,23 @@ export default function LeadsPage() {
   const [saving, setSaving] = useState(false);
   const [selectedLeadIds, setSelectedLeadIds] = useState(new Set());
 
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+
   const visibleRows = useMemo(() => rows, [rows]);
+  const totalRows = visibleRows.length;
+  const pageCount = Math.max(1, Math.ceil(totalRows / Math.max(1, pageSize)));
+  const clampedPage = Math.min(Math.max(1, page), pageCount);
+  const pageOffset = (clampedPage - 1) * pageSize;
+  const pagedRows = useMemo(
+    () => visibleRows.slice(pageOffset, pageOffset + pageSize),
+    [visibleRows, pageOffset, pageSize],
+  );
+
+  useEffect(() => {
+    if (page !== clampedPage) setPage(clampedPage);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clampedPage]);
   const createFlowScope = useMemo(
     () => (
       role === "SUPER_ADMIN" || !actorInstitutionName
@@ -518,6 +534,8 @@ export default function LeadsPage() {
       } else {
         setRows([]);
       }
+      setSelectedLeadIds(new Set());
+      setPage(1);
     } catch (e) {
       setRows([]);
       setError(extractApiErrorMessage(e, "Failed to load leads"));
@@ -1382,11 +1400,17 @@ export default function LeadsPage() {
   };
 
   const toggleSelectAll = () => {
-    if (selectedLeadIds.size === visibleRows.length) {
-      setSelectedLeadIds(new Set());
-      return;
-    }
-    setSelectedLeadIds(new Set(visibleRows.map((row) => row.id)));
+    const pageIds = pagedRows.map((row) => row.id);
+    const allSelectedOnPage = pageIds.length > 0 && pageIds.every((id) => selectedLeadIds.has(id));
+    setSelectedLeadIds((prev) => {
+      const next = new Set(prev);
+      if (allSelectedOnPage) {
+        pageIds.forEach((id) => next.delete(id));
+        return next;
+      }
+      pageIds.forEach((id) => next.add(id));
+      return next;
+    });
   };
 
   const exportCsv = () => {
@@ -1669,6 +1693,54 @@ export default function LeadsPage() {
             className="table-responsive leads-table-wrap"
             style={{ overflowX: "auto", WebkitOverflowScrolling: "touch", touchAction: "pan-x" }}
           >
+            <div className="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+              <div className="d-flex align-items-center gap-2">
+                <span className="text-muted small">Rows per page</span>
+                <select
+                  className="form-select form-select-sm"
+                  style={{ width: 110 }}
+                  value={pageSize}
+                  onChange={(e) => {
+                    const next = Number(e.target.value);
+                    setPageSize(Number.isFinite(next) && next > 0 ? next : 25);
+                    setPage(1);
+                  }}
+                  disabled={loading}
+                >
+                  {[10, 25, 50, 100].map((n) => (
+                    <option key={n} value={n}>
+                      {n}
+                    </option>
+                  ))}
+                </select>
+                <span className="text-muted small">
+                  {totalRows === 0
+                    ? "0 rows"
+                    : `Showing ${pageOffset + 1}-${Math.min(pageOffset + pageSize, totalRows)} of ${totalRows}`}
+                </span>
+              </div>
+              <div className="d-flex align-items-center gap-2">
+                <button
+                  type="button"
+                  className="btn btn-sm btn-light"
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={loading || clampedPage <= 1}
+                >
+                  Prev
+                </button>
+                <span className="text-muted small">
+                  Page {clampedPage} of {pageCount}
+                </span>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-light"
+                  onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+                  disabled={loading || clampedPage >= pageCount}
+                >
+                  Next
+                </button>
+              </div>
+            </div>
             <table className="table table-hover align-middle leads-table">
               <thead>
                 <tr>
@@ -1676,8 +1748,8 @@ export default function LeadsPage() {
                     <input
                       type="checkbox"
                       checked={
-                        visibleRows.length > 0 &&
-                        selectedLeadIds.size === visibleRows.length
+                        pagedRows.length > 0 &&
+                        pagedRows.every((row) => selectedLeadIds.has(row.id))
                       }
                       onChange={toggleSelectAll}
                     />
@@ -1708,12 +1780,12 @@ export default function LeadsPage() {
                   <tr>
                     <td colSpan={10}>Loading...</td>
                   </tr>
-                ) : visibleRows.length === 0 ? (
+                ) : pagedRows.length === 0 ? (
                   <tr>
                     <td colSpan={10}>No leads found</td>
                   </tr>
                 ) : (
-                  visibleRows.map((row, index) => {
+                  pagedRows.map((row, index) => {
                     const statusKey = String(row.status || "").trim().toLowerCase();
                     const isDealRow = statusKey === "deal";
                     return (
@@ -1729,7 +1801,7 @@ export default function LeadsPage() {
                       </td>
                       <td>
                         <div className="d-inline-flex align-items-center gap-2">
-                          <span>{index + 1}</span>
+                          <span>{pageOffset + index + 1}</span>
                           {isDealRow ? (
                             <>
                               <button

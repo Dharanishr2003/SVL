@@ -2,11 +2,13 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import {
   getEmployeeVerification,
+  sendOfferLetterEmail,
   resendProfileCompletionMail,
   verifyEmployeeFields,
 } from "../../api/employeesApi";
 import { useToast } from "../../components/system/ToastProvider";
 import { extractApiErrorMessage } from "../../utils/errorMessage";
+import api from "../../utils/api";
 
 const FIELD_LABELS = {
   DATE_OF_BIRTH: "Date of Birth",
@@ -39,6 +41,8 @@ export default function EmployeeVerificationPage() {
   const [docDecisions, setDocDecisions] = useState({});
   const [docRemarks, setDocRemarks] = useState({});
   const [lastLink, setLastLink] = useState(null);
+  const [docPreviewOpen, setDocPreviewOpen] = useState(false);
+  const [previewDoc, setPreviewDoc] = useState(null);
 
   async function load() {
     setLoading(true);
@@ -116,6 +120,68 @@ export default function EmployeeVerificationPage() {
     }
   }
 
+  async function handleSendOfferLetterMail() {
+    setSaving(true);
+    try {
+      const res = await sendOfferLetterEmail(employeeId);
+      setLastLink(res?.publicUrl || null);
+      showSuccess("Offer letter sent");
+    } catch (e) {
+      showError(extractApiErrorMessage(e, "Failed to send offer letter"));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const shouldSendOfferLetter = !data?.profileLinkEverGenerated;
+  const handleSendMail = shouldSendOfferLetter ? handleSendOfferLetterMail : handleResendProfileCompletionMail;
+  const sendMailLabel = shouldSendOfferLetter ? "Send Offer Letter Mail" : "Send Profile Completion Mail";
+
+  const openDocPreview = (doc) => {
+    if (!doc) return;
+    setPreviewDoc(doc);
+    setDocPreviewOpen(true);
+  };
+
+  const closeDocPreview = () => {
+    setDocPreviewOpen(false);
+    setPreviewDoc(null);
+  };
+
+  const previewKind = useMemo(() => {
+    const url = String(previewDoc?.fileUrl || "");
+    const name = String(previewDoc?.originalFilename || "");
+    const pickExt = (value) => {
+      const raw = String(value || "");
+      if (!raw) return "";
+      const withoutQuery = raw.split("?")[0].split("#")[0];
+      const lastDot = withoutQuery.lastIndexOf(".");
+      if (lastDot < 0) return "";
+      return withoutQuery.slice(lastDot + 1).toLowerCase();
+    };
+
+    const ext = pickExt(name) || pickExt(url);
+    if (!url) return "none";
+    if (ext === "pdf") return "pdf";
+    if (["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg"].includes(ext)) return "image";
+    return "other";
+  }, [previewDoc]);
+
+  const previewUrl = useMemo(() => {
+    const raw = String(previewDoc?.fileUrl || "").trim();
+    if (!raw) return "";
+    if (/^https?:\/\//i.test(raw)) return raw;
+    const base = String(api?.defaults?.baseURL || "").trim();
+    if (base) {
+      try {
+        return new URL(raw, base.endsWith("/") ? base : `${base}/`).toString();
+      } catch {
+        // fall through
+      }
+    }
+    return raw;
+  }, [previewDoc]);
+
   return (
     <div className="container-fluid">
         <div className="d-flex align-items-center justify-content-between mb-3">
@@ -148,11 +214,11 @@ export default function EmployeeVerificationPage() {
                 <div>
                   <button
                     className="btn btn-outline-primary"
-                    onClick={handleResendProfileCompletionMail}
+                    onClick={handleSendMail}
                     disabled={saving || !hasNonApproved}
                     title={!hasNonApproved ? "No pending/rejected fields/files" : ""}
                   >
-                    Resend Mail to Complete Profile
+                    {sendMailLabel}
                   </button>
                 </div>
               </div>
@@ -285,9 +351,23 @@ export default function EmployeeVerificationPage() {
                               <td>{d.docType}</td>
                               <td>
                                 {d.fileUrl ? (
-                                  <a href={d.fileUrl} target="_blank" rel="noreferrer">
-                                    {d.originalFilename || d.fileUrl}
-                                  </a>
+                                  <div className="d-flex flex-wrap align-items-center gap-2">
+                                    <button
+                                      type="button"
+                                      className="btn btn-sm btn-outline-primary"
+                                      onClick={() => openDocPreview(d)}
+                                    >
+                                      View
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="btn btn-sm btn-link p-0"
+                                      onClick={() => openDocPreview(d)}
+                                      title="Preview document"
+                                    >
+                                      {d.originalFilename || d.fileUrl}
+                                    </button>
+                                  </div>
                                 ) : (
                                   "-"
                                 )}
@@ -356,6 +436,59 @@ export default function EmployeeVerificationPage() {
                 </div>
           </>
         )}
+
+        {docPreviewOpen && previewDoc ? (
+          <>
+            <div className="modal fade show" style={{ display: "block" }} tabIndex="-1">
+              <div className="modal-dialog modal-dialog-centered modal-xl">
+                <div className="modal-content">
+                  <div className="modal-header">
+                    <div>
+                      <h5 className="modal-title mb-0">Document Preview</h5>
+                      <div className="text-muted small">
+                        {previewDoc.docType}
+                        {previewDoc.originalFilename ? ` • ${previewDoc.originalFilename}` : ""}
+                      </div>
+                    </div>
+                    <button type="button" className="btn-close custom-btn-close" onClick={closeDocPreview} />
+                  </div>
+                  <div className="modal-body">
+                    {previewKind === "pdf" ? (
+                      <iframe
+                        title="Document preview"
+                        src={`${previewUrl}#toolbar=0&navpanes=0`}
+                        style={{ width: "100%", height: "70vh", border: "1px solid #eee", borderRadius: 6 }}
+                      />
+                    ) : previewKind === "image" ? (
+                      <div className="text-center">
+                        <img
+                          alt={previewDoc.originalFilename || "document"}
+                          src={previewUrl}
+                          style={{ maxWidth: "100%", maxHeight: "70vh", borderRadius: 6 }}
+                        />
+                      </div>
+                    ) : (
+                      <iframe
+                        title="Document preview"
+                        src={previewUrl}
+                        style={{ width: "100%", height: "70vh", border: "1px solid #eee", borderRadius: 6 }}
+                      />
+                    )}
+                  </div>
+                  <div className="modal-footer">
+                    <a className="btn btn-light" href={previewUrl} target="_blank" rel="noreferrer">
+                      Open in new tab
+                    </a>
+                    <button type="button" className="btn btn-primary" onClick={closeDocPreview}>
+                      Close
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="modal-backdrop fade show" onClick={closeDocPreview} />
+          </>
+        ) : null}
     </div>
   );
 }
