@@ -33,6 +33,7 @@ public class HeadOfficeMasterService {
         }
         HeadOfficeMaster ho = new HeadOfficeMaster();
         ho.setName(name);
+        ho.setLocation(normalizeLocation(request.getLocation()));
         ho.setStatus(normalizeStatus(request.getStatus()));
         ho = repository.save(ho);
         return toResponse(ho);
@@ -45,6 +46,7 @@ public class HeadOfficeMasterService {
             throw new EntityNotFoundException("Head office not found");
         }
         ho.setName(normalizeName(request.getName()));
+        ho.setLocation(normalizeLocation(request.getLocation()));
         ho.setStatus(normalizeStatus(request.getStatus()));
         ho = repository.save(ho);
         return toResponse(ho);
@@ -62,6 +64,11 @@ public class HeadOfficeMasterService {
         return name.trim();
     }
 
+    private String normalizeLocation(String location) {
+        if (!StringUtils.hasText(location)) return "";
+        return location.trim();
+    }
+
     private String normalizeStatus(String status) {
         String s = (status == null ? "ACTIVE" : status).trim().toUpperCase();
         return "INACTIVE".equals(s) ? "INACTIVE" : "ACTIVE";
@@ -71,8 +78,8 @@ public class HeadOfficeMasterService {
         HeadOfficeMasterResponse r = new HeadOfficeMasterResponse();
         r.setId(ho.getId());
         r.setName(ho.getName());
+        r.setLocation(ho.getLocation());
         r.setStatus(ho.getStatus());
         return r;
     }
 }
-

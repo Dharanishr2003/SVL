@@ -70,6 +70,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/vendor-auth/login", "/api/vendor-auth/refresh", "/api/vendor-auth/logout").permitAll()
                         .requestMatchers("/api/recovery/**").permitAll()
                         .requestMatchers("/api/policies/*/file").permitAll()
+                        .requestMatchers("/api/public/employee-form/**").permitAll()
                         .requestMatchers("/uploads/**").permitAll()
                         // Vendor portal endpoints should be accessible to vendor accounts, but these endpoints are also used
                         // by staff screens. Keep both authorized.

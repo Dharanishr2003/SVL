@@ -1,6 +1,8 @@
 package com.nexorcrm.backend.dto;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import com.nexorcrm.backend.entity.EmployeeProfileStatus;
 
 public class EmployeeResponse {
     private Long id;
@@ -73,7 +75,11 @@ public class EmployeeResponse {
     private String communityCertificatePath;
     private LocalDate joinDate;
     private String status;
+    private EmployeeProfileStatus profileStatus;
+    private String gender;
     private String img;
+    private boolean offerLetterSent;
+    private LocalDateTime offerLetterLinkExpiresAt;
 	public Long getId() {
 		return id;
 	}
@@ -120,6 +126,38 @@ public class EmployeeResponse {
 	public void setPhone(String phone) {
 		this.phone = phone;
 	}
+
+    public EmployeeProfileStatus getProfileStatus() {
+        return profileStatus;
+    }
+
+    public void setProfileStatus(EmployeeProfileStatus profileStatus) {
+        this.profileStatus = profileStatus;
+    }
+
+    public String getGender() {
+        return gender;
+    }
+
+    public void setGender(String gender) {
+        this.gender = gender;
+    }
+
+    public boolean isOfferLetterSent() {
+        return offerLetterSent;
+    }
+
+    public void setOfferLetterSent(boolean offerLetterSent) {
+        this.offerLetterSent = offerLetterSent;
+    }
+
+    public LocalDateTime getOfferLetterLinkExpiresAt() {
+        return offerLetterLinkExpiresAt;
+    }
+
+    public void setOfferLetterLinkExpiresAt(LocalDateTime offerLetterLinkExpiresAt) {
+        this.offerLetterLinkExpiresAt = offerLetterLinkExpiresAt;
+    }
 	public String getDept() {
 		return dept;
 	}

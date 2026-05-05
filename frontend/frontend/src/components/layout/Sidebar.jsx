@@ -499,7 +499,7 @@ export default function Sidebar() {
               )}
               <li>
                 <ul>
-                  {canAccessAny("employees", "employees-list", "departments", "designations", "policy", "head-offices", "branches") && (
+                  {canAccessAny("employees", "employees-list", "departments", "designations", "policy", "email-template", "head-offices", "branches") && (
                   <li className="submenu">
                     <a href="javascript:void(0);" className=" ">
                       <i className="ti ti-users"></i>
@@ -548,6 +548,13 @@ export default function Sidebar() {
                       <li>
                         <a href="/policy" className="">
                           Policies
+                        </a>
+                      </li>
+                      )}
+                      {canAccessAny("employees", "email-template") && (
+                      <li>
+                        <a href="/email-template" className="">
+                          Email Templates
                         </a>
                       </li>
                       )}

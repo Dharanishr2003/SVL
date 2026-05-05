@@ -6,6 +6,8 @@ import com.nexorcrm.backend.dto.EmployeeOnboardRequest;
 import com.nexorcrm.backend.entity.DepartmentMaster;
 import com.nexorcrm.backend.entity.DesignationMaster;
 import com.nexorcrm.backend.entity.Employee;
+import com.nexorcrm.backend.entity.EmployeeTokenScope;
+import com.nexorcrm.backend.repo.EmployeeProfileTokenRepository;
 import com.nexorcrm.backend.repo.DepartmentMasterRepository;
 import com.nexorcrm.backend.repo.EmployeeRepository;
 import com.nexorcrm.backend.repo.DesignationMasterRepository;
@@ -20,9 +22,12 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
@@ -32,6 +37,7 @@ public class EmployeeService {
     private final UserRepository userRepository;
     private final DepartmentMasterRepository departmentMasterRepository;
     private final DesignationMasterRepository designationMasterRepository;
+    private final EmployeeProfileTokenRepository employeeProfileTokenRepository;
 
     @Value("${app.upload-dir:uploads}")
     private String uploadDir;
@@ -40,18 +46,35 @@ public class EmployeeService {
             EmployeeRepository employeeRepository,
             UserRepository userRepository,
             DepartmentMasterRepository departmentMasterRepository,
-            DesignationMasterRepository designationMasterRepository
+            DesignationMasterRepository designationMasterRepository,
+            EmployeeProfileTokenRepository employeeProfileTokenRepository
     ) {
         this.employeeRepository = employeeRepository;
         this.userRepository = userRepository;
         this.departmentMasterRepository = departmentMasterRepository;
         this.designationMasterRepository = designationMasterRepository;
+        this.employeeProfileTokenRepository = employeeProfileTokenRepository;
     }
 
     public List<EmployeeResponse> list() {
-        return employeeRepository.findByDeletedFalseOrderByIdDesc()
+        List<Employee> employees = employeeRepository.findByDeletedFalseOrderByIdDesc();
+
+        LocalDateTime now = LocalDateTime.now();
+        Map<Long, LocalDateTime> activeUnusedLinkExpiryByEmployeeId = employeeProfileTokenRepository
+                .findActiveUnusedLatestTokensForEmployees(
+                        employees.stream().map(Employee::getId).toList(),
+                        EmployeeTokenScope.MISSING_FIELDS,
+                        now
+                )
                 .stream()
-                .map(this::toResponse)
+                .collect(Collectors.toMap(
+                        t -> t.getEmployeeId(),
+                        t -> t.getExpiresAt(),
+                        (a, b) -> a
+                ));
+
+        return employees.stream()
+                .map(e -> toResponse(e, activeUnusedLinkExpiryByEmployeeId.get(e.getId())))
                 .toList();
     }
 
@@ -382,6 +405,10 @@ public class EmployeeService {
     }
 
     private EmployeeResponse toResponse(Employee e) {
+        return toResponse(e, null);
+    }
+
+    private EmployeeResponse toResponse(Employee e, LocalDateTime offerLetterLinkExpiresAt) {
         EmployeeResponse r = new EmployeeResponse();
         r.setId(e.getId());
         r.setEmployeeCode(e.getEmployeeCode());
@@ -453,7 +480,11 @@ public class EmployeeService {
         r.setCommunityCertificatePath(e.getCommunityCertificatePath());
         r.setJoinDate(e.getJoinDate());
         r.setStatus(e.getStatus());
+        r.setProfileStatus(e.getProfileStatus());
+        r.setGender(e.getGender());
         r.setImg(e.getImg());
+        r.setOfferLetterSent(offerLetterLinkExpiresAt != null);
+        r.setOfferLetterLinkExpiresAt(offerLetterLinkExpiresAt);
         return r;
     }
 

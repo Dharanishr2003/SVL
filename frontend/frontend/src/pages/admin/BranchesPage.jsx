@@ -13,6 +13,7 @@ import { useToast } from "../../components/system/ToastProvider";
 const initialForm = {
   headOfficeId: "",
   name: "",
+  location: "",
   status: "ACTIVE",
 };
 
@@ -138,6 +139,7 @@ export default function BranchesPage() {
       await createBranch({
         headOfficeId: Number(form.headOfficeId),
         name: form.name.trim(),
+        location: form.location?.trim() || "",
         status: form.status,
       });
       showSuccess("Branch added");
@@ -155,6 +157,7 @@ export default function BranchesPage() {
     setEditForm({
       headOfficeId: String(row?.headOfficeId || ""),
       name: row?.name || "",
+      location: row?.location || "",
       status: String(row?.status || "ACTIVE").toUpperCase(),
     });
     setSelectedId(row?.id || null);
@@ -177,6 +180,7 @@ export default function BranchesPage() {
       await updateBranch(selectedId, {
         headOfficeId: Number(editForm.headOfficeId),
         name: editForm.name.trim(),
+        location: editForm.location?.trim() || "",
         status: editForm.status,
       });
       showSuccess("Branch updated");
@@ -360,6 +364,7 @@ export default function BranchesPage() {
                     <tr>
                       <th>Head Office</th>
                       <th>Branch</th>
+                      <th>Location</th>
                       <th>Status</th>
                       <th className="text-end">Actions</th>
                     </tr>
@@ -367,7 +372,7 @@ export default function BranchesPage() {
                   <tbody>
                     {filteredRows.length === 0 ? (
                       <tr>
-                        <td colSpan={4} className="text-center py-4">
+                        <td colSpan={5} className="text-center py-4">
                           No branches found
                         </td>
                       </tr>
@@ -379,6 +384,7 @@ export default function BranchesPage() {
                               row.headOfficeId}
                           </td>
                           <td>{row.name}</td>
+                          <td>{row.location || "-"}</td>
                           <td>
                             <span
                               className={`badge ${
@@ -452,6 +458,17 @@ export default function BranchesPage() {
                       </div>
                       <div className="col-md-12">
                         <div className="mb-3">
+                          <label className="form-label">Location</label>
+                          <input
+                            type="text"
+                            className="form-control"
+                            value={form.location}
+                            onChange={(e) => setForm((prev) => ({ ...prev, location: e.target.value }))}
+                          />
+                        </div>
+                      </div>
+                      <div className="col-md-12">
+                        <div className="mb-3">
                           <label className="form-label">Status</label>
                           <select
                             className="form-select"
@@ -519,6 +536,17 @@ export default function BranchesPage() {
                             className="form-control"
                             value={editForm.name}
                             onChange={(e) => setEditForm((prev) => ({ ...prev, name: e.target.value }))}
+                          />
+                        </div>
+                      </div>
+                      <div className="col-md-12">
+                        <div className="mb-3">
+                          <label className="form-label">Location</label>
+                          <input
+                            type="text"
+                            className="form-control"
+                            value={editForm.location}
+                            onChange={(e) => setEditForm((prev) => ({ ...prev, location: e.target.value }))}
                           />
                         </div>
                       </div>

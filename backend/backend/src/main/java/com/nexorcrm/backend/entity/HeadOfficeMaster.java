@@ -15,7 +15,17 @@ public class HeadOfficeMaster {
     @Column(nullable = false, length = 150)
     private String name;
 
-    @Column(nullable = false, length = 20)
+    @Column(nullable=false)
+    private String location;
+    
+    public String getLocation() {
+		return location;
+	}
+
+	public void setLocation(String location) {
+		this.location = location;
+	}
+	@Column(nullable = false, length = 20)
     private String status; // ACTIVE / INACTIVE
 
     @Column(nullable = false)

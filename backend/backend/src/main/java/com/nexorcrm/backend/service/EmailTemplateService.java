@@ -1,0 +1,190 @@
+package com.nexorcrm.backend.service;
+
+import com.nexorcrm.backend.dto.EmailTemplateResponse;
+import com.nexorcrm.backend.dto.EmailTemplateUpsertRequest;
+import com.nexorcrm.backend.entity.EmailTemplate;
+import com.nexorcrm.backend.entity.EmailTemplateKey;
+import com.nexorcrm.backend.repo.EmailTemplateRepository;
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Locale;
+
+@Service
+public class EmailTemplateService {
+
+    private final EmailTemplateRepository repository;
+
+    public EmailTemplateService(EmailTemplateRepository repository) {
+        this.repository = repository;
+    }
+
+    @Transactional
+    public Map<String, Object> getAll() {
+        ensureSeedTemplates();
+        List<EmailTemplateResponse> templates = repository.findAllByOrderByTemplateKeyAsc()
+                .stream()
+                .map(this::toResponse)
+                .toList();
+        Map<String, Object> response = new HashMap<>();
+        response.put("templates", templates);
+        return response;
+    }
+
+    @Transactional
+    public EmailTemplateResponse getOne(String templateKey) {
+        return toResponse(requireTemplate(templateKey));
+    }
+
+    @Transactional
+    public EmailTemplateResponse save(String templateKey, EmailTemplateUpsertRequest request) {
+        EmailTemplate template = requireTemplate(templateKey);
+        applyRequest(template, request);
+        return toResponse(repository.save(template));
+    }
+
+    @Transactional
+    public EmailTemplateResponse create(EmailTemplateUpsertRequest request) {
+        EmailTemplate template = new EmailTemplate();
+        template.setTemplateKey(resolveTemplateKey(request));
+        template.setTemplateName(trimToNull(request == null ? null : request.getTemplateName()));
+        template.setBuiltIn(false);
+        applyRequest(template, request);
+        if (template.getTemplateName() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Template name is required");
+        }
+        return toResponse(repository.save(template));
+    }
+
+    @Transactional
+    public void delete(String templateKey) {
+        EmailTemplate template = requireTemplate(templateKey);
+        if (template.isBuiltIn()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Default templates cannot be deleted");
+        }
+        repository.delete(template);
+    }
+
+    private void applyRequest(EmailTemplate template, EmailTemplateUpsertRequest request) {
+        if (template == null) return;
+        if (request != null && request.getTemplateName() != null) {
+            String name = trimToNull(request.getTemplateName());
+            if (name != null) {
+                template.setTemplateName(name);
+            }
+        }
+        if (request != null && request.getTemplateKey() != null && !template.isBuiltIn()) {
+            String key = trimToNull(request.getTemplateKey());
+            if (key != null) {
+                template.setTemplateKey(key);
+            }
+        }
+        template.setSubject(trimToNull(request == null ? null : request.getSubject()));
+        template.setBody(trimToNull(request == null ? null : request.getBody()));
+    }
+
+    private EmailTemplate getOrCreateTemplate(String templateKey) {
+        EmailTemplateKey key = EmailTemplateKey.fromKey(templateKey);
+        if (key == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Template not found");
+        }
+        return repository.findByTemplateKey(key.getKey())
+                .orElseGet(() -> {
+                    EmailTemplate template = new EmailTemplate();
+                    template.setTemplateKey(key.getKey());
+                    template.setTemplateName(key.getLabel());
+                    template.setSubject(defaultSubject(key));
+                    template.setBody(defaultBody(key));
+                    template.setBuiltIn(true);
+                    return repository.save(template);
+                });
+    }
+
+    private EmailTemplate requireTemplate(String templateKey) {
+        EmailTemplate existing = repository.findByTemplateKey(trimToNull(templateKey))
+                .orElse(null);
+        if (existing != null) {
+            return existing;
+        }
+        EmailTemplateKey builtInKey = EmailTemplateKey.fromKey(templateKey);
+        if (builtInKey != null) {
+            return getOrCreateTemplate(builtInKey.getKey());
+        }
+        throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Template not found");
+    }
+
+    private void ensureSeedTemplates() {
+        for (EmailTemplateKey key : EmailTemplateKey.values()) {
+            getOrCreateTemplate(key.getKey());
+        }
+    }
+
+    private String resolveTemplateKey(EmailTemplateUpsertRequest request) {
+        String providedKey = trimToNull(request == null ? null : request.getTemplateKey());
+        if (providedKey != null) {
+            String normalized = providedKey.toUpperCase(Locale.ROOT).replaceAll("[^A-Z0-9_]+", "_");
+            return ensureUniqueTemplateKey(normalized);
+        }
+
+        String name = trimToNull(request == null ? null : request.getTemplateName());
+        if (name == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Template name is required");
+        }
+
+        String base = name.toUpperCase(Locale.ROOT).replaceAll("[^A-Z0-9]+", "_").replaceAll("_+", "_");
+        base = base.replaceAll("^_", "").replaceAll("_$", "");
+        if (base.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Template name is required");
+        }
+        if (!base.endsWith("_TEMPLATE")) {
+            base = base + "_TEMPLATE";
+        }
+        return ensureUniqueTemplateKey(base);
+    }
+
+    private String ensureUniqueTemplateKey(String baseKey) {
+        String key = baseKey;
+        int suffix = 2;
+        while (repository.existsByTemplateKey(key)) {
+            key = baseKey + "_" + suffix++;
+        }
+        return key;
+    }
+
+    private EmailTemplateResponse toResponse(EmailTemplate template) {
+        EmailTemplateResponse response = new EmailTemplateResponse();
+        response.setTemplateKey(template.getTemplateKey());
+        response.setTemplateName(template.getTemplateName());
+        response.setSubject(template.getSubject());
+        response.setBody(template.getBody());
+        response.setBuiltIn(template.isBuiltIn());
+        response.setCreatedAt(template.getCreatedAt());
+        response.setUpdatedAt(template.getUpdatedAt());
+        return response;
+    }
+
+    private String defaultSubject(EmailTemplateKey key) {
+        return switch (key) {
+            case OFFER_LETTER_TEMPLATE -> "Offer Letter - {{employee_name}}";
+            case PROFILE_COMPLETION_TEMPLATE -> "Complete Your Profile - {{employee_name}}";
+        };
+    }
+
+    private String defaultBody(EmailTemplateKey key) {
+        return switch (key) {
+            case OFFER_LETTER_TEMPLATE -> "Dear {{employee_name}},\n\nWe are pleased to offer you the position of **{{designation}}** at **{{company_name}}**.\n\n### 1. Employment Details\n\n* **Employee ID**: [Auto-generated]\n* **Department**: [Department Name]\n* **Designation**: [Designation]\n* **Work Location**: [Branch Name]\n\n### 2. Compensation\n\nYour compensation details are as follows:\n\n* **CTC**: ₹[Amount] per annum\n* Detailed salary structure will be shared separately.\n\n### 3. Profile Completion (Mandatory Step)\n\nAs part of onboarding, you are required to complete your profile by providing additional details such as:\n\n* Address & Personal Information\n* Bank Details\n* Identity Proof Documents\n* Educational & Experience Details\n\nPlease use the secure link below to complete your profile:\n\n👉 **Complete Your Profile**: [Profile Completion Link]\n\n**Note:**\n\n* This link is secure and valid until [Expiry Date].\n* You can access it without login.\n* Please ensure all details and documents are accurate.\n\n### 4. Verification & Approval\n\n* Your submitted details will be reviewed by our HR team.\n* In case of any discrepancies, you will receive a new link to update specific fields.\n* Final confirmation of employment is subject to successful verification.\n\n### 5. Terms & Conditions\n\n* You are required to join on or before the mentioned joining date.\n* All submitted documents must be genuine.\n* The company reserves the right to withdraw this offer if any information is found incorrect.\n\n### 6. Acceptance\n\nPlease confirm your acceptance of this offer by replying to this email.\n\nWe look forward to welcoming you to our organization.\n\nBest Regards,\n**[HR Name]**\n[Company Name]\n[Contact Details]";
+            case PROFILE_COMPLETION_TEMPLATE -> "Hello {{employee_name}},\n\nPlease complete your profile using the secure link shared with you. Submit all required details and documents so we can continue the verification process.\n\nRegards,\nHR Team";
+        };
+    }
+
+    private String trimToNull(String value) {
+        if (value == null) return null;
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+}

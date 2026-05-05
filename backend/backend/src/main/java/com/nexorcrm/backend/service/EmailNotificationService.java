@@ -62,16 +62,7 @@ public class EmailNotificationService {
         }
 
         try {
-            SimpleMailMessage message = new SimpleMailMessage();
-            message.setTo(normalized);
-            if (StringUtils.hasText(fromAddress)) {
-                message.setFrom(StringUtils.hasText(fromName)
-                        ? String.format("%s <%s>", fromName, fromAddress)
-                        : fromAddress);
-            }
-            message.setSubject(subject);
-            message.setText(body);
-            mailSender.send(message);
+            sendEmail(normalized, subject, body);
 
             EmailNotificationLog logRow = existing.orElseGet(EmailNotificationLog::new);
             logRow.setRecipientEmail(normalized);
@@ -81,5 +72,49 @@ public class EmailNotificationService {
         } catch (Exception ex) {
             log.error("Email notification failed for {}.", normalized, ex);
         }
+    }
+
+    /**
+     * Sends an email immediately when mail is enabled, skipping cooldown checks.
+     * Useful for admin-triggered onboarding emails (e.g., offer letter).
+     */
+    public void notifyNowIfEnabled(String recipientEmail, String subject, String body) {
+        if (!enabled) {
+            log.debug("Email notifications disabled.");
+            return;
+        }
+        if (!StringUtils.hasText(recipientEmail)) {
+            log.warn("Email notification skipped: empty recipient.");
+            return;
+        }
+
+        String normalized = recipientEmail.trim().toLowerCase();
+        LocalDateTime now = LocalDateTime.now();
+        Optional<EmailNotificationLog> existing = logRepository.findTopByRecipientEmailOrderByLastSentAtDesc(normalized);
+
+        try {
+            sendEmail(normalized, subject, body);
+
+            EmailNotificationLog logRow = existing.orElseGet(EmailNotificationLog::new);
+            logRow.setRecipientEmail(normalized);
+            logRow.setLastSentAt(now);
+            logRepository.save(logRow);
+            log.info("Email notification sent to {}.", normalized);
+        } catch (Exception ex) {
+            log.error("Email notification failed for {}.", normalized, ex);
+        }
+    }
+
+    private void sendEmail(String normalizedRecipientEmail, String subject, String body) {
+        SimpleMailMessage message = new SimpleMailMessage();
+        message.setTo(normalizedRecipientEmail);
+        if (StringUtils.hasText(fromAddress)) {
+            message.setFrom(StringUtils.hasText(fromName)
+                    ? String.format("%s <%s>", fromName, fromAddress)
+                    : fromAddress);
+        }
+        message.setSubject(subject);
+        message.setText(body);
+        mailSender.send(message);
     }
 }

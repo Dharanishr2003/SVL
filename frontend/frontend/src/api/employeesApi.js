@@ -38,3 +38,45 @@ export async function deleteEmployee(id) {
   const response = await api.delete(`/api/employees/${id}`);
   return response?.data || null;
 }
+
+export async function generateEmployeeFormLink(employeeId) {
+  const response = await api.post(`/api/employees/${employeeId}/form-link`);
+  return response?.data || null;
+}
+
+export async function sendOfferLetterEmail(employeeId) {
+  const response = await api.post(`/api/employees/${employeeId}/send-offer-letter`);
+  return response?.data || null;
+}
+
+export async function resendOfferLetterEmail(employeeId) {
+  const response = await api.post(`/api/employees/${employeeId}/resend-offer-letter`);
+  return response?.data || null;
+}
+
+export async function getEmployeeVerification(employeeId) {
+  const response = await api.get(`/api/employees/${employeeId}/verification`);
+  return response?.data || null;
+}
+
+export async function verifyEmployeeFields(employeeId, payload) {
+  const response = await api.post(`/api/employees/${employeeId}/verify-fields`, payload);
+  return response?.data || null;
+}
+
+export async function resendRejectedEmployeeLink(employeeId) {
+  const response = await api.post(`/api/employees/${employeeId}/resend-rejected-link`);
+  return response?.data || null;
+}
+
+export async function getPublicEmployeeForm(token) {
+  const response = await api.get(`/api/public/employee-form/${token}`);
+  return response?.data || null;
+}
+
+export async function submitPublicEmployeeForm(token, formData) {
+  const response = await api.post(`/api/public/employee-form/${token}/submit`, formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+  return response?.data || null;
+}

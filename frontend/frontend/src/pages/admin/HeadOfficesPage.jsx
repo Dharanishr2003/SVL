@@ -11,6 +11,7 @@ import { useToast } from "../../components/system/ToastProvider";
 
 const initialForm = {
   name: "",
+  location: "",
   status: "ACTIVE",
 };
 
@@ -59,7 +60,11 @@ export default function HeadOfficesPage() {
     }
     setSaving(true);
     try {
-      await createHeadOffice({ name: form.name.trim(), status: form.status });
+      await createHeadOffice({
+        name: form.name.trim(),
+        location: form.location?.trim() || "",
+        status: form.status,
+      });
       showSuccess("Head Office added");
       setForm(initialForm);
       setShowAddModal(false);
@@ -74,6 +79,7 @@ export default function HeadOfficesPage() {
   const openEdit = (row) => {
     setEditForm({
       name: row?.name || "",
+      location: row?.location || "",
       status: String(row?.status || "ACTIVE").toUpperCase(),
     });
     setSelectedId(row?.id || null);
@@ -89,7 +95,11 @@ export default function HeadOfficesPage() {
     }
     setSaving(true);
     try {
-      await updateHeadOffice(selectedId, { name: editForm.name.trim(), status: editForm.status });
+      await updateHeadOffice(selectedId, {
+        name: editForm.name.trim(),
+        location: editForm.location?.trim() || "",
+        status: editForm.status,
+      });
       showSuccess("Head Office updated");
       setShowEditModal(false);
       setSelectedId(null);
@@ -165,6 +175,7 @@ export default function HeadOfficesPage() {
                   <thead>
                     <tr>
                       <th>Name</th>
+                      <th>Location</th>
                       <th>Status</th>
                       <th className="text-end">Actions</th>
                     </tr>
@@ -172,7 +183,7 @@ export default function HeadOfficesPage() {
                   <tbody>
                     {orderedRows.length === 0 ? (
                       <tr>
-                        <td colSpan={3} className="text-center py-4">
+                        <td colSpan={4} className="text-center py-4">
                           No head offices found
                         </td>
                       </tr>
@@ -180,6 +191,7 @@ export default function HeadOfficesPage() {
                       orderedRows.map((row) => (
                         <tr key={row.id}>
                           <td>{row.name}</td>
+                          <td>{row.location || "-"}</td>
                           <td>
                             <span
                               className={`badge ${
@@ -247,6 +259,17 @@ export default function HeadOfficesPage() {
                       </div>
                       <div className="col-md-12">
                         <div className="mb-3">
+                          <label className="form-label">Location</label>
+                          <input
+                            type="text"
+                            className="form-control"
+                            value={form.location}
+                            onChange={(e) => setForm((prev) => ({ ...prev, location: e.target.value }))}
+                          />
+                        </div>
+                      </div>
+                      <div className="col-md-12">
+                        <div className="mb-3">
                           <label className="form-label">Status</label>
                           <select
                             className="form-select"
@@ -307,6 +330,19 @@ export default function HeadOfficesPage() {
                             value={editForm.name}
                             onChange={(e) =>
                               setEditForm((prev) => ({ ...prev, name: e.target.value }))
+                            }
+                          />
+                        </div>
+                      </div>
+                      <div className="col-md-12">
+                        <div className="mb-3">
+                          <label className="form-label">Location</label>
+                          <input
+                            type="text"
+                            className="form-control"
+                            value={editForm.location}
+                            onChange={(e) =>
+                              setEditForm((prev) => ({ ...prev, location: e.target.value }))
                             }
                           />
                         </div>
@@ -388,4 +424,3 @@ export default function HeadOfficesPage() {
     </>
   );
 }
-

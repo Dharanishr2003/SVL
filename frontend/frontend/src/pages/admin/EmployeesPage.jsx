@@ -1,6 +1,15 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { useLocation } from "react-router-dom";
-import { getEmployees, createEmployee, updateEmployee, deleteEmployee, onboardEmployee, updateOnboardEmployee } from "../../api/employeesApi";
+import { useLocation, useNavigate } from "react-router-dom";
+import {
+  getEmployees,
+  createEmployee,
+  updateEmployee,
+  deleteEmployee,
+  onboardEmployee,
+  updateOnboardEmployee,
+  sendOfferLetterEmail,
+  resendOfferLetterEmail,
+} from "../../api/employeesApi";
 import { getDepartmentsMaster, getDepartmentsMasterByBranch } from "../../api/departmentsApi";
 import { getDesignations } from "../../api/designationsApi";
 import { getHeadOffices } from "../../api/headOfficesApi";
@@ -17,6 +26,7 @@ import {
 import { useAuth } from "../../context/AuthContext";
 import { extractApiErrorMessage } from "../../utils/errorMessage";
 import { useToast } from "../../components/system/ToastProvider";
+import useConfirmDialog from "../../components/system/useConfirmDialog";
 import {
   COUNTRY_CODE_OPTIONS,
   defaultCountryOption,
@@ -163,6 +173,9 @@ function toUiRow(item) {
     designation: item?.designation || "",
     joinDate: item?.joinDate || "",
     status: String(item?.status || "ACTIVE").toUpperCase(),
+    profileStatus: item?.profileStatus || item?.profile_status || "",
+    offerLetterSent: Boolean(item?.offerLetterSent),
+    offerLetterLinkExpiresAt: item?.offerLetterLinkExpiresAt || null,
     img: item?.img || "assets/img/users/user-32.jpg",
     _raw: item,
   };
@@ -205,8 +218,10 @@ function TrashGlyph({ size = 14, className = "" }) {
 
 export default function EmployeesPage() {
   const location = useLocation();
+  const navigate = useNavigate();
   const { user: currentUser } = useAuth();
   const { showSuccess, showError } = useToast();
+  const { showConfirm, confirmDialog } = useConfirmDialog();
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
   const [metaLoading, setMetaLoading] = useState(false);
@@ -257,12 +272,42 @@ export default function EmployeesPage() {
   const gridView = location.pathname.endsWith("/employees-grid");
 
   const [filterOpen, setFilterOpen] = useState(false);
+  const [linkModalOpen, setLinkModalOpen] = useState(false);
+  const [generatedLink, setGeneratedLink] = useState("");
+  const [generatedLinkEmployee, setGeneratedLinkEmployee] = useState(null);
   const [filters, setFilters] = useState({
     headOfficeId: "",
     branchId: "",
     departmentId: "",
     designationId: "",
+    profileStatus: "",
   });
+
+  async function handleSendOfferLetter(emp) {
+    try {
+      const res = await sendOfferLetterEmail(emp.id);
+      setGeneratedLink(res?.publicUrl || "");
+      setGeneratedLinkEmployee(emp);
+      setLinkModalOpen(true);
+      showSuccess("Offer letter sent");
+      await loadData();
+    } catch (e) {
+      showError(extractApiErrorMessage(e, "Failed to send offer letter"));
+    }
+  }
+
+  async function handleResendOfferLetter(emp) {
+    try {
+      const res = await resendOfferLetterEmail(emp.id);
+      setGeneratedLink(res?.publicUrl || "");
+      setGeneratedLinkEmployee(emp);
+      setLinkModalOpen(true);
+      showSuccess("Offer letter resent");
+      await loadData();
+    } catch (e) {
+      showError(extractApiErrorMessage(e, "Failed to resend offer letter"));
+    }
+  }
   const [filterBranches, setFilterBranches] = useState([]);
   const [filterDepartments, setFilterDepartments] = useState([]);
   const [filterDesignations, setFilterDesignations] = useState([]);
@@ -303,7 +348,10 @@ export default function EmployeesPage() {
         (!filters.headOfficeId || String(raw.headOfficeId || "") === String(filters.headOfficeId)) &&
         (!filters.branchId || String(raw.branchId || "") === String(filters.branchId)) &&
         (!filters.departmentId || String(raw.departmentMasterId || "") === String(filters.departmentId)) &&
-        (!filters.designationId || String(raw.designationMasterId || "") === String(filters.designationId))
+        (!filters.designationId || String(raw.designationMasterId || "") === String(filters.designationId)) &&
+        (!filters.profileStatus ||
+          String(raw.profileStatus || emp.profileStatus || "").toUpperCase() ===
+            String(filters.profileStatus).toUpperCase())
       );
     });
   }, [rows, filters]);
@@ -829,68 +877,68 @@ export default function EmployeesPage() {
     if (step === 1) {
       if (!hasText(onboardForm.nameInCaps)) return "Name In Caps is required";
       if (!hasText(onboardForm.employeeIdNumber)) return "Employee ID Number is required";
-      if (!hasText(onboardForm.fatherName)) return "Father’s Name is required";
-      if (!hasText(onboardForm.motherName)) return "Mother's Name is required";
+      // if (!hasText(onboardForm.fatherName)) return "Father’s Name is required";
+      // if (!hasText(onboardForm.motherName)) return "Mother's Name is required";
       if (!hasText(onboardForm.personalContactNumber)) return "Personal Contact Number is required";
-      if (!hasText(onboardForm.alternateContactNumber)) return "Alternate Contact Number is required";
+      // if (!hasText(onboardForm.alternateContactNumber)) return "Alternate Contact Number is required";
       if (!hasText(onboardForm.location)) return "Location is required";
-      if (!hasText(onboardForm.pinCode)) return "Pin Code is required";
-      if (!hasText(onboardForm.state)) return "State is required";
-      if (!hasText(onboardForm.currentAddress)) return "Current Address is required";
-      if (!hasText(onboardForm.permanentAddress)) return "Permanent Address is required";
+      // if (!hasText(onboardForm.pinCode)) return "Pin Code is required";
+      // if (!hasText(onboardForm.state)) return "State is required";
+      // if (!hasText(onboardForm.currentAddress)) return "Current Address is required";
+      // if (!hasText(onboardForm.permanentAddress)) return "Permanent Address is required";
       if (!hasText(onboardForm.personalEmail)) return "Personal Email is required";
-      if (!hasText(onboardForm.officialEmail)) return "Official Email is required";
+      // if (!hasText(onboardForm.officialEmail)) return "Official Email is required";
       if (!hasText(onboardForm.dateOfBirth)) return "Date of Birth is required";
-      if (!hasText(onboardForm.dateOfJoining)) return "Date of Joining is required";
+      // if (!hasText(onboardForm.dateOfJoining)) return "Date of Joining is required";
       if (!hasText(onboardForm.maritalStatus)) return "Marital Status is required";
       if (String(onboardForm.maritalStatus).toUpperCase() === "MARRIED" && !hasText(onboardForm.spouseName)) {
         return "Spouse Name is required";
       }
-      if (!hasText(onboardForm.bloodGroup)) return "Blood Group is required";
-      if (!hasText(onboardForm.panCardNo)) return "Pan Card No is required";
-      if (!hasText(onboardForm.aadharCardNo)) return "Aadhar Card No is required";
+      // if (!hasText(onboardForm.bloodGroup)) return "Blood Group is required";
+      // if (!hasText(onboardForm.panCardNo)) return "Pan Card No is required";
+      // if (!hasText(onboardForm.aadharCardNo)) return "Aadhar Card No is required";
       return "";
     }
     if (step === 2) {
       if (onboardMode === "create") {
-              if (onboardMode === "create" && !onboardForm.candidatePhoto) return "Candidate Photo is required";
-        if (!onboardForm.uploadCandidateAadharCard) return "Upload Candidate Aadhar Card is required";
-        if (!onboardForm.uploadCandidatePanCard) return "Upload Candidate Pan Card is required";
-        if (!onboardForm.uploadBankPassBookCopy) return "Upload Bank Pass Book / Cancelled Cheque is required";
-        if (!onboardForm.uploadGraduationCertificate) return "Graduation Certificate is required";
-        if (!onboardForm.uploadGraduationMarksheet) return "Graduation Marksheet is required";
-        if (!onboardForm.uploadHscMarkSheet) return "HSC Mark Sheet is required";
-        if (!onboardForm.uploadSslcMarkSheet) return "SSLC Mark Sheet is required";
-        if (!onboardForm.uploadCommunityCertificate) return "Community Certificate is required";
+          //  if (onboardMode === "create" && !onboardForm.candidatePhoto) return "Candidate Photo is required";
+        // if (!onboardForm.uploadCandidateAadharCard) return "Upload Candidate Aadhar Card is required";
+        // if (!onboardForm.uploadCandidatePanCard) return "Upload Candidate Pan Card is required";
+        // if (!onboardForm.uploadBankPassBookCopy) return "Upload Bank Pass Book / Cancelled Cheque is required";
+        // if (!onboardForm.uploadGraduationCertificate) return "Graduation Certificate is required";
+        // if (!onboardForm.uploadGraduationMarksheet) return "Graduation Marksheet is required";
+        // if (!onboardForm.uploadHscMarkSheet) return "HSC Mark Sheet is required";
+        // if (!onboardForm.uploadSslcMarkSheet) return "SSLC Mark Sheet is required";
+        // if (!onboardForm.uploadCommunityCertificate) return "Community Certificate is required";
       }
       return "";
     }
     if (step === 3) {
-      if (!hasText(onboardForm.bankAccountHolderName)) return "Bank Account Holder Name is required";
-      if (!hasText(onboardForm.bankAccountNumber)) return "Bank Account Number is required";
-      if (!hasText(onboardForm.ifscCode)) return "IFSC Code is required";
-      if (!hasText(onboardForm.bankAndBranch)) return "Bank & Branch is required";
+      // if (!hasText(onboardForm.bankAccountHolderName)) return "Bank Account Holder Name is required";
+      // if (!hasText(onboardForm.bankAccountNumber)) return "Bank Account Number is required";
+      // if (!hasText(onboardForm.ifscCode)) return "IFSC Code is required";
+      // if (!hasText(onboardForm.bankAndBranch)) return "Bank & Branch is required";
       // if (!hasText(onboardForm.employmentDetails1)) return "Employment Details 1 is required";
       // if (!hasText(onboardForm.employmentDetails2)) return "Employment Details 2 is required";
       if (!hasText(onboardForm.graduationDetails)) return "Graduation Details is required";
       if (!hasText(onboardForm.hscMarkAndYear)) return "HSC Mark & Year is required";
       if (!hasText(onboardForm.sslcMarkAndYear)) return "SSLC Mark & Year is required";
-      if (!hasText(onboardForm.emergencyContactName1)) return "Emergency Contact Name 1 is required";
-      if (!hasText(onboardForm.emergencyContactRelation1)) return "Emergency Contact Relationship 1 is required";
-      if (!hasText(onboardForm.emergencyContactPhone1)) return "Emergency Contact No 1 is required";
-      if (!hasText(onboardForm.emergencyContactName2)) return "Emergency Contact Name 2 is required";
-      if (!hasText(onboardForm.emergencyContactRelation2)) return "Emergency Contact Relationship 2 is required";
-      if (!hasText(onboardForm.emergencyContactPhone2)) return "Emergency Contact No 2 is required";
-      if (!hasText(onboardForm.friendRefName1)) return "Friend / Ex-Colleague Name 1 is required";
-      if (!hasText(onboardForm.friendRefContact1)) return "Friend / Ex-Colleague Contact 1 is required";
-      if (!hasText(onboardForm.friendRefName2)) return "Friend / Ex-Colleague Name 2 is required";
-      if (!hasText(onboardForm.friendRefContact2)) return "Friend / Ex-Colleague Contact 2 is required";
-      if (!hasText(onboardForm.branchToJoin)) return "Branch to Join is required";
-      if (!hasText(onboardForm.platformSource)) return "Platform Source is required";
-      if (!hasText(onboardForm.pfUan)) return "PF UAN is required";
-      if (!hasText(onboardForm.esiNo)) return "ESI No is required";
-      if (!hasText(onboardForm.declarationDate)) return "Declaration Date is required";
-      if (!hasText(onboardForm.declarationPlace)) return "Declaration Place is required";
+      // if (!hasText(onboardForm.emergencyContactName1)) return "Emergency Contact Name 1 is required";
+      // if (!hasText(onboardForm.emergencyContactRelation1)) return "Emergency Contact Relationship 1 is required";
+      // if (!hasText(onboardForm.emergencyContactPhone1)) return "Emergency Contact No 1 is required";
+      // if (!hasText(onboardForm.emergencyContactName2)) return "Emergency Contact Name 2 is required";
+      // if (!hasText(onboardForm.emergencyContactRelation2)) return "Emergency Contact Relationship 2 is required";
+      // if (!hasText(onboardForm.emergencyContactPhone2)) return "Emergency Contact No 2 is required";
+      // if (!hasText(onboardForm.friendRefName1)) return "Friend / Ex-Colleague Name 1 is required";
+      // if (!hasText(onboardForm.friendRefContact1)) return "Friend / Ex-Colleague Contact 1 is required";
+      // if (!hasText(onboardForm.friendRefName2)) return "Friend / Ex-Colleague Name 2 is required";
+      // if (!hasText(onboardForm.friendRefContact2)) return "Friend / Ex-Colleague Contact 2 is required";
+      // if (!hasText(onboardForm.branchToJoin)) return "Branch to Join is required";
+      // if (!hasText(onboardForm.platformSource)) return "Platform Source is required";
+      // if (!hasText(onboardForm.pfUan)) return "PF UAN is required";
+      // if (!hasText(onboardForm.esiNo)) return "ESI No is required";
+      // if (!hasText(onboardForm.declarationDate)) return "Declaration Date is required";
+      // if (!hasText(onboardForm.declarationPlace)) return "Declaration Place is required";
       return "";
     }
     return "";
@@ -1197,76 +1245,99 @@ export default function EmployeesPage() {
               </div>
 
               <div className="mb-3">
-                <label className="form-label">Branch</label>
+                <label className="form-label">Profile Status</label>
                 <select
                   className="form-select"
-                  value={filters.branchId}
-                  onChange={(e) => {
-                    const branchId = e.target.value;
-                    setFilters((prev) => ({
-                      ...prev,
-                      branchId,
-                      departmentId: "",
-                      designationId: "",
-                    }));
-                  }}
-                  disabled={!filters.headOfficeId || filterLoading}
+                  value={filters.profileStatus}
+                  onChange={(e) => setFilters((prev) => ({ ...prev, profileStatus: e.target.value }))}
+                  disabled={filterLoading}
                 >
                   <option value="">All</option>
-                  {[...activeFilterBranches]
-                    .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))
-                    .map((b) => (
-                      <option key={b.id} value={b.id}>
-                        {b.name}
-                      </option>
-                    ))}
+                  <option value="DRAFT">DRAFT</option>
+                  <option value="PENDING_VERIFICATION">PENDING_VERIFICATION</option>
+                  <option value="VERIFIED">VERIFIED</option>
                 </select>
               </div>
 
-              <div className="mb-3">
-                <label className="form-label">Department</label>
-                <select
-                  className="form-select"
-                  value={filters.departmentId}
-                  onChange={(e) => {
-                    const departmentId = e.target.value;
-                    setFilters((prev) => ({
-                      ...prev,
-                      departmentId,
-                      designationId: "",
-                    }));
-                  }}
-                  disabled={!filters.branchId || filterLoading}
-                >
-                  <option value="">All</option>
-                  {[...activeFilterDepartments]
-                    .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))
-                    .map((d) => (
-                      <option key={d.id} value={d.id}>
-                        {d.name}
-                      </option>
-                    ))}
-                </select>
-              </div>
+              {filters.headOfficeId ? (
+                <div className="mb-3">
+                  <label className="form-label">Branch</label>
+                  <select
+                    className="form-select"
+                    value={filters.branchId}
+                    onChange={(e) => {
+                      const branchId = e.target.value;
+                      setFilters((prev) => ({
+                        ...prev,
+                        branchId,
+                        departmentId: "",
+                        designationId: "",
+                      }));
+                    }}
+                    disabled={!filters.headOfficeId || filterLoading}
+                  >
+                    <option value="">All</option>
+                    {[...activeFilterBranches]
+                      .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))
+                      .map((b) => (
+                        <option key={b.id} value={b.id}>
+                          {b.name}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+              ) : null}
 
-              <div className="mb-3">
-                <label className="form-label">Designation</label>
-                <select
-                  className="form-select"
-                  value={filters.designationId}
-                  onChange={(e) => setFilters((prev) => ({ ...prev, designationId: e.target.value }))}
-                  disabled={!filters.departmentId || filterLoading}
-                >
-                  <option value="">All</option>
-                  {[...activeFilterDesignations]
-                    .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))
-                    .map((d) => (
-                      <option key={d.id} value={d.id}>
-                        {d.name}
-                      </option>
-                    ))}
-                </select>
-              </div>
+              {filters.branchId ? (
+                <div className="mb-3">
+                  <label className="form-label">Department</label>
+                  <select
+                    className="form-select"
+                    value={filters.departmentId}
+                    onChange={(e) => {
+                      const departmentId = e.target.value;
+                      setFilters((prev) => ({
+                        ...prev,
+                        departmentId,
+                        designationId: "",
+                      }));
+                    }}
+                    disabled={!filters.branchId || filterLoading}
+                  >
+                    <option value="">All</option>
+                    {[...activeFilterDepartments]
+                      .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))
+                      .map((d) => (
+                        <option key={d.id} value={d.id}>
+                          {d.name}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+              ) : null}
+
+              {filters.departmentId ? (
+                <div className="mb-3">
+                  <label className="form-label">Designation</label>
+                  <select
+                    className="form-select"
+                    value={filters.designationId}
+                    onChange={(e) => setFilters((prev) => ({ ...prev, designationId: e.target.value }))}
+                    disabled={!filters.departmentId || filterLoading}
+                  >
+                    <option value="">All</option>
+                    {[...activeFilterDesignations]
+                      .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))
+                      .map((d) => (
+                        <option key={d.id} value={d.id}>
+                          {d.name}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+              ) : null}
+
+             
             </div>
 
             <div className="p-3 border-top d-flex gap-2">
@@ -1274,7 +1345,13 @@ export default function EmployeesPage() {
                 type="button"
                 className="btn btn-light w-50"
                 onClick={() => {
-                  setFilters({ headOfficeId: "", branchId: "", departmentId: "", designationId: "" });
+                  setFilters({
+                    headOfficeId: "",
+                    branchId: "",
+                    departmentId: "",
+                    designationId: "",
+                    profileStatus: "",
+                  });
                   setFilterBranches([]);
                   setFilterDepartments([]);
                   setFilterDesignations([]);
@@ -1302,17 +1379,18 @@ export default function EmployeesPage() {
                   <th>Designation</th>
                   <th>Join Date</th>
                   <th>Status</th>
+                  <th>Profile</th>
                   <th>Action</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan="9">Loading...</td>
+                    <td colSpan="10">Loading...</td>
                   </tr>
                 ) : filteredRows.length === 0 ? (
                   <tr>
-                    <td colSpan="9" className="text-center py-4 text-muted">
+                    <td colSpan="10" className="text-center py-4 text-muted">
                       No employees found
                     </td>
                   </tr>
@@ -1352,11 +1430,67 @@ export default function EmployeesPage() {
                         </span>
                       </td>
                       <td>
+                        <span className="badge badge-info">
+                          {emp.profileStatus || "-"}
+                        </span>
+                      </td>
+                      <td>
                         <button className="btn btn-sm btn-outline-primary" onClick={() => openEdit(emp)}>
                           <EditGlyph size={12} />
                         </button>
                         <button className="btn btn-sm btn-outline-danger ms-1" onClick={() => confirmDelete(emp.id)}>
                           <TrashGlyph size={12} />
+                        </button>
+                        {(() => {
+                          const sentPending =
+                            emp.offerLetterSent &&
+                            String(emp.profileStatus || "").toUpperCase() === "DRAFT";
+                          const expiry = emp.offerLetterLinkExpiresAt
+                            ? String(emp.offerLetterLinkExpiresAt).slice(0, 10)
+                            : "";
+                          const title = sentPending
+                            ? `Already sent${expiry ? ` (valid until ${expiry})` : ""}. Use Resend to send again.`
+                            : "Send offer letter email";
+                          return (
+                            <>
+                              <button
+                                className="btn btn-sm btn-outline-secondary ms-1"
+                                type="button"
+                                onClick={() => handleSendOfferLetter(emp)}
+                                title={title}
+                                disabled={sentPending}
+                              >
+                                {sentPending ? "Sent" : "Send Mail"}
+                              </button>
+                              {sentPending && (
+                                <button
+                                  className="btn btn-sm btn-outline-warning ms-1"
+                                  type="button"
+                                  onClick={() =>
+                                    showConfirm({
+                                      title: "Resend offer letter?",
+                                      message:
+                                        "This will generate a new secure profile link and email it to the employee.",
+                                      confirmLabel: "Resend",
+                                      cancelLabel: "Cancel",
+                                      onConfirm: () => handleResendOfferLetter(emp),
+                                    })
+                                  }
+                                  title="Resend offer letter email"
+                                >
+                                  Resend
+                                </button>
+                              )}
+                            </>
+                          );
+                        })()}
+                        <button
+                          className="btn btn-sm btn-outline-success ms-1"
+                          type="button"
+                          onClick={() => navigate(`/employees/${emp.id}/verify`)}
+                          title="Verify profile"
+                        >
+                          Verify
                         </button>
                       </td>
                     </tr>
@@ -1368,6 +1502,47 @@ export default function EmployeesPage() {
         </div>
       </div>
 
+      {confirmDialog}
+
+      {linkModalOpen && (
+        <>
+          <div className="modal fade show" style={{ display: "block" }} tabIndex="-1">
+            <div className="modal-dialog">
+              <div className="modal-content">
+                <div className="modal-header">
+                  <h5 className="modal-title">
+                    Offer Letter Link {generatedLinkEmployee?.name ? `- ${generatedLinkEmployee.name}` : ""}
+                  </h5>
+                  <button type="button" className="btn-close" onClick={() => setLinkModalOpen(false)} />
+                </div>
+                <div className="modal-body">
+                  <label className="form-label">Public form URL</label>
+                  <div className="d-flex gap-2">
+                    <input className="form-control" value={generatedLink} readOnly />
+                    <button
+                      type="button"
+                      className="btn btn-light"
+                      onClick={() => navigator.clipboard?.writeText(generatedLink)}
+                      disabled={!generatedLink}
+                    >
+                      Copy
+                    </button>
+                  </div>
+                  <div className="text-muted small mt-2">
+                    This link was included in the offer letter email. You can also copy it from here if needed.
+                  </div>
+                </div>
+                <div className="modal-footer">
+                  <button type="button" className="btn btn-primary" onClick={() => setLinkModalOpen(false)}>
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="modal-backdrop fade show" />
+        </>
+      )}
 
       {showOnboardWizard && (
         <EmployeeWizardModal

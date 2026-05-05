@@ -218,6 +218,16 @@ public class Employee {
     @Column(length = 20)
     private String status; // ACTIVE / INACTIVE
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "profile_status", nullable = false, length = 30)
+    private EmployeeProfileStatus profileStatus = EmployeeProfileStatus.DRAFT;
+
+    @Column(name = "profile_status_updated_at")
+    private LocalDateTime profileStatusUpdatedAt;
+
+    @Column(length = 20)
+    private String gender;
+
     @Column(length = 500)
     private String img;
 
@@ -226,6 +236,30 @@ public class Employee {
 
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
+
+    public EmployeeProfileStatus getProfileStatus() {
+        return profileStatus;
+    }
+
+    public void setProfileStatus(EmployeeProfileStatus profileStatus) {
+        this.profileStatus = profileStatus;
+    }
+
+    public LocalDateTime getProfileStatusUpdatedAt() {
+        return profileStatusUpdatedAt;
+    }
+
+    public void setProfileStatusUpdatedAt(LocalDateTime profileStatusUpdatedAt) {
+        this.profileStatusUpdatedAt = profileStatusUpdatedAt;
+    }
+
+    public String getGender() {
+        return gender;
+    }
+
+    public void setGender(String gender) {
+        this.gender = gender;
+    }
 
     public Long getId() {
 		return id;

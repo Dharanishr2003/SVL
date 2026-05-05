@@ -40,6 +40,7 @@ public class BranchMasterService {
         BranchMaster b = new BranchMaster();
         b.setHeadOfficeId(headOfficeId);
         b.setName(name);
+        b.setLocation(normalizeLocation(request.getLocation()));
         b.setStatus(normalizeStatus(request.getStatus()));
         b = repository.save(b);
         return toResponse(b);
@@ -64,6 +65,7 @@ public class BranchMasterService {
 
         b.setHeadOfficeId(headOfficeId);
         b.setName(name);
+        b.setLocation(normalizeLocation(request.getLocation()));
         b.setStatus(normalizeStatus(request.getStatus()));
         b = repository.save(b);
         return toResponse(b);
@@ -87,6 +89,11 @@ public class BranchMasterService {
         return name.trim();
     }
 
+    private String normalizeLocation(String location) {
+        if (!StringUtils.hasText(location)) return "";
+        return location.trim();
+    }
+
     private String normalizeStatus(String status) {
         String s = (status == null ? "ACTIVE" : status).trim().toUpperCase();
         return "INACTIVE".equals(s) ? "INACTIVE" : "ACTIVE";
@@ -97,8 +104,8 @@ public class BranchMasterService {
         r.setId(b.getId());
         r.setHeadOfficeId(b.getHeadOfficeId());
         r.setName(b.getName());
+        r.setLocation(b.getLocation());
         r.setStatus(b.getStatus());
         return r;
     }
 }
-
