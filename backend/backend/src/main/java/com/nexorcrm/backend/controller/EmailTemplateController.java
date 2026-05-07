@@ -10,7 +10,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/email-templates")
-@PreAuthorize("hasAnyRole('SUPER_ADMIN','ADMIN')")
+@PreAuthorize("hasAnyRole('SUPER_ADMIN','ADMIN','MANAGER','TEAM_LEAD','EMPLOYEE')")
 public class EmailTemplateController {
 
     private final EmailTemplateService service;

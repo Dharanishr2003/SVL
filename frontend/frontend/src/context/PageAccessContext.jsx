@@ -44,6 +44,29 @@ export function PageAccessProvider({ children }) {
 
   useEffect(() => {
     let active = true;
+    const refreshVisibility = () => {
+      if (cacheKey) {
+        sessionStorage.removeItem(cacheKey);
+      }
+      setLoading(true);
+      getMyPageVisibility()
+        .then((keys) => {
+          if (!active) return;
+          const normalized = normalizePageKeys(keys);
+          setVisiblePageKeys(normalized);
+          if (cacheKey) {
+            sessionStorage.setItem(cacheKey, JSON.stringify(normalized));
+          }
+        })
+        .catch(() => {
+          if (!active) return;
+          setVisiblePageKeys([]);
+        })
+        .finally(() => {
+          if (active) setLoading(false);
+        });
+    };
+
     if (authLoading) {
       setLoading(true);
       return () => {
@@ -64,6 +87,7 @@ export function PageAccessProvider({ children }) {
         active = false;
       };
     }
+    window.addEventListener("page-access:refresh", refreshVisibility);
     setLoading(true);
     if (cacheKey) {
       try {
@@ -103,6 +127,7 @@ export function PageAccessProvider({ children }) {
       });
     return () => {
       active = false;
+      window.removeEventListener("page-access:refresh", refreshVisibility);
     };
   }, [user, role, authLoading, cacheKey]);
 

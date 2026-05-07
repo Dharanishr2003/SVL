@@ -1,11 +1,13 @@
 package com.nexorcrm.backend.service;
 
 import com.nexorcrm.backend.dto.EmployeeRequest;
+import com.nexorcrm.backend.dto.EmployeePageResponse;
 import com.nexorcrm.backend.dto.EmployeeResponse;
 import com.nexorcrm.backend.dto.EmployeeOnboardRequest;
 import com.nexorcrm.backend.entity.DepartmentMaster;
 import com.nexorcrm.backend.entity.DesignationMaster;
 import com.nexorcrm.backend.entity.Employee;
+import com.nexorcrm.backend.entity.EmployeeProfileStatus;
 import com.nexorcrm.backend.entity.EmployeeTokenScope;
 import com.nexorcrm.backend.repo.EmployeeProfileTokenRepository;
 import com.nexorcrm.backend.repo.DepartmentMasterRepository;
@@ -17,6 +19,11 @@ import jakarta.persistence.EntityNotFoundException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -76,6 +83,71 @@ public class EmployeeService {
         return employees.stream()
                 .map(e -> toResponse(e, activeUnusedLinkExpiryByEmployeeId.get(e.getId())))
                 .toList();
+    }
+
+    public EmployeePageResponse list(
+            Integer page,
+            Integer size,
+            Long headOfficeId,
+            Long branchId,
+            Long departmentId,
+            Long designationId,
+            String profileStatus
+    ) {
+        int safePage = Math.max(page == null ? 1 : page, 1);
+        int safeSize = Math.max(size == null ? 25 : size, 1);
+        Pageable pageable = PageRequest.of(safePage - 1, safeSize, Sort.by(Sort.Direction.DESC, "id"));
+
+        Specification<Employee> spec = Specification.where((root, query, cb) -> cb.isFalse(root.get("deleted")));
+        if (headOfficeId != null) {
+            spec = spec.and((root, query, cb) -> cb.equal(root.get("headOfficeId"), headOfficeId));
+        }
+        if (branchId != null) {
+            spec = spec.and((root, query, cb) -> cb.equal(root.get("branchId"), branchId));
+        }
+        if (departmentId != null) {
+            spec = spec.and((root, query, cb) -> cb.equal(root.get("departmentMasterId"), departmentId));
+        }
+        if (designationId != null) {
+            spec = spec.and((root, query, cb) -> cb.equal(root.get("designationMasterId"), designationId));
+        }
+        if (profileStatus != null && !profileStatus.isBlank()) {
+            try {
+                EmployeeProfileStatus status = EmployeeProfileStatus.valueOf(profileStatus.trim().toUpperCase());
+                spec = spec.and((root, query, cb) -> cb.equal(root.get("profileStatus"), status));
+            } catch (IllegalArgumentException ignored) {
+                // Ignore invalid profile status values and return the unfiltered set.
+            }
+        }
+
+        Page<Employee> employeePage = employeeRepository.findAll(spec, pageable);
+        List<Employee> employees = employeePage.getContent();
+
+        LocalDateTime now = LocalDateTime.now();
+        Map<Long, LocalDateTime> activeUnusedLinkExpiryByEmployeeId = employeeProfileTokenRepository
+                .findActiveUnusedLatestTokensForEmployees(
+                        employees.stream().map(Employee::getId).toList(),
+                        EmployeeTokenScope.MISSING_FIELDS,
+                        now
+                )
+                .stream()
+                .collect(Collectors.toMap(
+                        t -> t.getEmployeeId(),
+                        t -> t.getExpiresAt(),
+                        (a, b) -> a
+                ));
+
+        List<EmployeeResponse> content = employees.stream()
+                .map(e -> toResponse(e, activeUnusedLinkExpiryByEmployeeId.get(e.getId())))
+                .toList();
+
+        return new EmployeePageResponse(
+                content,
+                employeePage.getNumber() + 1,
+                employeePage.getSize(),
+                employeePage.getTotalElements(),
+                Math.max(1, employeePage.getTotalPages())
+        );
     }
 
     public List<EmployeeResponse> getAvailableEmployees() {

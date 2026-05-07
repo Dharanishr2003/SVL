@@ -21,8 +21,22 @@ public class EmployeeController {
     }
 
     @GetMapping
-    public List<EmployeeResponse> list() {
-        return employeeService.list();
+    public Object list(
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size,
+            @RequestParam(required = false) Long headOfficeId,
+            @RequestParam(required = false) Long branchId,
+            @RequestParam(required = false) Long departmentId,
+            @RequestParam(required = false) Long designationId,
+            @RequestParam(required = false) String profileStatus
+    ) {
+        boolean pagedRequest = page != null || size != null
+                || headOfficeId != null || branchId != null || departmentId != null || designationId != null
+                || (profileStatus != null && !profileStatus.isBlank());
+        if (!pagedRequest) {
+            return employeeService.list();
+        }
+        return employeeService.list(page, size, headOfficeId, branchId, departmentId, designationId, profileStatus);
     }
 
     @GetMapping("/available")

@@ -730,9 +730,9 @@ export default function DesignationsPage() {
       <input
         type="text"
         className="form-control"
-        value={editForm.name}
+        value={form.name}
         onChange={(e) =>
-          setEditForm((prev) => ({ ...prev, name: e.target.value }))
+          setForm((prev) => ({ ...prev, name: e.target.value }))
         }
       />
     </div>
