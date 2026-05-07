@@ -36,7 +36,7 @@ public class UserGroup {
     @Column(name = "team_names_csv", length = 2000)
     private String teamNamesCsv;
 
-    @Column(name = "page_keys_csv", length = 2000)
+    @Column(name = "page_keys_csv", columnDefinition = "TEXT")
     private String pageKeysCsv;
 
     public Long getId() {

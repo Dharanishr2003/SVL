@@ -21,6 +21,17 @@ function countSelectedChildren(option, draftPageKeys) {
   return option.children.filter((child) => draftPageKeys.includes(child.key)).length;
 }
 
+function isOptionFullySelected(option, draftPageKeys) {
+  if (draftPageKeys.includes(option.key)) return true;
+  if (!option.children?.length) return false;
+  return option.children.every((child) => draftPageKeys.includes(child.key));
+}
+
+function isOptionPartiallySelected(option, draftPageKeys) {
+  if (!option.children?.length || isOptionFullySelected(option, draftPageKeys)) return false;
+  return option.children.some((child) => draftPageKeys.includes(child.key));
+}
+
 function normalizePageKeys(pageKeys, allowedKeys) {
   const allowed = allowedKeys instanceof Set ? allowedKeys : new Set();
   return Array.from(
@@ -120,18 +131,19 @@ export default function GroupAccessPage() {
   const togglePageKey = (key, children) => {
     setDraftPageKeys((current) => {
       const next = new Set(current);
-      if (current.includes(key)) {
+      const childKeys = Array.isArray(children) ? children.map((child) => child.key) : [];
+      const isSelected =
+        current.includes(key) ||
+        (childKeys.length > 0 && childKeys.every((childKey) => current.includes(childKey)));
+
+      if (isSelected) {
         next.delete(key);
-        if (children?.length) {
-          children.forEach((child) => next.delete(child.key));
-        }
+        childKeys.forEach((childKey) => next.delete(childKey));
         return Array.from(next);
       }
 
       next.add(key);
-      if (children?.length) {
-        children.forEach((child) => next.add(child.key));
-      }
+      childKeys.forEach((childKey) => next.add(childKey));
       return Array.from(next);
     });
 
@@ -177,7 +189,7 @@ export default function GroupAccessPage() {
     setSaving(true);
     try {
       const sanitizedDraftPageKeys = normalizePageKeys(draftPageKeys, allowedPageKeys);
-      const updated = await updateUserGroup(selectedGroup.id, {
+      const updatedGroup = await updateUserGroup(selectedGroup.id, {
         name: selectedGroup.name,
         institutionName: selectedGroup.institutionName,
         departmentName: selectedGroup.departmentName,
@@ -185,13 +197,21 @@ export default function GroupAccessPage() {
         pageKeys: sanitizedDraftPageKeys,
         memberScope: selectedGroup.memberScope,
       });
+      const nextGroup = {
+        ...selectedGroup,
+        ...updatedGroup,
+        pageKeys: normalizePageKeys(
+          updatedGroup?.pageKeys?.length ? updatedGroup.pageKeys : sanitizedDraftPageKeys,
+          allowedPageKeys,
+        ),
+      };
       setGroups((current) =>
         current.map((group) =>
-          group.id === updated.id
-            ? { ...group, pageKeys: normalizePageKeys(updated.pageKeys, allowedPageKeys) }
-            : group,
+          String(group.id) === String(selectedGroup.id) ? nextGroup : group,
         ),
       );
+      setDraftPageKeys(nextGroup.pageKeys);
+      window.dispatchEvent(new Event("page-access:refresh"));
       showSuccess("Group page access updated");
     } catch (e) {
       showError(extractApiErrorMessage(e, "Failed to update group access"));
@@ -295,7 +315,12 @@ export default function GroupAccessPage() {
                                       id={`group-${selectedGroup.id}-${option.key}`}
                                       className="form-check-input"
                                       type="checkbox"
-                                      checked={draftPageKeys.includes(option.key)}
+                                      checked={isOptionFullySelected(option, draftPageKeys)}
+                                      aria-checked={
+                                        isOptionPartiallySelected(option, draftPageKeys)
+                                          ? "mixed"
+                                          : isOptionFullySelected(option, draftPageKeys)
+                                      }
                                       onChange={() => togglePageKey(option.key, option.children)}
                                     />
                                     <label

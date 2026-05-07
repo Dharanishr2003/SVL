@@ -219,11 +219,11 @@ export default function AdminDashboardPage() {
               <span className="me-2">
                 <i className="ti ti-award-filled text-primary fs-24" />
               </span>
-              <a href="employee-details.php" className="avatar avatar-md me-2">
+              <a href="employees.php" className="avatar avatar-md me-2">
                 <img src="assets/img/profiles/avatar-24.jpg" className="rounded-circle border border-white" alt="img" />
               </a>
               <div>
-                <h6 className="text-truncate mb-1 fs-14 fw-medium"><a href="employee-details.php">Daniel Esbella</a></h6>
+                <h6 className="text-truncate mb-1 fs-14 fw-medium"><a href="employees.php">Daniel Esbella</a></h6>
                 <p className="fs-13">IOS Developer</p>
               </div>
             </div>
@@ -1519,7 +1519,6 @@ export default function AdminDashboardPage() {
     </>
   );
 }
-
 
 
 

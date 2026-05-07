@@ -283,6 +283,17 @@ export default function EmployeesPage() {
     designationId: "",
     profileStatus: "",
   });
+  const [appliedFilters, setAppliedFilters] = useState({
+    headOfficeId: "",
+    branchId: "",
+    departmentId: "",
+    designationId: "",
+    profileStatus: "",
+  });
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  const [totalRows, setTotalRows] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
 
   async function handleSendOfferLetter(emp) { 
     try { 
@@ -291,7 +302,7 @@ export default function EmployeesPage() {
       setGeneratedLinkEmployee(emp); 
       setLinkModalOpen(true); 
       showSuccess("Offer letter sent"); 
-      await loadData(); 
+      await loadData(page, pageSize, appliedFilters); 
     } catch (e) { 
       const status = e?.response?.status;
       // If the offer letter (and link) was already sent and is still active, send the profile-completion mail instead.
@@ -302,7 +313,7 @@ export default function EmployeesPage() {
           setGeneratedLinkEmployee(emp);
           setLinkModalOpen(true);
           showSuccess("Profile completion mail sent");
-          await loadData();
+          await loadData(page, pageSize, appliedFilters);
           return;
         } catch (e2) {
           showError(extractApiErrorMessage(e2, "Failed to send profile completion mail"));
@@ -321,7 +332,7 @@ export default function EmployeesPage() {
       setGeneratedLinkEmployee(emp);
       setLinkModalOpen(true);
       showSuccess("Offer letter resent");
-      await loadData();
+      await loadData(page, pageSize, appliedFilters);
     } catch (e) {
       showError(extractApiErrorMessage(e, "Failed to resend offer letter"));
     }
@@ -359,38 +370,50 @@ export default function EmployeesPage() {
     return withInactiveSelected(onboardDesignations, onboardDesignationId);
   }, [activeOnboardDesignations, onboardDesignations, onboardMode, onboardDesignationId]);
 
-  const filteredRows = useMemo(() => {
-    return rows.filter((emp) => {
-      const raw = emp?._raw || {};
-      return (
-        (!filters.headOfficeId || String(raw.headOfficeId || "") === String(filters.headOfficeId)) &&
-        (!filters.branchId || String(raw.branchId || "") === String(filters.branchId)) &&
-        (!filters.departmentId || String(raw.departmentMasterId || "") === String(filters.departmentId)) &&
-        (!filters.designationId || String(raw.designationMasterId || "") === String(filters.designationId)) &&
-        (!filters.profileStatus ||
-          String(raw.profileStatus || emp.profileStatus || "").toUpperCase() ===
-            String(filters.profileStatus).toUpperCase())
-      );
-    });
-  }, [rows, filters]);
-
- 
-  const loadData = async () => {
+  const loadData = async (nextPage = page, nextPageSize = pageSize, nextFilters = appliedFilters) => {
     setLoading(true);
     try {
-      const data = await getEmployees();
-      setRows((Array.isArray(data) ? data : []).map(toUiRow));
+      const query = {
+        page: nextPage,
+        size: nextPageSize,
+      };
+      if (nextFilters?.headOfficeId) query.headOfficeId = nextFilters.headOfficeId;
+      if (nextFilters?.branchId) query.branchId = nextFilters.branchId;
+      if (nextFilters?.departmentId) query.departmentId = nextFilters.departmentId;
+      if (nextFilters?.designationId) query.designationId = nextFilters.designationId;
+      if (nextFilters?.profileStatus) query.profileStatus = nextFilters.profileStatus;
+
+      const data = await getEmployees(query);
+      const pageRows = Array.isArray(data?.content) ? data.content : Array.isArray(data) ? data : [];
+      setRows(pageRows.map(toUiRow));
+      setTotalRows(Number(data?.totalElements ?? pageRows.length ?? 0) || 0);
+      setTotalPages(Math.max(1, Number(data?.totalPages ?? 1) || 1));
+      setPage(Number(data?.page ?? nextPage) || nextPage);
+      setPageSize(Number(data?.size ?? nextPageSize) || nextPageSize);
     } catch (e) {
       showError(extractApiErrorMessage(e, "Failed to load employees"));
       setRows([]);
+      setTotalRows(0);
+      setTotalPages(1);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadData();
-  }, []);
+    loadData(page, pageSize, appliedFilters);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, pageSize, appliedFilters]);
+
+  const clampedPage = Math.min(Math.max(1, page), totalPages);
+  const pageOffset = (clampedPage - 1) * pageSize;
+  const pagedRows = rows;
+
+  useEffect(() => {
+    if (page !== clampedPage) {
+      setPage(clampedPage);
+    }
+  }, [clampedPage, page]);
 
   const loadMeta = async () => {
     setMetaLoading(true);
@@ -1007,7 +1030,7 @@ export default function EmployeesPage() {
         showSuccess("Employee added");
       }
       setShowOnboardWizard(false);
-      await loadData();
+      await loadData(page, pageSize, appliedFilters);
     } catch (e) {
       showError(extractApiErrorMessage(e, onboardMode === "edit" ? "Failed to update employee" : "Failed to add employee"));
     } finally {
@@ -1122,7 +1145,7 @@ export default function EmployeesPage() {
       setForm(EMPTY_FORM);
       setSelectedId(null);
       setPhoneError("");
-      await loadData();
+      await loadData(page, pageSize, appliedFilters);
     } catch (e2) {
       showError(extractApiErrorMessage(e2, "Operation failed"));
     } finally {
@@ -1143,7 +1166,7 @@ export default function EmployeesPage() {
       showSuccess("Employee deleted successfully");
       setShowDeleteModal(false);
       setDeleteId(null);
-      await loadData();
+      await loadData(page, pageSize, appliedFilters);
     } catch (e) {
       showError(extractApiErrorMessage(e, "Failed to delete employee"));
     } finally {
@@ -1364,21 +1387,33 @@ export default function EmployeesPage() {
                 type="button"
                 className="btn btn-light w-50"
                 onClick={() => {
-                  setFilters({
+                  const cleared = {
                     headOfficeId: "",
                     branchId: "",
                     departmentId: "",
                     designationId: "",
                     profileStatus: "",
-                  });
+                  };
+                  setFilters(cleared);
+                  setAppliedFilters(cleared);
+                  setPage(1);
                   setFilterBranches([]);
                   setFilterDepartments([]);
                   setFilterDesignations([]);
+                  setFilterOpen(false);
                 }}
               >
                 Clear
               </button>
-              <button type="button" className="btn btn-primary w-50" onClick={() => setFilterOpen(false)}>
+              <button
+                type="button"
+                className="btn btn-primary w-50"
+                onClick={() => {
+                  setAppliedFilters(filters);
+                  setPage(1);
+                  setFilterOpen(false);
+                }}
+              >
                 Apply
               </button>
             </div>
@@ -1386,6 +1421,54 @@ export default function EmployeesPage() {
         </>
       )}
         <div className="card-body p-0">
+          <div className="d-flex flex-wrap align-items-center justify-content-between gap-2 px-3 py-2 border-bottom">
+            <div className="d-flex align-items-center gap-2">
+              <span className="text-muted small">Rows per page</span>
+              <select
+                className="form-select form-select-sm"
+                style={{ width: 110 }}
+                value={pageSize}
+                onChange={(e) => {
+                  const next = Number(e.target.value);
+                  setPageSize(Number.isFinite(next) && next > 0 ? next : 25);
+                  setPage(1);
+                }}
+                disabled={loading}
+              >
+                {[10, 25, 50, 100].map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
+              </select>
+              <span className="text-muted small">
+                {totalRows === 0
+                  ? "0 rows"
+                  : `Showing ${pageOffset + 1}-${Math.min(pageOffset + pageSize, totalRows)} of ${totalRows}`}
+              </span>
+            </div>
+            <div className="d-flex align-items-center gap-2">
+              <button
+                type="button"
+                className="btn btn-sm btn-light"
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={loading || clampedPage <= 1}
+              >
+                Prev
+              </button>
+              <span className="text-muted small">
+                Page {clampedPage} of {totalPages}
+              </span>
+              <button
+                type="button"
+                className="btn btn-sm btn-light"
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={loading || clampedPage >= totalPages}
+              >
+                Next
+              </button>
+            </div>
+          </div>
           <div className="table-responsive">
             <table className="table table-striped table-hover mb-0">
               <thead>
@@ -1407,14 +1490,14 @@ export default function EmployeesPage() {
                   <tr>
                     <td colSpan="10">Loading...</td>
                   </tr>
-                ) : filteredRows.length === 0 ? (
+                ) : pagedRows.length === 0 ? (
                   <tr>
                     <td colSpan="10" className="text-center py-4 text-muted">
                       No employees found
                     </td>
                   </tr>
                 ) : (
-                  filteredRows.map((emp) => (
+                  pagedRows.map((emp) => (
                     <tr key={emp.id}>
                       <td>{emp.employeeCode || "-"}</td>
                       <td>

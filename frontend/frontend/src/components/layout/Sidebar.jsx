@@ -19,7 +19,8 @@ export default function Sidebar() {
 
   // Section heading visibility — hide heading when no items underneath are accessible
   const hasHrmItems =
-    canAccessAny("employees", "employees-list", "departments", "designations", "policy") ||
+    canAccessAny("employees", "employees-list", "policy", "email-settings", "email-template") ||
+    canAccessAny("organization", "head-offices", "branches", "departments", "designations") ||
     canAccess("tickets") ||
     canAccess("holidays") ||
     canAccessAny(
@@ -499,7 +500,7 @@ export default function Sidebar() {
               )}
               <li>
                 <ul>
-                  {canAccessAny("employees", "employees-list", "departments", "designations", "policy", "email-template", "head-offices", "branches") && (
+                  {canAccessAny("employees", "employees-list", "policy", "email-settings", "email-template") && (
                   <li className="submenu">
                     <a href="javascript:void(0);" className=" ">
                       <i className="ti ti-users"></i>
@@ -511,36 +512,6 @@ export default function Sidebar() {
                       <li>
                         <a href="/employees" className="">
                           Employees
-                        </a>
-                      </li>
-                      )}
-                       {canAccessAny("employees", "head-offices") && (
-                      <li>
-                        <a href="/head-offices" className="">
-                          Head Offices
-                        </a>
-                      </li>
-                      )}
-                      {canAccessAny("employees", "branches") && (
-                      <li>
-                        <a href="/branches" className="">
-                          Branches
-                        </a>
-                      </li>
-                      )}
-                      {canAccessAny("employees", "departments") && (
-                      <li>
-                        <a href="/departments" className="">
-                          Departments
-                        </a>
-                      </li>
-                      )}
-                     
-                      
-                      {canAccessAny("employees", "designations") && (
-                      <li>
-                        <a href="/designations" className="">
-                          Designations
                         </a>
                       </li>
                       )}
@@ -562,6 +533,45 @@ export default function Sidebar() {
                       <li>
                         <a href="/email-template" className="">
                           Email Templates
+                        </a>
+                      </li>
+                      )}
+                    </ul>
+                  </li>
+                  )}
+                  {canAccessAny("organization", "head-offices", "branches", "departments", "designations") && (
+                  <li className="submenu">
+                    <a href="javascript:void(0);" className=" ">
+                      <i className="ti ti-building-community"></i>
+                      <span>Organization</span>
+                      <span className="menu-arrow"></span>
+                    </a>
+                    <ul>
+                      {canAccessAny("organization", "head-offices") && (
+                      <li>
+                        <a href="/head-offices" className="">
+                          Head Offices
+                        </a>
+                      </li>
+                      )}
+                      {canAccessAny("organization", "branches") && (
+                      <li>
+                        <a href="/branches" className="">
+                          Branches
+                        </a>
+                      </li>
+                      )}
+                      {canAccessAny("organization", "departments") && (
+                      <li>
+                        <a href="/departments" className="">
+                          Departments
+                        </a>
+                      </li>
+                      )}
+                      {canAccessAny("organization", "designations") && (
+                      <li>
+                        <a href="/designations" className="">
+                          Designations
                         </a>
                       </li>
                       )}

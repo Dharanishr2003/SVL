@@ -1,0 +1,1 @@
+import{j as s}from"./index-Dfj3jr_U.js";function l({colClass:a="col-md-3 d-flex",cardClass:d="card flex-fill",children:r}){return s.jsx("div",{className:a,children:s.jsx("div",{className:d,children:s.jsx("div",{className:"card-body",children:r})})})}export{l as S};

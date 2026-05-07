@@ -29,7 +29,7 @@ public class UserGroupMember {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    @Column(name = "page_keys_csv", length = 2000)
+    @Column(name = "page_keys_csv", columnDefinition = "TEXT")
     private String pageKeysCsv;
 
     @Column(name = "created_at", nullable = false)

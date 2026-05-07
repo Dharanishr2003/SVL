@@ -62,6 +62,7 @@ public class UserGroupService {
             "secondary-source",
             "tertiary-source",
             "lead-type",
+            "requirements",
             "budget-verifications",
             "payment-verifications",
             "invoices",
@@ -87,9 +88,14 @@ public class UserGroupService {
             // HRM
             "employees",
             "employees-list",
+            "organization",
+            "head-offices",
+            "branches",
             "departments",
             "designations",
             "policy",
+            "email-settings",
+            "email-template",
             "tickets",
             "holidays",
             "attendance",
@@ -277,7 +283,7 @@ public class UserGroupService {
         List<String> oldGroupPageKeys = parseTeamNamesCsv(group.getPageKeysCsv());
         List<String> resolvedGroupPageKeys = resolveGroupPageKeysForActor(actor, request.getPageKeys(), group);
         UserGroupMemberScope memberScope = resolveMemberScope(request.getMemberScope());
-        GroupScope targetScope = resolveScopeForUpdate(actor, request, memberScope);
+        GroupScope targetScope = resolveScopeForUpdate(actor, request, memberScope, group);
         if (userGroupRepository.existsByNameIgnoreCaseAndInstitutionNameIgnoreCaseAndIdNot(name, targetScope.institutionName(), id)) {
             throw new IllegalStateException("Group name already exists");
         }
@@ -997,26 +1003,9 @@ public class UserGroupService {
             return;
         }
 
-        Set<String> previousSet = new LinkedHashSet<>(previousGroupPages);
-        Set<String> nextSet = new LinkedHashSet<>(nextGroupPages);
-
+        String nextCsv = String.join(",", nextGroupPages);
         boolean changed = false;
         for (UserGroupMember member : members) {
-            Set<String> memberSet = new LinkedHashSet<>(sanitizePageKeys(parseTeamNamesCsv(member.getPageKeysCsv())));
-            Set<String> nextMemberSet = new LinkedHashSet<>();
-
-            for (String key : memberSet) {
-                if (nextSet.contains(key)) {
-                    nextMemberSet.add(key);
-                }
-            }
-            for (String key : nextGroupPages) {
-                if (!previousSet.contains(key)) {
-                    nextMemberSet.add(key);
-                }
-            }
-
-            String nextCsv = String.join(",", nextMemberSet);
             String currentCsv = StringUtils.hasText(member.getPageKeysCsv()) ? member.getPageKeysCsv().trim() : "";
             if (!currentCsv.equals(nextCsv)) {
                 member.setPageKeysCsv(nextCsv);
@@ -1110,17 +1099,29 @@ public class UserGroupService {
 
     private GroupScope resolveScopeForUpdate(User actor,
                                              UpdateUserGroupRequest request,
-                                             UserGroupMemberScope memberScope) {
+                                             UserGroupMemberScope memberScope,
+                                             UserGroup existingGroup) {
         if (actor.getRole() == Role.SUPER_ADMIN) {
+            String existingInstitutionName = existingGroup == null ? "" : trimOrEmpty(existingGroup.getInstitutionName());
+            String existingDepartmentName = existingGroup == null ? "" : trimOrEmpty(existingGroup.getDepartmentName());
+            String requestedInstitutionName = trimOrEmpty(request.getInstitutionName());
+            String requestedDepartmentName = trimOrEmpty(request.getDepartmentName());
+            String resolvedInstitutionName = StringUtils.hasText(requestedInstitutionName)
+                    ? requestedInstitutionName
+                    : existingInstitutionName;
+            String resolvedDepartmentName = StringUtils.hasText(requestedDepartmentName)
+                    ? requestedDepartmentName
+                    : existingDepartmentName;
+
             if (memberScope == UserGroupMemberScope.ADMINS) {
                 return new GroupScope(
-                        requiredScopeValue(request.getInstitutionName(), "Branch is required"),
+                        resolvedInstitutionName,
                         ""
                 );
             }
             return new GroupScope(
-                    requiredScopeValue(request.getInstitutionName(), "Branch is required"),
-                    requiredScopeValue(request.getDepartmentName(), "Department is required")
+                    resolvedInstitutionName,
+                    resolvedDepartmentName
             );
         }
         if (actor.getRole() == Role.ADMIN) {
