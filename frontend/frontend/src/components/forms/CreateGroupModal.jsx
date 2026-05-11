@@ -7,7 +7,8 @@ export default function CreateGroupModal({
   onFormChange,
   createScope,
   onScopeChange,
-  institutions,
+  headOffices,
+  branches,
   departments,
   teams,
   orgLoading,
@@ -20,9 +21,19 @@ export default function CreateGroupModal({
 }) {
   if (!show) return null;
 
-  const handleBranchChange = (institutionId) => {
+  const handleHeadOfficeChange = (headOfficeId) => {
     onScopeChange({
-      institutionId,
+      headOfficeId,
+      branchId: "",
+      departmentId: "",
+      teamIds: [],
+    });
+  };
+
+  const handleBranchChange = (branchId) => {
+    onScopeChange({
+      ...createScope,
+      branchId,
       departmentId: "",
       teamIds: [],
     });
@@ -76,16 +87,34 @@ export default function CreateGroupModal({
               </div>
 
               <div className="mb-3">
+                <label className="form-label">Head Office *</label>
+                <select
+                  className="form-select"
+                  style={{ borderRadius: "1.5rem", border: "1px solid #d0d5dd", padding: "0.6rem 1rem", fontSize: "0.95rem" }}
+                  value={createScope.headOfficeId || ""}
+                  onChange={(e) => handleHeadOfficeChange(e.target.value)}
+                  disabled={orgLoading || isAdmin || isManager || isTeamLead || saving}
+                >
+                  <option value="">Select Head Office</option>
+                  {headOffices.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="mb-3">
                 <label className="form-label">Branch *</label>
                 <select
                   className="form-select"
                   style={{ borderRadius: "1.5rem", border: "1px solid #d0d5dd", padding: "0.6rem 1rem", fontSize: "0.95rem" }}
-                  value={createScope.institutionId || ""}
+                  value={createScope.branchId || ""}
                   onChange={(e) => handleBranchChange(e.target.value)}
-                  disabled={orgLoading || isAdmin || isManager || isTeamLead || saving}
+                  disabled={orgLoading || !createScope.headOfficeId || saving}
                 >
                   <option value="">Select Branch</option>
-                  {institutions.map((item) => (
+                  {branches.map((item) => (
                     <option key={item.id} value={item.id}>
                       {item.name}
                     </option>
@@ -100,7 +129,7 @@ export default function CreateGroupModal({
                   style={{ borderRadius: "1.5rem", border: "1px solid #d0d5dd", padding: "0.6rem 1rem", fontSize: "0.95rem" }}
                   value={createScope.departmentId || ""}
                   onChange={(e) => handleDepartmentChange(e.target.value)}
-                  disabled={orgLoading || !createScope.institutionId || saving}
+                  disabled={orgLoading || !createScope.branchId || saving}
                 >
                   <option value="">Select Department (Optional)</option>
                   {departments.map((item) => (
@@ -113,7 +142,7 @@ export default function CreateGroupModal({
 
               {createScope.departmentId && teams.length > 0 && (
                 <div className="mb-3">
-                  <label className="form-label">Teams</label>
+                  <label className="form-label">Designations</label>
                   <div className="d-flex flex-wrap gap-2">
                     {teams.map((team) => (
                       <label key={team.id} className="form-check">
@@ -143,7 +172,7 @@ export default function CreateGroupModal({
               <button
                 className="btn btn-primary"
                 onClick={onSubmit}
-                disabled={saving || !form.name.trim() || !createScope.institutionId}
+                disabled={saving || !form.name.trim() || !createScope.headOfficeId || !createScope.branchId}
               >
                 {saving ? "Creating..." : "Create Group"}
               </button>

@@ -95,6 +95,8 @@ export default function PublicEmployeeFormPage() {
     [],
   );
 
+  const groupedMobileKeys = useMemo(() => new Set(["COUNTRY_CODE", "PHONE"]), []);
+
   async function handleSubmit(e) {
     e.preventDefault();
     setSaving(true);
@@ -105,7 +107,7 @@ export default function PublicEmployeeFormPage() {
         const val = form[fieldKey];
         const initial = initialForm[fieldKey];
         const changed = String(val || "") !== String(initial || "");
-        if (!isBlank(val) && changed) {
+        if (!isBlank(val) && (changed || groupedMobileKeys.has(fieldKey))) {
           fd.append(`field_${fieldKey}`, val);
         }
       });

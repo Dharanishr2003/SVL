@@ -40,8 +40,24 @@ public class EmployeeController {
     }
 
     @GetMapping("/available")
-    public List<EmployeeResponse> getAvailableEmployees() {
-        return employeeService.getAvailableEmployees();
+    public List<EmployeeResponse> getAvailableEmployees(
+            @RequestParam(required = false) Long headOfficeId,
+            @RequestParam(required = false) Long branchId,
+            @RequestParam(required = false) Long departmentId,
+            @RequestParam(required = false) Long designationId,
+            @RequestParam(required = false) String institution,
+            @RequestParam(required = false) String department,
+            @RequestParam(required = false) String team
+    ) {
+        return employeeService.getAvailableEmployees(
+                headOfficeId,
+                branchId,
+                departmentId,
+                designationId,
+                institution,
+                department,
+                team
+        );
     }
 
     @PostMapping

@@ -8,11 +8,19 @@ import com.nexorcrm.backend.dto.UserLogResponse;
 import com.nexorcrm.backend.dto.UserResponse;
 import com.nexorcrm.backend.dto.UserSessionResponse;
 import com.nexorcrm.backend.entity.ActivationStatus;
+import com.nexorcrm.backend.entity.Employee;
 import com.nexorcrm.backend.entity.AuditLog;
+import com.nexorcrm.backend.entity.BranchMaster;
+import com.nexorcrm.backend.entity.DepartmentMaster;
+import com.nexorcrm.backend.entity.DesignationMaster;
 import com.nexorcrm.backend.entity.RefreshToken;
 import com.nexorcrm.backend.entity.Role;
 import com.nexorcrm.backend.entity.User;
 import com.nexorcrm.backend.repo.AuditLogRepository;
+import com.nexorcrm.backend.repo.BranchMasterRepository;
+import com.nexorcrm.backend.repo.DepartmentMasterRepository;
+import com.nexorcrm.backend.repo.DesignationMasterRepository;
+import com.nexorcrm.backend.repo.EmployeeRepository;
 import com.nexorcrm.backend.repo.RefreshTokenRepository;
 import com.nexorcrm.backend.repo.UserRepository;
 import com.nexorcrm.backend.repo.UserGroupMemberRepository;
@@ -32,6 +40,7 @@ import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 
 @Service
 @Transactional
@@ -45,6 +54,10 @@ public class SuperAdminService {
     private final UserRepository userRepository;
     private final AuditLogRepository auditLogRepository;
     private final RefreshTokenRepository refreshTokenRepository;
+    private final EmployeeRepository employeeRepository;
+    private final BranchMasterRepository branchMasterRepository;
+    private final DepartmentMasterRepository departmentMasterRepository;
+    private final DesignationMasterRepository designationMasterRepository;
     private final UserGroupMemberRepository userGroupMemberRepository;
     private final RefreshTokenService refreshTokenService;
     private final SecuritySettingsService securitySettingsService;
@@ -55,6 +68,10 @@ public class SuperAdminService {
     public SuperAdminService(UserRepository userRepository,
                              AuditLogRepository auditLogRepository,
                              RefreshTokenRepository refreshTokenRepository,
+                             EmployeeRepository employeeRepository,
+                             BranchMasterRepository branchMasterRepository,
+                             DepartmentMasterRepository departmentMasterRepository,
+                             DesignationMasterRepository designationMasterRepository,
                              UserGroupMemberRepository userGroupMemberRepository,
                              RefreshTokenService refreshTokenService,
                              SecuritySettingsService securitySettingsService,
@@ -62,6 +79,10 @@ public class SuperAdminService {
         this.userRepository = userRepository;
         this.auditLogRepository = auditLogRepository;
         this.refreshTokenRepository = refreshTokenRepository;
+        this.employeeRepository = employeeRepository;
+        this.branchMasterRepository = branchMasterRepository;
+        this.departmentMasterRepository = departmentMasterRepository;
+        this.designationMasterRepository = designationMasterRepository;
         this.userGroupMemberRepository = userGroupMemberRepository;
         this.refreshTokenService = refreshTokenService;
         this.securitySettingsService = securitySettingsService;
@@ -120,16 +141,46 @@ public class SuperAdminService {
         if (userRepository.existsByEmailIgnoreCaseAndIsDeletedFalse(email)) {
             throw new IllegalStateException("Email already exists");
         }
+        if (!StringUtils.hasText(request.getConfirmPassword())) {
+            throw new IllegalStateException("Confirm Password is required");
+        }
+        if (!request.getPassword().trim().equals(request.getConfirmPassword().trim())) {
+            throw new IllegalStateException("Password and Confirm Password do not match");
+        }
 
-        String institutionName = required(request.getInstitution(), "Branch is required");
-        String departmentName = normalizeNullable(request.getDepartmentName());
+        if (request.getEmployeeId() == null) {
+            throw new IllegalStateException("Please select an employee");
+        }
+        Employee employee = employeeRepository.findById(request.getEmployeeId())
+                .filter(found -> !Boolean.TRUE.equals(found.getDeleted()))
+                .orElseThrow(() -> new EntityNotFoundException("Selected employee not found"));
+        String employeeEmail = resolveEmployeeEmail(employee);
+        if (!StringUtils.hasText(employeeEmail)) {
+            throw new IllegalStateException("Selected employee must have an email");
+        }
+        if (!employeeEmail.equals(email)) {
+            throw new IllegalStateException("Selected employee email does not match the user email");
+        }
+        String institutionName = resolveEmployeeBranchName(employee);
+        String departmentName = resolveEmployeeDepartmentName(employee);
+        String teamNameFromEmployee = resolveEmployeeTeamName(employee);
+        if (StringUtils.hasText(request.getInstitution()) && !textEquals(request.getInstitution(), institutionName)) {
+            throw new IllegalStateException("Selected employee does not belong to the selected branch");
+        }
+        if (StringUtils.hasText(request.getDepartmentName()) && !textEquals(request.getDepartmentName(), departmentName)) {
+            throw new IllegalStateException("Selected employee does not belong to the selected department");
+        }
+        if (StringUtils.hasText(request.getTeam()) && !textEquals(request.getTeam(), teamNameFromEmployee)) {
+            throw new IllegalStateException("Selected employee does not belong to the selected team");
+        }
+        String branchName = required(institutionName, "Branch is required");
         Role requestedRole = parseRequestedRole(request);
         String teamName = (requestedRole == Role.TEAM_LEAD || requestedRole == Role.EMPLOYEE)
-                ? required(request.getTeam(), "Team is required")
-                : normalizeNullable(request.getTeam());
+                ? required(teamNameFromEmployee, "Team is required")
+                : normalizeNullable(teamNameFromEmployee);
         assertActorCanManagePlacement(
                 actor,
-                institutionName,
+                branchName,
                 departmentName,
                 teamName,
                 actor.getRole() == Role.TEAM_LEAD
@@ -142,7 +193,7 @@ public class SuperAdminService {
         if (!RolePermissionUtil.canAssign(actor.getRole(), requestedRole)) {
             throw new AccessDeniedException("You do not have permission to assign this role");
         }
-        assertRolePlacementConstraints(requestedRole, null, institutionName, departmentName, teamName);
+        assertRolePlacementConstraints(requestedRole, null, branchName, departmentName, teamName);
 
         User user = new User();
         user.setUsername(username);
@@ -151,7 +202,7 @@ public class SuperAdminService {
         user.setLastName(normalizeNullable(request.getLastName()));
         user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
         user.setRole(requestedRole);
-        user.setInstitutionName(institutionName);
+        user.setInstitutionName(branchName);
         user.setDepartmentName(departmentName);
         user.setTeamName(teamName);
         user.setActivationStatus(ActivationStatus.PENDING);
@@ -762,6 +813,64 @@ public class SuperAdminService {
             return null;
         }
         return value.trim();
+    }
+
+    private String resolveEmployeeEmail(Employee employee) {
+        String primaryEmail = normalizeNullable(employee.getEmail());
+        if (primaryEmail != null) {
+            return primaryEmail.toLowerCase(Locale.ROOT);
+        }
+        String officialEmail = normalizeNullable(employee.getOfficialEmail());
+        if (officialEmail != null) {
+            return officialEmail.toLowerCase(Locale.ROOT);
+        }
+        String personalEmail = normalizeNullable(employee.getPersonalEmail());
+        if (personalEmail != null) {
+            return personalEmail.toLowerCase(Locale.ROOT);
+        }
+        return null;
+    }
+
+    private String resolveEmployeeBranchName(Employee employee) {
+        String institution = normalizeNullable(employee.getInstitution());
+        if (institution != null) {
+            return institution;
+        }
+        if (employee.getBranchId() == null) {
+            return null;
+        }
+        return branchMasterRepository.findByIdAndDeletedFalse(employee.getBranchId())
+                .map(BranchMaster::getName)
+                .map(this::normalizeNullable)
+                .orElse(null);
+    }
+
+    private String resolveEmployeeDepartmentName(Employee employee) {
+        String departmentName = normalizeNullable(employee.getDepartmentName());
+        if (departmentName != null) {
+            return departmentName;
+        }
+        if (employee.getDepartmentMasterId() == null) {
+            return null;
+        }
+        return departmentMasterRepository.findByIdAndDeletedFalse(employee.getDepartmentMasterId())
+                .map(DepartmentMaster::getName)
+                .map(this::normalizeNullable)
+                .orElse(null);
+    }
+
+    private String resolveEmployeeTeamName(Employee employee) {
+        String team = normalizeNullable(employee.getTeam());
+        if (team != null) {
+            return team;
+        }
+        if (employee.getDesignationMasterId() == null) {
+            return null;
+        }
+        return designationMasterRepository.findByIdAndDeletedFalse(employee.getDesignationMasterId())
+                .map(DesignationMaster::getName)
+                .map(this::normalizeNullable)
+                .orElse(null);
     }
 
     private String required(String value, String message) {

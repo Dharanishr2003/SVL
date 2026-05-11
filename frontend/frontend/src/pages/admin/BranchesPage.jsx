@@ -9,6 +9,7 @@ import {
 import { getHeadOffices } from "../../api/headOfficesApi";
 import { extractApiErrorMessage } from "../../utils/errorMessage";
 import { useToast } from "../../components/system/ToastProvider";
+import "../../../public/assets/css/addModalShared.css";
 
 const initialForm = {
   headOfficeId: "",
@@ -35,6 +36,276 @@ function withInactiveSelected(items, selectedId) {
   ];
 }
 
+function hasHeadOfficeOption(headOffices, headOfficeId) {
+  return Array.isArray(headOffices)
+    && headOffices.some((item) => String(item?.id) === String(headOfficeId));
+}
+
+// Modal components defined outside
+const AddModal = ({ show, onClose, onSave, headOffices, metaLoading, saving, initialHeadOfficeId }) => {
+  const [form, setForm] = useState(() => ({
+    ...initialForm,
+    headOfficeId: initialHeadOfficeId || "",
+  }));
+
+  // Reset form when modal opens or initialHeadOfficeId changes
+  useEffect(() => {
+    if (show) {
+      setForm({
+        ...initialForm,
+        headOfficeId: hasHeadOfficeOption(headOffices, initialHeadOfficeId) ? String(initialHeadOfficeId) : "",
+      });
+    }
+  }, [show, initialHeadOfficeId, headOffices]);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!form.headOfficeId) {
+      // You'll need to pass showError from parent or use a toast hook here
+      return;
+    }
+    if (!form.name.trim()) {
+      return;
+    }
+    await onSave(form);
+  };
+
+  if (!show) return null;
+
+  return (
+    <div className="avm-backdrop" role="presentation">
+      <div className="avm-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+        <div className="avm-modal-header">
+          <h2 className="avm-modal-title">Add Branch</h2>
+          <button type="button" className="avm-modal-close" onClick={onClose} aria-label="Close">
+            ×
+          </button>
+        </div>
+        <form onSubmit={handleSubmit}>
+          <div className="avm-body">
+            <div className="row g-3">
+              <div className="col-md-12">
+                <div className="avm-field">
+                  <label className="avm-label">Head Office <span className="req">*</span></label>
+                  <select
+                    className="avm-select"
+                    value={form.headOfficeId}
+                    onChange={(e) => setForm((prev) => ({ ...prev, headOfficeId: e.target.value }))}
+                    disabled={metaLoading}
+                    required
+                  >
+                    <option value="">Select</option>
+                    {withInactiveSelected(headOffices, form.headOfficeId).map((ho) => (
+                      <option key={ho.id} value={ho.id}>
+                        {ho.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className="col-md-12">
+                <div className="avm-field">
+                  <label className="avm-label">Branch Name <span className="req">*</span></label>
+                  <input
+                    type="text"
+                    className="avm-input"
+                    value={form.name}
+                    onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
+                    required
+                  />
+                </div>
+              </div>
+              <div className="col-md-12">
+                <div className="avm-field">
+                  <label className="avm-label">Location</label>
+                  <input
+                    type="text"
+                    className="avm-input"
+                    value={form.location}
+                    onChange={(e) => setForm((prev) => ({ ...prev, location: e.target.value }))}
+                  />
+                </div>
+              </div>
+              <div className="col-md-12">
+                <div className="avm-field">
+                  <label className="avm-label">Status</label>
+                  <select
+                    className="avm-select"
+                    value={form.status}
+                    onChange={(e) => setForm((prev) => ({ ...prev, status: e.target.value }))}
+                  >
+                    <option value="ACTIVE">Active</option>
+                    <option value="INACTIVE">Inactive</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="avm-footer">
+            <div />
+            <div className="avm-footer-right">
+              <button type="button" className="avm-btn light" onClick={onClose} disabled={saving}>
+                Cancel
+              </button>
+              <button type="submit" className="avm-btn primary" disabled={saving}>
+                {saving ? "Adding..." : "Add Branch"}
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+const EditModal = ({ show, onClose, onSave, headOffices, metaLoading, saving, editData }) => {
+  const [form, setForm] = useState(initialForm);
+
+  useEffect(() => {
+    if (show && editData) {
+      setForm({
+        headOfficeId: hasHeadOfficeOption(headOffices, editData?.headOfficeId) ? String(editData?.headOfficeId || "") : "",
+        name: editData?.name || "",
+        location: editData?.location || "",
+        status: String(editData?.status || "ACTIVE").toUpperCase(),
+      });
+    }
+  }, [show, editData, headOffices]);
+
+  const editHeadOfficeOptions = useMemo(() => {
+    const list = withInactiveSelected(headOffices, form.headOfficeId);
+    return [...list].sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
+  }, [headOffices, form.headOfficeId]);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!form.headOfficeId) return;
+    if (!form.name.trim()) return;
+    await onSave(form);
+  };
+
+  if (!show) return null;
+
+  return (
+    <div className="avm-backdrop" role="presentation">
+      <div className="avm-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+        <div className="avm-modal-header">
+          <h2 className="avm-modal-title">Edit Branch</h2>
+          <button type="button" className="avm-modal-close" onClick={onClose} aria-label="Close">
+            ×
+          </button>
+        </div>
+        <form onSubmit={handleSubmit}>
+          <div className="avm-body">
+            <div className="row g-3">
+              <div className="col-md-12">
+                <div className="avm-field">
+                  <label className="avm-label">Head Office <span className="req">*</span></label>
+                  <select
+                    className="avm-select"
+                    value={form.headOfficeId}
+                    onChange={(e) => setForm((prev) => ({ ...prev, headOfficeId: e.target.value }))}
+                    disabled={metaLoading}
+                    required
+                  >
+                    <option value="">Select</option>
+                    {editHeadOfficeOptions.map((ho) => (
+                      <option key={ho.id} value={ho.id}>
+                        {ho.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className="col-md-12">
+                <div className="avm-field">
+                  <label className="avm-label">Branch Name <span className="req">*</span></label>
+                  <input
+                    type="text"
+                    className="avm-input"
+                    value={form.name}
+                    onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
+                    required
+                  />
+                </div>
+              </div>
+              <div className="col-md-12">
+                <div className="avm-field">
+                  <label className="avm-label">Location</label>
+                  <input
+                    type="text"
+                    className="avm-input"
+                    value={form.location}
+                    onChange={(e) => setForm((prev) => ({ ...prev, location: e.target.value }))}
+                  />
+                </div>
+              </div>
+              <div className="col-md-12">
+                <div className="avm-field">
+                  <label className="avm-label">Status</label>
+                  <select
+                    className="avm-select"
+                    value={form.status}
+                    onChange={(e) => setForm((prev) => ({ ...prev, status: e.target.value }))}
+                  >
+                    <option value="ACTIVE">Active</option>
+                    <option value="INACTIVE">Inactive</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="avm-footer">
+            <div />
+            <div className="avm-footer-right">
+              <button type="button" className="avm-btn light" onClick={onClose} disabled={saving}>
+                Cancel
+              </button>
+              <button type="submit" className="avm-btn primary" disabled={saving}>
+                {saving ? "Saving..." : "Save Changes"}
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+const DeleteModal = ({ show, onClose, onDelete, saving, deleteTarget }) => {
+  if (!show) return null;
+
+  return (
+    <div className="avm-backdrop" role="presentation">
+      <div className="avm-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+        <div className="avm-modal-header">
+          <h2 className="avm-modal-title">Confirm Delete</h2>
+          <button type="button" className="avm-modal-close" onClick={onClose} aria-label="Close">
+            ×
+          </button>
+        </div>
+        <div className="avm-body">
+          <p>
+            Are you sure you want to delete{" "}
+            {deleteTarget?.name ? `"${deleteTarget.name}"` : "this branch"}?
+          </p>
+        </div>
+        <div className="avm-footer">
+          <div />
+          <div className="avm-footer-right">
+            <button type="button" className="avm-btn light" onClick={onClose} disabled={saving}>
+              Cancel
+            </button>
+            <button type="button" className="avm-btn primary" onClick={onDelete} disabled={saving}>
+              {saving ? "Deleting..." : "Delete"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export default function BranchesPage() {
   const { showSuccess, showError } = useToast();
   const [rows, setRows] = useState([]);
@@ -51,10 +322,9 @@ export default function BranchesPage() {
   });
   const [draftFilters, setDraftFilters] = useState(filters);
 
-  const [form, setForm] = useState(initialForm);
-  const [editForm, setEditForm] = useState(initialForm);
   const [selectedId, setSelectedId] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [editData, setEditData] = useState(null);
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -104,11 +374,6 @@ export default function BranchesPage() {
     [headOffices],
   );
 
-  const editHeadOfficeOptions = useMemo(() => {
-    const list = withInactiveSelected(headOffices, editForm.headOfficeId);
-    return [...list].sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
-  }, [headOffices, editForm.headOfficeId]);
-
   const orderedRows = useMemo(
     () => [...rows].sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""))),
     [rows],
@@ -124,26 +389,24 @@ export default function BranchesPage() {
     });
   }, [orderedRows, filters.q, filters.status]);
 
-  const handleAdd = async (e) => {
-    e.preventDefault();
-    if (!form.headOfficeId) {
+  const handleAdd = async (formData) => {
+    if (!formData.headOfficeId) {
       showError("Head Office is required");
       return;
     }
-    if (!form.name.trim()) {
+    if (!formData.name.trim()) {
       showError("Branch name is required");
       return;
     }
     setSaving(true);
     try {
       await createBranch({
-        headOfficeId: Number(form.headOfficeId),
-        name: form.name.trim(),
-        location: form.location?.trim() || "",
-        status: form.status,
+        headOfficeId: Number(formData.headOfficeId),
+        name: formData.name.trim(),
+        location: formData.location?.trim() || "",
+        status: formData.status,
       });
       showSuccess("Branch added");
-      setForm((prev) => ({ ...initialForm, headOfficeId: prev.headOfficeId || "" }));
       setShowAddModal(false);
       await load(filters.headOfficeId);
     } catch (e2) {
@@ -154,38 +417,33 @@ export default function BranchesPage() {
   };
 
   const openEdit = (row) => {
-    setEditForm({
-      headOfficeId: String(row?.headOfficeId || ""),
-      name: row?.name || "",
-      location: row?.location || "",
-      status: String(row?.status || "ACTIVE").toUpperCase(),
-    });
+    setEditData(row);
     setSelectedId(row?.id || null);
     setShowEditModal(true);
   };
 
-  const handleEdit = async (e) => {
-    e.preventDefault();
+  const handleEdit = async (formData) => {
     if (!selectedId) return;
-    if (!editForm.headOfficeId) {
+    if (!formData.headOfficeId) {
       showError("Head Office is required");
       return;
     }
-    if (!editForm.name.trim()) {
+    if (!formData.name.trim()) {
       showError("Branch name is required");
       return;
     }
     setSaving(true);
     try {
       await updateBranch(selectedId, {
-        headOfficeId: Number(editForm.headOfficeId),
-        name: editForm.name.trim(),
-        location: editForm.location?.trim() || "",
-        status: editForm.status,
+        headOfficeId: Number(formData.headOfficeId),
+        name: formData.name.trim(),
+        location: formData.location?.trim() || "",
+        status: formData.status,
       });
       showSuccess("Branch updated");
       setShowEditModal(false);
       setSelectedId(null);
+      setEditData(null);
       await load(filters.headOfficeId);
     } catch (e2) {
       showError(extractApiErrorMessage(e2, "Failed to update branch"));
@@ -238,12 +496,10 @@ export default function BranchesPage() {
             </nav>
           </div>
           <div className="d-flex align-items-center gap-2">
-            
             <button
               type="button"
               className="btn btn-primary"
               onClick={() => {
-                setForm((prev) => ({ ...initialForm, headOfficeId: filters.headOfficeId || prev.headOfficeId || "" }));
                 setShowAddModal(true);
               }}
             >
@@ -284,7 +540,6 @@ export default function BranchesPage() {
                 </div>
 
                 <div className="p-3">
-                  
                   <div className="mb-3">
                     <label className="form-label">Head Office</label>
                     <select
@@ -415,201 +670,41 @@ export default function BranchesPage() {
         </div>
       </div>
 
-      {showAddModal && (
-        <>
-          <div className="modal fade show" style={{ display: "block" }} tabIndex="-1">
-            <div className="modal-dialog modal-dialog-centered modal-md">
-              <div className="modal-content">
-                <div className="modal-header">
-                  <h4 className="modal-title">Add Branch</h4>
-                  <button type="button" className="btn-close custom-btn-close" onClick={() => setShowAddModal(false)} />
-                </div>
-                <form onSubmit={handleAdd}>
-                  <div className="modal-body pb-0">
-                    <div className="row">
-                      <div className="col-md-12">
-                        <div className="mb-3">
-                          <label className="form-label">Head Office</label>
-                          <select
-                            className="form-select"
-                            value={form.headOfficeId}
-                            onChange={(e) => setForm((prev) => ({ ...prev, headOfficeId: e.target.value }))}
-                            disabled={metaLoading}
-                          >
-                            <option value="">Select</option>
-                            {editHeadOfficeOptions.map((ho) => (
-                              <option key={ho.id} value={ho.id}>
-                                {ho.name}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      </div>
-                      <div className="col-md-12">
-                        <div className="mb-3">
-                          <label className="form-label">Branch Name</label>
-                          <input
-                            type="text"
-                            className="form-control"
-                            value={form.name}
-                            onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
-                          />
-                        </div>
-                      </div>
-                      <div className="col-md-12">
-                        <div className="mb-3">
-                          <label className="form-label">Location</label>
-                          <input
-                            type="text"
-                            className="form-control"
-                            value={form.location}
-                            onChange={(e) => setForm((prev) => ({ ...prev, location: e.target.value }))}
-                          />
-                        </div>
-                      </div>
-                      <div className="col-md-12">
-                        <div className="mb-3">
-                          <label className="form-label">Status</label>
-                          <select
-                            className="form-select"
-                            value={form.status}
-                            onChange={(e) => setForm((prev) => ({ ...prev, status: e.target.value }))}
-                          >
-                            <option value="ACTIVE">Active</option>
-                            <option value="INACTIVE">Inactive</option>
-                          </select>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="modal-footer">
-                    <button type="button" className="btn btn-light me-2" onClick={() => setShowAddModal(false)}>
-                      Cancel
-                    </button>
-                    <button type="submit" className="btn btn-primary" disabled={saving}>
-                      {saving ? "Adding..." : "Add Branch"}
-                    </button>
-                  </div>
-                </form>
-              </div>
-            </div>
-          </div>
-          <div className="modal-backdrop fade show" />
-        </>
-      )}
-
-      {showEditModal && (
-        <>
-          <div className="modal fade show" style={{ display: "block" }} tabIndex="-1">
-            <div className="modal-dialog modal-dialog-centered modal-md">
-              <div className="modal-content">
-                <div className="modal-header">
-                  <h4 className="modal-title">Edit Branch</h4>
-                  <button type="button" className="btn-close custom-btn-close" onClick={() => setShowEditModal(false)} />
-                </div>
-                <form onSubmit={handleEdit}>
-                  <div className="modal-body pb-0">
-                    <div className="row">
-                      <div className="col-md-12">
-                        <div className="mb-3">
-                          <label className="form-label">Head Office</label>
-                          <select
-                            className="form-select"
-                            value={editForm.headOfficeId}
-                            onChange={(e) => setEditForm((prev) => ({ ...prev, headOfficeId: e.target.value }))}
-                            disabled={metaLoading}
-                          >
-                            <option value="">Select</option>
-                            {headOfficeOptions.map((ho) => (
-                              <option key={ho.id} value={ho.id}>
-                                {ho.name}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      </div>
-                      <div className="col-md-12">
-                        <div className="mb-3">
-                          <label className="form-label">Branch Name</label>
-                          <input
-                            type="text"
-                            className="form-control"
-                            value={editForm.name}
-                            onChange={(e) => setEditForm((prev) => ({ ...prev, name: e.target.value }))}
-                          />
-                        </div>
-                      </div>
-                      <div className="col-md-12">
-                        <div className="mb-3">
-                          <label className="form-label">Location</label>
-                          <input
-                            type="text"
-                            className="form-control"
-                            value={editForm.location}
-                            onChange={(e) => setEditForm((prev) => ({ ...prev, location: e.target.value }))}
-                          />
-                        </div>
-                      </div>
-                      <div className="col-md-12">
-                        <div className="mb-3">
-                          <label className="form-label">Status</label>
-                          <select
-                            className="form-select"
-                            value={editForm.status}
-                            onChange={(e) => setEditForm((prev) => ({ ...prev, status: e.target.value }))}
-                          >
-                            <option value="ACTIVE">Active</option>
-                            <option value="INACTIVE">Inactive</option>
-                          </select>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="modal-footer">
-                    <button type="button" className="btn btn-light me-2" onClick={() => setShowEditModal(false)}>
-                      Cancel
-                    </button>
-                    <button type="submit" className="btn btn-primary" disabled={saving}>
-                      {saving ? "Saving..." : "Save Changes"}
-                    </button>
-                  </div>
-                </form>
-              </div>
-            </div>
-          </div>
-          <div className="modal-backdrop fade show" />
-        </>
-      )}
-
-      {showDeleteModal && (
-        <>
-          <div className="modal fade show" style={{ display: "block" }} tabIndex="-1">
-            <div className="modal-dialog modal-dialog-centered">
-              <div className="modal-content">
-                <div className="modal-header">
-                  <h4 className="modal-title">Confirm Delete</h4>
-                  <button type="button" className="btn-close custom-btn-close" onClick={() => setShowDeleteModal(false)} />
-                </div>
-                <div className="modal-body">
-                  <p>
-                    Are you sure you want to delete
-                    {deleteTarget?.name ? ` \"${deleteTarget.name}\"` : " this branch"}?
-                  </p>
-                </div>
-                <div className="modal-footer">
-                  <button type="button" className="btn btn-light me-2" onClick={() => setShowDeleteModal(false)}>
-                    Cancel
-                  </button>
-                  <button type="button" className="btn btn-danger" onClick={handleDelete} disabled={saving}>
-                    {saving ? "Deleting..." : "Delete"}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div className="modal-backdrop fade show" />
-        </>
-      )}
+      <AddModal 
+        show={showAddModal}
+        onClose={() => setShowAddModal(false)}
+        onSave={handleAdd}
+        headOffices={headOffices}
+        metaLoading={metaLoading}
+        saving={saving}
+        initialHeadOfficeId={filters.headOfficeId}
+      />
+      
+      <EditModal 
+        show={showEditModal}
+        onClose={() => {
+          setShowEditModal(false);
+          setEditData(null);
+          setSelectedId(null);
+        }}
+        onSave={handleEdit}
+        headOffices={headOffices}
+        metaLoading={metaLoading}
+        saving={saving}
+        editData={editData}
+      />
+      
+      <DeleteModal 
+        show={showDeleteModal}
+        onClose={() => {
+          setShowDeleteModal(false);
+          setDeleteTarget(null);
+          setSelectedId(null);
+        }}
+        onDelete={handleDelete}
+        saving={saving}
+        deleteTarget={deleteTarget}
+      />
     </>
   );
-}
+} 

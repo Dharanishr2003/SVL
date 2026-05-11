@@ -13,19 +13,20 @@ import {
   setUserActive,
 } from "../../api/userAdminApi";
 import { getAvailableEmployees } from "../../api/employeesApi";
+import { getBranches } from "../../api/branchesApi";
+import {
+  createDepartmentMaster,
+  getDepartmentsMasterByBranch,
+} from "../../api/departmentsApi";
+import { createDesignation, getDesignations } from "../../api/designationsApi";
 import { extractApiErrorMessage } from "../../utils/errorMessage";
 import { useAuth } from "../../context/AuthContext";
 import {
-  createDepartment,
   createInstitution,
-  createTeam,
-  getDepartments,
-  getInstitutionCategories,
-  getInstitutionTypes,
   getInstitutions,
-  getTeams,
   getUserOrgSelection,
 } from "../../api/orgHierarchyApi";
+import { getHeadOffices } from "../../api/headOfficesApi";
 import { useToast } from "../../components/system/ToastProvider";
 import ConfirmDialog from "../../components/system/ConfirmDialog";
 import UserWizardModal from "../../components/admin/UserWizardModal";
@@ -39,12 +40,11 @@ const ROLE_OPTIONS = ENV_ROLE_OPTIONS
   ? ENV_ROLE_OPTIONS.split(",").map((r) => r.trim()).filter(Boolean)
   : FALLBACK_ROLES;
 
-const ROLE_RANK = {
-  SUPER_ADMIN: 4,
-  ADMIN: 3,
-  MANAGER: 2,
-  TEAM_LEAD: 1,
-  EMPLOYEE: 0,
+const ROLE_ASSIGNMENT_OPTIONS = {
+  SUPER_ADMIN: ["ADMIN", "MANAGER", "TEAM_LEAD", "EMPLOYEE"],
+  ADMIN: ["MANAGER", "TEAM_LEAD", "EMPLOYEE"],
+  MANAGER: ["TEAM_LEAD", "EMPLOYEE"],
+  TEAM_LEAD: ["EMPLOYEE"],
 };
 
 function UseradminPage() {
@@ -108,30 +108,26 @@ function UseradminPage() {
   });
   const [orgLoading, setOrgLoading] = useState(false);
   const [institutionId, setInstitutionId] = useState("");
-  const [categoryId, setCategoryId] = useState("");
-  const [typeId, setTypeId] = useState("");
   const [departmentId, setDepartmentId] = useState("");
   const [teamId, setTeamId] = useState("");
   const [institutions, setInstitutions] = useState([]);
-  const [categories, setCategories] = useState([]);
-  const [types, setTypes] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [teams, setTeams] = useState([]);
   const [orgSelection, setOrgSelection] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [userToDelete, setUserToDelete] = useState(null);
   const [employees, setEmployees] = useState([]);
+  const [createHeadOfficeId, setCreateHeadOfficeId] = useState("");
+  const [createBranchId, setCreateBranchId] = useState("");
+  const [createDepartmentId, setCreateDepartmentId] = useState("");
+  const [createTeamId, setCreateTeamId] = useState("");
+  const [createHeadOffices, setCreateHeadOffices] = useState([]);
+  const [createBranches, setCreateBranches] = useState([]);
+  const [createDepartments, setCreateDepartments] = useState([]);
+  const [createTeams, setCreateTeams] = useState([]);
+  const [createOrgLoading, setCreateOrgLoading] = useState(false);
+  const [createEmployeesLoading, setCreateEmployeesLoading] = useState(false);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState("");
-
-  const loadAvailableEmployees = async () => {
-    try {
-      const data = await getAvailableEmployees();
-      setEmployees(Array.isArray(data) ? data : []);
-    } catch (e) {
-      showError(extractApiErrorMessage(e, "Failed to load employees"));
-      setEmployees([]);
-    }
-  };
 
   const load = async (nextPage = page, nextSize = size) => {
     setLoading(true);
@@ -174,10 +170,6 @@ function UseradminPage() {
   }, []);
 
   useEffect(() => {
-    loadAvailableEmployees();
-  }, [showError]);
-
-  useEffect(() => {
     let isMounted = true;
     const loadInstitutions = async () => {
       setOrgLoading(true);
@@ -211,6 +203,91 @@ function UseradminPage() {
     };
   }, [currentUser?.institution]);
 
+  const selectedInstitution = institutions.find(
+    (item) => String(item.id) === String(institutionId),
+  );
+  const selectedDepartment = departments.find(
+    (item) => String(item.id) === String(departmentId),
+  );
+  const selectedTeam = teams.find(
+    (item) => String(item.id) === String(teamId),
+  );
+  const selectedRole = String(form.role || "EMPLOYEE").toUpperCase();
+  const roleRequiresDepartment = selectedRole !== "ADMIN";
+  const roleRequiresTeam = ["TEAM_LEAD", "EMPLOYEE"].includes(selectedRole);
+
+  const selectedCreateBranch = useMemo(
+    () => createBranches.find((item) => String(item.id) === String(createBranchId)),
+    [createBranches, createBranchId],
+  );
+  const selectedCreateDepartment = useMemo(
+    () => createDepartments.find((item) => String(item.id) === String(createDepartmentId)),
+    [createDepartments, createDepartmentId],
+  );
+  const selectedCreateTeam = useMemo(
+    () => createTeams.find((item) => String(item.id) === String(createTeamId)),
+    [createTeams, createTeamId],
+  );
+
+  const createEmployeeScope = useMemo(() => {
+    const headOfficeId = String(createHeadOfficeId || "").trim();
+    const branchId = String(createBranchId || "").trim();
+    const departmentId = String(createDepartmentId || "").trim();
+    const designationId = String(createTeamId || "").trim();
+    if (!headOfficeId || !branchId) return null;
+
+    const scope = {
+      headOfficeId,
+      branchId,
+    };
+    if (departmentId) {
+      scope.departmentId = departmentId;
+    }
+    if (designationId) {
+      scope.designationId = designationId;
+    }
+    return scope;
+  }, [createHeadOfficeId, createBranchId, createDepartmentId, createTeamId]);
+
+  const loadAvailableEmployees = async (scope = createEmployeeScope) => {
+    if (!scope || !scope.branchId) {
+      setEmployees([]);
+      return;
+    }
+    setCreateEmployeesLoading(true);
+    try {
+      const data = await getAvailableEmployees(scope);
+      setEmployees(Array.isArray(data) ? data : []);
+    } catch (e) {
+      showError(extractApiErrorMessage(e, "Failed to load employees"));
+      setEmployees([]);
+    } finally {
+      setCreateEmployeesLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    let isMounted = true;
+    const loadCreateHeadOffices = async () => {
+      try {
+        const data = await getHeadOffices();
+        if (!isMounted) return;
+        setCreateHeadOffices(Array.isArray(data) ? data : []);
+      } catch (e) {
+        if (isMounted) {
+          showError(extractApiErrorMessage(e, "Failed to load head offices"));
+        }
+        if (isMounted) {
+          setCreateHeadOffices([]);
+        }
+      }
+    };
+    loadCreateHeadOffices();
+    return () => {
+      isMounted = false;
+    };
+  }, [showError]);
+
   useEffect(() => {
     let isMounted = true;
     const loadUserSelection = async () => {
@@ -221,12 +298,6 @@ function UseradminPage() {
         setOrgSelection(selection);
         if (selection.institutionId) {
           setInstitutionId(String(selection.institutionId));
-        }
-        if (selection.categoryId) {
-          setCategoryId(String(selection.categoryId));
-        }
-        if (selection.typeId) {
-          setTypeId(String(selection.typeId));
         }
         if (selection.departmentId) {
           setDepartmentId(String(selection.departmentId));
@@ -248,82 +319,6 @@ function UseradminPage() {
 
   useEffect(() => {
     let isMounted = true;
-    const loadCategories = async () => {
-      if (!institutionId) {
-        setCategories([]);
-        return;
-      }
-      setOrgLoading(true);
-      try {
-        const data = await getInstitutionCategories(institutionId);
-        if (!isMounted) return;
-        setCategories(Array.isArray(data) ? data : []);
-
-        const currentCategory = currentUser?.institutionCategory || "";
-        if (currentCategory && !categoryId) {
-          const match = data.find(
-            (item) =>
-              String(item.name || "").toLowerCase() ===
-              String(currentCategory).toLowerCase(),
-          );
-          if (match) {
-            setCategoryId(String(match.id));
-          }
-        }
-      } catch (e) {
-        if (isMounted) {
-          showError(extractApiErrorMessage(e, "Failed to load categories"));
-        }
-      } finally {
-        if (isMounted) setOrgLoading(false);
-      }
-    };
-    loadCategories();
-    return () => {
-      isMounted = false;
-    };
-  }, [institutionId, currentUser?.institutionCategory, categoryId]);
-
-  useEffect(() => {
-    let isMounted = true;
-    const loadTypes = async () => {
-      if (!institutionId || !categoryId) {
-        setTypes([]);
-        return;
-      }
-      setOrgLoading(true);
-      try {
-        const data = await getInstitutionTypes(institutionId, categoryId);
-        if (!isMounted) return;
-        setTypes(Array.isArray(data) ? data : []);
-
-        const currentType = currentUser?.institutionType || "";
-        if (currentType && !typeId) {
-          const match = data.find(
-            (item) =>
-              String(item.name || "").toLowerCase() ===
-              String(currentType).toLowerCase(),
-          );
-          if (match) {
-            setTypeId(String(match.id));
-          }
-        }
-      } catch (e) {
-        if (isMounted) {
-          showError(extractApiErrorMessage(e, "Failed to load types"));
-        }
-      } finally {
-        if (isMounted) setOrgLoading(false);
-      }
-    };
-    loadTypes();
-    return () => {
-      isMounted = false;
-    };
-  }, [institutionId, categoryId, currentUser?.institutionType, typeId]);
-
-  useEffect(() => {
-    let isMounted = true;
     const loadDepartmentRows = async () => {
       if (!institutionId) {
         setDepartments([]);
@@ -331,7 +326,7 @@ function UseradminPage() {
       }
       setOrgLoading(true);
       try {
-        const data = await getDepartments(institutionId);
+        const data = await getDepartmentsMasterByBranch(institutionId);
         if (!isMounted) return;
         setDepartments(Array.isArray(data) ? data : []);
 
@@ -369,7 +364,7 @@ function UseradminPage() {
       }
       setOrgLoading(true);
       try {
-        const data = await getTeams(institutionId, departmentId);
+        const data = await getDesignations(departmentId);
         if (!isMounted) return;
         setTeams(Array.isArray(data) ? data : []);
 
@@ -514,39 +509,14 @@ function UseradminPage() {
   );
 
   const allowedAssignRoles = useMemo(() => {
-    const currentRank = ROLE_RANK[currentRole] || 0;
-    return ROLE_OPTIONS.filter(
-      (role) => (ROLE_RANK[role] || 0) < currentRank,
-    );
+    const configured = new Set(ROLE_OPTIONS.map((role) => String(role || "").trim().toUpperCase()));
+    return (ROLE_ASSIGNMENT_OPTIONS[currentRole] || []).filter((role) => configured.has(role));
   }, [currentRole]);
 
-  // Filter employees to only show those without existing user accounts
+  // Show available employees from the selected org scope.
   const availableEmployees = useMemo(() => {
-    return employees;
+    return Array.isArray(employees) ? employees : [];
   }, [employees]);
-
-  const isAdmin = currentRole === "ADMIN";
-  const isManager = currentRole === "MANAGER";
-
-  const selectedInstitution = institutions.find(
-    (item) => String(item.id) === String(institutionId),
-  );
-  const selectedCategory = categories.find(
-    (item) => String(item.id) === String(categoryId),
-  );
-  const selectedType = types.find(
-    (item) => String(item.id) === String(typeId),
-  );
-  const selectedDepartment = departments.find(
-    (item) => String(item.id) === String(departmentId),
-  );
-  const selectedTeam = teams.find(
-    (item) => String(item.id) === String(teamId),
-  );
-  const selectedRole = String(form.role || "EMPLOYEE").toUpperCase();
-  const roleRequiresDepartment = selectedRole !== "ADMIN";
-  const roleRequiresTeam =
-    selectedRole === "TEAM_LEAD" || selectedRole === "EMPLOYEE";
 
   useEffect(() => {
     if (!form.institution || institutionId) return;
@@ -557,34 +527,6 @@ function UseradminPage() {
     );
     if (match?.id) setInstitutionId(String(match.id));
   }, [form.institution, institutionId, institutions]);
-
-  useEffect(() => {
-    if (!categoryId && categories.length > 0) {
-      setCategoryId(String(categories[0].id));
-      return;
-    }
-    if (!form.institutionCategory || categoryId) return;
-    const match = categories.find(
-      (item) =>
-        String(item?.name || "").trim().toLowerCase() ===
-        String(form.institutionCategory || "").trim().toLowerCase(),
-    );
-    if (match?.id) setCategoryId(String(match.id));
-  }, [form.institutionCategory, categoryId, categories]);
-
-  useEffect(() => {
-    if (!typeId && types.length > 0) {
-      setTypeId(String(types[0].id));
-      return;
-    }
-    if (!form.institutionType || typeId) return;
-    const match = types.find(
-      (item) =>
-        String(item?.name || "").trim().toLowerCase() ===
-        String(form.institutionType || "").trim().toLowerCase(),
-    );
-    if (match?.id) setTypeId(String(match.id));
-  }, [form.institutionType, typeId, types]);
 
   useEffect(() => {
     if (!form.departmentName || departmentId) return;
@@ -606,95 +548,217 @@ function UseradminPage() {
     if (match?.id) setTeamId(String(match.id));
   }, [form.team, teamId, teams]);
 
-  const openCreate = () => {
+  const clearSelectedEmployeeDraft = () => {
     setSelectedEmployeeId("");
+    setForm((prev) => ({
+      ...prev,
+      username: "",
+      email: "",
+      firstName: "",
+      lastName: "",
+      phone: "",
+    }));
+  };
+
+  const openCreate = () => {
+    const defaultRole = allowedAssignRoles[0] || "EMPLOYEE";
     openModal();
-    loadAvailableEmployees();
+    setForm((prev) => ({ ...prev, role: defaultRole }));
+    clearSelectedEmployeeDraft();
+    setCreateHeadOfficeId("");
+    setCreateBranchId("");
+    setCreateDepartmentId("");
+    setCreateTeamId("");
+    setEmployees([]);
+    setCreateBranches([]);
+    setCreateDepartments([]);
+    setCreateTeams([]);
+  };
 
-    if (currentRole === "SUPER_ADMIN") {
-      setInstitutionId("");
-      setCategoryId("");
-      setTypeId("");
-      setDepartmentId("");
-      setTeamId("");
-      setCategories([]);
-      setTypes([]);
-      setDepartments([]);
-      setTeams([]);
-      return;
-    }
+  const handleCloseCreate = () => {
+    clearSelectedEmployeeDraft();
+    setEmployees([]);
+    setCreateHeadOfficeId("");
+    setCreateBranches([]);
+    setCreateDepartments([]);
+    setCreateTeams([]);
+    setCreateBranchId("");
+    setCreateDepartmentId("");
+    setCreateTeamId("");
+    closeModal();
+  };
 
-    if (orgSelection) {
-      setInstitutionId(String(orgSelection.institutionId || ""));
-      setCategoryId(String(orgSelection.categoryId || ""));
-      setTypeId(String(orgSelection.typeId || ""));
-      setDepartmentId(String(orgSelection.departmentId || ""));
-      setTeamId(String(orgSelection.teamId || ""));
-    }
+  const handleCreateRoleChange = (role) => {
+    const nextRole = String(role || "EMPLOYEE").toUpperCase();
+    setForm((prev) => ({ ...prev, role: nextRole }));
+    clearSelectedEmployeeDraft();
+  };
+
+  const handleCreateHeadOfficeChange = (headOfficeIdValue) => {
+    setCreateHeadOfficeId(headOfficeIdValue);
+    setCreateBranchId("");
+    setCreateDepartmentId("");
+    setCreateTeamId("");
+    setCreateBranches([]);
+    setCreateDepartments([]);
+    setCreateTeams([]);
+    clearSelectedEmployeeDraft();
+    setEmployees([]);
+  };
+
+  const handleCreateBranchChange = (branchIdValue) => {
+    setCreateBranchId(branchIdValue);
+    setCreateDepartmentId("");
+    setCreateTeamId("");
+    setCreateDepartments([]);
+    setCreateTeams([]);
+    clearSelectedEmployeeDraft();
+    setEmployees([]);
+  };
+
+  const handleCreateDepartmentChange = (departmentIdValue) => {
+    setCreateDepartmentId(departmentIdValue);
+    setCreateTeamId("");
+    setCreateTeams([]);
+    clearSelectedEmployeeDraft();
+    setEmployees([]);
+  };
+
+  const handleCreateTeamChange = (teamIdValue) => {
+    setCreateTeamId(teamIdValue);
+    clearSelectedEmployeeDraft();
+    setEmployees([]);
   };
 
   const handleSelectEmployee = (employeeId) => {
     setSelectedEmployeeId(employeeId);
-    if (employeeId) {
-      const employee = employees.find((emp) => String(emp.id) === String(employeeId));
-      if (employee) {
-        const nameParts = (employee.name || "").split(" ");
-        const employeeInstitution = String(
-          employee.institution || employee.institutionName || "",
-        ).trim();
-        const employeeCategory = String(
-          employee.institutionCategory || employee.category || "",
-        ).trim();
-        const employeeType = String(
-          employee.institutionType || employee.type || "",
-        ).trim();
-        const employeeDepartment = String(
-          employee.departmentName || employee.userDepartmentName || employee.dept || "",
-        ).trim();
-        const employeeTeam = String(employee.team || employee.teamName || "").trim();
-
-        const matchedInstitution = institutions.find(
-          (item) =>
-            String(item?.name || "").trim().toLowerCase() === employeeInstitution.toLowerCase(),
-        );
-        const matchedCategory = categories.find(
-          (item) =>
-            String(item?.name || "").trim().toLowerCase() === employeeCategory.toLowerCase(),
-        );
-        const matchedType = types.find(
-          (item) =>
-            String(item?.name || "").trim().toLowerCase() === employeeType.toLowerCase(),
-        );
-        const matchedDepartment = departments.find(
-          (item) =>
-            String(item?.name || "").trim().toLowerCase() === employeeDepartment.toLowerCase(),
-        );
-        const matchedTeam = teams.find(
-          (item) =>
-            String(item?.name || "").trim().toLowerCase() === employeeTeam.toLowerCase(),
-        );
-
-        if (matchedInstitution?.id) setInstitutionId(String(matchedInstitution.id));
-        if (matchedCategory?.id) setCategoryId(String(matchedCategory.id));
-        if (matchedType?.id) setTypeId(String(matchedType.id));
-        if (matchedDepartment?.id) setDepartmentId(String(matchedDepartment.id));
-        if (matchedTeam?.id) setTeamId(String(matchedTeam.id));
-
-        setForm((prev) => ({
-          ...prev,
-          email: employee.email || "",
-          phone: employee.phone || "",
-          firstName: nameParts[0] || "",
-          lastName: nameParts.slice(1).join(" ") || "",
-          institution: employeeInstitution,
-          institutionCategory: employeeCategory,
-          institutionType: employeeType,
-          departmentName: employeeDepartment,
-          team: employeeTeam,
-        }));
-      }
+    const employee = employees.find((emp) => String(emp.id) === String(employeeId));
+    if (!employee) {
+      return;
     }
+    const nameParts = String(employee.name || "").trim().split(/\s+/).filter(Boolean);
+    const email = String(employee.email || "").trim();
+    const emailPrefix = email.includes("@") ? email.split("@")[0] : email;
+
+    setForm((prev) => ({
+      ...prev,
+      username: emailPrefix || prev.username,
+      email,
+      phone: String(employee.phone || "").trim(),
+      firstName: nameParts[0] || "",
+      lastName: nameParts.slice(1).join(" ") || "",
+    }));
   };
+
+  useEffect(() => {
+    if (!showModal) return;
+    if (!createHeadOfficeId) {
+      setCreateBranches([]);
+      setCreateDepartments([]);
+      setCreateTeams([]);
+      return;
+    }
+
+    let isMounted = true;
+    const loadCreateBranches = async () => {
+      setCreateOrgLoading(true);
+      try {
+        const data = await getBranches(createHeadOfficeId);
+        if (!isMounted) return;
+        setCreateBranches(Array.isArray(data) ? data : []);
+      } catch (e) {
+        if (isMounted) {
+          showError(extractApiErrorMessage(e, "Failed to load branches"));
+        }
+        if (isMounted) {
+          setCreateBranches([]);
+        }
+      } finally {
+        if (isMounted) {
+          setCreateOrgLoading(false);
+        }
+      }
+    };
+
+    loadCreateBranches();
+    return () => {
+      isMounted = false;
+    };
+  }, [showModal, createHeadOfficeId, showError]);
+
+  useEffect(() => {
+    if (!showModal) return;
+    if (!createBranchId) {
+      setCreateDepartments([]);
+      setCreateTeams([]);
+      return;
+    }
+
+    let isMounted = true;
+    const loadCreateDepartments = async () => {
+      setCreateOrgLoading(true);
+      try {
+        const data = await getDepartmentsMasterByBranch(createBranchId);
+        if (!isMounted) return;
+        setCreateDepartments(Array.isArray(data) ? data : []);
+      } catch (e) {
+        if (isMounted) {
+          showError(extractApiErrorMessage(e, "Failed to load departments"));
+        }
+        if (isMounted) {
+          setCreateDepartments([]);
+        }
+      } finally {
+        if (isMounted) {
+          setCreateOrgLoading(false);
+        }
+      }
+    };
+
+    loadCreateDepartments();
+    return () => {
+      isMounted = false;
+    };
+  }, [showModal, createBranchId, showError]);
+
+  useEffect(() => {
+    if (!showModal) return;
+    if (!createBranchId || !createDepartmentId) {
+      setCreateTeams([]);
+      return;
+    }
+
+    let isMounted = true;
+    const loadCreateTeams = async () => {
+      setCreateOrgLoading(true);
+      try {
+        const data = await getDesignations(createDepartmentId);
+        if (!isMounted) return;
+        setCreateTeams(Array.isArray(data) ? data : []);
+      } catch (e) {
+        if (isMounted) {
+          showError(extractApiErrorMessage(e, "Failed to load teams"));
+        }
+        if (isMounted) {
+          setCreateTeams([]);
+        }
+      } finally {
+        if (isMounted) {
+          setCreateOrgLoading(false);
+        }
+      }
+    };
+
+    loadCreateTeams();
+    return () => {
+      isMounted = false;
+    };
+  }, [showModal, createBranchId, createDepartmentId, showError]);
+
+  useEffect(() => {
+    if (!showModal) return;
+    loadAvailableEmployees(createEmployeeScope);
+  }, [showModal, createEmployeeScope]);
 
   const openEdit = (row) => {
     if (!row?.id) return;
@@ -708,7 +772,7 @@ function UseradminPage() {
   };
 
   const handleAddDepartment = async () => {
-    if (!institutionId) {
+    if (!createBranchId) {
       showError("Select a branch first");
       return;
     }
@@ -718,7 +782,7 @@ function UseradminPage() {
   };
 
   const handleAddTeam = async () => {
-    if (!institutionId || !departmentId) {
+    if (!createBranchId || !departmentId) {
       showError("Select a branch and department first");
       return;
     }
@@ -743,17 +807,25 @@ function UseradminPage() {
         if (created?.id) setInstitutionId(String(created.id));
         showSuccess("Branch created");
       } else if (orgModalLevel === "department") {
-        const created = await createDepartment(institutionId, name);
-        const data = await getDepartments(institutionId);
+        const created = await createDepartmentMaster({
+          branchId: Number(createBranchId),
+          name,
+          status: "ACTIVE",
+        });
+        const data = await getDepartmentsMasterByBranch(createBranchId);
         setDepartments(Array.isArray(data) ? data : []);
         if (created?.id) setDepartmentId(String(created.id));
         showSuccess("Department created");
       } else if (orgModalLevel === "team") {
-        const created = await createTeam(institutionId, departmentId, name);
-        const data = await getTeams(institutionId, departmentId);
+        const created = await createDesignation({
+          departmentId: Number(departmentId),
+          name,
+          status: "ACTIVE",
+        });
+        const data = await getDesignations(departmentId);
         setTeams(Array.isArray(data) ? data : []);
         if (created?.id) setTeamId(String(created.id));
-        showSuccess("Team created");
+        showSuccess("Designation created");
       }
       setShowOrgModal(false);
       setOrgModalName("");
@@ -774,6 +846,10 @@ function UseradminPage() {
       showError("Email is required");
       return;
     }
+    if (!selectedEmployeeId) {
+      showError("Please select an employee");
+      return;
+    }
 
     const phoneValidation = validatePhoneForSubmit();
     if (!phoneValidation.isValid) {
@@ -788,55 +864,84 @@ function UseradminPage() {
         setSaving(false);
         return;
       }
-      if (!selectedInstitution?.name) {
-        showError("Branch is required");
+      if (!createHeadOfficeId) {
+        showError("Please select a head office");
         setSaving(false);
         return;
       }
-      if (roleRequiresDepartment && !selectedDepartment?.name) {
-        showError("Department is required");
+      if (!createBranchId) {
+        showError("Please select a branch");
         setSaving(false);
         return;
       }
-      if (roleRequiresTeam && !selectedTeam?.name) {
-        showError("Team is required");
+      if (roleRequiresDepartment && !createDepartmentId) {
+        showError("Please select a department");
         setSaving(false);
         return;
       }
+      if (roleRequiresTeam && !createTeamId) {
+        showError("Please select a designation");
+        setSaving(false);
+        return;
+      }
+      const selectedEmployee = employees.find(
+        (emp) => String(emp.id) === String(selectedEmployeeId),
+      );
+      if (!selectedEmployee) {
+        showError("Selected employee is no longer available");
+        setSaving(false);
+        return;
+      }
+      const scopeHeadOfficeId = String(createHeadOfficeId || "").trim();
+      const scopeBranchId = String(createBranchId || "").trim();
+      const scopeDepartmentId = String(createDepartmentId || "").trim();
+      const scopeDesignationId = String(createTeamId || "").trim();
+      const employeeHeadOfficeId = String(selectedEmployee.headOfficeId || "").trim();
+      const employeeBranchId = String(selectedEmployee.branchId || "").trim();
+      const employeeDepartmentId = String(selectedEmployee.departmentMasterId || "").trim();
+      const employeeDesignationId = String(selectedEmployee.designationMasterId || "").trim();
 
+      if (scopeHeadOfficeId && employeeHeadOfficeId !== scopeHeadOfficeId) {
+        showError("Selected employee does not belong to the selected head office");
+        setSaving(false);
+        return;
+      }
+      if (scopeBranchId && employeeBranchId !== scopeBranchId) {
+        showError("Selected employee does not belong to the selected branch");
+        setSaving(false);
+        return;
+      }
+      if (roleRequiresDepartment && scopeDepartmentId && employeeDepartmentId !== scopeDepartmentId) {
+        showError("Selected employee does not belong to the selected department");
+        setSaving(false);
+        return;
+      }
+      if (roleRequiresTeam && scopeDesignationId && employeeDesignationId !== scopeDesignationId) {
+        showError("Selected employee does not belong to the selected designation");
+        setSaving(false);
+        return;
+      }
       const payload = {
-        ...form,
+        employeeId: selectedEmployee.id,
+        username: form.username,
+        firstName: form.firstName,
+        lastName: form.lastName,
+        email: form.email,
         phone: getFormattedPhone(),
         role: String(form.role || "EMPLOYEE").toUpperCase(),
-        institution: selectedInstitution.name,
-        institutionCategory: selectedCategory?.name || "",
-        institutionType: selectedType?.name || "",
-        departmentName: selectedRole === "ADMIN" ? "" : selectedDepartment?.name || "",
-        team: selectedRole === "ADMIN" ? "" : selectedTeam?.name || "",
+        headOfficeId: selectedEmployee.headOfficeId || null,
+        branchId: selectedEmployee.branchId || null,
+        departmentId: selectedEmployee.departmentMasterId || null,
+        designationId: selectedEmployee.designationMasterId || null,
+        institution: selectedEmployee.institution || "",
+        departmentName: selectedEmployee.departmentName || "",
+        team: selectedEmployee.team || "",
+        password: form.password,
+        confirmPassword: form.confirmPassword,
       };
-      if (String(currentUser?.role || "").toUpperCase() === "ADMIN") {
-        if (payload.role === "ADMIN" || payload.role === "SUPER_ADMIN") {
-          payload.role = "EMPLOYEE";
-        }
-        payload.institution = currentUser?.institution || payload.institution;
-      }
-      if (String(currentUser?.role || "").toUpperCase() === "MANAGER") {
-        if (["SUPER_ADMIN", "ADMIN", "MANAGER"].includes(payload.role)) {
-          payload.role = "EMPLOYEE";
-        }
-        payload.institution = currentUser?.institution || payload.institution;
-        payload.departmentName = currentUser?.departmentName || payload.departmentName;
-      }
-      if (String(currentUser?.role || "").toUpperCase() === "TEAM_LEAD") {
-        payload.role = "EMPLOYEE";
-        payload.institution = currentUser?.institution || payload.institution;
-        payload.departmentName = currentUser?.departmentName || payload.departmentName;
-        payload.team = currentUser?.team || payload.team;
-      }
       await createUser(payload);
       showSuccess("User created");
-      closeModal();
-      await loadAvailableEmployees();
+      handleCloseCreate();
       await load();
       await loadPending();
     } catch (e) {
@@ -1114,8 +1219,6 @@ function UseradminPage() {
                         } else {
                           setInstitutionId("");
                         }
-                        setCategoryId("");
-                        setTypeId("");
                         setDepartmentId("");
                         setTeamId("");
                       }}
@@ -1153,8 +1256,8 @@ function UseradminPage() {
                   disabled={
                     currentRole === "MANAGER" ||
                     (currentRole === "SUPER_ADMIN"
-                      ? !filters.institution || !categoryId || !typeId
-                      : !institutionId || !categoryId || !typeId)
+                      ? !filters.institution
+                      : !institutionId)
                   }
                 >
                   <option value="">Select</option>
@@ -1240,16 +1343,14 @@ function UseradminPage() {
             <button
               className="btn btn-outline-secondary"
               onClick={() =>
-                setFilters({
-                  search: "",
-                  role: "",
-                  status: "",
-                  institution: "",
-                  category: "",
-                  type: "",
-                  department: "",
-                  team: "",
-                })
+            setFilters({
+              search: "",
+              role: "",
+              status: "",
+              institution: "",
+              department: "",
+              team: "",
+            })
               }
             >
               Clear Filters
@@ -1665,6 +1766,7 @@ function UseradminPage() {
             wizardStep={wizardStep}
             form={form}
             setForm={setForm}
+            onRoleChange={handleCreateRoleChange}
             phoneCountryCode={phoneCountryCode}
             setPhoneCountryCode={setPhoneCountryCode}
             phoneError={phoneError}
@@ -1674,37 +1776,28 @@ function UseradminPage() {
             COUNTRY_CODE_OPTIONS={COUNTRY_CODE_OPTIONS}
             showCreatePassword={showCreatePassword}
             setShowCreatePassword={setShowCreatePassword}
-            institutionId={institutionId}
-            setInstitutionId={setInstitutionId}
-            departmentId={departmentId}
-            setDepartmentId={setDepartmentId}
-            teamId={teamId}
-            setTeamId={setTeamId}
-            institutions={institutions}
-            departments={departments}
-            teams={teams}
-            categoryId={categoryId}
-            setCategoryId={setCategoryId}
-            typeId={typeId}
-            setTypeId={setTypeId}
-            categories={categories}
-            types={types}
-            orgLoading={orgLoading}
-            currentRole={currentRole}
             allowedAssignRoles={allowedAssignRoles}
+            headOfficeOptions={createHeadOffices}
+            selectedHeadOfficeId={createHeadOfficeId}
+            onHeadOfficeChange={handleCreateHeadOfficeChange}
+            branchOptions={createBranches}
+            departmentOptions={createDepartments}
+            teamOptions={createTeams}
+            selectedBranchId={createBranchId}
+            selectedDepartmentId={createDepartmentId}
+            selectedTeamId={createTeamId}
+            onBranchChange={handleCreateBranchChange}
+            onDepartmentChange={handleCreateDepartmentChange}
+            onTeamChange={handleCreateTeamChange}
             availableEmployees={availableEmployees}
             selectedEmployeeId={selectedEmployeeId}
             handleSelectEmployee={handleSelectEmployee}
-            handleAddInstitution={handleAddInstitution}
-            handleAddDepartment={handleAddDepartment}
-            handleAddTeam={handleAddTeam}
-            roleRequiresTeam={roleRequiresTeam}
-            isAdmin={isAdmin}
-            isManager={isManager}
+            employeeScopeReady={Boolean(createEmployeeScope)}
+            employeeScopeLoading={createEmployeesLoading}
             onNext={nextStep}
             onPrev={prevStep}
             onSubmit={handleSave}
-            onClose={closeModal}
+            onClose={handleCloseCreate}
             saving={saving}
           />
         )}

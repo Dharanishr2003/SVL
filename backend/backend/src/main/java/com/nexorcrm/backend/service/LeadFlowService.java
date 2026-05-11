@@ -4,13 +4,16 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nexorcrm.backend.dto.LeadFlowRequest;
 import com.nexorcrm.backend.dto.LeadFlowResponse;
+import com.nexorcrm.backend.entity.BranchMaster;
 import com.nexorcrm.backend.entity.LeadFlowConfig;
 import com.nexorcrm.backend.entity.Role;
 import com.nexorcrm.backend.entity.User;
 import com.nexorcrm.backend.entity.LeadStatus;
+import com.nexorcrm.backend.repo.BranchMasterRepository;
 import com.nexorcrm.backend.repo.LeadFlowConfigRepository;
 import com.nexorcrm.backend.repo.LeadStatusRepository;
 import com.nexorcrm.backend.repo.UserRepository;
+import com.nexorcrm.backend.repo.UserGroupRepository;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
@@ -41,17 +44,23 @@ public class LeadFlowService {
     private final ObjectMapper objectMapper;
     private final UserRepository userRepository;
     private final LeadStatusRepository leadStatusRepository;
+    private final UserGroupRepository userGroupRepository;
+    private final BranchMasterRepository branchMasterRepository;
 
     public LeadFlowService(LeadFlowConfigRepository leadFlowConfigRepository,
                            ObjectProvider<LeadService> leadServiceProvider,
                            ObjectMapper objectMapper,
                            UserRepository userRepository,
-                           LeadStatusRepository leadStatusRepository) {
+                           LeadStatusRepository leadStatusRepository,
+                           UserGroupRepository userGroupRepository,
+                           BranchMasterRepository branchMasterRepository) {
         this.leadFlowConfigRepository = leadFlowConfigRepository;
         this.leadServiceProvider = leadServiceProvider;
         this.objectMapper = objectMapper;
         this.userRepository = userRepository;
         this.leadStatusRepository = leadStatusRepository;
+        this.userGroupRepository = userGroupRepository;
+        this.branchMasterRepository = branchMasterRepository;
     }
 
     @Transactional(readOnly = true)
@@ -60,21 +69,21 @@ public class LeadFlowService {
     }
 
     @Transactional(readOnly = true)
-    public LeadFlowResponse getFlow(String actorPrincipal, String institutionName) {
+    public LeadFlowResponse getFlow(String actorPrincipal, Long branchId, String institutionName) {
         User actor = resolveActor(actorPrincipal);
-        Scope scope = resolveScope(actor, institutionName);
+        Scope scope = resolveScope(actor, branchId, institutionName);
         return toResponse(loadConfig(), scope);
     }
 
     @Transactional(readOnly = true)
     public LeadFlowResponse getFlowForActor(User actor) {
-        Scope scope = resolveScope(actor, null);
+        Scope scope = resolveScope(actor, null, null);
         return toResponse(loadConfig(), scope);
     }
 
     @Transactional(readOnly = true)
     public LeadFlowResponse getFlowForScope(String institutionName) {
-        Scope scope = resolveScope(null, institutionName);
+        Scope scope = resolveScope(null, null, institutionName);
         return toResponse(loadConfig(), scope);
     }
 
@@ -83,10 +92,22 @@ public class LeadFlowService {
         return getFlowForActor(actor).getRules();
     }
 
+    @Transactional(readOnly = true)
+    public List<Map<String, Object>> getFlowGroups() {
+        return userGroupRepository.findAllByOrderByNameAsc().stream()
+                .map(group -> {
+                    Map<String, Object> row = new LinkedHashMap<>();
+                    row.put("id", group.getId());
+                    row.put("name", group.getName());
+                    return row;
+                })
+                .toList();
+    }
+
     @Transactional
     public LeadFlowResponse updateFlow(LeadFlowRequest request, String actorPrincipal) {
         User actor = resolveActor(actorPrincipal);
-        Scope scope = resolveScope(actor, request.getInstitutionName());
+        Scope scope = resolveScope(actor, request.getBranchId(), request.getInstitutionName());
         LeadFlowConfig config = loadConfig();
         if (scope.isGlobal()) {
             config.setDefaultGroupId(request.getDefaultGroupId());
@@ -150,9 +171,17 @@ public class LeadFlowService {
                 .orElseThrow(() -> new EntityNotFoundException("Actor not found"));
     }
 
-    private Scope resolveScope(User actor, String institutionName) {
+    private Scope resolveScope(User actor, Long branchId, String institutionName) {
+        if (branchId != null) {
+            BranchMaster branch = branchMasterRepository.findByIdAndDeletedFalse(branchId)
+                    .orElseThrow(() -> new EntityNotFoundException("Branch not found"));
+            return new Scope(branch.getId(), normalize(branch.getName()));
+        }
         if (StringUtils.hasText(institutionName)) {
-            return new Scope(normalize(institutionName));
+            String normalizedInstitutionName = normalize(institutionName);
+            BranchMaster branch = branchMasterRepository.findFirstByNameIgnoreCaseAndDeletedFalseOrderByIdAsc(normalizedInstitutionName)
+                    .orElse(null);
+            return new Scope(branch == null ? null : branch.getId(), normalizedInstitutionName);
         }
         if (actor == null) {
             return Scope.global();
@@ -172,6 +201,7 @@ public class LeadFlowService {
                 : resolveScopedState(loadScopedFlows(config), scope);
 
         LeadFlowResponse response = new LeadFlowResponse();
+        response.setBranchId(scope.isGlobal() ? null : scope.branchId);
         response.setInstitutionName(scope.isGlobal() ? null : scope.institutionName);
         if (state != null) {
             response.setDefaultGroupId(state.defaultGroupId);
@@ -289,6 +319,12 @@ public class LeadFlowService {
         if (exact != null) {
             return exact;
         }
+        if (scope.branchId != null && StringUtils.hasText(scope.institutionName)) {
+            ScopedFlowState legacyByName = scopedFlows.get(scope.institutionName.toLowerCase(Locale.ROOT));
+            if (legacyByName != null) {
+                return legacyByName;
+            }
+        }
         String branchPrefix = scope.keyPrefix();
         if (!StringUtils.hasText(branchPrefix)) {
             return null;
@@ -302,14 +338,16 @@ public class LeadFlowService {
     }
 
     private static final class Scope {
+        private final Long branchId;
         private final String institutionName;
 
-        private Scope(String institutionName) {
+        private Scope(Long branchId, String institutionName) {
+            this.branchId = branchId;
             this.institutionName = institutionName;
         }
 
         static Scope global() {
-            return new Scope(null);
+            return new Scope(null, null);
         }
 
         static Scope fromUser(User user) {
@@ -320,7 +358,7 @@ public class LeadFlowService {
             if (!StringUtils.hasText(institution)) {
                 return global();
             }
-            return new Scope(institution);
+            return new Scope(null, institution);
         }
 
         boolean isGlobal() {
@@ -331,12 +369,18 @@ public class LeadFlowService {
             if (isGlobal()) {
                 return GLOBAL_SCOPE_KEY;
             }
+            if (branchId != null) {
+                return "branch:" + branchId;
+            }
             return institutionName.toLowerCase(Locale.ROOT);
         }
 
         String keyPrefix() {
             if (isGlobal()) {
                 return GLOBAL_SCOPE_KEY;
+            }
+            if (branchId != null) {
+                return "branch:" + branchId;
             }
             return institutionName.toLowerCase(Locale.ROOT);
         }

@@ -5,7 +5,8 @@ export default function EditGroupModal({
   onFormChange,
   editScope,
   onScopeChange,
-  institutions,
+  headOffices,
+  branches,
   departments,
   teams,
   orgLoading,
@@ -18,9 +19,19 @@ export default function EditGroupModal({
 }) {
   if (!show) return null;
 
-  const handleBranchChange = (institutionId) => {
+  const handleHeadOfficeChange = (headOfficeId) => {
     onScopeChange({
-      institutionId,
+      headOfficeId,
+      branchId: "",
+      departmentId: "",
+      teamIds: [],
+    });
+  };
+
+  const handleBranchChange = (branchId) => {
+    onScopeChange({
+      ...editScope,
+      branchId,
       departmentId: "",
       teamIds: [],
     });
@@ -74,16 +85,34 @@ export default function EditGroupModal({
               </div>
 
               <div className="mb-3">
+                <label className="form-label">Head Office *</label>
+                <select
+                  className="form-select"
+                  style={{ borderRadius: "1.5rem", border: "1px solid #d0d5dd", padding: "0.6rem 1rem", fontSize: "0.95rem" }}
+                  value={editScope.headOfficeId || ""}
+                  onChange={(e) => handleHeadOfficeChange(e.target.value)}
+                  disabled={orgLoading || isAdmin || isManager || isTeamLead || saving}
+                >
+                  <option value="">Select Head Office</option>
+                  {headOffices.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="mb-3">
                 <label className="form-label">Branch *</label>
                 <select
                   className="form-select"
                   style={{ borderRadius: "1.5rem", border: "1px solid #d0d5dd", padding: "0.6rem 1rem", fontSize: "0.95rem" }}
-                  value={editScope.institutionId || ""}
+                  value={editScope.branchId || ""}
                   onChange={(e) => handleBranchChange(e.target.value)}
-                  disabled={orgLoading || isAdmin || isManager || isTeamLead || saving}
+                  disabled={orgLoading || !editScope.headOfficeId || saving}
                 >
                   <option value="">Select Branch</option>
-                  {institutions.map((item) => (
+                  {branches.map((item) => (
                     <option key={item.id} value={item.id}>
                       {item.name}
                     </option>
@@ -98,7 +127,7 @@ export default function EditGroupModal({
                   style={{ borderRadius: "1.5rem", border: "1px solid #d0d5dd", padding: "0.6rem 1rem", fontSize: "0.95rem" }}
                   value={editScope.departmentId || ""}
                   onChange={(e) => handleDepartmentChange(e.target.value)}
-                  disabled={orgLoading || !editScope.institutionId || saving}
+                  disabled={orgLoading || !editScope.branchId || saving}
                 >
                   <option value="">Select Department (Optional)</option>
                   {departments.map((item) => (
@@ -111,7 +140,7 @@ export default function EditGroupModal({
 
               {editScope.departmentId && teams.length > 0 && (
                 <div className="mb-3">
-                  <label className="form-label">Teams</label>
+                  <label className="form-label">Designations</label>
                   <div className="d-flex flex-wrap gap-2">
                     {teams.map((team) => (
                       <label key={team.id} className="form-check">
@@ -141,7 +170,7 @@ export default function EditGroupModal({
               <button
                 className="btn btn-primary"
                 onClick={onSubmit}
-                disabled={saving || !form.name.trim() || !editScope.institutionId}
+                disabled={saving || !form.name.trim() || !editScope.headOfficeId || !editScope.branchId}
               >
                 {saving ? "Updating..." : "Update Group"}
               </button>

@@ -8,6 +8,7 @@ import {
 } from "../../api/attendanceApi";
 import { useToast } from "../../components/system/ToastProvider";
 import { extractApiErrorMessage } from "../../utils/errorMessage";
+import "../../../public/assets/css/addModalShared.css";
 
 const EMPTY_FORM = {
   shiftId: "",
@@ -98,12 +99,16 @@ export default function ShiftAssignmentPage() {
       showError("Please select a shift.");
       return;
     }
+    if (!form.locationId) {
+      showError("Please select a location.");
+      return;
+    }
     setSaving(true);
     try {
       await assignShift({
         employeeId: selectedEmp.id,
         shiftId: Number(form.shiftId),
-        locationId: form.locationId ? Number(form.locationId) : null,
+        locationId: Number(form.locationId),
         effectiveFrom: form.effectiveFrom || null,
         effectiveTo: form.effectiveTo || null,
       });
@@ -251,32 +256,22 @@ export default function ShiftAssignmentPage() {
 
       {/* ── Assign Shift Modal ── */}
       {showModal && selectedEmp && (
-        <>
-          <div
-            className="modal fade show"
-            style={{ display: "block" }}
-            tabIndex="-1"
-          >
-            <div className="modal-dialog modal-dialog-centered">
-              <form className="modal-content" onSubmit={handleSubmit}>
-                <div className="modal-header">
-                  <h5 className="modal-title">
-                    Assign Shift — {selectedEmp.name}
-                  </h5>
-                  <button
-                    type="button"
-                    className="btn-close"
-                    onClick={() => setShowModal(false)}
-                  />
-                </div>
-                <div className="modal-body">
-                  <div className="row g-3">
-                    <div className="col-12">
-                      <label className="form-label">
-                        Shift <span className="text-danger">*</span>
-                      </label>
+        <div className="avm-backdrop" role="presentation">
+          <div className="avm-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+            <div className="avm-modal-header">
+              <h2 className="avm-modal-title">Assign Shift - {selectedEmp.name}</h2>
+              <button type="button" className="avm-modal-close" onClick={() => setShowModal(false)} aria-label="Close">
+                x
+              </button>
+            </div>
+            <form onSubmit={handleSubmit}>
+              <div className="avm-body">
+                <div className="row g-3">
+                  <div className="col-12">
+                    <div className="avm-field">
+                      <label className="avm-label">Shift <span className="text-danger">*</span></label>
                       <select
-                        className="form-select"
+                        className="avm-select"
                         value={form.shiftId}
                         onChange={(e) => setForm({ ...form, shiftId: e.target.value })}
                         required
@@ -286,22 +281,23 @@ export default function ShiftAssignmentPage() {
                           <option key={s.id} value={s.id}>
                             {s.name}
                             {s.startTime && s.endTime
-                              ? ` (${fmtTime(s.startTime)} – ${fmtTime(s.endTime)})`
+                              ? ` (${fmtTime(s.startTime)} - ${fmtTime(s.endTime)})`
                               : ""}
                           </option>
                         ))}
                       </select>
                     </div>
-                    <div className="col-12">
-                      <label className="form-label">Location (optional)</label>
+                  </div>
+                  <div className="col-12">
+                    <div className="avm-field">
+                      <label className="avm-label">Location <span className="text-danger">*</span></label>
                       <select
-                        className="form-select"
+                        className="avm-select"
                         value={form.locationId}
-                        onChange={(e) =>
-                          setForm({ ...form, locationId: e.target.value })
-                        }
+                        onChange={(e) => setForm({ ...form, locationId: e.target.value })}
+                        required
                       >
-                        <option value="">No specific location</option>
+                        <option value="">Select location</option>
                         {locations.map((l) => (
                           <option key={l.id} value={l.id}>
                             {l.name}
@@ -309,83 +305,49 @@ export default function ShiftAssignmentPage() {
                         ))}
                       </select>
                     </div>
-                    <div className="col-md-6">
-                      <label className="form-label">Effective From</label>
+                  </div>
+                  <div className="col-md-6">
+                    <div className="avm-field">
+                      <label className="avm-label">Effective From</label>
                       <input
                         type="date"
-                        className="form-control"
+                        className="avm-input"
                         value={form.effectiveFrom}
-                        onChange={(e) =>
-                          setForm({ ...form, effectiveFrom: e.target.value })
-                        }
-                      />
-                    </div>
-                    <div className="col-md-6">
-                      <label className="form-label">
-                        Effective To{" "}
-                        <small className="text-muted">(leave blank = indefinite)</small>
-                      </label>
-                      <input
-                        type="date"
-                        className="form-control"
-                        value={form.effectiveTo}
-                        min={form.effectiveFrom}
-                        onChange={(e) =>
-                          setForm({ ...form, effectiveTo: e.target.value })
-                        }
+                        onChange={(e) => setForm({ ...form, effectiveFrom: e.target.value })}
                       />
                     </div>
                   </div>
-
-                  {/* existing assignments for this employee */}
-                  {(assignmentsCache[selectedEmp.id] || []).length > 0 && (
-                    <div className="mt-3">
-                      <p className="text-muted small mb-1 fw-semibold">Existing assignments:</p>
-                      <div className="list-group list-group-flush">
-                        {(assignmentsCache[selectedEmp.id] || []).map((a) => (
-                          <div
-                            key={a.id}
-                            className="list-group-item list-group-item-action py-1 px-2 small"
-                          >
-                            <span className="fw-semibold">{a.shiftName || `Shift #${a.shiftId}`}</span>
-                            {a.shiftStartTime && (
-                              <span className="text-muted ms-1">
-                                ({fmtTime(a.shiftStartTime)}–{fmtTime(a.shiftEndTime)})
-                              </span>
-                            )}
-                            <span className="text-muted ms-2">
-                              {a.effectiveFrom} → {a.effectiveTo || "ongoing"}
-                            </span>
-                            {a.locationName && (
-                              <span className="ms-2 text-info">{a.locationName}</span>
-                            )}
-                          </div>
-                        ))}
-                      </div>
+                  <div className="col-md-6">
+                    <div className="avm-field">
+                      <label className="avm-label">
+                        Effective To <small className="text-muted">(leave blank = indefinite)</small>
+                      </label>
+                      <input
+                        type="date"
+                        className="avm-input"
+                        value={form.effectiveTo}
+                        min={form.effectiveFrom}
+                        onChange={(e) => setForm({ ...form, effectiveTo: e.target.value })}
+                      />
                     </div>
-                  )}
+                  </div>
                 </div>
-                <div className="modal-footer">
-                  <button
-                    type="button"
-                    className="btn btn-light"
-                    onClick={() => setShowModal(false)}
-                  >
+
+              </div>
+              <div className="avm-footer">
+                <div></div>
+                <div className="avm-footer-right">
+                  <button type="button" className="avm-btn light" onClick={() => setShowModal(false)}>
                     Cancel
                   </button>
-                  <button
-                    type="submit"
-                    className="btn btn-primary"
-                    disabled={saving}
-                  >
+                  <button type="submit" className="avm-btn primary" disabled={saving}>
                     {saving ? "Saving..." : "Assign Shift"}
                   </button>
                 </div>
-              </form>
-            </div>
+              </div>
+            </form>
           </div>
-          <div className="modal-backdrop fade show" />
-        </>
+        </div>
       )}
     </div>
   );

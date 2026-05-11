@@ -6,9 +6,14 @@ function normalizeGroup(row) {
     name: row?.name || '',
     members: Number(row?.members ?? 0),
     canDelete: Boolean(row?.canDelete),
+    headOfficeId: row?.headOfficeId ?? null,
+    branchId: row?.branchId ?? null,
+    departmentId: row?.departmentId ?? null,
+    departmentIds: Array.isArray(row?.departmentIds) ? row.departmentIds : [],
     branchName: row?.branchName || row?.institutionName || '',
     institutionName: row?.institutionName || '',
     departmentName: row?.departmentName || '',
+    departmentNames: Array.isArray(row?.departmentNames) ? row.departmentNames : [],
     teamNames: Array.isArray(row?.teamNames) ? row.teamNames : [],
     pageKeys: Array.isArray(row?.pageKeys) ? row.pageKeys : [],
     memberScope: row?.memberScope || 'NONE',
@@ -24,6 +29,10 @@ export async function getUserGroups() {
 export async function createUserGroup(payload) {
   const response = await api.post('/api/user-groups', {
     name: payload?.name,
+    headOfficeId: payload?.headOfficeId ?? null,
+    branchId: payload?.branchId ?? null,
+    departmentId: payload?.departmentId ?? null,
+    departmentIds: Array.isArray(payload?.departmentIds) ? payload.departmentIds : [],
     institutionName: payload?.institutionName || payload?.branchName,
     departmentName: payload?.departmentName,
     teamNames: Array.isArray(payload?.teamNames) ? payload.teamNames : [],
@@ -36,6 +45,10 @@ export async function createUserGroup(payload) {
 export async function updateUserGroup(groupId, payload) {
   const response = await api.put(`/api/user-groups/${groupId}`, {
     name: payload?.name,
+    headOfficeId: payload?.headOfficeId ?? null,
+    branchId: payload?.branchId ?? null,
+    departmentId: payload?.departmentId ?? null,
+    departmentIds: Array.isArray(payload?.departmentIds) ? payload.departmentIds : [],
     institutionName: payload?.institutionName || payload?.branchName,
     departmentName: payload?.departmentName,
     teamNames: Array.isArray(payload?.teamNames) ? payload.teamNames : [],

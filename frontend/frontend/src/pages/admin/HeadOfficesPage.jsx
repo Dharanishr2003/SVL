@@ -8,6 +8,7 @@ import {
 } from "../../api/headOfficesApi";
 import { extractApiErrorMessage } from "../../utils/errorMessage";
 import { useToast } from "../../components/system/ToastProvider";
+import "../../../public/assets/css/addModalShared.css";
 
 const initialForm = {
   name: "",
@@ -15,17 +16,187 @@ const initialForm = {
   status: "ACTIVE",
 };
 
+function AddHeadOfficeModal({ form, saving, onClose, onSubmit, onFormChange }) {
+  return (
+    <div className="avm-backdrop" role="presentation">
+      <div className="avm-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+        <div className="avm-modal-header">
+          <h2 className="avm-modal-title">Add Head Office</h2>
+          <button type="button" className="avm-modal-close" onClick={onClose} aria-label="Close">
+            ×
+          </button>
+        </div>
+        <form onSubmit={onSubmit}>
+          <div className="avm-body">
+            <div className="row g-3">
+              <div className="col-md-12">
+                <div className="avm-field">
+                  <label className="avm-label">
+                    Head Office Name <span className="req">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    className="avm-input"
+                    value={form.name}
+                    onChange={(e) => onFormChange((prev) => ({ ...prev, name: e.target.value }))}
+                    required
+                  />
+                </div>
+              </div>
+              <div className="col-md-12">
+                <div className="avm-field">
+                  <label className="avm-label">Location</label>
+                  <input
+                    type="text"
+                    className="avm-input"
+                    value={form.location}
+                    onChange={(e) => onFormChange((prev) => ({ ...prev, location: e.target.value }))}
+                  />
+                </div>
+              </div>
+              <div className="col-md-12">
+                <div className="avm-field">
+                  <label className="avm-label">Status</label>
+                  <select
+                    className="avm-select"
+                    value={form.status}
+                    onChange={(e) => onFormChange((prev) => ({ ...prev, status: e.target.value }))}
+                  >
+                    <option value="ACTIVE">Active</option>
+                    <option value="INACTIVE">Inactive</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="avm-footer">
+            <div />
+            <div className="avm-footer-right">
+              <button type="button" className="avm-btn light" onClick={onClose} disabled={saving}>
+                Cancel
+              </button>
+              <button type="submit" className="avm-btn primary" disabled={saving}>
+                {saving ? "Adding..." : "Add Head Office"}
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function EditHeadOfficeModal({ form, saving, onClose, onSubmit, onFormChange }) {
+  return (
+    <div className="avm-backdrop" role="presentation">
+      <div className="avm-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+        <div className="avm-modal-header">
+          <h2 className="avm-modal-title">Edit Head Office</h2>
+          <button type="button" className="avm-modal-close" onClick={onClose} aria-label="Close">
+            ×
+          </button>
+        </div>
+        <form onSubmit={onSubmit}>
+          <div className="avm-body">
+            <div className="row g-3">
+              <div className="col-md-12">
+                <div className="avm-field">
+                  <label className="avm-label">
+                    Head Office Name <span className="req">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    className="avm-input"
+                    value={form.name}
+                    onChange={(e) => onFormChange((prev) => ({ ...prev, name: e.target.value }))}
+                    required
+                  />
+                </div>
+              </div>
+              <div className="col-md-12">
+                <div className="avm-field">
+                  <label className="avm-label">Location</label>
+                  <input
+                    type="text"
+                    className="avm-input"
+                    value={form.location}
+                    onChange={(e) => onFormChange((prev) => ({ ...prev, location: e.target.value }))}
+                  />
+                </div>
+              </div>
+              <div className="col-md-12">
+                <div className="avm-field">
+                  <label className="avm-label">Status</label>
+                  <select
+                    className="avm-select"
+                    value={form.status}
+                    onChange={(e) => onFormChange((prev) => ({ ...prev, status: e.target.value }))}
+                  >
+                    <option value="ACTIVE">Active</option>
+                    <option value="INACTIVE">Inactive</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="avm-footer">
+            <div />
+            <div className="avm-footer-right">
+              <button type="button" className="avm-btn light" onClick={onClose} disabled={saving}>
+                Cancel
+              </button>
+              <button type="submit" className="avm-btn primary" disabled={saving}>
+                {saving ? "Saving..." : "Save Changes"}
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function DeleteHeadOfficeModal({ deleteTarget, saving, onClose, onDelete }) {
+  return (
+    <div className="avm-backdrop" role="presentation">
+      <div className="avm-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+        <div className="avm-modal-header">
+          <h2 className="avm-modal-title">Confirm Delete</h2>
+          <button type="button" className="avm-modal-close" onClick={onClose} aria-label="Close">
+            ×
+          </button>
+        </div>
+        <div className="avm-body">
+          <p>
+            Are you sure you want to delete{" "}
+            {deleteTarget?.name ? `"${deleteTarget.name}"` : "this head office"}?
+          </p>
+        </div>
+        <div className="avm-footer">
+          <div />
+          <div className="avm-footer-right">
+            <button type="button" className="avm-btn light" onClick={onClose} disabled={saving}>
+              Cancel
+            </button>
+            <button type="button" className="avm-btn primary" onClick={onDelete} disabled={saving}>
+              {saving ? "Deleting..." : "Delete"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function HeadOfficesPage() {
   const { showSuccess, showError } = useToast();
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-
   const [form, setForm] = useState(initialForm);
   const [editForm, setEditForm] = useState(initialForm);
   const [selectedId, setSelectedId] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
-
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -155,11 +326,7 @@ export default function HeadOfficesPage() {
             </nav>
           </div>
           <div className="d-flex align-items-center">
-            <button
-              type="button"
-              className="btn btn-primary"
-              onClick={() => setShowAddModal(true)}
-            >
+            <button type="button" className="btn btn-primary" onClick={() => setShowAddModal(true)}>
               Add Head Office
             </button>
           </div>
@@ -231,195 +398,30 @@ export default function HeadOfficesPage() {
       </div>
 
       {showAddModal && (
-        <>
-          <div className="modal fade show" style={{ display: "block" }} tabIndex="-1">
-            <div className="modal-dialog modal-dialog-centered modal-md">
-              <div className="modal-content">
-                <div className="modal-header">
-                  <h4 className="modal-title">Add Head Office</h4>
-                  <button
-                    type="button"
-                    className="btn-close custom-btn-close"
-                    onClick={() => setShowAddModal(false)}
-                  />
-                </div>
-                <form onSubmit={handleAdd}>
-                  <div className="modal-body pb-0">
-                    <div className="row">
-                      <div className="col-md-12">
-                        <div className="mb-3">
-                          <label className="form-label">Head Office Name</label>
-                          <input
-                            type="text"
-                            className="form-control"
-                            value={form.name}
-                            onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
-                          />
-                        </div>
-                      </div>
-                      <div className="col-md-12">
-                        <div className="mb-3">
-                          <label className="form-label">Location</label>
-                          <input
-                            type="text"
-                            className="form-control"
-                            value={form.location}
-                            onChange={(e) => setForm((prev) => ({ ...prev, location: e.target.value }))}
-                          />
-                        </div>
-                      </div>
-                      <div className="col-md-12">
-                        <div className="mb-3">
-                          <label className="form-label">Status</label>
-                          <select
-                            className="form-select"
-                            value={form.status}
-                            onChange={(e) =>
-                              setForm((prev) => ({ ...prev, status: e.target.value }))
-                            }
-                          >
-                            <option value="ACTIVE">Active</option>
-                            <option value="INACTIVE">Inactive</option>
-                          </select>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="modal-footer">
-                    <button
-                      type="button"
-                      className="btn btn-light me-2"
-                      onClick={() => setShowAddModal(false)}
-                    >
-                      Cancel
-                    </button>
-                    <button type="submit" className="btn btn-primary" disabled={saving}>
-                      {saving ? "Adding..." : "Add Head Office"}
-                    </button>
-                  </div>
-                </form>
-              </div>
-            </div>
-          </div>
-          <div className="modal-backdrop fade show" />
-        </>
+        <AddHeadOfficeModal
+          form={form}
+          saving={saving}
+          onClose={() => setShowAddModal(false)}
+          onSubmit={handleAdd}
+          onFormChange={setForm}
+        />
       )}
-
       {showEditModal && (
-        <>
-          <div className="modal fade show" style={{ display: "block" }} tabIndex="-1">
-            <div className="modal-dialog modal-dialog-centered modal-md">
-              <div className="modal-content">
-                <div className="modal-header">
-                  <h4 className="modal-title">Edit Head Office</h4>
-                  <button
-                    type="button"
-                    className="btn-close custom-btn-close"
-                    onClick={() => setShowEditModal(false)}
-                  />
-                </div>
-                <form onSubmit={handleEdit}>
-                  <div className="modal-body pb-0">
-                    <div className="row">
-                      <div className="col-md-12">
-                        <div className="mb-3">
-                          <label className="form-label">Head Office Name</label>
-                          <input
-                            type="text"
-                            className="form-control"
-                            value={editForm.name}
-                            onChange={(e) =>
-                              setEditForm((prev) => ({ ...prev, name: e.target.value }))
-                            }
-                          />
-                        </div>
-                      </div>
-                      <div className="col-md-12">
-                        <div className="mb-3">
-                          <label className="form-label">Location</label>
-                          <input
-                            type="text"
-                            className="form-control"
-                            value={editForm.location}
-                            onChange={(e) =>
-                              setEditForm((prev) => ({ ...prev, location: e.target.value }))
-                            }
-                          />
-                        </div>
-                      </div>
-                      <div className="col-md-12">
-                        <div className="mb-3">
-                          <label className="form-label">Status</label>
-                          <select
-                            className="form-select"
-                            value={editForm.status}
-                            onChange={(e) =>
-                              setEditForm((prev) => ({ ...prev, status: e.target.value }))
-                            }
-                          >
-                            <option value="ACTIVE">Active</option>
-                            <option value="INACTIVE">Inactive</option>
-                          </select>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="modal-footer">
-                    <button
-                      type="button"
-                      className="btn btn-light me-2"
-                      onClick={() => setShowEditModal(false)}
-                    >
-                      Cancel
-                    </button>
-                    <button type="submit" className="btn btn-primary" disabled={saving}>
-                      {saving ? "Saving..." : "Save Changes"}
-                    </button>
-                  </div>
-                </form>
-              </div>
-            </div>
-          </div>
-          <div className="modal-backdrop fade show" />
-        </>
+        <EditHeadOfficeModal
+          form={editForm}
+          saving={saving}
+          onClose={() => setShowEditModal(false)}
+          onSubmit={handleEdit}
+          onFormChange={setEditForm}
+        />
       )}
-
       {showDeleteModal && (
-        <>
-          <div className="modal fade show" style={{ display: "block" }} tabIndex="-1">
-            <div className="modal-dialog modal-dialog-centered">
-              <div className="modal-content">
-                <div className="modal-header">
-                  <h4 className="modal-title">Confirm Delete</h4>
-                  <button
-                    type="button"
-                    className="btn-close custom-btn-close"
-                    onClick={() => setShowDeleteModal(false)}
-                  />
-                </div>
-                <div className="modal-body">
-                  <p>
-                    Are you sure you want to delete
-                    {deleteTarget?.name ? ` \"${deleteTarget.name}\"` : " this head office"}?
-                  </p>
-                </div>
-                <div className="modal-footer">
-                  <button
-                    type="button"
-                    className="btn btn-light me-2"
-                    onClick={() => setShowDeleteModal(false)}
-                  >
-                    Cancel
-                  </button>
-                  <button type="button" className="btn btn-danger" onClick={handleDelete} disabled={saving}>
-                    {saving ? "Deleting..." : "Delete"}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div className="modal-backdrop fade show" />
-        </>
+        <DeleteHeadOfficeModal
+          deleteTarget={deleteTarget}
+          saving={saving}
+          onClose={() => setShowDeleteModal(false)}
+          onDelete={handleDelete}
+        />
       )}
     </>
   );

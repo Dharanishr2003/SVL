@@ -8,17 +8,13 @@ const EMPTY_FORM = {
   lastName: "",
   phone: "",
   role: "EMPLOYEE",
-  institution: "",
-  institutionCategory: "",
-  institutionType: "",
-  departmentName: "",
-  team: "",
   password: "",
   newPassword: "",
   confirmPassword: "",
 };
 
 export const useCreateUserWizard = () => {
+  const MAX_WIZARD_STEP = 3;
   const [form, setForm] = useState(EMPTY_FORM);
   const [wizardStep, setWizardStep] = useState(0);
   const [phoneCountryCode, setPhoneCountryCode] = useState(defaultCountryOption?.value || "+91");
@@ -86,7 +82,7 @@ export const useCreateUserWizard = () => {
 
   // Navigate to next step
   const nextStep = () => {
-    if (wizardStep < 2) {
+    if (wizardStep < MAX_WIZARD_STEP) {
       setWizardStep((prev) => prev + 1);
     }
   };

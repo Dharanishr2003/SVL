@@ -1,6 +1,7 @@
 ﻿import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import * as attendanceApi from '../../api/attendanceApi';
+import "../../../public/assets/css/addModalShared.css";
 
 function fmtTime(dt) {
   if (!dt) return '-';
@@ -125,7 +126,7 @@ const AttendanceAdminPage = () => {
           </div>
         </div>
 
-        <div className="card mb-4">
+        <div className="card mb-4 wf-form-panel">
           <div className="card-body">
             <div className="row g-3">
               <div className="col-lg-3">
@@ -147,7 +148,7 @@ const AttendanceAdminPage = () => {
           </div>
         </div>
 
-        <div className="card">
+        <div className="card wf-form-panel">
           <div className="table-responsive">
             {loading ? (
               <div className="text-center py-5"><div className="spinner-border text-primary" role="status"><span className="visually-hidden">Loading...</span></div></div>

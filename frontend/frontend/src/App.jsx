@@ -69,11 +69,14 @@ const publicRoutePaths = new Set([
 ]);
 
 const adminOnlyPaths = new Set([
-  "group-access",
   "useradmin",
   "user-edit/:id",
+  "page-access",
+  "group-access",
   "usergroups",
   "usergroups/edit/:id",
+  "department-permissions",
+  "designation-permissions",
   "registration",
   "security",
   "security-settings",

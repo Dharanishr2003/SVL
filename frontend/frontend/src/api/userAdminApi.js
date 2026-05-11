@@ -112,17 +112,17 @@ export async function createUser(payload) {
   const firstName = payload?.firstName ?? ''
   const lastName = payload?.lastName ?? ''
   const response = await api.post('/api/users', {
-    institution: payload?.institution || payload?.branch,
+    employeeId: payload?.employeeId ?? null,
+    institution: payload?.institution,
     departmentName: payload?.departmentName,
     team: payload?.team,
     role: payload?.role,
     username: payload?.username,
     firstName,
     lastName,
-    first_name: firstName,
-    last_name: lastName,
     email: payload?.email,
     password: payload?.password,
+    confirmPassword: payload?.confirmPassword,
   })
   return normalizeUser(response?.data || {})
 }

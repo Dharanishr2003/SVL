@@ -2,9 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import PageHeader from "../../components/admin/PageHeader";
 import PageLoader from "../../components/common/PageLoader";
 import { extractApiErrorMessage } from "../../utils/errorMessage";
-import { getAssignableLeadGroups } from "../../api/leadsApi";
-import { getLeadFlow, updateLeadFlow } from "../../api/flowApi";
-import { getInstitutions, getUserOrgSelection } from "../../api/orgHierarchyApi";
+import { getFlowGroups, getLeadFlow, updateLeadFlow } from "../../api/flowApi";
+import { getUserOrgSelection } from "../../api/orgHierarchyApi";
+import { getBranches } from "../../api/branchesApi";
 import { useAuth } from "../../context/AuthContext";
 import { LEAD_FLOW_STATUSES, DEAL_FLOW_STATUSES } from "../../constants/leadFlowStatuses";
 import FlowTabComponent from "../../components/admin/FlowTabComponent";
@@ -28,23 +28,24 @@ export default function FlowPage() {
   const [loading, setLoading] = useState(true);
   const [initializingScope, setInitializingScope] = useState(true);
   const [groups, setGroups] = useState([]);
-  const [institutions, setInstitutions] = useState([]);
-  const [selectedInstitutionId, setSelectedInstitutionId] = useState("");
+  const [branches, setBranches] = useState([]);
+  const [selectedBranchId, setSelectedBranchId] = useState("");
   const [leadStatuses, setLeadStatuses] = useState(LEAD_FLOW_STATUSES);
   const leadAvailableStatuses = useMemo(
     () => Array.from(new Set([...LEAD_FLOW_STATUSES, ...DEAL_FLOW_STATUSES])),
     [],
   );
 
-  const selectedInstitution = useMemo(
-    () => findById(institutions, selectedInstitutionId),
-    [institutions, selectedInstitutionId],
+  const selectedBranch = useMemo(
+    () => findById(branches, selectedBranchId),
+    [branches, selectedBranchId],
   );
   const currentScope = useMemo(
     () => ({
-      institutionName: selectedInstitution?.name || "",
+      branchId: selectedBranch?.id || null,
+      institutionName: selectedBranch?.name || "",
     }),
-    [selectedInstitution?.name],
+    [selectedBranch?.id, selectedBranch?.name],
   );
   const scopeKey = useMemo(() => normalize(currentScope.institutionName), [currentScope.institutionName]);
 
@@ -53,16 +54,16 @@ export default function FlowPage() {
     const loadInitial = async () => {
       setLoading(true);
       try {
-        const [institutionRows, groupRows, orgSelection] = await Promise.all([
-          getInstitutions(),
-          getAssignableLeadGroups(),
+        const [branchRows, groupRows, orgSelection] = await Promise.all([
+          getBranches(),
+          getFlowGroups(),
           user?.id ? getUserOrgSelection(user.id) : Promise.resolve(null),
         ]);
         if (!active) return;
 
-        const safeInstitutions = Array.isArray(institutionRows) ? institutionRows : [];
+        const safeBranches = Array.isArray(branchRows) ? branchRows : [];
         const safeGroups = Array.isArray(groupRows) ? groupRows : [];
-        setInstitutions(safeInstitutions);
+        setBranches(safeBranches);
         setGroups(safeGroups);
 
         const currentInstitutionName =
@@ -71,14 +72,14 @@ export default function FlowPage() {
           user?.institution ||
           "";
 
-        const institutionMatch =
-          findByName(safeInstitutions, currentInstitutionName) || safeInstitutions[0] || null;
-        setSelectedInstitutionId(institutionMatch?.id ? String(institutionMatch.id) : "");
+        const branchMatch =
+          findByName(safeBranches, currentInstitutionName) || safeBranches[0] || null;
+        setSelectedBranchId(branchMatch?.id ? String(branchMatch.id) : "");
       } catch (err) {
         if (active) {
           console.error("Failed to load flow data:", err);
           setGroups([]);
-          setInstitutions([]);
+          setBranches([]);
         }
       } finally {
         if (active) {
@@ -97,7 +98,7 @@ export default function FlowPage() {
     let active = true;
     const loadFlow = async () => {
       if (initializingScope) return;
-      if (canEdit && !selectedInstitutionId) {
+      if (canEdit && !selectedBranchId) {
         return;
       }
       try {
@@ -121,15 +122,6 @@ export default function FlowPage() {
     };
   }, [currentScope.institutionName, initializingScope, scopeKey]);
 
-  const filteredGroups = useMemo(() => {
-    const institution = normalize(currentScope.institutionName);
-    return groups.filter((group) => {
-      if (!group?.id || !group?.name) return false;
-      if (!institution) return true;
-      return normalize(group.institutionName) === institution;
-    });
-  }, [currentScope.institutionName, groups]);
-
   if (loading) return <PageLoader />;
 
   return (
@@ -150,16 +142,16 @@ export default function FlowPage() {
                 <label className="form-label">Branch</label>
                 <select
                   className="form-select"
-                  value={selectedInstitutionId}
+                  value={selectedBranchId}
                   onChange={(e) => {
-                    setSelectedInstitutionId(e.target.value);
+                    setSelectedBranchId(e.target.value);
                   }}
-                  disabled={!institutions.length}
+                  disabled={!branches.length}
                 >
                   <option value="">Select Branch</option>
-                  {institutions.map((institution) => (
-                    <option key={institution.id} value={institution.id}>
-                      {institution.name}
+                  {branches.map((branch) => (
+                    <option key={branch.id} value={branch.id}>
+                      {branch.name}
                     </option>
                   ))}
                 </select>
@@ -174,7 +166,7 @@ export default function FlowPage() {
             getFn={() => getLeadFlow(currentScope)}
             updateFn={(payload) => updateLeadFlow(payload, currentScope)}
             canEdit={canEdit}
-            groups={filteredGroups}
+            groups={groups}
             allAvailableStatuses={leadAvailableStatuses}
             selectedStatuses={leadStatuses}
             hiddenFromTableStatuses={[]}

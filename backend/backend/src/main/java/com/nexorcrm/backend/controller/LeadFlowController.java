@@ -13,6 +13,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
+import java.util.Map;
+
 @RestController
 @RequestMapping("/api/flow")
 public class LeadFlowController {
@@ -25,9 +28,16 @@ public class LeadFlowController {
 
     @GetMapping
     @PreAuthorize("hasAnyRole('SUPER_ADMIN','ADMIN','MANAGER','EMPLOYEE')")
-    public LeadFlowResponse getFlow(@RequestParam(value = "institutionName", required = false) String institutionName,
+    public LeadFlowResponse getFlow(@RequestParam(value = "branchId", required = false) Long branchId,
+                                    @RequestParam(value = "institutionName", required = false) String institutionName,
                                     Authentication authentication) {
-        return leadFlowService.getFlow(authentication == null ? null : authentication.getName(), institutionName);
+        return leadFlowService.getFlow(authentication == null ? null : authentication.getName(), branchId, institutionName);
+    }
+
+    @GetMapping("/groups")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','ADMIN','MANAGER','EMPLOYEE')")
+    public List<Map<String, Object>> getFlowGroups() {
+        return leadFlowService.getFlowGroups();
     }
 
     @PutMapping

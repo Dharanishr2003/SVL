@@ -15,19 +15,10 @@ import { getDepartmentsMaster, getDepartmentsMasterByBranch } from "../../api/de
 import { getDesignations } from "../../api/designationsApi";
 import { getHeadOffices } from "../../api/headOfficesApi";
 import { getBranches } from "../../api/branchesApi";
-import EmployeeWizardModal from "../../components/admin/EmployeeWizardModal";
-import {
-  getDepartments as getOrgDepartments,
-  getInstitutionCategories,
-  getInstitutions,
-  getInstitutionTypes,
-  getTeams as getOrgTeams,
-  getUserOrgSelection,
-} from "../../api/orgHierarchyApi";
-import { useAuth } from "../../context/AuthContext";
 import { extractApiErrorMessage } from "../../utils/errorMessage";
 import { useToast } from "../../components/system/ToastProvider";
 import useConfirmDialog from "../../components/system/useConfirmDialog";
+import EmployeeWizardModal from "../../components/admin/EmployeeWizardModal";
 import {
   COUNTRY_CODE_OPTIONS,
   defaultCountryOption,
@@ -35,6 +26,8 @@ import {
   sanitizePhoneDigits,
   getCountryDisplayMaxLength,
 } from "../../utils/phoneUtils";
+import "../../../public/assets/css/addModalShared.css";
+import "./EmployeesPage.css";
 
 const EMPTY_FORM = {
   employeeCode: "",
@@ -110,7 +103,6 @@ const EMPTY_ONBOARD_FORM = {
   esiNo: "",
   declarationDate: "",
   declarationPlace: "",
-  // existing file paths (edit mode display only)
   candidatePhotoPath: "",
   aadharCardPath: "",
   panCardPath: "",
@@ -135,7 +127,6 @@ function withInactiveSelected(items, selectedId) {
   const selected = list.find((it) => String(it?.id) === String(selectedId));
   if (!selected || isActiveMaster(selected)) return active;
 
-  // keep the selected inactive value visible in edit mode
   return [
     ...active,
     { ...selected, name: `${selected?.name || "Selected"} (Inactive)` },
@@ -183,9 +174,18 @@ function toUiRow(item) {
 }
 
 function toApiPayload(form) {
+  const normalizeId = (value) => {
+    if (value === null || value === undefined || value === "") return null;
+    const num = Number(value);
+    return Number.isFinite(num) ? num : null;
+  };
   return {
     name: form.name?.trim() || "",
     email: form.email?.trim() || "",
+    headOfficeId: normalizeId(form.headOfficeId),
+    branchId: normalizeId(form.branchId),
+    departmentMasterId: normalizeId(form.departmentMasterId),
+    designationMasterId: normalizeId(form.designationMasterId),
     countryCode: form.countryCode || defaultCountryOption.value,
     phone: form.phone?.trim() || "",
     dept: form.dept?.trim() || "",
@@ -193,8 +193,10 @@ function toApiPayload(form) {
     institutionCategory: form.institutionCategory?.trim() || "",
     institutionType: form.institutionType?.trim() || "",
     userDepartmentName: form.userDepartmentName?.trim() || "",
+    departmentName: form.departmentName?.trim() || "",
     team: form.team?.trim() || "",
     designation: form.designation?.trim() || "",
+    branchToJoin: form.branchToJoin?.trim() || "",
     joinDate: form.joinDate || null,
     status: String(form.status || "ACTIVE").toUpperCase(),
     img: form.img || "assets/img/users/user-32.jpg",
@@ -220,7 +222,6 @@ function TrashGlyph({ size = 14, className = "" }) {
 export default function EmployeesPage() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user: currentUser } = useAuth();
   const { showSuccess, showError } = useToast();
   const { showConfirm, confirmDialog } = useConfirmDialog();
   const [rows, setRows] = useState([]);
@@ -237,22 +238,19 @@ export default function EmployeesPage() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteId, setDeleteId] = useState(null);
   const [phoneError, setPhoneError] = useState("");
-  const [orgSelection, setOrgSelection] = useState(null);
-  const [orgInstitutionId, setOrgInstitutionId] = useState("");
-  const [orgCategoryId, setOrgCategoryId] = useState("");
-  const [orgTypeId, setOrgTypeId] = useState("");
-  const [orgDepartmentId, setOrgDepartmentId] = useState("");
-  const [orgTeamId, setOrgTeamId] = useState("");
-  const [orgInstitutions, setOrgInstitutions] = useState([]);
-  const [orgCategories, setOrgCategories] = useState([]);
-  const [orgTypes, setOrgTypes] = useState([]);
-  const [orgDepartments, setOrgDepartments] = useState([]);
-  const [orgTeams, setOrgTeams] = useState([]);
+  const [editHeadOfficeId, setEditHeadOfficeId] = useState("");
+  const [editBranchId, setEditBranchId] = useState("");
+  const [editDepartmentId, setEditDepartmentId] = useState("");
+  const [editDesignationId, setEditDesignationId] = useState("");
+  const [editHeadOffices, setEditHeadOffices] = useState([]);
+  const [editBranches, setEditBranches] = useState([]);
+  const [editDepartments, setEditDepartments] = useState([]);
+  const [editDesignations, setEditDesignations] = useState([]);
 
   const [showOnboardWizard, setShowOnboardWizard] = useState(false);
   const [onboardStep, setOnboardStep] = useState(0);
   const [onboardForm, setOnboardForm] = useState(EMPTY_ONBOARD_FORM);
-  const [onboardMode, setOnboardMode] = useState("create"); // create | edit
+  const [onboardMode, setOnboardMode] = useState("create");
   const [onboardEditId, setOnboardEditId] = useState(null);
   const prevOnboardHeadOfficeIdRef = useRef(null);
   const prevOnboardBranchIdRef = useRef(null);
@@ -305,7 +303,6 @@ export default function EmployeesPage() {
       await loadData(page, pageSize, appliedFilters); 
     } catch (e) { 
       const status = e?.response?.status;
-      // If the offer letter (and link) was already sent and is still active, send the profile-completion mail instead.
       if (status === 409) {
         try {
           const res = await resendProfileCompletionMail(emp.id);
@@ -337,6 +334,7 @@ export default function EmployeesPage() {
       showError(extractApiErrorMessage(e, "Failed to resend offer letter"));
     }
   }
+
   const [filterBranches, setFilterBranches] = useState([]);
   const [filterDepartments, setFilterDepartments] = useState([]);
   const [filterDesignations, setFilterDesignations] = useState([]);
@@ -402,7 +400,6 @@ export default function EmployeesPage() {
 
   useEffect(() => {
     loadData(page, pageSize, appliedFilters);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, pageSize, appliedFilters]);
 
   const clampedPage = Math.min(Math.max(1, page), totalPages);
@@ -447,7 +444,6 @@ export default function EmployeesPage() {
     })();
   }, [showError]);
 
-  // Filter drawer cascading options
   useEffect(() => {
     (async () => {
       const hoId = filters.headOfficeId;
@@ -465,7 +461,6 @@ export default function EmployeesPage() {
         setFilterLoading(false);
       }
     })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters.headOfficeId]);
 
   useEffect(() => {
@@ -484,7 +479,6 @@ export default function EmployeesPage() {
         setFilterLoading(false);
       }
     })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters.branchId]);
 
   useEffect(() => {
@@ -502,7 +496,6 @@ export default function EmployeesPage() {
         setFilterLoading(false);
       }
     })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters.departmentId]);
 
   useEffect(() => {
@@ -523,7 +516,6 @@ export default function EmployeesPage() {
         const data = await getBranches(onboardHeadOfficeId);
         const list = Array.isArray(data) ? data : [];
         setBranches(list);
-        // Keep existing selection for edit mode if still valid
         if (onboardMode === "edit") {
           const valid = onboardBranchId && list.some((b) => String(b.id) === String(onboardBranchId));
           if (!valid) setOnboardBranchId("");
@@ -616,36 +608,17 @@ export default function EmployeesPage() {
 
   useEffect(() => {
     let active = true;
-    const loadOrgSelection = async () => {
-      if (!currentUser?.id) return;
+    const loadHeadOffices = async () => {
       try {
-        const selection = await getUserOrgSelection(currentUser.id);
+        const data = await getHeadOffices();
         if (!active) return;
-        setOrgSelection(selection || null);
+        setEditHeadOffices(Array.isArray(data) ? data : []);
       } catch {
         if (!active) return;
-        setOrgSelection(null);
+        setEditHeadOffices([]);
       }
     };
-    loadOrgSelection();
-    return () => {
-      active = false;
-    };
-  }, [currentUser?.id]);
-
-  useEffect(() => {
-    let active = true;
-    const loadOrgInstitutions = async () => {
-      try {
-        const data = await getInstitutions();
-        if (!active) return;
-        setOrgInstitutions(Array.isArray(data) ? data : []);
-      } catch {
-        if (!active) return;
-        setOrgInstitutions([]);
-      }
-    };
-    loadOrgInstitutions();
+    loadHeadOffices();
     return () => {
       active = false;
     };
@@ -653,158 +626,69 @@ export default function EmployeesPage() {
 
   useEffect(() => {
     let active = true;
-    const loadCategories = async () => {
-      if (!orgInstitutionId) {
-        setOrgCategories([]);
+    const loadBranches = async () => {
+      if (!editHeadOfficeId) {
+        setEditBranches([]);
         return;
       }
       try {
-        const data = await getInstitutionCategories(orgInstitutionId);
+        const data = await getBranches(editHeadOfficeId);
         if (!active) return;
-        setOrgCategories(Array.isArray(data) ? data : []);
+        setEditBranches(Array.isArray(data) ? data : []);
       } catch {
         if (!active) return;
-        setOrgCategories([]);
+        setEditBranches([]);
       }
     };
-    loadCategories();
+    loadBranches();
     return () => {
       active = false;
     };
-  }, [orgInstitutionId]);
-
-  useEffect(() => {
-    let active = true;
-    const loadTypes = async () => {
-      if (!orgInstitutionId || !orgCategoryId) {
-        setOrgTypes([]);
-        return;
-      }
-      try {
-        const data = await getInstitutionTypes(orgInstitutionId, orgCategoryId);
-        if (!active) return;
-        setOrgTypes(Array.isArray(data) ? data : []);
-      } catch {
-        if (!active) return;
-        setOrgTypes([]);
-      }
-    };
-    loadTypes();
-    return () => {
-      active = false;
-    };
-  }, [orgInstitutionId, orgCategoryId]);
+  }, [editHeadOfficeId]);
 
   useEffect(() => {
     let active = true;
     const loadDepartments = async () => {
-      if (!orgInstitutionId || !orgCategoryId || !orgTypeId) {
-        setOrgDepartments([]);
+      if (!editBranchId) {
+        setEditDepartments([]);
         return;
       }
       try {
-        const data = await getOrgDepartments(orgInstitutionId, orgCategoryId, orgTypeId);
+        const data = await getDepartmentsMasterByBranch(editBranchId);
         if (!active) return;
-        setOrgDepartments(Array.isArray(data) ? data : []);
+        setEditDepartments(Array.isArray(data) ? data : []);
       } catch {
         if (!active) return;
-        setOrgDepartments([]);
+        setEditDepartments([]);
       }
     };
     loadDepartments();
     return () => {
       active = false;
     };
-  }, [orgInstitutionId, orgCategoryId, orgTypeId]);
+  }, [editBranchId]);
 
   useEffect(() => {
     let active = true;
-    const loadTeams = async () => {
-      if (!orgInstitutionId || !orgCategoryId || !orgTypeId || !orgDepartmentId) {
-        setOrgTeams([]);
+    const loadDesignations = async () => {
+      if (!editDepartmentId) {
+        setEditDesignations([]);
         return;
       }
       try {
-        const data = await getOrgTeams(
-          orgInstitutionId,
-          orgCategoryId,
-          orgTypeId,
-          orgDepartmentId,
-        );
+        const data = await getDesignations(editDepartmentId);
         if (!active) return;
-        setOrgTeams(Array.isArray(data) ? data : []);
+        setEditDesignations(Array.isArray(data) ? data : []);
       } catch {
         if (!active) return;
-        setOrgTeams([]);
+        setEditDesignations([]);
       }
     };
-    loadTeams();
+    loadDesignations();
     return () => {
       active = false;
     };
-  }, [orgInstitutionId, orgCategoryId, orgTypeId, orgDepartmentId]);
-
-  useEffect(() => {
-    if (!showModal || !isEdit) return;
-    if (!orgInstitutionId && form.institution) {
-      const match = orgInstitutions.find(
-        (item) =>
-          String(item?.name || "").toLowerCase() ===
-          String(form.institution || "").toLowerCase(),
-      );
-      if (match?.id) setOrgInstitutionId(String(match.id));
-    }
-  }, [showModal, isEdit, form.institution, orgInstitutionId, orgInstitutions]);
-
-  useEffect(() => {
-    if (!showModal || !isEdit) return;
-    if (!orgCategoryId && form.institutionCategory) {
-      const match = orgCategories.find(
-        (item) =>
-          String(item?.name || "").toLowerCase() ===
-          String(form.institutionCategory || "").toLowerCase(),
-      );
-      if (match?.id) setOrgCategoryId(String(match.id));
-    }
-  }, [showModal, isEdit, form.institutionCategory, orgCategoryId, orgCategories]);
-
-  useEffect(() => {
-    if (!showModal || !isEdit) return;
-    if (!orgTypeId && form.institutionType) {
-      const match = orgTypes.find(
-        (item) =>
-          String(item?.name || "").toLowerCase() ===
-          String(form.institutionType || "").toLowerCase(),
-      );
-      if (match?.id) setOrgTypeId(String(match.id));
-    }
-  }, [showModal, isEdit, form.institutionType, orgTypeId, orgTypes]);
-
-  useEffect(() => {
-    if (!showModal || !isEdit) return;
-    if (!orgDepartmentId && form.userDepartmentName) {
-      const match = orgDepartments.find(
-        (item) =>
-          String(item?.name || "").toLowerCase() ===
-          String(form.userDepartmentName || "").toLowerCase(),
-      );
-      if (match?.id) setOrgDepartmentId(String(match.id));
-    }
-  }, [showModal, isEdit, form.userDepartmentName, orgDepartmentId, orgDepartments]);
-
-  useEffect(() => {
-    if (!showModal || !isEdit) return;
-    if (!orgTeamId && form.team) {
-      const match = orgTeams.find(
-        (item) =>
-          String(item?.name || "").toLowerCase() ===
-          String(form.team || "").toLowerCase(),
-      );
-      if (match?.id) setOrgTeamId(String(match.id));
-    }
-  }, [showModal, isEdit, form.team, orgTeamId, orgTeams]);
-
-
+  }, [editDepartmentId]);
 
   const openAdd = () => {
     setOnboardMode("create");
@@ -821,88 +705,40 @@ export default function EmployeesPage() {
     setShowOnboardWizard(true);
   };
 
-  const openEdit = (emp) => {
+  const openEditModal = (emp) => {
     const raw = emp?._raw || {};
-    setOnboardMode("edit");
-    setOnboardEditId(raw?.id ?? emp?.id ?? null);
-    prevOnboardHeadOfficeIdRef.current = null;
-    prevOnboardBranchIdRef.current = null;
-    prevOnboardDepartmentIdRef.current = null;
-    setOnboardStep(0);
-    setOnboardHeadOfficeId(raw?.headOfficeId ? String(raw.headOfficeId) : "");
-    setOnboardBranchId(raw?.branchId ? String(raw.branchId) : "");
-    setOnboardDepartmentId(raw?.departmentMasterId ? String(raw.departmentMasterId) : "");
-    setOnboardDesignationId(raw?.designationMasterId ? String(raw.designationMasterId) : "");
-    setOnboardForm({
-      ...EMPTY_ONBOARD_FORM,
-      nameInCaps: raw?.name ? String(raw.name).toUpperCase() : "",
-      employeeIdNumber: raw?.employeeIdNumber || "",
-      fatherName: raw?.fatherName || "",
-      motherName: raw?.motherName || "",
-      personalContactNumber: raw?.personalContactNumber || "",
-      alternateContactNumber: raw?.alternateContactNumber || "",
-      location: raw?.location || "",
-      pinCode: raw?.pinCode || "",
-      state: raw?.state || "",
-      currentAddress: raw?.currentAddress || "",
-      permanentAddress: raw?.permanentAddress || "",
-      personalEmail: raw?.personalEmail || "",
-      officialEmail: raw?.officialEmail || "",
-      dateOfBirth: raw?.dateOfBirth || "",
-      dateOfJoining: raw?.joinDate || "",
-      maritalStatus: raw?.maritalStatus || "",
-      spouseName: raw?.spouseName || "",
-      bloodGroup: raw?.bloodGroup || "",
-      panCardNo: raw?.panCardNo || "",
-      aadharCardNo: raw?.aadharCardNo || "",
-      bankAccountHolderName: raw?.bankAccountHolderName || "",
-      bankAccountNumber: raw?.bankAccountNumber || "",
-      ifscCode: raw?.ifscCode || "",
-      bankAndBranch: raw?.bankAndBranch || "",
-      employmentDetails1: raw?.employmentDetails1 || "",
-      employmentDetails2: raw?.employmentDetails2 || "",
-      graduationDetails: raw?.graduationDetails || "",
-      hscMarkAndYear: raw?.hscMarkAndYear || "",
-      sslcMarkAndYear: raw?.sslcMarkAndYear || "",
-      emergencyContactName1: raw?.emergencyContactName1 || "",
-      emergencyContactRelation1: raw?.emergencyContactRelation1 || "",
-      emergencyContactPhone1: raw?.emergencyContactPhone1 || "",
-      emergencyContactName2: raw?.emergencyContactName2 || "",
-      emergencyContactRelation2: raw?.emergencyContactRelation2 || "",
-      emergencyContactPhone2: raw?.emergencyContactPhone2 || "",
-      friendRefName1: raw?.friendRefName1 || "",
-      friendRefContact1: raw?.friendRefContact1 || "",
-      friendRefName2: raw?.friendRefName2 || "",
-      friendRefContact2: raw?.friendRefContact2 || "",
-      branchToJoin: raw?.branchToJoin || "",
-      platformSource: raw?.platformSource || "",
-      pfUan: raw?.pfUan || "",
-      esiNo: raw?.esiNo || "",
-      declarationDate: raw?.declarationDate || "",
-      declarationPlace: raw?.declarationPlace || "",
-      candidatePhotoPath: raw?.candidatePhotoPath || "",
-      aadharCardPath: raw?.aadharCardPath || "",
-      panCardPath: raw?.panCardPath || "",
-      bankPassbookPath: raw?.bankPassbookPath || "",
-      experienceCertificatePath: raw?.experienceCertificatePath || "",
-      graduationCertificatePath: raw?.graduationCertificatePath || "",
-      graduationMarksheetPath: raw?.graduationMarksheetPath || "",
-      hscMarksheetPath: raw?.hscMarksheetPath || "",
-      sslcMarksheetPath: raw?.sslcMarksheetPath || "",
-      communityCertificatePath: raw?.communityCertificatePath || "",
-      // files cannot be prefilled
-      candidatePhoto: null,
-      uploadCandidateAadharCard: null,
-      uploadCandidatePanCard: null,
-      uploadBankPassBookCopy: null,
-      uploadExperienceCertificate: null,
-      uploadGraduationCertificate: null,
-      uploadGraduationMarksheet: null,
-      uploadHscMarkSheet: null,
-      uploadSslcMarkSheet: null,
-      uploadCommunityCertificate: null,
+    setSelectedId(raw?.id ?? emp?.id ?? null);
+    setIsEdit(true);
+    setForm({
+      ...EMPTY_FORM,
+      employeeCode: raw?.employeeCode || raw?.employeeId || "",
+      name: raw?.name || "",
+      email: raw?.email || raw?.officialEmail || raw?.personalEmail || "",
+      countryCode: raw?.countryCode || defaultCountryOption.value,
+      phone: raw?.phone || raw?.personalContactNumber || "",
+      dept: raw?.dept || raw?.department || raw?.departmentName || raw?.userDepartmentName || "",
+      institution: raw?.institution || raw?.institutionName || "",
+      institutionCategory: raw?.institutionCategory || raw?.institution_category || raw?.category || "",
+      institutionType: raw?.institutionType || raw?.institution_type || "",
+      userDepartmentName: raw?.userDepartmentName || raw?.orgDepartmentName || raw?.departmentName || "",
+      team: raw?.team || raw?.orgTeam || raw?.userTeam || "",
+      designation: raw?.designation || "",
+      headOfficeId: raw?.headOfficeId ?? null,
+      branchId: raw?.branchId ?? null,
+      departmentMasterId: raw?.departmentMasterId ?? null,
+      designationMasterId: raw?.designationMasterId ?? null,
+      departmentName: raw?.departmentName || raw?.dept || raw?.department || "",
+      branchToJoin: raw?.branchToJoin || raw?.branchName || "",
+      joinDate: raw?.joinDate || "",
+      status: String(raw?.status || "ACTIVE").toUpperCase(),
+      img: raw?.img || "assets/img/users/user-32.jpg",
     });
-    setShowOnboardWizard(true);
+    setEditHeadOfficeId(raw?.headOfficeId ? String(raw.headOfficeId) : "");
+    setEditBranchId(raw?.branchId ? String(raw.branchId) : "");
+    setEditDepartmentId(raw?.departmentMasterId ? String(raw.departmentMasterId) : "");
+    setEditDesignationId(raw?.designationMasterId ? String(raw.designationMasterId) : "");
+    setPhoneError("");
+    setShowModal(true);
   };
 
   const hasText = (v) => typeof v === "string" && v.trim().length > 0;
@@ -917,69 +753,23 @@ export default function EmployeesPage() {
     }
     if (step === 1) {
       if (!hasText(onboardForm.nameInCaps)) return "Name In Caps is required";
-      if (!hasText(onboardForm.employeeIdNumber)) return "Employee ID Number is required";
-      // if (!hasText(onboardForm.fatherName)) return "Father’s Name is required";
-      // if (!hasText(onboardForm.motherName)) return "Mother's Name is required";
       if (!hasText(onboardForm.personalContactNumber)) return "Personal Contact Number is required";
-      // if (!hasText(onboardForm.alternateContactNumber)) return "Alternate Contact Number is required";
       if (!hasText(onboardForm.location)) return "Location is required";
-      // if (!hasText(onboardForm.pinCode)) return "Pin Code is required";
-      // if (!hasText(onboardForm.state)) return "State is required";
-      // if (!hasText(onboardForm.currentAddress)) return "Current Address is required";
-      // if (!hasText(onboardForm.permanentAddress)) return "Permanent Address is required";
       if (!hasText(onboardForm.personalEmail)) return "Personal Email is required";
-      // if (!hasText(onboardForm.officialEmail)) return "Official Email is required";
       if (!hasText(onboardForm.dateOfBirth)) return "Date of Birth is required";
-      // if (!hasText(onboardForm.dateOfJoining)) return "Date of Joining is required";
       if (!hasText(onboardForm.maritalStatus)) return "Marital Status is required";
       if (String(onboardForm.maritalStatus).toUpperCase() === "MARRIED" && !hasText(onboardForm.spouseName)) {
         return "Spouse Name is required";
       }
-      // if (!hasText(onboardForm.bloodGroup)) return "Blood Group is required";
-      // if (!hasText(onboardForm.panCardNo)) return "Pan Card No is required";
-      // if (!hasText(onboardForm.aadharCardNo)) return "Aadhar Card No is required";
       return "";
     }
     if (step === 2) {
-      if (onboardMode === "create") {
-          //  if (onboardMode === "create" && !onboardForm.candidatePhoto) return "Candidate Photo is required";
-        // if (!onboardForm.uploadCandidateAadharCard) return "Upload Candidate Aadhar Card is required";
-        // if (!onboardForm.uploadCandidatePanCard) return "Upload Candidate Pan Card is required";
-        // if (!onboardForm.uploadBankPassBookCopy) return "Upload Bank Pass Book / Cancelled Cheque is required";
-        // if (!onboardForm.uploadGraduationCertificate) return "Graduation Certificate is required";
-        // if (!onboardForm.uploadGraduationMarksheet) return "Graduation Marksheet is required";
-        // if (!onboardForm.uploadHscMarkSheet) return "HSC Mark Sheet is required";
-        // if (!onboardForm.uploadSslcMarkSheet) return "SSLC Mark Sheet is required";
-        // if (!onboardForm.uploadCommunityCertificate) return "Community Certificate is required";
-      }
       return "";
     }
     if (step === 3) {
-      // if (!hasText(onboardForm.bankAccountHolderName)) return "Bank Account Holder Name is required";
-      // if (!hasText(onboardForm.bankAccountNumber)) return "Bank Account Number is required";
-      // if (!hasText(onboardForm.ifscCode)) return "IFSC Code is required";
-      // if (!hasText(onboardForm.bankAndBranch)) return "Bank & Branch is required";
-      // if (!hasText(onboardForm.employmentDetails1)) return "Employment Details 1 is required";
-      // if (!hasText(onboardForm.employmentDetails2)) return "Employment Details 2 is required";
       if (!hasText(onboardForm.graduationDetails)) return "Graduation Details is required";
       if (!hasText(onboardForm.hscMarkAndYear)) return "HSC Mark & Year is required";
       if (!hasText(onboardForm.sslcMarkAndYear)) return "SSLC Mark & Year is required";
-      // if (!hasText(onboardForm.emergencyContactName1)) return "Emergency Contact Name 1 is required";
-      // if (!hasText(onboardForm.emergencyContactRelation1)) return "Emergency Contact Relationship 1 is required";
-      // if (!hasText(onboardForm.emergencyContactPhone1)) return "Emergency Contact No 1 is required";
-      // if (!hasText(onboardForm.emergencyContactName2)) return "Emergency Contact Name 2 is required";
-      // if (!hasText(onboardForm.emergencyContactRelation2)) return "Emergency Contact Relationship 2 is required";
-      // if (!hasText(onboardForm.emergencyContactPhone2)) return "Emergency Contact No 2 is required";
-      // if (!hasText(onboardForm.friendRefName1)) return "Friend / Ex-Colleague Name 1 is required";
-      // if (!hasText(onboardForm.friendRefContact1)) return "Friend / Ex-Colleague Contact 1 is required";
-      // if (!hasText(onboardForm.friendRefName2)) return "Friend / Ex-Colleague Name 2 is required";
-      // if (!hasText(onboardForm.friendRefContact2)) return "Friend / Ex-Colleague Contact 2 is required";
-      // if (!hasText(onboardForm.branchToJoin)) return "Branch to Join is required";
-      // if (!hasText(onboardForm.platformSource)) return "Platform Source is required";
-      // if (!hasText(onboardForm.pfUan)) return "PF UAN is required";
-      // if (!hasText(onboardForm.esiNo)) return "ESI No is required";
-      // if (!hasText(onboardForm.declarationDate)) return "Declaration Date is required";
-      // if (!hasText(onboardForm.declarationPlace)) return "Declaration Place is required";
       return "";
     }
     return "";
@@ -1078,49 +868,57 @@ export default function EmployeesPage() {
     });
   };
 
-  const selectedInstitution = orgInstitutions.find(
-    (item) => String(item.id) === String(orgInstitutionId),
+  const selectedEditHeadOffice = editHeadOffices.find(
+    (item) => String(item.id) === String(editHeadOfficeId),
   );
-  const selectedCategory = orgCategories.find(
-    (item) => String(item.id) === String(orgCategoryId),
+  const selectedEditBranch = editBranches.find(
+    (item) => String(item.id) === String(editBranchId),
   );
-  const selectedType = orgTypes.find(
-    (item) => String(item.id) === String(orgTypeId),
+  const selectedEditDepartment = editDepartments.find(
+    (item) => String(item.id) === String(editDepartmentId),
   );
-  const selectedOrgDepartment = orgDepartments.find(
-    (item) => String(item.id) === String(orgDepartmentId),
+  const selectedEditDesignation = editDesignations.find(
+    (item) => String(item.id) === String(editDesignationId),
   );
-  const selectedOrgTeam = orgTeams.find(
-    (item) => String(item.id) === String(orgTeamId),
+  const editHeadOfficeOptions = useMemo(
+    () => withInactiveSelected(editHeadOffices, editHeadOfficeId),
+    [editHeadOffices, editHeadOfficeId],
   );
-  const currentRole = String(currentUser?.role || "").toUpperCase();
-  const isAdmin = currentRole === "ADMIN";
-  const isManager = currentRole === "MANAGER";
-
+  const editBranchOptions = useMemo(
+    () => withInactiveSelected(editBranches, editBranchId),
+    [editBranches, editBranchId],
+  );
+  const editDepartmentOptions = useMemo(
+    () => withInactiveSelected(editDepartments, editDepartmentId),
+    [editDepartments, editDepartmentId],
+  );
+  const editDesignationOptions = useMemo(
+    () => withInactiveSelected(editDesignations, editDesignationId),
+    [editDesignations, editDesignationId],
+  );
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // Validate phone number
     const phoneValidationError = validatePhoneNumber(form.phone, form.countryCode);
     if (phoneValidationError) {
       setPhoneError(phoneValidationError);
       return;
     }
 
-    if (!orgInstitutionId) {
-      showError("Institution is required");
+    if (!editHeadOfficeId) {
+      showError("Head Office is required");
       return;
     }
-    if (!orgCategoryId) {
-      showError("Category is required");
+    if (!editBranchId) {
+      showError("Branch is required");
       return;
     }
-    if (!orgTypeId) {
-      showError("Type is required");
-      return;
-    }
-    if (!orgDepartmentId) {
+    if (!editDepartmentId) {
       showError("Department is required");
+      return;
+    }
+    if (!editDesignationId) {
+      showError("Designation is required");
       return;
     }
     
@@ -1128,11 +926,13 @@ export default function EmployeesPage() {
     try {
       const payload = toApiPayload({
         ...form,
-        institution: selectedInstitution?.name || form.institution,
-        institutionCategory: selectedCategory?.name || form.institutionCategory,
-        institutionType: selectedType?.name || form.institutionType,
-        userDepartmentName: selectedOrgDepartment?.name || form.userDepartmentName,
-        team: selectedOrgTeam?.name || form.team,
+        headOfficeId: editHeadOfficeId ? Number(editHeadOfficeId) : null,
+        branchId: editBranchId ? Number(editBranchId) : null,
+        departmentMasterId: editDepartmentId ? Number(editDepartmentId) : null,
+        designationMasterId: editDesignationId ? Number(editDesignationId) : null,
+        dept: selectedEditDepartment?.name || form.dept,
+        designation: selectedEditDesignation?.name || form.designation,
+        branchToJoin: selectedEditBranch?.name || form.branchToJoin,
       });
       if (isEdit) {
         await updateEmployee(selectedId, payload);
@@ -1177,8 +977,21 @@ export default function EmployeesPage() {
   const employeeGridData = rows.map(r => ({
     ...r,
     role: r.designation,
-    projects: 0, done: 0, progress: 0, productivity: 0 // Placeholder for grid stats
+    projects: 0, done: 0, progress: 0, productivity: 0
   }));
+
+  // Close modal function
+  const closeModal = () => {
+    setShowModal(false);
+    setPhoneError("");
+    setForm(EMPTY_FORM);
+    setEditHeadOfficeId("");
+    setEditBranchId("");
+    setEditDepartmentId("");
+    setEditDesignationId("");
+    setIsEdit(false);
+    setSelectedId(null);
+  };
 
   if (gridView) {
     return (
@@ -1193,7 +1006,7 @@ export default function EmployeesPage() {
               <div className="card flex-fill">
                 <div className="card-body">
                   <div className="position-absolute top-0 end-0 p-2">
-                    <button className="btn btn-sm btn-light" onClick={() => openEdit(emp)}><EditGlyph size={12} /></button>
+                    <button className="btn btn-sm btn-light" onClick={() => openEditModal(emp)}><EditGlyph size={12} /></button>
                     <button className="btn btn-sm btn-light text-danger ms-1" onClick={() => confirmDelete(emp.id)}><TrashGlyph size={12} /></button>
                   </div>
                   <div className="d-flex align-items-center mb-3">
@@ -1231,195 +1044,185 @@ export default function EmployeesPage() {
       <div className="card">
         <div className="card-header d-flex justify-content-between align-items-center">
           <h5 className="mb-0">Employee List</h5>
-        
           <button
-                className="btn btn-outline-warning leads-toolbar-btn"
-                onClick={() => setFilterOpen((prev) => !prev)}
-              >
-                <i className="ti ti-filter me-1" />
-                Filter
-              </button>
-        </div>
-      {filterOpen && (
-        <>
-          <div
-            className="position-fixed top-0 start-0 w-100 h-100"
-            style={{ background: "rgba(189, 172, 172, 0.35)", zIndex: 1048 }}
-            onClick={() => setFilterOpen(false)}
-          />
-          <div
-            className="position-fixed top-0 end-0 h-100 bg-white border-start shadow"
-            style={{ width: 380, zIndex: 1049 }}
+            className="btn btn-outline-warning leads-toolbar-btn"
+            onClick={() => setFilterOpen((prev) => !prev)}
           >
-            <div className="d-flex align-items-center justify-content-between p-3 border-bottom">
-              <h6 className="mb-0">Filters</h6>
-              <button type="button" className="btn-close" onClick={() => setFilterOpen(false)} />
-            </div>
-
-            <div className="p-3">
-               <div className="mb-3">
-                <label className="form-label">Profile Status</label>
-                <select
-                  className="form-select"
-                  value={filters.profileStatus}
-                  onChange={(e) => setFilters((prev) => ({ ...prev, profileStatus: e.target.value }))}
-                  disabled={filterLoading}
-                >
-                  <option value="">All</option>
-                  <option value="DRAFT">DRAFT</option>
-                  <option value="PENDING_VERIFICATION">PENDING_VERIFICATION</option>
-                  <option value="VERIFIED">VERIFIED</option>
-                </select>
+            <i className="ti ti-filter me-1" />
+            Filter
+          </button>
+        </div>
+        {filterOpen && (
+          <>
+            <div
+              className="position-fixed top-0 start-0 w-100 h-100"
+              style={{ background: "rgba(189, 172, 172, 0.35)", zIndex: 1048 }}
+              onClick={() => setFilterOpen(false)}
+            />
+            <div
+              className="position-fixed top-0 end-0 h-100 bg-white border-start shadow"
+              style={{ width: 380, zIndex: 1049 }}
+            >
+              <div className="d-flex align-items-center justify-content-between p-3 border-bottom">
+                <h6 className="mb-0">Filters</h6>
+                <button type="button" className="btn-close" onClick={() => setFilterOpen(false)} />
               </div>
-              <div className="mb-3">
-                <label className="form-label">Head Office</label>
-                <select
-                  className="form-select"
-                  value={filters.headOfficeId}
-                  onChange={(e) => {
-                    const headOfficeId = e.target.value;
-                    setFilters((prev) => ({
-                      ...prev,
-                      headOfficeId,
-                      branchId: "",
-                      departmentId: "",
-                      designationId: "",
-                    }));
-                  }}
-                  disabled={filterLoading || hoLoading}
-                >
-                  <option value="">All</option>
-                  {[...activeHeadOffices]
-                    .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))
-                    .map((h) => (
-                      <option key={h.id} value={h.id}>
-                        {h.name}
-                      </option>
-                    ))}
-                </select>
-              </div>
-
-             
-
-              {filters.headOfficeId ? (
+              <div className="p-3">
                 <div className="mb-3">
-                  <label className="form-label">Branch</label>
+                  <label className="form-label">Profile Status</label>
                   <select
                     className="form-select"
-                    value={filters.branchId}
+                    value={filters.profileStatus}
+                    onChange={(e) => setFilters((prev) => ({ ...prev, profileStatus: e.target.value }))}
+                    disabled={filterLoading}
+                  >
+                    <option value="">All</option>
+                    <option value="DRAFT">DRAFT</option>
+                    <option value="PENDING_VERIFICATION">PENDING_VERIFICATION</option>
+                    <option value="VERIFIED">VERIFIED</option>
+                  </select>
+                </div>
+                <div className="mb-3">
+                  <label className="form-label">Head Office</label>
+                  <select
+                    className="form-select"
+                    value={filters.headOfficeId}
                     onChange={(e) => {
-                      const branchId = e.target.value;
+                      const headOfficeId = e.target.value;
                       setFilters((prev) => ({
                         ...prev,
-                        branchId,
+                        headOfficeId,
+                        branchId: "",
                         departmentId: "",
                         designationId: "",
                       }));
                     }}
-                    disabled={!filters.headOfficeId || filterLoading}
+                    disabled={filterLoading || hoLoading}
                   >
                     <option value="">All</option>
-                    {[...activeFilterBranches]
+                    {[...activeHeadOffices]
                       .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))
-                      .map((b) => (
-                        <option key={b.id} value={b.id}>
-                          {b.name}
+                      .map((h) => (
+                        <option key={h.id} value={h.id}>
+                          {h.name}
                         </option>
                       ))}
                   </select>
                 </div>
-              ) : null}
-
-              {filters.branchId ? (
-                <div className="mb-3">
-                  <label className="form-label">Department</label>
-                  <select
-                    className="form-select"
-                    value={filters.departmentId}
-                    onChange={(e) => {
-                      const departmentId = e.target.value;
-                      setFilters((prev) => ({
-                        ...prev,
-                        departmentId,
-                        designationId: "",
-                      }));
-                    }}
-                    disabled={!filters.branchId || filterLoading}
-                  >
-                    <option value="">All</option>
-                    {[...activeFilterDepartments]
-                      .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))
-                      .map((d) => (
-                        <option key={d.id} value={d.id}>
-                          {d.name}
-                        </option>
-                      ))}
-                  </select>
-                </div>
-              ) : null}
-
-              {filters.departmentId ? (
-                <div className="mb-3">
-                  <label className="form-label">Designation</label>
-                  <select
-                    className="form-select"
-                    value={filters.designationId}
-                    onChange={(e) => setFilters((prev) => ({ ...prev, designationId: e.target.value }))}
-                    disabled={!filters.departmentId || filterLoading}
-                  >
-                    <option value="">All</option>
-                    {[...activeFilterDesignations]
-                      .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))
-                      .map((d) => (
-                        <option key={d.id} value={d.id}>
-                          {d.name}
-                        </option>
-                      ))}
-                  </select>
-                </div>
-              ) : null}
-
-             
+                {filters.headOfficeId ? (
+                  <div className="mb-3">
+                    <label className="form-label">Branch</label>
+                    <select
+                      className="form-select"
+                      value={filters.branchId}
+                      onChange={(e) => {
+                        const branchId = e.target.value;
+                        setFilters((prev) => ({
+                          ...prev,
+                          branchId,
+                          departmentId: "",
+                          designationId: "",
+                        }));
+                      }}
+                      disabled={!filters.headOfficeId || filterLoading}
+                    >
+                      <option value="">All</option>
+                      {[...activeFilterBranches]
+                        .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))
+                        .map((b) => (
+                          <option key={b.id} value={b.id}>
+                            {b.name}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+                ) : null}
+                {filters.branchId ? (
+                  <div className="mb-3">
+                    <label className="form-label">Department</label>
+                    <select
+                      className="form-select"
+                      value={filters.departmentId}
+                      onChange={(e) => {
+                        const departmentId = e.target.value;
+                        setFilters((prev) => ({
+                          ...prev,
+                          departmentId,
+                          designationId: "",
+                        }));
+                      }}
+                      disabled={!filters.branchId || filterLoading}
+                    >
+                      <option value="">All</option>
+                      {[...activeFilterDepartments]
+                        .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))
+                        .map((d) => (
+                          <option key={d.id} value={d.id}>
+                            {d.name}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+                ) : null}
+                {filters.departmentId ? (
+                  <div className="mb-3">
+                    <label className="form-label">Designation</label>
+                    <select
+                      className="form-select"
+                      value={filters.designationId}
+                      onChange={(e) => setFilters((prev) => ({ ...prev, designationId: e.target.value }))}
+                      disabled={!filters.departmentId || filterLoading}
+                    >
+                      <option value="">All</option>
+                      {[...activeFilterDesignations]
+                        .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))
+                        .map((d) => (
+                          <option key={d.id} value={d.id}>
+                            {d.name}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+                ) : null}
+              </div>
+              <div className="p-3 border-top d-flex gap-2">
+                <button
+                  type="button"
+                  className="btn btn-light w-50"
+                  onClick={() => {
+                    const cleared = {
+                      headOfficeId: "",
+                      branchId: "",
+                      departmentId: "",
+                      designationId: "",
+                      profileStatus: "",
+                    };
+                    setFilters(cleared);
+                    setAppliedFilters(cleared);
+                    setPage(1);
+                    setFilterBranches([]);
+                    setFilterDepartments([]);
+                    setFilterDesignations([]);
+                    setFilterOpen(false);
+                  }}
+                >
+                  Clear
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-primary w-50"
+                  onClick={() => {
+                    setAppliedFilters(filters);
+                    setPage(1);
+                    setFilterOpen(false);
+                  }}
+                >
+                  Apply
+                </button>
+              </div>
             </div>
-
-            <div className="p-3 border-top d-flex gap-2">
-              <button
-                type="button"
-                className="btn btn-light w-50"
-                onClick={() => {
-                  const cleared = {
-                    headOfficeId: "",
-                    branchId: "",
-                    departmentId: "",
-                    designationId: "",
-                    profileStatus: "",
-                  };
-                  setFilters(cleared);
-                  setAppliedFilters(cleared);
-                  setPage(1);
-                  setFilterBranches([]);
-                  setFilterDepartments([]);
-                  setFilterDesignations([]);
-                  setFilterOpen(false);
-                }}
-              >
-                Clear
-              </button>
-              <button
-                type="button"
-                className="btn btn-primary w-50"
-                onClick={() => {
-                  setAppliedFilters(filters);
-                  setPage(1);
-                  setFilterOpen(false);
-                }}
-              >
-                Apply
-              </button>
-            </div>
-          </div>
-        </>
-      )}
+          </>
+        )}
         <div className="card-body p-0">
           <div className="d-flex flex-wrap align-items-center justify-content-between gap-2 px-3 py-2 border-bottom">
             <div className="d-flex align-items-center gap-2">
@@ -1502,18 +1305,18 @@ export default function EmployeesPage() {
                       <td>{emp.employeeCode || "-"}</td>
                       <td>
                         <div className="d-flex align-items-center">
-                         <img
-  src={
-    emp._raw?.candidatePhotoPath
-      ? `http://localhost:8081/${emp._raw.candidatePhotoPath}`
-      : "assets/img/users/user-32.jpg"
-  }
-  alt={emp.name}
-  className="rounded-circle me-2"
-  width="34"
-  height="34"
-  onError={(e) => (e.target.src = "assets/img/users/user-32.jpg")}
-/>
+                          <img
+                            src={
+                              emp._raw?.candidatePhotoPath
+                                ? `http://localhost:8081/${emp._raw.candidatePhotoPath}`
+                                : "assets/img/users/user-32.jpg"
+                            }
+                            alt={emp.name}
+                            className="rounded-circle me-2"
+                            width="34"
+                            height="34"
+                            onError={(e) => (e.target.src = "assets/img/users/user-32.jpg")}
+                          />
                           <span>{emp.name}</span>
                         </div>
                       </td>
@@ -1537,7 +1340,7 @@ export default function EmployeesPage() {
                         </span>
                       </td>
                       <td>
-                        <button className="btn btn-sm btn-outline-primary" onClick={() => openEdit(emp)}>
+                        <button className="btn btn-sm btn-outline-primary" onClick={() => openEditModal(emp)}>
                           <EditGlyph size={12} />
                         </button>
                         <button className="btn btn-sm btn-outline-danger ms-1" onClick={() => confirmDelete(emp.id)}>
@@ -1646,6 +1449,275 @@ export default function EmployeesPage() {
         </>
       )}
 
+      {/* Add/Edit Employee Modal with avm styles */}
+      {showModal && (
+        <div className="avm-backdrop" role="presentation">
+          <div className="avm-modal" style={{ maxWidth: "680px" }} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+            <div className="avm-modal-header">
+              <h2 className="avm-modal-title">{isEdit ? "Edit Employee" : "Add Employee"}</h2>
+              <button type="button" className="avm-modal-close" onClick={closeModal} aria-label="Close">
+                ×
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmit}>
+              <div className="avm-body">
+                <div className="row g-3">
+                  {/* Employee Details Section */}
+                  <div className="col-12 avm-section-col">
+                    <p className="avm-section-title">Employee Details</p>
+                  </div>
+
+                  <div className="col-md-6">
+                    <div className="avm-field">
+                      <label className="avm-label">Full Name <span className="req">*</span></label>
+                      <input
+                        type="text"
+                        className="avm-input"
+                        value={form.name}
+                        onChange={(e) => setForm({ ...form, name: e.target.value })}
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="col-md-6">
+                    <div className="avm-field">
+                      <label className="avm-label">Email <span className="req">*</span></label>
+                      <input
+                        type="email"
+                        className="avm-input"
+                        value={form.email}
+                        onChange={(e) => setForm({ ...form, email: e.target.value })}
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="col-md-6">
+                    <div className="avm-field">
+                      <label className="avm-label">Mobile Number</label>
+                      <div className={`employee-phone-input ${phoneError ? "employee-phone-input-error" : ""}`}>
+                        <select
+                          className="employee-phone-code"
+                          value={form.countryCode}
+                          onChange={(e) => {
+                            setForm({ ...form, countryCode: e.target.value });
+                            setPhoneError("");
+                          }}
+                        >
+                          {COUNTRY_CODE_OPTIONS.map((option) => (
+                            <option key={`${option.country}-${option.callingCode}`} value={option.value}>
+                              {option.value}
+                            </option>
+                          ))}
+                        </select>
+                        <input
+                          type="tel"
+                          className="employee-phone-number"
+                          value={form.phone}
+                          onChange={(e) => {
+                            const sanitized = sanitizePhoneDigits(
+                              e.target.value,
+                              getCountryDisplayMaxLength(form.countryCode)
+                            );
+                            setForm({ ...form, phone: sanitized });
+                            if (phoneError) {
+                              const error = validatePhoneNumber(sanitized, form.countryCode);
+                              setPhoneError(error);
+                            }
+                          }}
+                          placeholder={`Enter ${getCountryDisplayMaxLength(form.countryCode)} digit number`}
+                        />
+                      </div>
+                      {phoneError && <div className="avm-error">{phoneError}</div>}
+                    </div>
+                  </div>
+
+                  <div className="col-md-6">
+                    <div className="avm-field">
+                      <label className="avm-label">Department</label>
+                      <select
+                        className="avm-select"
+                        value={form.dept}
+                        onChange={(e) => handleDeptChange(e.target.value)}
+                        disabled={metaLoading}
+                      >
+                        <option value="">Select</option>
+                        {form.dept && !departmentOptions.includes(form.dept) && (
+                          <option value={form.dept}>{form.dept}</option>
+                        )}
+                        {departmentOptions.map((name) => (
+                          <option key={name} value={name}>{name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="col-md-6">
+                    <div className="avm-field">
+                      <label className="avm-label">Designation</label>
+                      <select
+                        className="avm-select"
+                        value={form.designation}
+                        onChange={(e) => setForm({ ...form, designation: e.target.value })}
+                        disabled={metaLoading || !form.dept}
+                      >
+                        <option value="">Select</option>
+                        {form.designation && !designationOptions.includes(form.designation) && (
+                          <option value={form.designation}>{form.designation}</option>
+                        )}
+                        {designationOptions.map((name) => (
+                          <option key={name} value={name}>{name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="col-md-6">
+                    <div className="avm-field">
+                      <label className="avm-label">Join Date</label>
+                      <input
+                        type="date"
+                        className="avm-input"
+                        value={form.joinDate}
+                        onChange={(e) => setForm({ ...form, joinDate: e.target.value })}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="col-md-6">
+                    <div className="avm-field">
+                      <label className="avm-label">Status</label>
+                      <select
+                        className="avm-select"
+                        value={form.status}
+                        onChange={(e) => setForm({ ...form, status: e.target.value })}
+                      >
+                        <option value="ACTIVE">Active</option>
+                        <option value="INACTIVE">Inactive</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Organization Details Section */}
+                  <div className="col-12 avm-section-col">
+                    <p className="avm-section-title">Organization Details</p>
+                  </div>
+
+                  <div className="col-md-6">
+                    <div className="avm-field">
+                      <label className="avm-label">Head Office <span className="req">*</span></label>
+                      <select
+                        className="avm-select"
+                        value={editHeadOfficeId}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setEditHeadOfficeId(val);
+                          setEditBranchId("");
+                          setEditDepartmentId("");
+                          setEditDesignationId("");
+                          setForm((prev) => ({
+                            ...prev,
+                            headOfficeId: val ? Number(val) : null,
+                            branchId: null,
+                            departmentMasterId: null,
+                            designationMasterId: null,
+                            branchToJoin: "",
+                            departmentName: "",
+                            dept: "",
+                            designation: "",
+                          }));
+                        }}
+                      >
+                        <option value="">Select</option>
+                        {editHeadOfficeOptions.map((item) => (
+                          <option key={item.id} value={item.id}>{item.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="col-md-6">
+                    <div className="avm-field">
+                      <label className="avm-label">Branch <span className="req">*</span></label>
+                      <select
+                        className="avm-select"
+                        value={editBranchId}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          const selected = editBranchOptions.find((item) => String(item.id) === String(val));
+                          setEditBranchId(val);
+                          setEditDepartmentId("");
+                          setEditDesignationId("");
+                          setForm((prev) => ({
+                            ...prev,
+                            branchId: val ? Number(val) : null,
+                            branchToJoin: selected?.name || "",
+                            departmentMasterId: null,
+                            designationMasterId: null,
+                            dept: "",
+                            designation: "",
+                          }));
+                        }}
+                        disabled={!editHeadOfficeId}
+                      >
+                        <option value="">Select</option>
+                        {editBranchOptions.map((item) => (
+                          <option key={item.id} value={item.id}>{item.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+
+              <div className="avm-footer">
+                <div></div>
+                <div className="avm-footer-right">
+                  <button type="button" className="avm-btn light" onClick={closeModal} disabled={saving}>
+                    Cancel
+                  </button>
+                  <button type="submit" className="avm-btn primary" disabled={saving}>
+                    {saving ? "Saving..." : "Save Changes"}
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal with avm styles */}
+      {showDeleteModal && (
+        <div className="avm-backdrop" role="presentation">
+          <div className="avm-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+            <div className="avm-modal-header">
+              <h2 className="avm-modal-title">Confirm Delete</h2>
+              <button type="button" className="avm-modal-close" onClick={() => setShowDeleteModal(false)} aria-label="Close">
+                ×
+              </button>
+            </div>
+            <div className="avm-body">
+              <p>Are you sure you want to delete this employee? This action cannot be undone.</p>
+            </div>
+            <div className="avm-footer">
+              <div></div>
+              <div className="avm-footer-right">
+                <button type="button" className="avm-btn light" onClick={() => setShowDeleteModal(false)} disabled={saving}>
+                  Cancel
+                </button>
+                <button type="button" className="avm-btn primary" onClick={handleDelete} disabled={saving}>
+                  {saving ? "Deleting..." : "Delete"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Employee Wizard Modal - kept as is */}
       {showOnboardWizard && (
         <EmployeeWizardModal
           wizardStep={onboardStep}
@@ -1671,311 +1743,6 @@ export default function EmployeesPage() {
           onSubmit={handleOnboardSubmit}
           onClose={() => setShowOnboardWizard(false)}
         />
-      )}
-
-      {showModal && (
-        <>
-          <div className="modal fade show" style={{ display: "block" }} tabIndex="-1">
-            <div className="modal-dialog modal-lg">
-              <form className="modal-content" onSubmit={handleSubmit}>
-                <div className="modal-header">
-                  <h5 className="modal-title">{isEdit ? "Edit Employee" : "Add Employee"}</h5>
-                  <button type="button" className="btn-close" onClick={() => {
-                    setShowModal(false);
-                    setPhoneError("");
-                  }} />
-                </div>
-                <div className="modal-body">
-                  <div className="row g-3">
-                    <div className="col-md-6">
-                      <label className="form-label">Employee Code</label>
-                      <input className="form-control" value={form.employeeCode} disabled placeholder="Auto generated" />
-                    </div>
-                    <div className="col-md-6">
-                      <label className="form-label">Full Name</label>
-                      <input className="form-control" value={form.name} onChange={e => setForm({...form, name: e.target.value})} required />
-                    </div>
-                    <div className="col-md-6">
-                      <label className="form-label">Email</label>
-                      <input type="email" className="form-control" value={form.email} onChange={e => setForm({...form, email: e.target.value})} required />
-                    </div>
-                    <div className="col-md-6">
-                      <label className="form-label">Country Code</label>
-                      <select
-                        className="form-select"
-                        value={form.countryCode}
-                        onChange={(e) => {
-                          setForm({...form, countryCode: e.target.value});
-                          setPhoneError("");
-                        }}
-                      >
-                        {COUNTRY_CODE_OPTIONS.map((option) => (
-                          <option key={`${option.country}-${option.callingCode}`} value={option.value}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="col-md-6">
-                      <label className="form-label">Mobile Number</label>
-                      <input
-                        type="tel"
-                        className={`form-control ${phoneError ? "is-invalid" : ""}`}
-                        value={form.phone}
-                        onChange={(e) => {
-                          const sanitized = sanitizePhoneDigits(
-                            e.target.value,
-                            getCountryDisplayMaxLength(form.countryCode)
-                          );
-                          setForm({...form, phone: sanitized});
-                          if (phoneError) {
-                            const error = validatePhoneNumber(sanitized, form.countryCode);
-                            setPhoneError(error);
-                          }
-                        }}
-                        placeholder={`Enter ${getCountryDisplayMaxLength(form.countryCode)} digit number`}
-                      />
-                      {phoneError && (
-                        <div className="invalid-feedback d-block">{phoneError}</div>
-                      )}
-                    </div>
-                    <div className="col-md-6">
-                      <label className="form-label">Department</label>
-                      <select
-                        className="form-select"
-                        value={form.dept}
-                        onChange={(e) => handleDeptChange(e.target.value)}
-                        disabled={metaLoading}
-                      >
-                        <option value="">Select</option>
-                        {form.dept && !departmentOptions.includes(form.dept) && (
-                          <option value={form.dept}>{form.dept}</option>
-                        )}
-                        {departmentOptions.map((name) => (
-                          <option key={name} value={name}>
-                            {name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                      <div className="col-md-6">
-                      <label className="form-label">Designation</label>
-                      <select
-                        className="form-select"
-                        value={form.designation}
-                        onChange={(e) => setForm({ ...form, designation: e.target.value })}
-                        disabled={metaLoading || !form.dept}
-                      >
-                        <option value="">Select</option>
-                        {form.designation && !designationOptions.includes(form.designation) && (
-                          <option value={form.designation}>{form.designation}</option>
-                        )}
-                        {designationOptions.map((name) => (
-                          <option key={name} value={name}>
-                            {name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="col-md-6">
-                      <label className="form-label">Join Date</label>
-                      <input type="date" className="form-control" value={form.joinDate} onChange={e => setForm({...form, joinDate: e.target.value})} />
-                    </div>
-                    <div className="col-md-6">
-                      <label className="form-label">Status</label>
-                      <select className="form-select" value={form.status} onChange={e => setForm({...form, status: e.target.value})}>
-                        <option value="ACTIVE">Active</option>
-                        <option value="INACTIVE">Inactive</option>
-                      </select>
-                    </div>
-                    <div className="col-12">
-                      <hr className="my-1" />
-                      <h6 className="mb-0">Organization Details</h6>
-                    </div>
-                    <div className="col-md-6">
-                      <label className="form-label">Institution *</label>
-                      <select
-                        className="form-select"
-                        value={orgInstitutionId}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setOrgInstitutionId(val);
-                          setOrgCategoryId("");
-                          setOrgTypeId("");
-                          setOrgDepartmentId("");
-                          setOrgTeamId("");
-                          setForm((prev) => ({
-                            ...prev,
-                            institution: "",
-                            institutionCategory: "",
-                            institutionType: "",
-                            userDepartmentName: "",
-                            team: "",
-                          }));
-                        }}
-                        disabled={isAdmin || isManager}
-                      >
-                        <option value="">Select</option>
-                        {orgInstitutions.map((item) => (
-                          <option key={item.id} value={item.id}>
-                            {item.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="col-md-6">
-                      <label className="form-label">Category *</label>
-                      <select
-                        className="form-select"
-                        value={orgCategoryId}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setOrgCategoryId(val);
-                          setOrgTypeId("");
-                          setOrgDepartmentId("");
-                          setOrgTeamId("");
-                          setForm((prev) => ({
-                            ...prev,
-                            institutionCategory: "",
-                            institutionType: "",
-                            userDepartmentName: "",
-                            team: "",
-                          }));
-                        }}
-                        disabled={!orgInstitutionId || isAdmin || isManager}
-                      >
-                        <option value="">Select</option>
-                        {orgCategories.map((item) => (
-                          <option key={item.id} value={item.id}>
-                            {item.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="col-md-6">
-                      <label className="form-label">Type *</label>
-                      <select
-                        className="form-select"
-                        value={orgTypeId}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setOrgTypeId(val);
-                          setOrgDepartmentId("");
-                          setOrgTeamId("");
-                          const selected = orgTypes.find(
-                            (item) => String(item.id) === String(val),
-                          );
-                          setForm((prev) => ({
-                            ...prev,
-                            institutionType: selected?.name || "",
-                            userDepartmentName: "",
-                            team: "",
-                          }));
-                        }}
-                        disabled={!orgCategoryId || isAdmin || isManager}
-                      >
-                        <option value="">Select</option>
-                        {orgTypes.map((item) => (
-                          <option key={item.id} value={item.id}>
-                            {item.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="col-md-6">
-                      <label className="form-label">Department *</label>
-                      <select
-                        className="form-select"
-                        value={orgDepartmentId}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setOrgDepartmentId(val);
-                          setOrgTeamId("");
-                          const selected = orgDepartments.find(
-                            (item) => String(item.id) === String(val),
-                          );
-                          setForm((prev) => ({
-                            ...prev,
-                            userDepartmentName: selected?.name || "",
-                            team: "",
-                          }));
-                        }}
-                        disabled={!orgTypeId || isAdmin || isManager}
-                      >
-                        <option value="">Select</option>
-                        {orgDepartments.map((item) => (
-                          <option key={item.id} value={item.id}>
-                            {item.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="col-md-6">
-                      <label className="form-label">Team (Optional)</label>
-                      <select
-                        className="form-select"
-                        value={orgTeamId}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setOrgTeamId(val);
-                          const selected = orgTeams.find(
-                            (item) => String(item.id) === String(val),
-                          );
-                          setForm((prev) => ({
-                            ...prev,
-                            team: selected?.name || "",
-                          }));
-                        }}
-                        disabled={!orgDepartmentId || isManager}
-                      >
-                        <option value="">Select</option>
-                        {orgTeams.map((item) => (
-                          <option key={item.id} value={item.id}>
-                            {item.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  
-                  </div>
-                </div>
-                <div className="modal-footer">
-                  <button type="button" className="btn btn-light" onClick={() => {
-                    setShowModal(false);
-                    setPhoneError("");
-                  }}>Cancel</button>
-                  <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? "Saving..." : "Save Changes"}</button>
-                </div>
-              </form>
-            </div>
-          </div>
-          <div className="modal-backdrop fade show" />
-        </>
-      )}
-
-      {showDeleteModal && (
-        <>
-          <div className="modal fade show" style={{ display: "block" }} tabIndex="-1">
-            <div className="modal-dialog modal-dialog-centered">
-              <div className="modal-content">
-                <div className="modal-header">
-                  <h5 className="modal-title">Confirm Delete</h5>
-                  <button type="button" className="btn-close" onClick={() => setShowDeleteModal(false)} />
-                </div>
-                <div className="modal-body">
-                  <p>Are you sure you want to delete this employee? This action cannot be undone.</p>
-                </div>
-                <div className="modal-footer">
-                  <button type="button" className="btn btn-light" onClick={() => setShowDeleteModal(false)}>Cancel</button>
-                  <button type="button" className="btn btn-danger" onClick={handleDelete} disabled={saving}>
-                    {saving ? "Deleting..." : "Delete"}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div className="modal-backdrop fade show" />
-        </>
       )}
     </div>
   );

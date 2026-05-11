@@ -4,6 +4,7 @@ import { getEmployees } from "../../api/employeesApi";
 import { createLeavePolicy, deleteLeavePolicy, getLeavePolicies, updateLeavePolicy } from "../../api/leaveSettingsApi";
 import { extractApiErrorMessage } from "../../utils/errorMessage";
 import { useToast } from "../../components/system/ToastProvider";
+import "../../../public/assets/css/addModalShared.css";
 
 const initialForm = {
   name: "",
@@ -16,6 +17,7 @@ export default function LeaveSettingsPage() {
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [employeeSearch, setEmployeeSearch] = useState("");
   const { showSuccess, showError } = useToast();
   const [form, setForm] = useState(initialForm);
   const [editForm, setEditForm] = useState(initialForm);
@@ -64,6 +66,12 @@ export default function LeaveSettingsPage() {
     [employees],
   );
 
+  const filteredEmployeeOptions = useMemo(() => {
+    const term = String(employeeSearch || "").trim().toLowerCase();
+    if (!term) return employeeOptions;
+    return employeeOptions.filter((emp) => String(emp.name || "").toLowerCase().includes(term));
+  }, [employeeOptions, employeeSearch]);
+
   const orderedRows = useMemo(
     () => [...rows].sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""))),
     [rows],
@@ -71,6 +79,7 @@ export default function LeaveSettingsPage() {
 
   const openAdd = () => {
     setForm(initialForm);
+    setEmployeeSearch("");
     setShowAddModal(true);
   };
 
@@ -80,6 +89,7 @@ export default function LeaveSettingsPage() {
       daysPerYear: row?.daysPerYear ?? "",
       employeeIds: Array.isArray(row?.employeeIds) ? row.employeeIds : [],
     });
+    setEmployeeSearch("");
     setSelectedId(row?.id || null);
     setShowEditModal(true);
   };
@@ -176,10 +186,17 @@ export default function LeaveSettingsPage() {
 
   const renderEmployeeList = (currentIds, setIds) => (
     <div className="border rounded p-2" style={{ maxHeight: 220, overflowY: "auto" }}>
-      {employeeOptions.length === 0 ? (
+      <input
+        type="text"
+        className="form-control form-control-sm mb-2"
+        placeholder="Search employee..."
+        value={employeeSearch}
+        onChange={(e) => setEmployeeSearch(e.target.value)}
+      />
+      {filteredEmployeeOptions.length === 0 ? (
         <div className="text-muted">No employees</div>
       ) : (
-        employeeOptions.map((emp) => {
+        filteredEmployeeOptions.map((emp) => {
           const id = Number(emp.id);
           const checked = currentIds.includes(id);
           return (
@@ -300,167 +317,152 @@ export default function LeaveSettingsPage() {
       </div>
 
       {showAddModal && (
-        <>
-          <div className="modal fade show" style={{ display: "block" }} tabIndex="-1">
-            <div className="modal-dialog modal-dialog-centered modal-lg">
-              <div className="modal-content">
-                <div className="modal-header">
-                  <h4 className="modal-title">Add Policy</h4>
-                  <button type="button" className="btn-close custom-btn-close" onClick={() => setShowAddModal(false)}>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <line x1="6" y1="6" x2="18" y2="18" />
-                      <line x1="18" y1="6" x2="6" y2="18" />
-                    </svg>
-                  </button>
-                </div>
-                <form onSubmit={handleAdd}>
-                  <div className="modal-body pb-0">
-                    <div className="row">
-                      <div className="col-md-6">
-                        <div className="mb-3">
-                          <label className="form-label">Policy Name</label>
-                          <input
-                            type="text"
-                            className="form-control"
-                            value={form.name}
-                            onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
-                          />
-                        </div>
-                      </div>
-                      <div className="col-md-6">
-                        <div className="mb-3">
-                          <label className="form-label">No of Days</label>
-                          <input
-                            type="number"
-                            min="0"
-                            className="form-control"
-                            value={form.daysPerYear}
-                            onChange={(e) => setForm((prev) => ({ ...prev, daysPerYear: e.target.value }))}
-                          />
-                        </div>
-                      </div>
-                      <div className="col-md-12">
-                        <div className="mb-3">
-                          <label className="form-label">Members</label>
-                          {renderEmployeeList(form.employeeIds, setForm)}
-                        </div>
-                      </div>
+        <div className="avm-backdrop" role="presentation">
+          <div className="avm-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+            <div className="avm-modal-header">
+              <h2 className="avm-modal-title">Add Policy</h2>
+              <button type="button" className="avm-modal-close" onClick={() => setShowAddModal(false)} aria-label="Close">
+                x
+              </button>
+            </div>
+            <form onSubmit={handleAdd}>
+              <div className="avm-body">
+                <div className="row g-3">
+                  <div className="col-md-6">
+                    <div className="avm-field">
+                      <label className="avm-label">Policy Name</label>
+                      <input
+                        type="text"
+                        className="avm-input"
+                        value={form.name}
+                        onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
+                      />
                     </div>
                   </div>
-                  <div className="modal-footer">
-                    <button type="button" className="btn btn-light me-2" onClick={() => setShowAddModal(false)}>
-                      Cancel
-                    </button>
-                    <button type="submit" className="btn btn-primary" disabled={saving}>
-                      {saving ? "Adding..." : "Add Policy"}
-                    </button>
+                  <div className="col-md-6">
+                    <div className="avm-field">
+                      <label className="avm-label">No of Days</label>
+                      <input
+                        type="number"
+                        min="0"
+                        className="avm-input"
+                        value={form.daysPerYear}
+                        onChange={(e) => setForm((prev) => ({ ...prev, daysPerYear: e.target.value }))}
+                      />
+                    </div>
                   </div>
-                </form>
+                  <div className="col-md-12">
+                    <div className="avm-field">
+                      <label className="avm-label">Members</label>
+                      {renderEmployeeList(form.employeeIds, setForm)}
+                    </div>
+                  </div>
+                </div>
               </div>
-            </div>
+              <div className="avm-footer">
+                <div></div>
+                <div className="avm-footer-right">
+                  <button type="button" className="avm-btn light" onClick={() => setShowAddModal(false)} disabled={saving}>
+                    Cancel
+                  </button>
+                  <button type="submit" className="avm-btn primary" disabled={saving}>
+                    {saving ? "Adding..." : "Add Policy"}
+                  </button>
+                </div>
+              </div>
+            </form>
           </div>
-          <div className="modal-backdrop fade show" />
-        </>
+        </div>
       )}
 
       {showEditModal && (
-        <>
-          <div className="modal fade show" style={{ display: "block" }} tabIndex="-1">
-            <div className="modal-dialog modal-dialog-centered modal-lg">
-              <div className="modal-content">
-                <div className="modal-header">
-                  <h4 className="modal-title">Edit Policy</h4>
-                  <button type="button" className="btn-close custom-btn-close" onClick={() => setShowEditModal(false)}>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <line x1="6" y1="6" x2="18" y2="18" />
-                      <line x1="18" y1="6" x2="6" y2="18" />
-                    </svg>
-                  </button>
-                </div>
-                <form onSubmit={handleEdit}>
-                  <div className="modal-body pb-0">
-                    <div className="row">
-                      <div className="col-md-6">
-                        <div className="mb-3">
-                          <label className="form-label">Policy Name</label>
-                          <input
-                            type="text"
-                            className="form-control"
-                            value={editForm.name}
-                            onChange={(e) => setEditForm((prev) => ({ ...prev, name: e.target.value }))}
-                          />
-                        </div>
-                      </div>
-                      <div className="col-md-6">
-                        <div className="mb-3">
-                          <label className="form-label">No of Days</label>
-                          <input
-                            type="number"
-                            min="0"
-                            className="form-control"
-                            value={editForm.daysPerYear}
-                            onChange={(e) => setEditForm((prev) => ({ ...prev, daysPerYear: e.target.value }))}
-                          />
-                        </div>
-                      </div>
-                      <div className="col-md-12">
-                        <div className="mb-3">
-                          <label className="form-label">Members</label>
-                          {renderEmployeeList(editForm.employeeIds, setEditForm)}
-                        </div>
-                      </div>
+        <div className="avm-backdrop" role="presentation">
+          <div className="avm-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+            <div className="avm-modal-header">
+              <h2 className="avm-modal-title">Edit Policy</h2>
+              <button type="button" className="avm-modal-close" onClick={() => setShowEditModal(false)} aria-label="Close">
+                x
+              </button>
+            </div>
+            <form onSubmit={handleEdit}>
+              <div className="avm-body">
+                <div className="row g-3">
+                  <div className="col-md-6">
+                    <div className="avm-field">
+                      <label className="avm-label">Policy Name</label>
+                      <input
+                        type="text"
+                        className="avm-input"
+                        value={editForm.name}
+                        onChange={(e) => setEditForm((prev) => ({ ...prev, name: e.target.value }))}
+                      />
                     </div>
                   </div>
-                  <div className="modal-footer">
-                    <button type="button" className="btn btn-light me-2" onClick={() => setShowEditModal(false)}>
-                      Cancel
-                    </button>
-                    <button type="submit" className="btn btn-primary" disabled={saving}>
-                      {saving ? "Saving..." : "Save Changes"}
-                    </button>
+                  <div className="col-md-6">
+                    <div className="avm-field">
+                      <label className="avm-label">No of Days</label>
+                      <input
+                        type="number"
+                        min="0"
+                        className="avm-input"
+                        value={editForm.daysPerYear}
+                        onChange={(e) => setEditForm((prev) => ({ ...prev, daysPerYear: e.target.value }))}
+                      />
+                    </div>
                   </div>
-                </form>
+                  <div className="col-md-12">
+                    <div className="avm-field">
+                      <label className="avm-label">Members</label>
+                      {renderEmployeeList(editForm.employeeIds, setEditForm)}
+                    </div>
+                  </div>
+                </div>
               </div>
-            </div>
+              <div className="avm-footer">
+                <div></div>
+                <div className="avm-footer-right">
+                  <button type="button" className="avm-btn light" onClick={() => setShowEditModal(false)} disabled={saving}>
+                    Cancel
+                  </button>
+                  <button type="submit" className="avm-btn primary" disabled={saving}>
+                    {saving ? "Saving..." : "Save Changes"}
+                  </button>
+                </div>
+              </div>
+            </form>
           </div>
-          <div className="modal-backdrop fade show" />
-        </>
+        </div>
       )}
 
       {showDeleteModal && (
-        <>
-          <div className="modal fade show" style={{ display: "block" }} tabIndex="-1">
-            <div className="modal-dialog modal-dialog-centered">
-              <div className="modal-content">
-                <div className="modal-header">
-                  <h4 className="modal-title">Confirm Delete</h4>
-                  <button type="button" className="btn-close custom-btn-close" onClick={() => setShowDeleteModal(false)}>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <line x1="6" y1="6" x2="18" y2="18" />
-                      <line x1="18" y1="6" x2="6" y2="18" />
-                    </svg>
-                  </button>
-                </div>
-                <div className="modal-body">
-                  <p>
-                    Are you sure you want to delete
-                    {deleteTarget?.name ? ` "${deleteTarget.name}"` : " this policy"}
-                    ?
-                  </p>
-                </div>
-                <div className="modal-footer">
-                  <button type="button" className="btn btn-light me-2" onClick={() => setShowDeleteModal(false)}>
-                    Cancel
-                  </button>
-                  <button type="button" className="btn btn-danger" onClick={handleDelete} disabled={saving}>
-                    {saving ? "Deleting..." : "Delete"}
-                  </button>
-                </div>
+        <div className="avm-backdrop" role="presentation">
+          <div className="avm-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+            <div className="avm-modal-header">
+              <h2 className="avm-modal-title">Confirm Delete</h2>
+              <button type="button" className="avm-modal-close" onClick={() => setShowDeleteModal(false)} aria-label="Close">
+                x
+              </button>
+            </div>
+            <div className="avm-body">
+              <p>
+                Are you sure you want to delete
+                {deleteTarget?.name ? ` "${deleteTarget.name}"` : " this policy"}
+                ?
+              </p>
+            </div>
+            <div className="avm-footer">
+              <div></div>
+              <div className="avm-footer-right">
+                <button type="button" className="avm-btn light" onClick={() => setShowDeleteModal(false)} disabled={saving}>
+                  Cancel
+                </button>
+                <button type="button" className="avm-btn danger" onClick={handleDelete} disabled={saving}>
+                  {saving ? "Deleting..." : "Delete"}
+                </button>
               </div>
             </div>
           </div>
-          <div className="modal-backdrop fade show" />
-        </>
+        </div>
       )}
     </>
   );

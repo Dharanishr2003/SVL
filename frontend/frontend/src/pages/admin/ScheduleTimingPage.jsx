@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import * as attendanceApi from '../../api/attendanceApi';
 import LocationPickerModal from '../../components/admin/LocationPickerModal';
+import "../../../public/assets/css/addModalShared.css";
 
 /* helpers */
 function fmtDuration(mins) {

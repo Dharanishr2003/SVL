@@ -6,11 +6,12 @@ import {
   getUserGroups,
 } from "../../api/userGroupApi";
 import {
-  getDepartments,
-  getInstitutions,
-  getTeams,
   getUserOrgSelection,
 } from "../../api/orgHierarchyApi";
+import { getHeadOffices } from "../../api/headOfficesApi";
+import { getBranches } from "../../api/branchesApi";
+import { getDepartmentsMasterByBranch } from "../../api/departmentsApi";
+import { getDesignations } from "../../api/designationsApi";
 import { useAuth } from "../../context/AuthContext";
 import UserGroupWizardModal from "../../components/admin/UserGroupWizardModal";
 import { useToast } from "../../components/system/ToastProvider";
@@ -51,9 +52,10 @@ export default function UsergroupsPage() {
   const [createPageKeys, setCreatePageKeys] = useState([]);
 
   const [orgSelection, setOrgSelection] = useState(null);
-  const [institutions, setInstitutions] = useState([]);
+  const [headOffices, setHeadOffices] = useState([]);
+  const [branches, setBranches] = useState([]);
   const [createDepartments, setCreateDepartments] = useState([]);
-  const [createTeams, setCreateTeams] = useState([]);
+  const [createDesignations, setCreateDesignations] = useState([]);
   const {
     form,
     createScope,
@@ -61,10 +63,13 @@ export default function UsergroupsPage() {
     formError,
     setFormError,
     selectedTeamId,
+    selectedDepartmentId,
     updateFormField,
     updateScope,
     validateForm,
     handleTeamSelect,
+    handleDepartmentSelect,
+    removeDepartment,
     removeTeam,
     openModal,
     closeModal,
@@ -95,12 +100,12 @@ export default function UsergroupsPage() {
     const loadOrgData = async () => {
       setOrgLoading(true);
       try {
-        const [institutionRows, selection] = await Promise.all([
-          getInstitutions(),
+        const [headOfficeRows, selection] = await Promise.all([
+          getHeadOffices(),
           currentUser?.id ? getUserOrgSelection(currentUser.id) : Promise.resolve(null),
         ]);
         if (!isMounted) return;
-        setInstitutions(Array.isArray(institutionRows) ? institutionRows : []);
+        setHeadOffices(Array.isArray(headOfficeRows) ? headOfficeRows : []);
         setOrgSelection(selection || null);
       } catch (e) {
         if (isMounted) {
@@ -119,12 +124,34 @@ export default function UsergroupsPage() {
   useEffect(() => {
     let isMounted = true;
     const run = async () => {
-      if (!createScope.institutionId) {
+      if (!createScope.headOfficeId) {
+        setBranches([]);
+        return;
+      }
+      try {
+        const data = await getBranches(createScope.headOfficeId);
+        if (isMounted) setBranches(Array.isArray(data) ? data : []);
+      } catch (e) {
+        if (isMounted) {
+          showError(extractApiErrorMessage(e, "Failed to load branches"));
+        }
+      }
+    };
+    run();
+    return () => {
+      isMounted = false;
+    };
+  }, [createScope.headOfficeId]);
+
+  useEffect(() => {
+    let isMounted = true;
+    const run = async () => {
+      if (!createScope.branchId) {
         setCreateDepartments([]);
         return;
       }
       try {
-        const data = await getDepartments(createScope.institutionId);
+        const data = await getDepartmentsMasterByBranch(createScope.branchId);
         if (isMounted) setCreateDepartments(Array.isArray(data) ? data : []);
       } catch (e) {
         if (isMounted) {
@@ -136,21 +163,21 @@ export default function UsergroupsPage() {
     return () => {
       isMounted = false;
     };
-  }, [createScope.institutionId]);
+  }, [createScope.branchId]);
 
   useEffect(() => {
     let isMounted = true;
     const run = async () => {
-      if (!createScope.institutionId || !createScope.departmentId) {
-        setCreateTeams([]);
+      if (!createScope.departmentId) {
+        setCreateDesignations([]);
         return;
       }
       try {
-        const data = await getTeams(createScope.institutionId, createScope.departmentId);
-        if (isMounted) setCreateTeams(Array.isArray(data) ? data : []);
+        const data = await getDesignations(createScope.departmentId);
+        if (isMounted) setCreateDesignations(Array.isArray(data) ? data : []);
       } catch (e) {
         if (isMounted) {
-          showError(extractApiErrorMessage(e, "Failed to load teams"));
+          showError(extractApiErrorMessage(e, "Failed to load designations"));
         }
       }
     };
@@ -158,89 +185,89 @@ export default function UsergroupsPage() {
     return () => {
       isMounted = false;
     };
-  }, [createScope.institutionId, createScope.departmentId]);
+  }, [createScope.departmentId]);
 
 
   const applyActorScopeDefaults = (scope) => {
     if (isSuperAdmin || !orgSelection) {
       return scope;
     }
+    const nextTeamIds = Array.isArray(scope.teamIds) && scope.teamIds.length
+      ? scope.teamIds
+      : orgSelection.teamId
+        ? [String(orgSelection.teamId)]
+        : [];
     return {
-      institutionId: String(orgSelection.institutionId || scope.institutionId || ""),
+      headOfficeId: String(orgSelection.institutionId || scope.headOfficeId || ""),
+      branchId: String(scope.branchId || ""),
       departmentId: String(orgSelection.departmentId || scope.departmentId || ""),
-      teamIds:
-        (isManager || isTeamLead) && orgSelection.teamId
-          ? [String(orgSelection.teamId)]
-          : scope.teamIds,
+      departmentIds: Array.isArray(scope.departmentIds) && scope.departmentIds.length
+        ? scope.departmentIds
+        : orgSelection.departmentId
+          ? [String(orgSelection.departmentId)]
+          : [],
+      teamIds: nextTeamIds,
     };
   };
 
   const openCreate = () => {
     setCreatePageKeys([]);
     openModal();
-    setCreateScope(applyActorScopeDefaults({ ...EMPTY_SCOPE, memberScope: "NONE" }));
-  };
-
-  const handleCreateMemberScopeChange = (nextScope) => {
-    const scopeKey = String(nextScope || "NONE").toUpperCase();
-    setCreateScope((prev) => {
-      const next = {
-        ...prev,
-        memberScope: scopeKey,
-      };
-      if (scopeKey === "ADMINS") {
-        next.departmentId = "";
-        next.teamIds = [];
-      } else if (scopeKey === "MANAGERS") {
-        next.teamIds = [];
-      }
-      return next;
-    });
+    setCreateScope(applyActorScopeDefaults({ ...EMPTY_SCOPE }));
   };
 
   const handleSave = async () => {
     if (!validateForm()) {
       return;
     }
-    const memberScope = String(createScope.memberScope || "NONE").toUpperCase();
-    const selectedInstitution = findById(institutions, createScope.institutionId);
-    const selectedDepartment = findById(createDepartments, createScope.departmentId);
-    const selectedTeams = createTeams.filter((team) =>
-      createScope.teamIds.some((teamId) => String(teamId) === String(team.id)),
+    const selectedHeadOffice = findById(headOffices, createScope.headOfficeId);
+    const selectedBranch = findById(branches, createScope.branchId);
+    const selectedDepartments = Array.isArray(createScope.departmentIds) && createScope.departmentIds.length
+      ? createDepartments.filter((department) =>
+          createScope.departmentIds.some((departmentId) => String(departmentId) === String(department.id)),
+        )
+      : createScope.departmentId
+        ? [findById(createDepartments, createScope.departmentId)].filter(Boolean)
+        : [];
+    const selectedDesignations = createDesignations.filter((designation) =>
+      createScope.teamIds.some((designationId) => String(designationId) === String(designation.id)),
     );
-    if (!selectedInstitution || !selectedDepartment) {
-      if (memberScope === "ADMINS") {
-        if (!selectedInstitution) {
-          setFormError("Branch is required");
-          return;
-        }
-      } else if (memberScope === "MANAGERS") {
-        if (!selectedInstitution || !selectedDepartment) {
-          setFormError("Branch and department are required");
-          return;
-        }
-      } else {
-        setFormError("Branch and department are required");
-        return;
-      }
+    if (!selectedHeadOffice) {
+      setFormError("Head office is required");
+      return;
     }
-    if (memberScope === "ADMINS") {
-      // no team required
-    } else if (memberScope === "MANAGERS") {
-      // no team required
-    } else if (!selectedTeams.length) {
-      setFormError("At least one team is required");
+    if (!selectedBranch) {
+      setFormError("Branch is required");
+      return;
+    }
+    if (String(selectedBranch.headOfficeId || "") !== String(selectedHeadOffice.id || "")) {
+      setFormError("Selected branch does not belong to the selected head office");
+      return;
+    }
+    if (selectedDepartments.length === 0) {
+      setFormError("Department is required");
+      return;
+    }
+    const invalidDepartment = selectedDepartments.find(
+      (department) => String(department.branchId || "") !== String(selectedBranch.id || ""),
+    );
+    if (invalidDepartment) {
+      setFormError("Selected department does not belong to the selected branch");
       return;
     }
     setSaving(true);
     try {
       await createUserGroup({
         name: form.name.trim(),
-        institutionName: selectedInstitution.name,
-        departmentName: selectedDepartment?.name || "",
-        teamNames: memberScope === "ADMINS" || memberScope === "MANAGERS" ? [] : selectedTeams.map((team) => team.name),
+        headOfficeId: selectedHeadOffice.id,
+        branchId: selectedBranch.id,
+        departmentId: selectedDepartments[0]?.id || null,
+        departmentIds: selectedDepartments.map((department) => department.id),
+        institutionName: selectedBranch.name,
+        departmentName: selectedDepartments.map((department) => department.name).join(","),
+        teamNames: selectedDesignations.map((designation) => designation.name),
         pageKeys: createPageKeys,
-        memberScope,
+        memberScope: "NONE",
       });
       showSuccess("User group created");
       closeModal();
@@ -297,15 +324,17 @@ export default function UsergroupsPage() {
         <div className="d-flex justify-content-between align-items-center mb-3">
           <div>
             <h4 className="mb-0">User Groups</h4>
-            <small className="text-muted">Manage group scope by branch, department, and team.</small>
+            <small className="text-muted">Manage group scope by branch, department, and designation.</small>
           </div>
           <div className="d-flex gap-2">
             <button className="btn btn-light" onClick={() => navigate(-1)}>
               Back
             </button>
-            <button className="btn btn-primary" onClick={openCreate}>
-              Create Group
-            </button>
+            {isSuperAdmin ? (
+              <button className="btn btn-primary" onClick={openCreate}>
+                Create Group
+              </button>
+            ) : null}
           </div>
         </div>
 
@@ -318,7 +347,7 @@ export default function UsergroupsPage() {
                     <th>Name</th>
                     <th>Branch</th>
                     <th>Department</th>
-                    <th>Teams</th>
+                    <th>Designations</th>
                     <th className="text-end">Actions</th>
                   </tr>
                 </thead>
@@ -341,11 +370,13 @@ export default function UsergroupsPage() {
                         <td className="text-end">
                           <div className="d-inline-flex gap-2">
                             <button className="btn btn-sm btn-outline-primary" onClick={() => openEdit(group)}>
-                              Edit
+                              {isSuperAdmin ? "Edit" : "Open"}
                             </button>
-                            <button className="btn btn-sm btn-outline-danger" onClick={() => setPendingDelete(group)}>
-                              Delete
-                            </button>
+                            {isSuperAdmin ? (
+                              <button className="btn btn-sm btn-outline-danger" onClick={() => setPendingDelete(group)}>
+                                Delete
+                              </button>
+                            ) : null}
                           </div>
                         </td>
                       </tr>
@@ -367,17 +398,22 @@ export default function UsergroupsPage() {
           onFormNameChange={(value) => updateFormField("name", value)}
           scope={createScope}
           onScopeChange={updateScope}
-          onMemberScopeChange={handleCreateMemberScopeChange}
-          institutions={institutions}
+          headOffices={headOffices}
+          branches={branches}
           departments={createDepartments}
-          teams={createTeams}
+          teams={createDesignations}
           selectedTeamId={selectedTeamId}
           onTeamSelect={handleTeamSelect}
           onTeamRemove={removeTeam}
           orgLoading={orgLoading}
-          disableBranch={isAdmin || isManager || isTeamLead}
-          disableDepartment={isAdmin || isManager || isTeamLead || createScope.memberScope === "ADMINS"}
-          disableTeam={isManager || isTeamLead || createScope.memberScope === "ADMINS" || createScope.memberScope === "MANAGERS"}
+          disableBranch={false}
+          disableDepartment={isAdmin}
+          disableTeam={isAdmin || isManager}
+          departmentMultiSelect={isManager}
+          showDesignationPicker={!isAdmin && !isManager}
+          selectedDepartmentId={selectedDepartmentId}
+          onDepartmentSelect={handleDepartmentSelect}
+          onDepartmentRemove={removeDepartment}
           errorMessage={formError}
           onClose={closeModal}
           onSubmit={handleSave}

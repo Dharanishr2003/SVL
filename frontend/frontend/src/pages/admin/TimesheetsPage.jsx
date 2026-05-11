@@ -9,6 +9,7 @@ import {
 } from "../../api/timesheetsApi";
 import { extractApiErrorMessage } from "../../utils/errorMessage";
 import { useToast } from "../../components/system/ToastProvider";
+import "../../../public/assets/css/addModalShared.css";
 
 const initialForm = {
   employeeId: "",
@@ -276,256 +277,256 @@ export default function TimesheetsPage() {
       </div>
 
       {showAddModal && (
-        <>
-          <div className="modal fade show" style={{ display: "block" }} tabIndex="-1">
-            <div className="modal-dialog modal-dialog-centered modal-md">
-              <div className="modal-content">
-                <div className="modal-header">
-                  <h4 className="modal-title">Add Todays Work</h4>
-                  <button type="button" className="btn-close custom-btn-close" onClick={() => setShowAddModal(false)}>
-                    <i className="ti ti-x"></i>
-                  </button>
-                </div>
-                <form onSubmit={handleAdd}>
-                  <div className="modal-body pb-0">
-                    <div className="row">
-                      <div className="col-md-12">
-                        <div className="mb-3">
-                          <label className="form-label">Employee <span className="text-danger">*</span></label>
-                          <select
-                            className="form-select"
-                            value={form.employeeId}
-                            onChange={(e) => setForm((prev) => ({ ...prev, employeeId: e.target.value }))}
-                          >
-                            <option value="">Select</option>
-                            {employeeOptions.map((e) => (
-                              <option key={e.id} value={e.id}>{e.name}</option>
-                            ))}
-                          </select>
-                        </div>
-                      </div>
-                      <div className="col-md-12">
-                        <div className="mb-3">
-                          <label className="form-label">Project <span className="text-danger">*</span></label>
-                          <input
-                            type="text"
-                            className="form-control"
-                            value={form.projectName}
-                            onChange={(e) => setForm((prev) => ({ ...prev, projectName: e.target.value }))}
-                          />
-                        </div>
-                      </div>
-                      <div className="col-md-12">
-                        <div className="mb-3">
-                          <label className="form-label">Deadline</label>
-                          <input
-                            type="date"
-                            className="form-control"
-                            value={form.deadline}
-                            onChange={(e) => setForm((prev) => ({ ...prev, deadline: e.target.value }))}
-                          />
-                        </div>
-                      </div>
-                      <div className="col-md-6">
-                        <div className="mb-3">
-                          <label className="form-label">Total Hours</label>
-                          <input
-                            type="number"
-                            className="form-control"
-                            value={form.totalHours}
-                            onChange={(e) => setForm((prev) => ({ ...prev, totalHours: e.target.value }))}
-                          />
-                        </div>
-                      </div>
-                      <div className="col-md-6">
-                        <div className="mb-3">
-                          <label className="form-label">Remaining Hours</label>
-                          <input
-                            type="number"
-                            className="form-control"
-                            value={form.remainingHours}
-                            onChange={(e) => setForm((prev) => ({ ...prev, remainingHours: e.target.value }))}
-                          />
-                        </div>
-                      </div>
-                      <div className="col-md-6">
-                        <div className="mb-3">
-                          <label className="form-label">Date <span className="text-danger">*</span></label>
-                          <input
-                            type="date"
-                            className="form-control"
-                            value={form.workDate}
-                            onChange={(e) => setForm((prev) => ({ ...prev, workDate: e.target.value }))}
-                          />
-                        </div>
-                      </div>
-                      <div className="col-md-6">
-                        <div className="mb-3">
-                          <label className="form-label">Hours</label>
-                          <input
-                            type="number"
-                            className="form-control"
-                            value={form.workedHours}
-                            onChange={(e) => setForm((prev) => ({ ...prev, workedHours: e.target.value }))}
-                          />
-                        </div>
-                      </div>
+        <div className="avm-backdrop" role="presentation">
+          <div className="avm-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+            <div className="avm-modal-header">
+              <h2 className="avm-modal-title">Add Todays Work</h2>
+              <button type="button" className="avm-modal-close" onClick={() => setShowAddModal(false)} aria-label="Close">
+                x
+              </button>
+            </div>
+            <form onSubmit={handleAdd}>
+              <div className="avm-body">
+                <div className="row g-3">
+                  <div className="col-md-12">
+                    <div className="avm-field">
+                      <label className="avm-label">Employee <span className="text-danger">*</span></label>
+                      <select
+                        className="avm-select"
+                        value={form.employeeId}
+                        onChange={(e) => setForm((prev) => ({ ...prev, employeeId: e.target.value }))}
+                      >
+                        <option value="">Select</option>
+                        {employeeOptions.map((e) => (
+                          <option key={e.id} value={e.id}>{e.name}</option>
+                        ))}
+                      </select>
                     </div>
                   </div>
-                  <div className="modal-footer">
-                    <button type="button" className="btn btn-light me-2" onClick={() => setShowAddModal(false)}>
-                      Cancel
-                    </button>
-                    <button type="submit" className="btn btn-primary" disabled={saving}>
-                      {saving ? "Adding..." : "Add Changes"}
-                    </button>
+                  <div className="col-md-12">
+                    <div className="avm-field">
+                      <label className="avm-label">Project <span className="text-danger">*</span></label>
+                      <input
+                        type="text"
+                        className="avm-input"
+                        value={form.projectName}
+                        onChange={(e) => setForm((prev) => ({ ...prev, projectName: e.target.value }))}
+                      />
+                    </div>
                   </div>
-                </form>
+                  <div className="col-md-12">
+                    <div className="avm-field">
+                      <label className="avm-label">Deadline</label>
+                      <input
+                        type="date"
+                        className="avm-input"
+                        value={form.deadline}
+                        onChange={(e) => setForm((prev) => ({ ...prev, deadline: e.target.value }))}
+                      />
+                    </div>
+                  </div>
+                  <div className="col-md-6">
+                    <div className="avm-field">
+                      <label className="avm-label">Total Hours</label>
+                      <input
+                        type="number"
+                        className="avm-input"
+                        value={form.totalHours}
+                        onChange={(e) => setForm((prev) => ({ ...prev, totalHours: e.target.value }))}
+                      />
+                    </div>
+                  </div>
+                  <div className="col-md-6">
+                    <div className="avm-field">
+                      <label className="avm-label">Remaining Hours</label>
+                      <input
+                        type="number"
+                        className="avm-input"
+                        value={form.remainingHours}
+                        onChange={(e) => setForm((prev) => ({ ...prev, remainingHours: e.target.value }))}
+                      />
+                    </div>
+                  </div>
+                  <div className="col-md-6">
+                    <div className="avm-field">
+                      <label className="avm-label">Date <span className="text-danger">*</span></label>
+                      <input
+                        type="date"
+                        className="avm-input"
+                        value={form.workDate}
+                        onChange={(e) => setForm((prev) => ({ ...prev, workDate: e.target.value }))}
+                      />
+                    </div>
+                  </div>
+                  <div className="col-md-6">
+                    <div className="avm-field">
+                      <label className="avm-label">Hours</label>
+                      <input
+                        type="number"
+                        className="avm-input"
+                        value={form.workedHours}
+                        onChange={(e) => setForm((prev) => ({ ...prev, workedHours: e.target.value }))}
+                      />
+                    </div>
+                  </div>
+                </div>
               </div>
-            </div>
+              <div className="avm-footer">
+                <div></div>
+                <div className="avm-footer-right">
+                  <button type="button" className="avm-btn light" onClick={() => setShowAddModal(false)} disabled={saving}>
+                    Cancel
+                  </button>
+                  <button type="submit" className="avm-btn primary" disabled={saving}>
+                    {saving ? "Adding..." : "Add Changes"}
+                  </button>
+                </div>
+              </div>
+            </form>
           </div>
-          <div className="modal-backdrop fade show" />
-        </>
+        </div>
       )}
 
       {showEditModal && (
-        <>
-          <div className="modal fade show" style={{ display: "block" }} tabIndex="-1">
-            <div className="modal-dialog modal-dialog-centered modal-md">
-              <div className="modal-content">
-                <div className="modal-header">
-                  <h4 className="modal-title">Edit Todays Work</h4>
-                  <button type="button" className="btn-close custom-btn-close" onClick={() => setShowEditModal(false)}>
-                    <i className="ti ti-x"></i>
-                  </button>
-                </div>
-                <form onSubmit={handleEdit}>
-                  <div className="modal-body pb-0">
-                    <div className="row">
-                      <div className="col-md-12">
-                        <div className="mb-3">
-                          <label className="form-label">Employee <span className="text-danger">*</span></label>
-                          <select
-                            className="form-select"
-                            value={editForm.employeeId}
-                            onChange={(e) => setEditForm((prev) => ({ ...prev, employeeId: e.target.value }))}
-                          >
-                            <option value="">Select</option>
-                            {employeeOptions.map((e) => (
-                              <option key={e.id} value={e.id}>{e.name}</option>
-                            ))}
-                          </select>
-                        </div>
-                      </div>
-                      <div className="col-md-12">
-                        <div className="mb-3">
-                          <label className="form-label">Project <span className="text-danger">*</span></label>
-                          <input
-                            type="text"
-                            className="form-control"
-                            value={editForm.projectName}
-                            onChange={(e) => setEditForm((prev) => ({ ...prev, projectName: e.target.value }))}
-                          />
-                        </div>
-                      </div>
-                      <div className="col-md-12">
-                        <div className="mb-3">
-                          <label className="form-label">Deadline</label>
-                          <input
-                            type="date"
-                            className="form-control"
-                            value={editForm.deadline}
-                            onChange={(e) => setEditForm((prev) => ({ ...prev, deadline: e.target.value }))}
-                          />
-                        </div>
-                      </div>
-                      <div className="col-md-6">
-                        <div className="mb-3">
-                          <label className="form-label">Total Hours</label>
-                          <input
-                            type="number"
-                            className="form-control"
-                            value={editForm.totalHours}
-                            onChange={(e) => setEditForm((prev) => ({ ...prev, totalHours: e.target.value }))}
-                          />
-                        </div>
-                      </div>
-                      <div className="col-md-6">
-                        <div className="mb-3">
-                          <label className="form-label">Remaining Hours</label>
-                          <input
-                            type="number"
-                            className="form-control"
-                            value={editForm.remainingHours}
-                            onChange={(e) => setEditForm((prev) => ({ ...prev, remainingHours: e.target.value }))}
-                          />
-                        </div>
-                      </div>
-                      <div className="col-md-6">
-                        <div className="mb-3">
-                          <label className="form-label">Date <span className="text-danger">*</span></label>
-                          <input
-                            type="date"
-                            className="form-control"
-                            value={editForm.workDate}
-                            onChange={(e) => setEditForm((prev) => ({ ...prev, workDate: e.target.value }))}
-                          />
-                        </div>
-                      </div>
-                      <div className="col-md-6">
-                        <div className="mb-3">
-                          <label className="form-label">Hours</label>
-                          <input
-                            type="number"
-                            className="form-control"
-                            value={editForm.workedHours}
-                            onChange={(e) => setEditForm((prev) => ({ ...prev, workedHours: e.target.value }))}
-                          />
-                        </div>
-                      </div>
+        <div className="avm-backdrop" role="presentation">
+          <div className="avm-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+            <div className="avm-modal-header">
+              <h2 className="avm-modal-title">Edit Todays Work</h2>
+              <button type="button" className="avm-modal-close" onClick={() => setShowEditModal(false)} aria-label="Close">
+                x
+              </button>
+            </div>
+            <form onSubmit={handleEdit}>
+              <div className="avm-body">
+                <div className="row g-3">
+                  <div className="col-md-12">
+                    <div className="avm-field">
+                      <label className="avm-label">Employee <span className="text-danger">*</span></label>
+                      <select
+                        className="avm-select"
+                        value={editForm.employeeId}
+                        onChange={(e) => setEditForm((prev) => ({ ...prev, employeeId: e.target.value }))}
+                      >
+                        <option value="">Select</option>
+                        {employeeOptions.map((e) => (
+                          <option key={e.id} value={e.id}>{e.name}</option>
+                        ))}
+                      </select>
                     </div>
                   </div>
-                  <div className="modal-footer">
-                    <button type="button" className="btn btn-light me-2" onClick={() => setShowEditModal(false)}>
-                      Cancel
-                    </button>
-                    <button type="submit" className="btn btn-primary" disabled={saving}>
-                      {saving ? "Saving..." : "Save Changes"}
-                    </button>
+                  <div className="col-md-12">
+                    <div className="avm-field">
+                      <label className="avm-label">Project <span className="text-danger">*</span></label>
+                      <input
+                        type="text"
+                        className="avm-input"
+                        value={editForm.projectName}
+                        onChange={(e) => setEditForm((prev) => ({ ...prev, projectName: e.target.value }))}
+                      />
+                    </div>
                   </div>
-                </form>
+                  <div className="col-md-12">
+                    <div className="avm-field">
+                      <label className="avm-label">Deadline</label>
+                      <input
+                        type="date"
+                        className="avm-input"
+                        value={editForm.deadline}
+                        onChange={(e) => setEditForm((prev) => ({ ...prev, deadline: e.target.value }))}
+                      />
+                    </div>
+                  </div>
+                  <div className="col-md-6">
+                    <div className="avm-field">
+                      <label className="avm-label">Total Hours</label>
+                      <input
+                        type="number"
+                        className="avm-input"
+                        value={editForm.totalHours}
+                        onChange={(e) => setEditForm((prev) => ({ ...prev, totalHours: e.target.value }))}
+                      />
+                    </div>
+                  </div>
+                  <div className="col-md-6">
+                    <div className="avm-field">
+                      <label className="avm-label">Remaining Hours</label>
+                      <input
+                        type="number"
+                        className="avm-input"
+                        value={editForm.remainingHours}
+                        onChange={(e) => setEditForm((prev) => ({ ...prev, remainingHours: e.target.value }))}
+                      />
+                    </div>
+                  </div>
+                  <div className="col-md-6">
+                    <div className="avm-field">
+                      <label className="avm-label">Date <span className="text-danger">*</span></label>
+                      <input
+                        type="date"
+                        className="avm-input"
+                        value={editForm.workDate}
+                        onChange={(e) => setEditForm((prev) => ({ ...prev, workDate: e.target.value }))}
+                      />
+                    </div>
+                  </div>
+                  <div className="col-md-6">
+                    <div className="avm-field">
+                      <label className="avm-label">Hours</label>
+                      <input
+                        type="number"
+                        className="avm-input"
+                        value={editForm.workedHours}
+                        onChange={(e) => setEditForm((prev) => ({ ...prev, workedHours: e.target.value }))}
+                      />
+                    </div>
+                  </div>
+                </div>
               </div>
-            </div>
+              <div className="avm-footer">
+                <div></div>
+                <div className="avm-footer-right">
+                  <button type="button" className="avm-btn light" onClick={() => setShowEditModal(false)} disabled={saving}>
+                    Cancel
+                  </button>
+                  <button type="submit" className="avm-btn primary" disabled={saving}>
+                    {saving ? "Saving..." : "Save Changes"}
+                  </button>
+                </div>
+              </div>
+            </form>
           </div>
-          <div className="modal-backdrop fade show" />
-        </>
+        </div>
       )}
 
       {showDeleteModal && (
-        <>
-          <div className="modal fade show" style={{ display: "block" }} tabIndex="-1">
-            <div className="modal-dialog modal-dialog-centered">
-              <div className="modal-content">
-                <div className="modal-body text-center">
-                  <span className="avatar avatar-xl bg-transparent-danger text-danger mb-3">
-                    <i className="ti ti-trash-x fs-36"></i>
-                  </span>
-                  <h4 className="mb-1">Confirm Delete</h4>
-                  <p className="mb-3">You want to delete this timesheet, this cant be undone once you delete.</p>
-                  <div className="d-flex justify-content-center">
-                    <button type="button" className="btn btn-light me-3" onClick={() => setShowDeleteModal(false)}>
-                      Cancel
-                    </button>
-                    <button type="button" className="btn btn-danger" onClick={handleDelete} disabled={saving}>
-                      {saving ? "Deleting..." : "Yes, Delete"}
-                    </button>
-                  </div>
-                </div>
+        <div className="avm-backdrop" role="presentation">
+          <div className="avm-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+            <div className="avm-modal-header">
+              <h2 className="avm-modal-title">Confirm Delete</h2>
+              <button type="button" className="avm-modal-close" onClick={() => setShowDeleteModal(false)} aria-label="Close">
+                x
+              </button>
+            </div>
+            <div className="avm-body text-center">
+              <span className="avatar avatar-xl bg-transparent-danger text-danger mb-3">
+                <i className="ti ti-trash-x fs-36"></i>
+              </span>
+              <h4 className="mb-1">Confirm Delete</h4>
+              <p className="mb-3">You want to delete this timesheet, this cant be undone once you delete.</p>
+            </div>
+            <div className="avm-footer">
+              <div></div>
+              <div className="avm-footer-right">
+                <button type="button" className="avm-btn light" onClick={() => setShowDeleteModal(false)} disabled={saving}>
+                  Cancel
+                </button>
+                <button type="button" className="avm-btn danger" onClick={handleDelete} disabled={saving}>
+                  {saving ? "Deleting..." : "Yes, Delete"}
+                </button>
               </div>
             </div>
           </div>
-          <div className="modal-backdrop fade show" />
-        </>
+        </div>
       )}
     </>
   );

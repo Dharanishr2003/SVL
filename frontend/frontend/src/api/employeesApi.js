@@ -30,8 +30,10 @@ export async function getEmployees(params = null) {
   return normalizeEmployeePageResponse(response?.data);
 }
 
-export async function getAvailableEmployees() {
-  const response = await api.get("/api/employees/available");
+export async function getAvailableEmployees(params = {}) {
+  const response = await api.get("/api/employees/available", {
+    params: params && Object.keys(params).length > 0 ? params : undefined,
+  });
   return Array.isArray(response?.data) ? response.data : [];
 }
 

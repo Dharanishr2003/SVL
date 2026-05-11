@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import * as attendanceApi from '../../api/attendanceApi';
+import "../../../public/assets/css/addModalShared.css";
 
 /* ── helpers ── */
 function fmtTime(dt) {

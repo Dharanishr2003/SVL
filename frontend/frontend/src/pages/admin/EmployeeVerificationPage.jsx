@@ -11,6 +11,7 @@ import { extractApiErrorMessage } from "../../utils/errorMessage";
 import api from "../../utils/api";
 
 const FIELD_LABELS = {
+  PHONE: "Mobile Number",
   DATE_OF_BIRTH: "Date of Birth",
   GENDER: "Gender",
   CURRENT_ADDRESS: "Address",

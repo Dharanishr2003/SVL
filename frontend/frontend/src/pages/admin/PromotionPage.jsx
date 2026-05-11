@@ -6,6 +6,7 @@ import { getDepartmentsMaster } from "../../api/departmentsApi";
 import { getDesignations } from "../../api/designationsApi";
 import { extractApiErrorMessage } from "../../utils/errorMessage";
 import { useToast } from "../../components/system/ToastProvider";
+import "../../../public/assets/css/addModalShared.css";
 
 const initialForm = {
   employeeName: "",
@@ -221,7 +222,7 @@ export default function PromotionPage() {
 
   return (
     <>
-      <div className="content">
+      <div className="content wf-shell">
         <div className="d-md-flex d-block align-items-center justify-content-between page-breadcrumb mb-3">
           <div className="my-auto mb-2">
             <h2 className="mb-1">Promotion</h2>
@@ -328,293 +329,278 @@ export default function PromotionPage() {
       </div>
 
       {showAddModal && (
-        <>
-          <div className="modal fade show" style={{ display: "block" }} tabIndex="-1">
-            <div className="modal-dialog modal-dialog-centered modal-md">
-              <div className="modal-content">
-                <div className="modal-header">
-                  <h4 className="modal-title">Add Promotion</h4>
-                  <button type="button" className="btn-close custom-btn-close" onClick={() => setShowAddModal(false)}>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <line x1="6" y1="6" x2="18" y2="18" />
-                      <line x1="18" y1="6" x2="6" y2="18" />
-                    </svg>
-                  </button>
-                </div>
-                <form onSubmit={handleAdd}>
-                  <div className="modal-body pb-0">
-                    <div className="row">
-                      <div className="col-md-12">
-                        <div className="mb-3">
-                          <label className="form-label">Promotion For</label>
-                          <select
-                            className="form-select"
-                            value={form.employeeName}
-                            onChange={(e) => {
-                              const nextId = e.target.value;
-                              const emp = employeeOptions.find((x) => String(x.id) === String(nextId));
-                              setForm((prev) => ({
-                                ...prev,
-                                employeeName: nextId,
-                                designationFrom: emp?.designation || prev.designationFrom,
-                                department: emp?.department || prev.department,
-                              }));
-                            }}
-                            disabled={metaLoading}
-                          >
-                            <option value="">Select</option>
-                            {employeeOptions.map((emp) => (
-                              <option key={emp.id} value={emp.id}>
-                                {emp.name}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      </div>
-                      <div className="col-md-12">
-                        <div className="mb-3">
-                          <label className="form-label">Department</label>
-                          <select
-                            className="form-select"
-                            value={form.department}
-                            onChange={(e) => setForm((prev) => ({ ...prev, department: e.target.value }))}
-                            disabled={metaLoading}
-                          >
-                            <option value="">Select</option>
-                            {departmentOptions.map((name) => (
-                              <option key={name} value={name}>
-                                {name}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      </div>
-                      <div className="col-md-12">
-                        <div className="mb-3">
-                          <label className="form-label">Promotion From</label>
-                          <select
-                            className="form-select"
-                            value={form.designationFrom}
-                            onChange={(e) => setForm((prev) => ({ ...prev, designationFrom: e.target.value }))}
-                            disabled={metaLoading}
-                          >
-                            <option value="">Select</option>
-                            {designationOptions.map((name) => (
-                              <option key={name} value={name}>
-                                {name}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      </div>
-                      <div className="col-md-12">
-                        <div className="mb-3">
-                          <label className="form-label">Promotion To</label>
-                          <select
-                            className="form-select"
-                            value={form.designationTo}
-                            onChange={(e) => setForm((prev) => ({ ...prev, designationTo: e.target.value }))}
-                            disabled={metaLoading}
-                          >
-                            <option value="">Select</option>
-                            {designationOptions.map((name) => (
-                              <option key={name} value={name}>
-                                {name}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      </div>
-                      <div className="col-md-12">
-                        <div className="mb-3">
-                          <label className="form-label">Promotion Date</label>
-                          <input
-                            type="date"
-                            className="form-control"
-                            value={form.promotionDate}
-                            onChange={(e) => setForm((prev) => ({ ...prev, promotionDate: e.target.value }))}
-                          />
-                        </div>
-                      </div>
+        <div className="avm-backdrop" role="presentation">
+          <div className="avm-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+            <div className="avm-modal-header">
+              <h2 className="avm-modal-title">Add Promotion</h2>
+              <button type="button" className="avm-modal-close" onClick={() => setShowAddModal(false)} aria-label="Close">
+                x
+              </button>
+            </div>
+            <form onSubmit={handleAdd}>
+              <div className="avm-body">
+                <div className="row g-3">
+                  <div className="col-md-12">
+                    <div className="avm-field">
+                      <label className="avm-label">Promotion For</label>
+                      <select
+                        className="avm-select"
+                        value={form.employeeName}
+                        onChange={(e) => {
+                          const nextId = e.target.value;
+                          const emp = employeeOptions.find((x) => String(x.id) === String(nextId));
+                          setForm((prev) => ({
+                            ...prev,
+                            employeeName: nextId,
+                            designationFrom: emp?.designation || prev.designationFrom,
+                            department: emp?.department || prev.department,
+                          }));
+                        }}
+                        disabled={metaLoading}
+                      >
+                        <option value="">Select</option>
+                        {employeeOptions.map((emp) => (
+                          <option key={emp.id} value={emp.id}>
+                            {emp.name}
+                          </option>
+                        ))}
+                      </select>
                     </div>
                   </div>
-                  <div className="modal-footer">
-                    <button type="button" className="btn btn-white border me-2" onClick={() => setShowAddModal(false)}>
-                      Cancel
-                    </button>
-                    <button type="submit" className="btn btn-primary" disabled={saving}>
-                      {saving ? "Adding..." : "Add Promotion"}
-                    </button>
+                  <div className="col-md-12">
+                    <div className="avm-field">
+                      <label className="avm-label">Department</label>
+                      <select
+                        className="avm-select"
+                        value={form.department}
+                        onChange={(e) => setForm((prev) => ({ ...prev, department: e.target.value }))}
+                        disabled={metaLoading}
+                      >
+                        <option value="">Select</option>
+                        {departmentOptions.map((name) => (
+                          <option key={name} value={name}>
+                            {name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
-                </form>
+                  <div className="col-md-12">
+                    <div className="avm-field">
+                      <label className="avm-label">Promotion From</label>
+                      <select
+                        className="avm-select"
+                        value={form.designationFrom}
+                        onChange={(e) => setForm((prev) => ({ ...prev, designationFrom: e.target.value }))}
+                        disabled={metaLoading}
+                      >
+                        <option value="">Select</option>
+                        {designationOptions.map((name) => (
+                          <option key={name} value={name}>
+                            {name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  <div className="col-md-12">
+                    <div className="avm-field">
+                      <label className="avm-label">Promotion To</label>
+                      <select
+                        className="avm-select"
+                        value={form.designationTo}
+                        onChange={(e) => setForm((prev) => ({ ...prev, designationTo: e.target.value }))}
+                        disabled={metaLoading}
+                      >
+                        <option value="">Select</option>
+                        {designationOptions.map((name) => (
+                          <option key={name} value={name}>
+                            {name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  <div className="col-md-12">
+                    <div className="avm-field">
+                      <label className="avm-label">Promotion Date</label>
+                      <input
+                        type="date"
+                        className="avm-input"
+                        value={form.promotionDate}
+                        onChange={(e) => setForm((prev) => ({ ...prev, promotionDate: e.target.value }))}
+                      />
+                    </div>
+                  </div>
+                </div>
               </div>
-            </div>
+              <div className="avm-footer">
+                <div></div>
+                <div className="avm-footer-right">
+                  <button type="button" className="avm-btn light" onClick={() => setShowAddModal(false)} disabled={saving}>
+                    Cancel
+                  </button>
+                  <button type="submit" className="avm-btn primary" disabled={saving}>
+                    {saving ? "Adding..." : "Add Promotion"}
+                  </button>
+                </div>
+              </div>
+            </form>
           </div>
-          <div className="modal-backdrop fade show" />
-        </>
+        </div>
       )}
 
       {showEditModal && (
-        <>
-          <div className="modal fade show" style={{ display: "block" }} tabIndex="-1">
-            <div className="modal-dialog modal-dialog-centered modal-md">
-              <div className="modal-content">
-                <div className="modal-header">
-                  <h4 className="modal-title">Edit Promotion</h4>
-                  <button type="button" className="btn-close custom-btn-close" onClick={() => setShowEditModal(false)}>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <line x1="6" y1="6" x2="18" y2="18" />
-                      <line x1="18" y1="6" x2="6" y2="18" />
-                    </svg>
-                  </button>
-                </div>
-                <form onSubmit={handleEdit}>
-                  <div className="modal-body pb-0">
-                    <div className="row">
-                      <div className="col-md-12">
-                        <div className="mb-3">
-                          <label className="form-label">Promotion For</label>
-                          <select
-                            className="form-select"
-                            value={editForm.employeeName}
-                            onChange={(e) => {
-                              const nextId = e.target.value;
-                              const emp = employeeOptions.find((x) => String(x.id) === String(nextId));
-                              setEditForm((prev) => ({
-                                ...prev,
-                                employeeName: nextId,
-                                designationFrom: emp?.designation || prev.designationFrom,
-                                department: emp?.department || prev.department,
-                              }));
-                            }}
-                            disabled={metaLoading}
-                          >
-                            <option value="">Select</option>
-                            {employeeOptions.map((emp) => (
-                              <option key={emp.id} value={emp.id}>
-                                {emp.name}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      </div>
-                      <div className="col-md-12">
-                        <div className="mb-3">
-                          <label className="form-label">Department</label>
-                          <select
-                            className="form-select"
-                            value={editForm.department}
-                            onChange={(e) => setEditForm((prev) => ({ ...prev, department: e.target.value }))}
-                            disabled={metaLoading}
-                          >
-                            <option value="">Select</option>
-                            {departmentOptions.map((name) => (
-                              <option key={name} value={name}>
-                                {name}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      </div>
-                      <div className="col-md-12">
-                        <div className="mb-3">
-                          <label className="form-label">Promotion From</label>
-                          <select
-                            className="form-select"
-                            value={editForm.designationFrom}
-                            onChange={(e) => setEditForm((prev) => ({ ...prev, designationFrom: e.target.value }))}
-                            disabled={metaLoading}
-                          >
-                            <option value="">Select</option>
-                            {designationOptions.map((name) => (
-                              <option key={name} value={name}>
-                                {name}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      </div>
-                      <div className="col-md-12">
-                        <div className="mb-3">
-                          <label className="form-label">Promotion To</label>
-                          <select
-                            className="form-select"
-                            value={editForm.designationTo}
-                            onChange={(e) => setEditForm((prev) => ({ ...prev, designationTo: e.target.value }))}
-                            disabled={metaLoading}
-                          >
-                            <option value="">Select</option>
-                            {designationOptions.map((name) => (
-                              <option key={name} value={name}>
-                                {name}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      </div>
-                      <div className="col-md-12">
-                        <div className="mb-3">
-                          <label className="form-label">Promotion Date</label>
-                          <input
-                            type="date"
-                            className="form-control"
-                            value={editForm.promotionDate}
-                            onChange={(e) => setEditForm((prev) => ({ ...prev, promotionDate: e.target.value }))}
-                          />
-                        </div>
-                      </div>
+        <div className="avm-backdrop" role="presentation">
+          <div className="avm-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+            <div className="avm-modal-header">
+              <h2 className="avm-modal-title">Edit Promotion</h2>
+              <button type="button" className="avm-modal-close" onClick={() => setShowEditModal(false)} aria-label="Close">
+                x
+              </button>
+            </div>
+            <form onSubmit={handleEdit}>
+              <div className="avm-body">
+                <div className="row g-3">
+                  <div className="col-md-12">
+                    <div className="avm-field">
+                      <label className="avm-label">Promotion For</label>
+                      <select
+                        className="avm-select"
+                        value={editForm.employeeName}
+                        onChange={(e) => {
+                          const nextId = e.target.value;
+                          const emp = employeeOptions.find((x) => String(x.id) === String(nextId));
+                          setEditForm((prev) => ({
+                            ...prev,
+                            employeeName: nextId,
+                            designationFrom: emp?.designation || prev.designationFrom,
+                            department: emp?.department || prev.department,
+                          }));
+                        }}
+                        disabled={metaLoading}
+                      >
+                        <option value="">Select</option>
+                        {employeeOptions.map((emp) => (
+                          <option key={emp.id} value={emp.id}>
+                            {emp.name}
+                          </option>
+                        ))}
+                      </select>
                     </div>
                   </div>
-                  <div className="modal-footer">
-                    <button type="button" className="btn btn-white border me-2" onClick={() => setShowEditModal(false)}>
-                      Cancel
-                    </button>
-                    <button type="submit" className="btn btn-primary" disabled={saving}>
-                      {saving ? "Saving..." : "Save Changes"}
-                    </button>
+                  <div className="col-md-12">
+                    <div className="avm-field">
+                      <label className="avm-label">Department</label>
+                      <select
+                        className="avm-select"
+                        value={editForm.department}
+                        onChange={(e) => setEditForm((prev) => ({ ...prev, department: e.target.value }))}
+                        disabled={metaLoading}
+                      >
+                        <option value="">Select</option>
+                        {departmentOptions.map((name) => (
+                          <option key={name} value={name}>
+                            {name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
-                </form>
+                  <div className="col-md-12">
+                    <div className="avm-field">
+                      <label className="avm-label">Promotion From</label>
+                      <select
+                        className="avm-select"
+                        value={editForm.designationFrom}
+                        onChange={(e) => setEditForm((prev) => ({ ...prev, designationFrom: e.target.value }))}
+                        disabled={metaLoading}
+                      >
+                        <option value="">Select</option>
+                        {designationOptions.map((name) => (
+                          <option key={name} value={name}>
+                            {name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  <div className="col-md-12">
+                    <div className="avm-field">
+                      <label className="avm-label">Promotion To</label>
+                      <select
+                        className="avm-select"
+                        value={editForm.designationTo}
+                        onChange={(e) => setEditForm((prev) => ({ ...prev, designationTo: e.target.value }))}
+                        disabled={metaLoading}
+                      >
+                        <option value="">Select</option>
+                        {designationOptions.map((name) => (
+                          <option key={name} value={name}>
+                            {name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  <div className="col-md-12">
+                    <div className="avm-field">
+                      <label className="avm-label">Promotion Date</label>
+                      <input
+                        type="date"
+                        className="avm-input"
+                        value={editForm.promotionDate}
+                        onChange={(e) => setEditForm((prev) => ({ ...prev, promotionDate: e.target.value }))}
+                      />
+                    </div>
+                  </div>
+                </div>
               </div>
-            </div>
+              <div className="avm-footer">
+                <div></div>
+                <div className="avm-footer-right">
+                  <button type="button" className="avm-btn light" onClick={() => setShowEditModal(false)} disabled={saving}>
+                    Cancel
+                  </button>
+                  <button type="submit" className="avm-btn primary" disabled={saving}>
+                    {saving ? "Saving..." : "Save Changes"}
+                  </button>
+                </div>
+              </div>
+            </form>
           </div>
-          <div className="modal-backdrop fade show" />
-        </>
+        </div>
       )}
 
       {showDeleteModal && (
-        <>
-          <div className="modal fade show" style={{ display: "block" }} tabIndex="-1">
-            <div className="modal-dialog modal-dialog-centered">
-              <div className="modal-content">
-                <div className="modal-header">
-                  <h4 className="modal-title">Confirm Delete</h4>
-                  <button type="button" className="btn-close custom-btn-close" onClick={() => setShowDeleteModal(false)}>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <line x1="6" y1="6" x2="18" y2="18" />
-                      <line x1="18" y1="6" x2="6" y2="18" />
-                    </svg>
-                  </button>
-                </div>
-                <div className="modal-body">
-                  <p>
-                    Are you sure you want to delete
-                    {deleteTarget?.employeeName ? ` "${deleteTarget.employeeName}"` : " this promotion"}
-                    ?
-                  </p>
-                </div>
-                <div className="modal-footer">
-                  <button type="button" className="btn btn-light me-2" onClick={() => setShowDeleteModal(false)}>
-                    Cancel
-                  </button>
-                  <button type="button" className="btn btn-danger" onClick={handleDelete} disabled={saving}>
-                    {saving ? "Deleting..." : "Delete"}
-                  </button>
-                </div>
+        <div className="avm-backdrop" role="presentation">
+          <div className="avm-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+            <div className="avm-modal-header">
+              <h2 className="avm-modal-title">Confirm Delete</h2>
+              <button type="button" className="avm-modal-close" onClick={() => setShowDeleteModal(false)} aria-label="Close">
+                x
+              </button>
+            </div>
+            <div className="avm-body">
+              <p>
+                Are you sure you want to delete
+                {deleteTarget?.employeeName ? ` "${deleteTarget.employeeName}"` : " this promotion"}
+                ?
+              </p>
+            </div>
+            <div className="avm-footer">
+              <div></div>
+              <div className="avm-footer-right">
+                <button type="button" className="avm-btn light" onClick={() => setShowDeleteModal(false)} disabled={saving}>
+                  Cancel
+                </button>
+                <button type="button" className="avm-btn danger" onClick={handleDelete} disabled={saving}>
+                  {saving ? "Deleting..." : "Delete"}
+                </button>
               </div>
             </div>
           </div>
-          <div className="modal-backdrop fade show" />
-        </>
+        </div>
       )}
     </>
   );

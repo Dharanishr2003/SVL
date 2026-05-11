@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { useAuth } from "./AuthContext";
-import { getMyPageVisibility } from "../api/userGroupApi";
+import { getMyPageKeys } from "../api/pageAccessApi";
 import {
   getRequiredPageKeysForPath,
   isAdminOnlyPath,
@@ -49,7 +49,7 @@ export function PageAccessProvider({ children }) {
         sessionStorage.removeItem(cacheKey);
       }
       setLoading(true);
-      getMyPageVisibility()
+      getMyPageKeys()
         .then((keys) => {
           if (!active) return;
           const normalized = normalizePageKeys(keys);
@@ -80,13 +80,6 @@ export function PageAccessProvider({ children }) {
         active = false;
       };
     }
-    if (role === "SUPER_ADMIN") {
-      setVisiblePageKeys(["*"]);
-      setLoading(false);
-      return () => {
-        active = false;
-      };
-    }
     window.addEventListener("page-access:refresh", refreshVisibility);
     setLoading(true);
     if (cacheKey) {
@@ -100,7 +93,7 @@ export function PageAccessProvider({ children }) {
         // ignore corrupted cache
       }
     }
-    getMyPageVisibility()
+    getMyPageKeys()
       .then((keys) => {
         if (!active) return;
         const normalized = normalizePageKeys(keys);
@@ -134,7 +127,6 @@ export function PageAccessProvider({ children }) {
   const canAccess = useMemo(() => {
     return (pageKey) => {
       if (!user) return false;
-      if (role === "SUPER_ADMIN") return true;
       const equivalents = getEquivalentPageKeys(pageKey);
       if (!equivalents.length) return false;
       return equivalents.some((key) => visiblePageKeys.includes(key));
@@ -144,7 +136,6 @@ export function PageAccessProvider({ children }) {
   const canAccessRoute = useMemo(() => {
     return (path) => {
       if (!user) return false;
-      if (role === "SUPER_ADMIN") return true;
       const normalizedPath = String(path || "").trim();
       if (/^\/stock-requests(?:\/[^/]+(?:\/status|\/chat)?)?\/?$/.test(normalizedPath)) {
         return (
@@ -172,7 +163,7 @@ export function PageAccessProvider({ children }) {
 
   const allowedPages = useMemo(() => {
     if (!user) return [];
-    return role === "SUPER_ADMIN" ? ["*"] : visiblePageKeys;
+    return visiblePageKeys;
   }, [user, role, visiblePageKeys]);
 
   return (

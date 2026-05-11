@@ -160,8 +160,24 @@ export const adminPhpRoutes = [
     component: "CandidatesPage",
   },
   {
+    path: "department-permissions",
+    component: "DepartmentPermissionsPage",
+  },
+  {
+    path: "page-access",
+    component: "PageAccessMatrixPage",
+  },
+  {
     path: "group-access",
     component: "GroupAccessPage",
+  },
+  {
+    path: "usergroups",
+    component: "UsergroupsPage",
+  },
+  {
+    path: "usergroups/edit/:id",
+    component: "UserGroupEditPage",
   },
   {
     path: "contacts-grid",
@@ -950,20 +966,12 @@ export const adminPhpRoutes = [
     component: "TaxRatesPage",
   },
   {
-    path: "termination",
-    component: "TerminationPage",
-  },
-  {
     path: "terms-condition",
     component: "TermsConditionPage",
   },
   {
     path: "testimonials",
     component: "TestimonialsPage",
-  },
-  {
-    path: "tickets",
-    component: "TicketsPage",
   },
   {
     path: "timeline",
@@ -974,20 +982,12 @@ export const adminPhpRoutes = [
     component: "TimesheetsPage",
   },
   {
+    path: "termination",
+    component: "TerminationPage",
+  },
+  {
     path: "todo",
     component: "TodoPage",
-  },
-  {
-    path: "trainers",
-    component: "TrainersPage",
-  },
-  {
-    path: "training",
-    component: "TrainingPage",
-  },
-  {
-    path: "training-type",
-    component: "TrainingTypePage",
   },
   {
     path: "two-step-verification",
@@ -1182,8 +1182,20 @@ export const adminPhpRoutes = [
     component: "UserEditPage",
   },
   {
+    path: "group-access",
+    component: "GroupAccessPage",
+  },
+  {
     path: "usergroups",
     component: "UsergroupsPage",
+  },
+  {
+    path: "usergroups/edit/:id",
+    component: "UserGroupEditPage",
+  },
+  {
+    path: "designation-permissions",
+    component: "DesignationPermissionsPage",
   },
   {
     path: "user-report",
@@ -1244,10 +1256,6 @@ export const adminPhpRoutes = [
   {
     path: "lead-type",
     component: "LeadTypePage",
-  },
-  {
-    path: "usergroups/edit/:id",
-    component: "UserGroupEditPage",
   },
   {
     path: "services/service-categories",

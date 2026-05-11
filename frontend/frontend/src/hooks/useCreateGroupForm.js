@@ -5,8 +5,11 @@ const EMPTY_FORM = {
 };
 
 const EMPTY_SCOPE = {
+  headOfficeId: "",
+  branchId: "",
   institutionId: "",
   departmentId: "",
+  departmentIds: [],
   teamIds: [],
   memberScope: "NONE",
 };
@@ -17,6 +20,7 @@ export const useCreateGroupForm = () => {
   const [showModal, setShowModal] = useState(false);
   const [formError, setFormError] = useState("");
   const [selectedTeamId, setSelectedTeamId] = useState("");
+  const [selectedDepartmentId, setSelectedDepartmentId] = useState("");
 
   // Reset form state
   const resetForm = () => {
@@ -24,6 +28,7 @@ export const useCreateGroupForm = () => {
     setCreateScope(EMPTY_SCOPE);
     setFormError("");
     setSelectedTeamId("");
+    setSelectedDepartmentId("");
   };
 
   // Open modal
@@ -64,6 +69,38 @@ export const useCreateGroupForm = () => {
     setSelectedTeamId("");
   };
 
+  const handleDepartmentSelect = (departmentId) => {
+    const nextDepartmentId = String(departmentId || "");
+    setSelectedDepartmentId(nextDepartmentId);
+    if (!nextDepartmentId) return;
+    setCreateScope((prev) => {
+      const alreadySelected = prev.departmentIds.some((id) => String(id) === nextDepartmentId);
+      const departmentIds = alreadySelected
+        ? prev.departmentIds
+        : [...prev.departmentIds, nextDepartmentId];
+      return {
+        ...prev,
+        departmentIds,
+        departmentId: departmentIds[0] || "",
+      };
+    });
+    if (formError) setFormError("");
+    setSelectedDepartmentId("");
+  };
+
+  const removeDepartment = (departmentId) => {
+    const nextDepartmentId = String(departmentId || "");
+    setCreateScope((prev) => {
+      const departmentIds = prev.departmentIds.filter((id) => String(id) !== nextDepartmentId);
+      return {
+        ...prev,
+        departmentIds,
+        departmentId: departmentIds[0] || "",
+      };
+    });
+    if (formError) setFormError("");
+  };
+
   const removeTeam = (teamId) => {
     const nextTeamId = String(teamId || "");
     setCreateScope((prev) => ({
@@ -84,8 +121,11 @@ export const useCreateGroupForm = () => {
 
   // Get formatted scope for API
   const getFormattedScope = () => ({
+    headOfficeId: createScope.headOfficeId || "",
+    branchId: createScope.branchId || "",
     institutionId: createScope.institutionId || "",
     departmentId: createScope.departmentId || "",
+    departmentIds: Array.isArray(createScope.departmentIds) ? createScope.departmentIds : [],
     teamIds: Array.isArray(createScope.teamIds) ? createScope.teamIds : [],
     memberScope: String(createScope.memberScope || "NONE").toUpperCase(),
   });
@@ -101,14 +141,18 @@ export const useCreateGroupForm = () => {
     formError,
     setFormError,
     selectedTeamId,
+    selectedDepartmentId,
     setSelectedTeamId,
+    setSelectedDepartmentId,
 
     // Form methods
     updateFormField,
     updateScope,
     validateForm,
     handleTeamSelect,
+    handleDepartmentSelect,
     removeTeam,
+    removeDepartment,
     openModal,
     closeModal,
     resetForm,

@@ -1,4 +1,3 @@
-import { useEffect } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import "./UserWizardModal.css";
 
@@ -6,6 +5,7 @@ export default function UserWizardModal({
   wizardStep,
   form,
   setForm,
+  onRoleChange,
   phoneCountryCode,
   setPhoneCountryCode,
   phoneError,
@@ -15,33 +15,24 @@ export default function UserWizardModal({
   COUNTRY_CODE_OPTIONS,
   showCreatePassword,
   setShowCreatePassword,
-  institutionId,
-  setInstitutionId,
-  departmentId,
-  setDepartmentId,
-  teamId,
-  setTeamId,
-  institutions,
-  departments,
-  teams,
-  categoryId,
-  setCategoryId,
-  typeId,
-  setTypeId,
-  categories,
-  types,
-  orgLoading,
-  currentRole,
   allowedAssignRoles,
+  headOfficeOptions,
+  selectedHeadOfficeId,
+  onHeadOfficeChange,
+  branchOptions,
+  departmentOptions,
+  teamOptions,
+  selectedBranchId,
+  selectedDepartmentId,
+  selectedTeamId,
+  onBranchChange,
+  onDepartmentChange,
+  onTeamChange,
   availableEmployees,
   selectedEmployeeId,
   handleSelectEmployee,
-  handleAddInstitution,
-  handleAddDepartment,
-  handleAddTeam,
-  roleRequiresTeam,
-  isAdmin,
-  isManager,
+  employeeScopeReady,
+  employeeScopeLoading,
   onNext,
   onPrev,
   onSubmit,
@@ -49,22 +40,28 @@ export default function UserWizardModal({
   saving,
 }) {
   const shouldReduceMotion = useReducedMotion();
+  const totalSteps = 4;
   const selectedRole = String(form.role || "EMPLOYEE").toUpperCase();
-  const branchOnlyRole = selectedRole === "ADMIN";
-
-  useEffect(() => {
-    if (!branchOnlyRole) return;
-    if (departmentId || teamId || form.departmentName || form.team) {
-      setDepartmentId("");
-      setTeamId("");
-      setForm((prev) => ({
-        ...prev,
-        departmentName: "",
-        team: "",
-      }));
-    }
-  }, [branchOnlyRole, departmentId, teamId, form.departmentName, form.team, setDepartmentId, setTeamId, setForm]);
-
+  const selectedBranch = branchOptions.find((branch) => String(branch.id) === String(selectedBranchId));
+  const selectedDepartment = departmentOptions.find(
+    (department) => String(department.id) === String(selectedDepartmentId),
+  );
+  const selectedDesignation = teamOptions.find((team) => String(team.id) === String(selectedTeamId));
+  const scopeItems =
+    selectedRole === "ADMIN"
+      ? [
+          { label: "Branch", value: selectedBranch?.name || "Not selected" },
+        ]
+      : selectedRole === "MANAGER"
+        ? [
+            { label: "Branch", value: selectedBranch?.name || "Not selected" },
+            { label: "Department", value: selectedDepartment?.name || "Not selected" },
+          ]
+        : [
+            { label: "Branch", value: selectedBranch?.name || "Not selected" },
+            { label: "Department", value: selectedDepartment?.name || "Not selected" },
+            { label: "Designation", value: selectedDesignation?.name || "Not selected" },
+          ];
   return (
     <>
       <motion.div
@@ -90,17 +87,15 @@ export default function UserWizardModal({
             </div>
 
             <div className="user-wizard">
-              {/* Progress Bar */}
               <div className="wizard-progress-bar">
                 <motion.div
                   className="wizard-progress"
                   initial={shouldReduceMotion ? false : { width: "0%" }}
-                  animate={shouldReduceMotion ? {} : { width: `${((wizardStep + 1) / 3) * 100}%` }}
+                  animate={shouldReduceMotion ? {} : { width: `${((wizardStep + 1) / totalSteps) * 100}%` }}
                   transition={{ duration: 0.35, ease: "easeOut" }}
                 />
               </div>
 
-              {/* Progress Circles */}
               <motion.div
                 className="wizard-circles-container"
                 initial={shouldReduceMotion ? false : { opacity: 0, y: 10 }}
@@ -114,9 +109,9 @@ export default function UserWizardModal({
                     animate={shouldReduceMotion ? {} : { scale: 1 }}
                     transition={{ duration: 0.2, delay: 0.08 }}
                   >
-                    <i className="ti ti-user" />
+                    <i className="ti ti-building-community" />
                   </motion.div>
-                  <div className="wizard-circle-label">Account</div>
+                  <div className="wizard-circle-label">Scope</div>
                 </div>
                 <div className="wizard-circle-item">
                   <motion.div
@@ -125,9 +120,9 @@ export default function UserWizardModal({
                     animate={shouldReduceMotion ? {} : { scale: 1 }}
                     transition={{ duration: 0.2, delay: 0.1 }}
                   >
-                    <i className="ti ti-building" />
+                    <i className="ti ti-user-search" />
                   </motion.div>
-                  <div className="wizard-circle-label">Organization</div>
+                  <div className="wizard-circle-label">Employee & Role</div>
                 </div>
                 <div className="wizard-circle-item">
                   <motion.div
@@ -136,20 +131,29 @@ export default function UserWizardModal({
                     animate={shouldReduceMotion ? {} : { scale: 1 }}
                     transition={{ duration: 0.2, delay: 0.12 }}
                   >
+                    <i className="ti ti-forms" />
+                  </motion.div>
+                  <div className="wizard-circle-label">Details</div>
+                </div>
+                <div className="wizard-circle-item">
+                  <motion.div
+                    className={`wizard-circle ${wizardStep >= 3 ? "active" : ""}`}
+                    initial={shouldReduceMotion ? false : { scale: 0.94 }}
+                    animate={shouldReduceMotion ? {} : { scale: 1 }}
+                    transition={{ duration: 0.2, delay: 0.14 }}
+                  >
                     <i className="ti ti-lock" />
                   </motion.div>
-                  <div className="wizard-circle-label">Security</div>
+                  <div className="wizard-circle-label">Access</div>
                 </div>
               </motion.div>
 
-              {/* Step Content */}
               <motion.div
                 className="wizard-step-content"
                 initial={shouldReduceMotion ? false : { opacity: 0, y: 12 }}
                 animate={shouldReduceMotion ? {} : { opacity: 1, y: 0 }}
                 transition={{ duration: 0.22, delay: 0.1 }}
               >
-                {/* Step 0: Account Info */}
                 <AnimatePresence mode="wait">
                   {wizardStep === 0 && (
                     <motion.div
@@ -160,46 +164,120 @@ export default function UserWizardModal({
                       transition={{ duration: 0.2 }}
                       className="row g-3"
                     >
-                      <div className="col-md-6">
-                        <label className="form-label">Username *</label>
-                        <input
-                          className="form-control user-wizard-input"
-                          value={form.username}
-                          onChange={(e) => setForm((f) => ({ ...f, username: e.target.value }))}
-                        />
-                      </div>
-                      {currentRole === "SUPER_ADMIN" && (
-                        <div className="col-md-6">
-                          <label className="form-label">Role *</label>
-                          <select
-                            className="form-select user-wizard-input"
-                            value={form.role}
-                            onChange={(e) =>
-                              setForm((f) => ({
-                                ...f,
-                                role: e.target.value,
-                                ...(String(e.target.value || "").toUpperCase() === "ADMIN"
-                                  ? { departmentName: "", team: "" }
-                                  : {}),
-                              }))
-                            }
-                          >
-                            {allowedAssignRoles.map((role) => (
-                              <option key={role} value={role}>
-                                {role.replace(/_/g, " ")}
-                              </option>
-                            ))}
-                          </select>
+                      <div className="col-12">
+                        <div className="border rounded-3 p-3 bg-light">
+                          <div className="fw-semibold mb-2">Organization</div>
+                          <div className="text-muted small mb-3">
+                            Select the organization scope first. Role comes in the next step.
+                          </div>
+                          <div className="row g-3">
+                            <div className="col-md-6">
+                              <label className="form-label">Head Office *</label>
+                              <select
+                                className="form-select user-wizard-input"
+                                value={selectedHeadOfficeId}
+                                onChange={(e) => onHeadOfficeChange(e.target.value)}
+                              >
+                                <option value="">-- Select Head Office --</option>
+                                {headOfficeOptions.map((headOffice) => (
+                                  <option key={headOffice.id} value={headOffice.id}>
+                                    {headOffice.name}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            <div className="col-md-6">
+                              <label className="form-label">Branch *</label>
+                              <select
+                                className="form-select user-wizard-input"
+                                value={selectedBranchId}
+                                onChange={(e) => onBranchChange(e.target.value)}
+                                disabled={!selectedHeadOfficeId}
+                              >
+                                <option value="">-- Select Branch --</option>
+                                {branchOptions.map((branch) => (
+                                  <option key={branch.id} value={branch.id}>
+                                    {branch.name}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            <div className="col-md-6">
+                              <label className="form-label">Department *</label>
+                              <select
+                                className="form-select user-wizard-input"
+                                value={selectedDepartmentId}
+                                onChange={(e) => onDepartmentChange(e.target.value)}
+                                disabled={!selectedBranchId || departmentOptions.length === 0}
+                              >
+                                <option value="">-- Select Department --</option>
+                                {departmentOptions.map((department) => (
+                                  <option key={department.id} value={department.id}>
+                                    {department.name}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            <div className="col-md-6">
+                              <label className="form-label">Designation *</label>
+                              <select
+                                className="form-select user-wizard-input"
+                                value={selectedTeamId}
+                                onChange={(e) => onTeamChange(e.target.value)}
+                                disabled={!selectedBranchId || !selectedDepartmentId || teamOptions.length === 0}
+                              >
+                                <option value="">-- Select Designation --</option>
+                                {teamOptions.map((team) => (
+                                  <option key={team.id} value={team.id}>
+                                    {team.name}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          </div>
                         </div>
-                      )}
+                      </div>
+                    </motion.div>
+                  )}
+
+                  {wizardStep === 1 && (
+                    <motion.div
+                      key="step-1"
+                      initial={shouldReduceMotion ? false : { opacity: 0, x: 8 }}
+                      animate={shouldReduceMotion ? {} : { opacity: 1, x: 0 }}
+                      exit={shouldReduceMotion ? false : { opacity: 0, x: -8 }}
+                      transition={{ duration: 0.2 }}
+                      className="row g-3"
+                    >
                       <div className="col-md-6">
-                        <label className="form-label">Select Employee</label>
+                        <label className="form-label">Role *</label>
+                        <select
+                          className="form-select user-wizard-input"
+                          value={form.role}
+                          onChange={(e) => onRoleChange(e.target.value)}
+                        >
+                          {allowedAssignRoles.map((role) => (
+                            <option key={role} value={role}>
+                              {role.replace(/_/g, " ")}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="col-md-6">
+                        <label className="form-label">Select Employee *</label>
                         <select
                           className="form-select user-wizard-input"
                           value={selectedEmployeeId}
                           onChange={(e) => handleSelectEmployee(e.target.value)}
+                          disabled={!employeeScopeReady || employeeScopeLoading}
                         >
-                          <option value="">-- Select Employee --</option>
+                          {!employeeScopeReady ? (
+                            <option value="">-- Select role and scope first --</option>
+                          ) : employeeScopeLoading ? (
+                            <option value="">Loading employees...</option>
+                          ) : (
+                            <option value="">-- Select Employee --</option>
+                          )}
                           {availableEmployees.map((emp) => (
                             <option key={emp.id} value={emp.id}>
                               {emp.name}
@@ -207,6 +285,39 @@ export default function UserWizardModal({
                           ))}
                         </select>
                       </div>
+                      <div className="col-12">
+                        <div className="border rounded-3 p-3 bg-light">
+                          <div className="fw-semibold mb-2">Role Scope</div>
+                          <div className="text-muted small mb-3">
+                            {selectedRole === "ADMIN"
+                              ? "Admins are assigned at branch level."
+                              : selectedRole === "MANAGER"
+                                ? "Managers are assigned at branch and department level."
+                                : "Team leads and employees are assigned through branch, department, and designation."}
+                          </div>
+                          <div className="row g-3">
+                            {scopeItems.map((item) => (
+                              <div key={item.label} className="col-md-4">
+                                <div className="border rounded-3 bg-white px-3 py-2 text-muted small">
+                                  {item.label}: {item.value}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+
+                  {wizardStep === 2 && (
+                    <motion.div
+                      key="step-2"
+                      initial={shouldReduceMotion ? false : { opacity: 0, x: 8 }}
+                      animate={shouldReduceMotion ? {} : { opacity: 1, x: 0 }}
+                      exit={shouldReduceMotion ? false : { opacity: 0, x: -8 }}
+                      transition={{ duration: 0.2 }}
+                      className="row g-3"
+                    >
                       <div className="col-md-6">
                         <label className="form-label">Email *</label>
                         <input
@@ -234,20 +345,18 @@ export default function UserWizardModal({
                       </div>
                       <div className="col-md-6">
                         <label className="form-label">Country Code</label>
-                  <select
-                      className="form-select user-wizard-input"
-                      value={phoneCountryCode}
-                      onChange={(e) => {
-                        setPhoneCountryCode(e.target.value);
-                      }}
-                    >
-                      {COUNTRY_CODE_OPTIONS.map((opt, index) => (
-                        <option key={`${opt.value}-${index}`} value={opt.value}>
-                          {opt.label}
-                        </option>
-                      ))}
-                    </select>
-                                          </div>
+                        <select
+                          className="form-select user-wizard-input"
+                          value={phoneCountryCode}
+                          onChange={(e) => setPhoneCountryCode(e.target.value)}
+                        >
+                          {COUNTRY_CODE_OPTIONS.map((opt, index) => (
+                            <option key={`${opt.value}-${index}`} value={opt.value}>
+                              {opt.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
                       <div className="col-md-6">
                         <label className="form-label">Phone Number</label>
                         <input
@@ -260,7 +369,10 @@ export default function UserWizardModal({
                           maxLength={getPhoneMaxLength()}
                         />
                         {phoneError && (
-                          <div className="invalid-feedback d-block" style={{ fontSize: "0.85rem", marginTop: "0.25rem" }}>
+                          <div
+                            className="invalid-feedback d-block"
+                            style={{ fontSize: "0.85rem", marginTop: "0.25rem" }}
+                          >
                             {phoneError}
                           </div>
                         )}
@@ -268,126 +380,23 @@ export default function UserWizardModal({
                     </motion.div>
                   )}
 
-                  {/* Step 1: Organization */}
-                  {wizardStep === 1 && (
+                  {wizardStep === 3 && (
                     <motion.div
-                      key="step-1"
+                      key="step-3"
                       initial={shouldReduceMotion ? false : { opacity: 0, x: 8 }}
                       animate={shouldReduceMotion ? {} : { opacity: 1, x: 0 }}
                       exit={shouldReduceMotion ? false : { opacity: 0, x: -8 }}
-                      transition={{ duration: 0.2 }}
-                      className="row g-3"
-                    >
+                    transition={{ duration: 0.2 }}
+                    className="row g-3"
+                  >
                       <div className="col-md-6">
-                        <div className="d-flex align-items-center justify-content-between mb-2">
-                          <label className="form-label mb-0">Branch *</label>
-                          <button
-                            type="button"
-                            className="btn btn-sm btn-primary px-2 py-0"
-                            onClick={handleAddInstitution}
-                            disabled={saving || currentRole !== "SUPER_ADMIN"}
-                            title="Add Branch"
-                          >
-                            +
-                          </button>
-                        </div>
-                        <select
-                          className="form-select user-wizard-input"
-                          value={institutionId}
-                          onChange={(e) => {
-                            setInstitutionId(e.target.value);
-                            setCategoryId("");
-                            setTypeId("");
-                            setDepartmentId("");
-                            setTeamId("");
-                            setCategories([]);
-                            setTypes([]);
-                            setDepartments([]);
-                            setTeams([]);
-                          }}
-                          disabled={orgLoading || isAdmin || isManager}
-                        >
-                          <option value="">Select</option>
-                          {institutions.map((item) => (
-                            <option key={item.id} value={item.id}>
-                              {item.name}
-                            </option>
-                          ))}
-                        </select>
+                        <label className="form-label">Username *</label>
+                        <input
+                          className="form-control user-wizard-input"
+                          value={form.username}
+                          onChange={(e) => setForm((f) => ({ ...f, username: e.target.value }))}
+                        />
                       </div>
-                      <div className="col-md-6">
-                        <div className="d-flex align-items-center justify-content-between mb-2">
-                          <label className="form-label mb-0">Department *</label>
-                          <button
-                            type="button"
-                            className="btn btn-sm btn-primary px-2 py-0"
-                            onClick={handleAddDepartment}
-                            disabled={saving || !institutionId || isManager || branchOnlyRole}
-                            title="Add Department"
-                          >
-                            +
-                          </button>
-                        </div>
-                        <select
-                          className="form-select user-wizard-input"
-                          value={departmentId}
-                          onChange={(e) => {
-                            setDepartmentId(e.target.value);
-                            setTeamId("");
-                            setTeams([]);
-                          }}
-                          disabled={orgLoading || !institutionId || isManager || isAdmin || branchOnlyRole}
-                        >
-                          <option value="">Select</option>
-                          {departments.map((item) => (
-                            <option key={item.id} value={item.id}>
-                              {item.name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <div className="col-md-6">
-                        <div className="d-flex align-items-center justify-content-between mb-2">
-                          <label className="form-label mb-0">
-                            {roleRequiresTeam ? "Team *" : "Team (Optional)"}
-                          </label>
-                          <button
-                            type="button"
-                            className="btn btn-sm btn-primary px-2 py-0"
-                            onClick={handleAddTeam}
-                            disabled={saving || !institutionId || !departmentId || branchOnlyRole}
-                            title="Add Team"
-                          >
-                            +
-                          </button>
-                        </div>
-                        <select
-                          className="form-select user-wizard-input"
-                          value={teamId}
-                          onChange={(e) => setTeamId(e.target.value)}
-                          disabled={orgLoading || !departmentId || currentRole === "MANAGER" || branchOnlyRole}
-                        >
-                          <option value="">Select</option>
-                          {teams.map((item) => (
-                            <option key={item.id} value={item.id}>
-                              {item.name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    </motion.div>
-                  )}
-
-                  {/* Step 2: Security */}
-                  {wizardStep === 2 && (
-                    <motion.div
-                      key="step-2"
-                      initial={shouldReduceMotion ? false : { opacity: 0, x: 8 }}
-                      animate={shouldReduceMotion ? {} : { opacity: 1, x: 0 }}
-                      exit={shouldReduceMotion ? false : { opacity: 0, x: -8 }}
-                      transition={{ duration: 0.2 }}
-                      className="row g-3"
-                    >
                       <div className="col-md-6">
                         <label className="form-label">Password *</label>
                         <div className="position-relative">
@@ -433,7 +442,6 @@ export default function UserWizardModal({
                 </AnimatePresence>
               </motion.div>
 
-              {/* Navigation Buttons */}
               <motion.div
                 className="wizard-nav"
                 initial={shouldReduceMotion ? false : { opacity: 0, y: 8 }}
@@ -445,10 +453,10 @@ export default function UserWizardModal({
                     Previous
                   </button>
                 ) : (
-                  <div></div>
+                  <div />
                 )}
-                <div className="wizard-nav-spacer"></div>
-                {wizardStep < 2 ? (
+                <div className="wizard-nav-spacer" />
+                {wizardStep < totalSteps - 1 ? (
                   <button className="btn btn-primary" onClick={onNext} disabled={saving}>
                     Next
                   </button>

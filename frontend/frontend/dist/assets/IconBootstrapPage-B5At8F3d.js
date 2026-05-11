@@ -1,1 +1,0 @@
-import{j as s}from"./index-Dfj3jr_U.js";function o(){return s.jsx("div",{className:"card",children:s.jsxs("div",{className:"card-body",children:[s.jsx("h4",{className:"mb-2",children:"Icon Bootstrap"}),s.jsx("p",{className:"mb-0",children:"Layout working confirmation."})]})})}export{o as default};

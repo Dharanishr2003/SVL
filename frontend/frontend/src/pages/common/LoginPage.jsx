@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import "../../assets/css/LoginAuth.css";
-import { getMyPageVisibility } from "../../api/userGroupApi";
+import { getMyPageKeys } from "../../api/pageAccessApi";
 import { getDefaultLandingPath } from "../../constants/pageAccess";
 import { loginVendor } from "../../api/vendorAuthApi";
 import { getVendorSession, setVendorSession } from "../../utils/vendorSession";
@@ -61,8 +61,7 @@ export default function LoginPage() {
           return;
         }
         const role = String(data?.user?.role || "").toUpperCase();
-        const visiblePageKeys =
-          role === "SUPER_ADMIN" ? ["*"] : await getMyPageVisibility().catch(() => []);
+        const visiblePageKeys = await getMyPageKeys().catch(() => []);
         const landingPath = getDefaultLandingPath(role, visiblePageKeys);
         sessionStorage.setItem("showWelcomeToast", "1");
         navigate(landingPath, { replace: true });

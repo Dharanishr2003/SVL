@@ -70,7 +70,6 @@ export const PAGE_ACCESS_OPTIONS = [
     category: "HRM",
     children: [
       { key: "employees-list", label: "Employees" },
-      { key: "policy", label: "Policies" },
       { key: "email-settings", label: "Mail Settings" },
       { key: "email-template", label: "Email Templates" },
     ],
@@ -86,7 +85,6 @@ export const PAGE_ACCESS_OPTIONS = [
       { key: "designations", label: "Designations" },
     ],
   },
-  { key: "tickets", label: "Tickets", category: "HRM" },
   { key: "holidays", label: "Holidays", category: "HRM" },
   {
     key: "attendance",
@@ -113,16 +111,6 @@ export const PAGE_ACCESS_OPTIONS = [
       { key: "performance-appraisal", label: "Performance Appraisal" },
       { key: "goal-tracking", label: "Goal List" },
       { key: "goal-type", label: "Goal Type" },
-    ],
-  },
-  {
-    key: "training",
-    label: "Training",
-    category: "HRM",
-    children: [
-      { key: "training-list", label: "Training List" },
-      { key: "trainers", label: "Trainers" },
-      { key: "training-type", label: "Training Type" },
     ],
   },
   { key: "promotion", label: "Promotion", category: "HRM" },
@@ -225,8 +213,7 @@ export const PAGE_ACCESS_OPTIONS = [
     category: "Admin",
     children: [
       { key: "settings-useradmin", label: "User Admin" },
-      { key: "settings-group-access", label: "Group Access" },
-      { key: "settings-usergroups", label: "User Groups" },
+      { key: "settings-page-access", label: "Page Access" },
       { key: "settings-registration", label: "Registration" },
       { key: "settings-session", label: "Session" },
       { key: "settings-user", label: "User Settings" },
@@ -242,9 +229,12 @@ const ROUTE_ACCESS_RULES = [
   { pageKeys: ["admin-dashboard"], prefixes: ["/admin-dashboard"] },
   { pageKeys: ["employee-dashboard"], prefixes: ["/employee-dashboard"] },
   { pageKeys: ["sales-dashboard"], prefixes: ["/dashboard"] },
-  { pageKeys: ["settings-group-access"], prefixes: ["/group-access"] },
   { pageKeys: ["settings-useradmin"], prefixes: ["/useradmin", "/user-edit"] },
+  { pageKeys: ["settings-page-access"], prefixes: ["/page-access"] },
+  { pageKeys: ["settings-group-access"], prefixes: ["/group-access"] },
   { pageKeys: ["settings-usergroups"], prefixes: ["/usergroups"] },
+  { pageKeys: ["settings-department-permissions"], prefixes: ["/department-permissions"] },
+  { pageKeys: ["settings-designation-permissions"], prefixes: ["/designation-permissions"] },
   { pageKeys: ["settings-registration"], prefixes: ["/registration"] },
   { pageKeys: ["settings-session"], prefixes: ["/session-settings"] },
   { pageKeys: ["settings-user"], prefixes: ["/user-settings"] },
@@ -297,10 +287,8 @@ const ROUTE_ACCESS_RULES = [
   { pageKeys: ["organization", "branches"], prefixes: ["/branches"] },
   { pageKeys: ["organization", "departments"], prefixes: ["/departments"] },
   { pageKeys: ["organization", "designations"], prefixes: ["/designations"] },
-  { pageKeys: ["employees", "policy"], prefixes: ["/policy"] },
   { pageKeys: ["employees", "email-settings"], prefixes: ["/email-settings"] },
   { pageKeys: ["employees", "email-template"], prefixes: ["/email-template"] },
-  { pageKeys: ["tickets"], prefixes: ["/tickets"] },
   { pageKeys: ["holidays"], prefixes: ["/holidays"] },
   { pageKeys: ["attendance", "attendance-admin"], prefixes: ["/attendance-admin"] },
   { pageKeys: ["attendance", "attendance-employee"], prefixes: ["/attendance-employee"] },
@@ -315,9 +303,6 @@ const ROUTE_ACCESS_RULES = [
   { pageKeys: ["performance", "performance-appraisal"], prefixes: ["/performance-appraisal"] },
   { pageKeys: ["performance", "goal-tracking"], prefixes: ["/goal-tracking"] },
   { pageKeys: ["performance", "goal-type"], prefixes: ["/goal-type"] },
-  { pageKeys: ["training", "training-list"], prefixes: ["/training"] },
-  { pageKeys: ["training", "trainers"], prefixes: ["/trainers"] },
-  { pageKeys: ["training", "training-type"], prefixes: ["/training-type"] },
   { pageKeys: ["promotion"], prefixes: ["/promotion"] },
   { pageKeys: ["resignation"], prefixes: ["/resignation"] },
   { pageKeys: ["termination"], prefixes: ["/termination"] },
@@ -344,10 +329,13 @@ const ALWAYS_ALLOWED_PREFIXES = [
 ];
 
 const ADMIN_ONLY_PREFIXES = [
-  "/group-access",
   "/useradmin",
   "/user-edit",
+  "/page-access",
+  "/group-access",
   "/usergroups",
+  "/department-permissions",
+  "/designation-permissions",
   "/security",
   "/security-settings",
   "/session-settings",
@@ -399,7 +387,6 @@ export function canAccessPathWithPageKeys(path, pageKeys, role) {
     normalizedRole === "MANAGER" ||
     normalizedRole === "TEAM_LEAD" ||
     normalizedRole === "EMPLOYEE";
-  if (normalizedRole === "SUPER_ADMIN") return true;
   if (isAdminOnlyPath(path) && !canUsePermissionControlledAdminRoutes) return false;
   if (isAlwaysAllowedPath(path)) return true;
 
@@ -412,7 +399,6 @@ export function canAccessPathWithPageKeys(path, pageKeys, role) {
 
 export function getDefaultLandingPath(role, pageKeys) {
   const normalizedRole = String(role || "").trim().toUpperCase();
-  if (normalizedRole === "SUPER_ADMIN") return "/admin-dashboard";
 
   const seen = new Set();
   for (const rule of ROUTE_ACCESS_RULES) {

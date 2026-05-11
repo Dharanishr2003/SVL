@@ -6,6 +6,7 @@ import TopbarAttendanceAction from "../components/layout/TopbarAttendanceAction"
 import Sidebar from "../components/layout/Sidebar";
 import Footer from "../components/layout/Footer";
 import { useAuth } from "../context/AuthContext";
+import "../styles/wizardFormShell.css";
 
 export default function AdminLayout() {
   const { user, isAuthenticated } = useAuth();

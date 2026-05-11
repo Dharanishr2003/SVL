@@ -9,11 +9,19 @@ import com.nexorcrm.backend.dto.UserGroupMemberResponse;
 import com.nexorcrm.backend.dto.UserGroupResponse;
 import com.nexorcrm.backend.dto.UserGroupSummaryResponse;
 import com.nexorcrm.backend.entity.ActivationStatus;
+import com.nexorcrm.backend.entity.BranchMaster;
+import com.nexorcrm.backend.entity.DepartmentMaster;
+import com.nexorcrm.backend.entity.DesignationMaster;
+import com.nexorcrm.backend.entity.HeadOfficeMaster;
 import com.nexorcrm.backend.entity.Role;
 import com.nexorcrm.backend.entity.User;
 import com.nexorcrm.backend.entity.UserGroup;
 import com.nexorcrm.backend.entity.UserGroupMember;
 import com.nexorcrm.backend.entity.UserGroupMemberScope;
+import com.nexorcrm.backend.repo.BranchMasterRepository;
+import com.nexorcrm.backend.repo.DepartmentMasterRepository;
+import com.nexorcrm.backend.repo.DesignationMasterRepository;
+import com.nexorcrm.backend.repo.HeadOfficeMasterRepository;
 import com.nexorcrm.backend.repo.UserGroupMemberRepository;
 import com.nexorcrm.backend.repo.UserGroupRepository;
 import com.nexorcrm.backend.repo.UserRepository;
@@ -38,8 +46,18 @@ import java.util.stream.Collectors;
 public class UserGroupService {
     private record GroupScope(String institutionName,
                               String departmentName) {}
+    private record ResolvedGroupScope(
+            Long headOfficeId,
+            Long branchId,
+            Long departmentId,
+            List<Long> departmentIds,
+            String institutionName,
+            String departmentName,
+            List<String> departmentNames,
+            List<String> teamNames
+    ) {}
 
-    private static final List<String> DEFAULT_PAGE_KEYS = List.of(
+    public static final List<String> DEFAULT_PAGE_KEYS = List.of(
             // Dashboard
             "dashboard",
             "admin-dashboard",
@@ -160,8 +178,11 @@ public class UserGroupService {
             // Settings
             "settings",
             "settings-useradmin",
+            "settings-page-access",
             "settings-group-access",
             "settings-usergroups",
+            "settings-department-permissions",
+            "settings-designation-permissions",
             "settings-registration",
             "settings-session",
             "settings-user",
@@ -192,15 +213,27 @@ public class UserGroupService {
     private final UserGroupRepository userGroupRepository;
     private final UserGroupMemberRepository userGroupMemberRepository;
     private final UserRepository userRepository;
+    private final HeadOfficeMasterRepository headOfficeMasterRepository;
+    private final BranchMasterRepository branchMasterRepository;
+    private final DepartmentMasterRepository departmentMasterRepository;
+    private final DesignationMasterRepository designationMasterRepository;
     private final AuditService auditService;
 
     public UserGroupService(UserGroupRepository userGroupRepository,
                             UserGroupMemberRepository userGroupMemberRepository,
                             UserRepository userRepository,
+                            HeadOfficeMasterRepository headOfficeMasterRepository,
+                            BranchMasterRepository branchMasterRepository,
+                            DepartmentMasterRepository departmentMasterRepository,
+                            DesignationMasterRepository designationMasterRepository,
                             AuditService auditService) {
         this.userGroupRepository = userGroupRepository;
         this.userGroupMemberRepository = userGroupMemberRepository;
         this.userRepository = userRepository;
+        this.headOfficeMasterRepository = headOfficeMasterRepository;
+        this.branchMasterRepository = branchMasterRepository;
+        this.departmentMasterRepository = departmentMasterRepository;
+        this.designationMasterRepository = designationMasterRepository;
         this.auditService = auditService;
     }
 
@@ -240,20 +273,20 @@ public class UserGroupService {
 
     public UserGroupResponse createGroup(CreateUserGroupRequest request, String actorPrincipal) {
         User actor = resolveActor(actorPrincipal);
-        assertCanManageGroups(actor);
+        assertCanCreateOrEditGroups(actor);
 
         String name = request.getName().trim();
 
         UserGroupMemberScope memberScope = resolveMemberScope(request.getMemberScope());
-        GroupScope targetScope = resolveScopeForCreate(actor, request, memberScope);
+        ResolvedGroupScope targetScope = resolveScopeForCreate(actor, request, memberScope);
         if (userGroupRepository.existsByNameIgnoreCaseAndInstitutionNameIgnoreCase(name, targetScope.institutionName())) {
             throw new IllegalStateException("Group name already exists");
         }
         List<String> scopedTeams = resolveScopedTeamsForActor(
                 actor,
-                request.getTeamNames(),
+                targetScope.teamNames(),
                 requiresTeamSelection(memberScope),
-                targetScope
+                new GroupScope(targetScope.institutionName(), targetScope.departmentName())
         );
 
         UserGroup group = new UserGroup();
@@ -272,7 +305,7 @@ public class UserGroupService {
 
     public UserGroupResponse updateGroup(Long id, UpdateUserGroupRequest request, String actorPrincipal) {
         User actor = resolveActor(actorPrincipal);
-        assertCanManageGroups(actor);
+        assertCanCreateOrEditGroups(actor);
 
         UserGroup group = userGroupRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("User group not found"));
@@ -283,15 +316,15 @@ public class UserGroupService {
         List<String> oldGroupPageKeys = parseTeamNamesCsv(group.getPageKeysCsv());
         List<String> resolvedGroupPageKeys = resolveGroupPageKeysForActor(actor, request.getPageKeys(), group);
         UserGroupMemberScope memberScope = resolveMemberScope(request.getMemberScope());
-        GroupScope targetScope = resolveScopeForUpdate(actor, request, memberScope, group);
+        ResolvedGroupScope targetScope = resolveScopeForUpdate(actor, request, memberScope, group);
         if (userGroupRepository.existsByNameIgnoreCaseAndInstitutionNameIgnoreCaseAndIdNot(name, targetScope.institutionName(), id)) {
             throw new IllegalStateException("Group name already exists");
         }
         List<String> scopedTeams = resolveScopedTeamsForActor(
                 actor,
-                request.getTeamNames(),
+                targetScope.teamNames(),
                 requiresTeamSelection(memberScope),
-                targetScope
+                new GroupScope(targetScope.institutionName(), targetScope.departmentName())
         );
 
         group.setName(name);
@@ -309,7 +342,7 @@ public class UserGroupService {
 
     public void deleteGroup(Long id, String actorPrincipal) {
         User actor = resolveActor(actorPrincipal);
-        assertCanManageGroups(actor);
+        assertCanCreateOrEditGroups(actor);
 
         UserGroup group = userGroupRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("User group not found"));
@@ -413,8 +446,8 @@ public class UserGroupService {
                 && !textEquals(group.getInstitutionName(), actor.getInstitutionName())) {
             return false;
         }
-        if (StringUtils.hasText(group.getDepartmentName())
-                && !textEquals(group.getDepartmentName(), actor.getDepartmentName())) {
+        if (!parseDepartmentNamesCsv(group.getDepartmentName()).isEmpty()
+                && !matchesAnyName(parseDepartmentNamesCsv(group.getDepartmentName()), actor.getDepartmentName())) {
             return false;
         }
         return true;
@@ -447,57 +480,73 @@ public class UserGroupService {
                 List<String> normalizedTeamNames = scopedTeams.stream()
                         .map(this::normalizeLower)
                         .toList();
-                if (memberScope == UserGroupMemberScope.ADMINS || !StringUtils.hasText(group.getDepartmentName())) {
+                List<String> groupDepartments = parseDepartmentNamesCsv(group.getDepartmentName());
+                if (memberScope == UserGroupMemberScope.ADMINS || groupDepartments.isEmpty()) {
                     candidates = userRepository.findActiveByRoleInAndBranchScope(
                             allowedRoles,
                             ActivationStatus.ACTIVE,
                             group.getInstitutionName()
                     );
                 } else if (memberScope == UserGroupMemberScope.MANAGERS || normalizedTeamNames.isEmpty()) {
-                    candidates = userRepository.findActiveByRoleInAndDepartmentScope(
-                            allowedRoles,
-                            ActivationStatus.ACTIVE,
-                            group.getInstitutionName(),
-                            group.getDepartmentName()
-                    );
+                    candidates = List.of();
+                    for (String departmentName : groupDepartments) {
+                        candidates = mergeUsers(candidates, userRepository.findActiveByRoleInAndDepartmentScope(
+                                allowedRoles,
+                                ActivationStatus.ACTIVE,
+                                group.getInstitutionName(),
+                                departmentName
+                        ));
+                    }
                 } else {
-                    candidates = userRepository.findActiveByRoleInAndBranchScopeAndTeamNameIn(
-                            allowedRoles,
-                            ActivationStatus.ACTIVE,
-                            group.getInstitutionName(),
-                            normalizedTeamNames
-                    );
+                    candidates = List.of();
+                    for (String departmentName : groupDepartments) {
+                        candidates = mergeUsers(candidates, userRepository.findActiveByRoleInAndDepartmentScopeAndTeamNameIn(
+                                allowedRoles,
+                                ActivationStatus.ACTIVE,
+                                group.getInstitutionName(),
+                                departmentName,
+                                normalizedTeamNames
+                        ));
+                    }
                 }
                 return candidates.stream()
                         .map(this::toAssignableUserResponse)
                         .toList();
             }
             if (actor.getRole() == Role.ADMIN) {
-                if (memberScope == UserGroupMemberScope.ADMINS || !StringUtils.hasText(group.getDepartmentName())) {
+                List<String> groupDepartments = parseDepartmentNamesCsv(group.getDepartmentName());
+                if (memberScope == UserGroupMemberScope.ADMINS || groupDepartments.isEmpty()) {
                     candidates = userRepository.findActiveByRoleInAndBranchScope(
                             allowedRoles,
                             ActivationStatus.ACTIVE,
                             actor.getInstitutionName()
                     );
                 } else if (memberScope == UserGroupMemberScope.MANAGERS) {
-                    candidates = userRepository.findActiveByRoleInAndDepartmentScope(
-                            allowedRoles,
-                            ActivationStatus.ACTIVE,
-                            actor.getInstitutionName(),
-                            actor.getDepartmentName()
-                    );
+                    candidates = List.of();
+                    for (String departmentName : groupDepartments) {
+                        candidates = mergeUsers(candidates, userRepository.findActiveByRoleInAndDepartmentScope(
+                                allowedRoles,
+                                ActivationStatus.ACTIVE,
+                                actor.getInstitutionName(),
+                                departmentName
+                        ));
+                    }
                 } else {
                     scopedTeams = parseTeamNames(group);
                     if (scopedTeams.isEmpty()) {
                         return List.of();
                     }
-                    candidates = userRepository.findActiveByRoleInAndDepartmentScopeAndTeamNameIn(
-                            allowedRoles,
-                            ActivationStatus.ACTIVE,
-                            actor.getInstitutionName(),
-                            actor.getDepartmentName(),
-                            scopedTeams.stream().map(this::normalizeLower).toList()
-                    );
+                    candidates = List.of();
+                    List<String> normalizedTeams = scopedTeams.stream().map(this::normalizeLower).toList();
+                    for (String departmentName : groupDepartments) {
+                        candidates = mergeUsers(candidates, userRepository.findActiveByRoleInAndDepartmentScopeAndTeamNameIn(
+                                allowedRoles,
+                                ActivationStatus.ACTIVE,
+                                actor.getInstitutionName(),
+                                departmentName,
+                                normalizedTeams
+                        ));
+                    }
                 }
                 return candidates.stream()
                         .map(this::toAssignableUserResponse)
@@ -690,6 +739,12 @@ public class UserGroupService {
         }
     }
 
+    private void assertCanCreateOrEditGroups(User actor) {
+        if (actor.getRole() != Role.SUPER_ADMIN) {
+            throw new AccessDeniedException("Only super admins can create, edit, or delete groups");
+        }
+    }
+
     private boolean canEditPageVisibility(User actor) {
         return actor.getRole() == Role.SUPER_ADMIN || actor.getRole() == Role.ADMIN;
     }
@@ -736,7 +791,8 @@ public class UserGroupService {
         if (actor.getRole() == Role.ADMIN) {
             return true;
         }
-        return textEquals(actor.getDepartmentName(), group.getDepartmentName());
+        return parseDepartmentNamesCsv(group.getDepartmentName()).isEmpty()
+                || matchesAnyName(parseDepartmentNamesCsv(group.getDepartmentName()), actor.getDepartmentName());
     }
 
     private void assertActorHasBranchScope(User actor) {
@@ -876,9 +932,14 @@ public class UserGroupService {
             return;
         }
         if (!textEquals(group.getInstitutionName(), target.getInstitutionName())
-                || !textEquals(group.getDepartmentName(), target.getDepartmentName())) {
+                || (!parseDepartmentNamesCsv(group.getDepartmentName()).isEmpty()
+                && !matchesAnyName(parseDepartmentNamesCsv(group.getDepartmentName()), target.getDepartmentName()))) {
             throw new AccessDeniedException("Selected user is outside this group's scope");
         }
+    }
+
+    private boolean matchesAnyName(List<String> names, String value) {
+        return names.stream().anyMatch(name -> textEquals(name, value));
     }
 
     private void assertCanViewUser(User actor, User target) {
@@ -962,6 +1023,50 @@ public class UserGroupService {
                 .filter(StringUtils::hasText)
                 .distinct()
                 .toList();
+    }
+
+    private List<String> parseDepartmentNamesCsv(String csv) {
+        if (!StringUtils.hasText(csv)) return List.of();
+        return java.util.Arrays.stream(csv.split(","))
+                .map(String::trim)
+                .filter(StringUtils::hasText)
+                .distinct()
+                .toList();
+    }
+
+    private List<User> mergeUsers(List<User> left, List<User> right) {
+        Map<Long, User> merged = new LinkedHashMap<>();
+        if (left != null) {
+            for (User user : left) {
+                merged.put(user.getId(), user);
+            }
+        }
+        if (right != null) {
+            for (User user : right) {
+                merged.put(user.getId(), user);
+            }
+        }
+        return new ArrayList<>(merged.values());
+    }
+
+    private long countUsersByDepartmentsAndTeams(List<Role> roles,
+                                                 String institutionName,
+                                                 List<String> departments,
+                                                 List<String> teams) {
+        if (departments == null || departments.isEmpty() || teams == null || teams.isEmpty()) {
+            return 0;
+        }
+        long total = 0;
+        for (String departmentName : departments) {
+            total += userRepository.findActiveByRoleInAndDepartmentScopeAndTeamNameIn(
+                    roles,
+                    ActivationStatus.ACTIVE,
+                    institutionName,
+                    departmentName,
+                    teams
+            ).size();
+        }
+        return total;
     }
 
     private List<String> sanitizeTeamNames(List<String> teamNames) {
@@ -1066,73 +1171,266 @@ public class UserGroupService {
 
     private boolean requiresTeamSelection(UserGroupMemberScope scope) {
         UserGroupMemberScope normalized = scope == null ? UserGroupMemberScope.NONE : scope;
-        return normalized == UserGroupMemberScope.NONE
-                || normalized == UserGroupMemberScope.TEAM_LEADS
+        return normalized == UserGroupMemberScope.TEAM_LEADS
                 || normalized == UserGroupMemberScope.EMPLOYEES;
     }
 
-    private GroupScope resolveScopeForCreate(User actor,
-                                             CreateUserGroupRequest request,
-                                             UserGroupMemberScope memberScope) {
-        if (actor.getRole() == Role.SUPER_ADMIN) {
-            if (memberScope == UserGroupMemberScope.ADMINS) {
-                return new GroupScope(
-                        requiredScopeValue(request.getInstitutionName(), "Branch is required"),
-                        ""
-                );
-            }
-            return new GroupScope(
-                    requiredScopeValue(request.getInstitutionName(), "Branch is required"),
-                    requiredScopeValue(request.getDepartmentName(), "Department is required")
-            );
-        }
-        if (actor.getRole() == Role.ADMIN) {
-            assertActorHasBranchScope(actor);
-            return new GroupScope(actor.getInstitutionName().trim(), "");
-        }
-        assertActorHasDepartmentScope(actor);
-        return new GroupScope(
-                actor.getInstitutionName().trim(),
-                actor.getDepartmentName().trim()
+    private ResolvedGroupScope resolveScopeForCreate(User actor,
+                                                     CreateUserGroupRequest request,
+                                                     UserGroupMemberScope memberScope) {
+        return resolveScopeSelection(
+                request.getHeadOfficeId(),
+                request.getBranchId(),
+                request.getDepartmentId(),
+                request.getDepartmentIds(),
+                request.getTeamNames(),
+                memberScope,
+                null
         );
     }
 
-    private GroupScope resolveScopeForUpdate(User actor,
-                                             UpdateUserGroupRequest request,
-                                             UserGroupMemberScope memberScope,
-                                             UserGroup existingGroup) {
-        if (actor.getRole() == Role.SUPER_ADMIN) {
-            String existingInstitutionName = existingGroup == null ? "" : trimOrEmpty(existingGroup.getInstitutionName());
-            String existingDepartmentName = existingGroup == null ? "" : trimOrEmpty(existingGroup.getDepartmentName());
-            String requestedInstitutionName = trimOrEmpty(request.getInstitutionName());
-            String requestedDepartmentName = trimOrEmpty(request.getDepartmentName());
-            String resolvedInstitutionName = StringUtils.hasText(requestedInstitutionName)
-                    ? requestedInstitutionName
-                    : existingInstitutionName;
-            String resolvedDepartmentName = StringUtils.hasText(requestedDepartmentName)
-                    ? requestedDepartmentName
-                    : existingDepartmentName;
-
-            if (memberScope == UserGroupMemberScope.ADMINS) {
-                return new GroupScope(
-                        resolvedInstitutionName,
-                        ""
-                );
-            }
-            return new GroupScope(
-                    resolvedInstitutionName,
-                    resolvedDepartmentName
-            );
-        }
-        if (actor.getRole() == Role.ADMIN) {
-            assertActorHasBranchScope(actor);
-            return new GroupScope(actor.getInstitutionName().trim(), "");
-        }
-        assertActorHasDepartmentScope(actor);
-        return new GroupScope(
-                actor.getInstitutionName().trim(),
-                actor.getDepartmentName().trim()
+    private ResolvedGroupScope resolveScopeForUpdate(User actor,
+                                                     UpdateUserGroupRequest request,
+                                                     UserGroupMemberScope memberScope,
+                                                     UserGroup existingGroup) {
+        return resolveScopeSelection(
+                request.getHeadOfficeId(),
+                request.getBranchId(),
+                request.getDepartmentId(),
+                request.getDepartmentIds(),
+                request.getTeamNames(),
+                memberScope,
+                existingGroup
         );
+    }
+
+    private ResolvedGroupScope resolveScopeSelection(Long headOfficeId,
+                                                     Long branchId,
+                                                     Long departmentId,
+                                                     List<Long> departmentIds,
+                                                     List<String> requestedTeamNames,
+                                                     UserGroupMemberScope memberScope,
+                                                     UserGroup existingGroup) {
+        Long resolvedHeadOfficeId = headOfficeId != null ? headOfficeId : resolveExistingHeadOfficeId(existingGroup);
+        Long resolvedBranchId = branchId != null ? branchId : resolveExistingBranchId(existingGroup);
+        Long resolvedDepartmentId = departmentId != null ? departmentId : resolveExistingDepartmentId(existingGroup);
+
+        HeadOfficeMaster headOffice = null;
+        if (resolvedHeadOfficeId != null) {
+            headOffice = findActiveHeadOffice(resolvedHeadOfficeId);
+        }
+
+        BranchMaster branch = null;
+        if (resolvedBranchId != null) {
+            branch = branchMasterRepository.findByIdAndDeletedFalse(resolvedBranchId)
+                    .orElseThrow(() -> new EntityNotFoundException("Branch not found"));
+            if (headOffice != null && !resolvedHeadOfficeId.equals(branch.getHeadOfficeId())) {
+                throw new IllegalStateException("Selected branch does not belong to the selected head office");
+            }
+            if (headOffice == null) {
+                headOffice = findActiveHeadOffice(branch.getHeadOfficeId());
+                resolvedHeadOfficeId = headOffice.getId();
+            }
+        }
+
+        DepartmentMaster department = null;
+        List<DepartmentMaster> departments = new ArrayList<>();
+        List<Long> resolvedDepartmentIds = new ArrayList<>();
+        if (resolvedDepartmentId != null) {
+            department = departmentMasterRepository.findByIdAndDeletedFalse(resolvedDepartmentId)
+                    .orElseThrow(() -> new EntityNotFoundException("Department not found"));
+            if (branch != null && !resolvedBranchId.equals(department.getBranchId())) {
+                throw new IllegalStateException("Selected department does not belong to the selected branch");
+            }
+            if (branch == null) {
+                branch = branchMasterRepository.findByIdAndDeletedFalse(department.getBranchId())
+                        .orElseThrow(() -> new EntityNotFoundException("Branch not found"));
+                resolvedBranchId = branch.getId();
+                if (headOffice == null) {
+                    headOffice = findActiveHeadOffice(branch.getHeadOfficeId());
+                    resolvedHeadOfficeId = headOffice.getId();
+                }
+                if (!resolvedHeadOfficeId.equals(branch.getHeadOfficeId())) {
+                    throw new IllegalStateException("Selected branch does not belong to the selected head office");
+                }
+            }
+        }
+        List<Long> requestedDepartmentIds = sanitizeLongIds(departmentIds);
+        if (!requestedDepartmentIds.isEmpty()) {
+            for (Long departmentKey : requestedDepartmentIds) {
+                DepartmentMaster row = departmentMasterRepository.findByIdAndDeletedFalse(departmentKey)
+                        .orElseThrow(() -> new EntityNotFoundException("Department not found"));
+                if (branch != null && !resolvedBranchId.equals(row.getBranchId())) {
+                    throw new IllegalStateException("Selected department does not belong to the selected branch");
+                }
+                if (branch == null) {
+                    branch = branchMasterRepository.findByIdAndDeletedFalse(row.getBranchId())
+                            .orElseThrow(() -> new EntityNotFoundException("Branch not found"));
+                    resolvedBranchId = branch.getId();
+                    if (headOffice == null) {
+                        headOffice = findActiveHeadOffice(branch.getHeadOfficeId());
+                        resolvedHeadOfficeId = headOffice.getId();
+                    }
+                    if (!resolvedHeadOfficeId.equals(branch.getHeadOfficeId())) {
+                        throw new IllegalStateException("Selected branch does not belong to the selected head office");
+                    }
+                }
+                departments.add(row);
+                resolvedDepartmentIds.add(row.getId());
+            }
+        } else if (department != null) {
+            departments.add(department);
+            resolvedDepartmentIds.add(department.getId());
+        }
+
+        if (department == null && !departments.isEmpty()) {
+            department = departments.getFirst();
+            if (resolvedDepartmentId == null) {
+                resolvedDepartmentId = department.getId();
+            }
+        }
+
+        if (memberScope == UserGroupMemberScope.ADMINS) {
+            resolvedDepartmentId = null;
+            department = null;
+            departments = List.of();
+            resolvedDepartmentIds = List.of();
+        } else if (department == null && (memberScope == UserGroupMemberScope.MANAGERS
+                || memberScope == UserGroupMemberScope.TEAM_LEADS
+                || memberScope == UserGroupMemberScope.EMPLOYEES
+                || memberScope == UserGroupMemberScope.NONE)) {
+            throw new IllegalStateException("Department is required");
+        }
+
+        List<String> sanitizedTeamNames = sanitizeTeamNames(requestedTeamNames);
+        if (requiresTeamSelection(memberScope)) {
+            if (department == null) {
+                throw new IllegalStateException("Department is required");
+            }
+            if (sanitizedTeamNames.isEmpty()) {
+                throw new IllegalStateException("At least one designation is required");
+            }
+            sanitizedTeamNames = validateDesignationNamesForDepartment(department.getId(), sanitizedTeamNames);
+            departments = List.of(department);
+            resolvedDepartmentIds = List.of(department.getId());
+        } else if (memberScope == UserGroupMemberScope.MANAGERS) {
+            if (departments.isEmpty()) {
+                throw new IllegalStateException("At least one department is required");
+            }
+            department = departments.getFirst();
+        } else if (!departments.isEmpty()) {
+            department = departments.getFirst();
+        } else {
+            sanitizedTeamNames = List.of();
+        }
+
+        String institutionName = branch == null ? "" : trimOrEmpty(branch.getName());
+        List<String> departmentNames = departments.stream()
+                .map(DepartmentMaster::getName)
+                .filter(StringUtils::hasText)
+                .map(String::trim)
+                .distinct()
+                .toList();
+        String departmentName = String.join(",", departmentNames);
+        return new ResolvedGroupScope(
+                resolvedHeadOfficeId,
+                resolvedBranchId,
+                resolvedDepartmentId,
+                resolvedDepartmentIds,
+                institutionName,
+                departmentName,
+                departmentNames,
+                sanitizedTeamNames
+        );
+    }
+
+    private Long resolveExistingHeadOfficeId(UserGroup existingGroup) {
+        BranchMaster branch = resolveExistingBranch(existingGroup);
+        return branch == null ? null : branch.getHeadOfficeId();
+    }
+
+    private Long resolveExistingBranchId(UserGroup existingGroup) {
+        BranchMaster branch = resolveExistingBranch(existingGroup);
+        return branch == null ? null : branch.getId();
+    }
+
+    private Long resolveExistingDepartmentId(UserGroup existingGroup) {
+        if (existingGroup == null || !StringUtils.hasText(existingGroup.getDepartmentName())) {
+            return null;
+        }
+        BranchMaster branch = resolveExistingBranch(existingGroup);
+        if (branch == null) {
+            return null;
+        }
+        List<String> departmentNames = parseDepartmentNamesCsv(existingGroup.getDepartmentName());
+        for (String departmentName : departmentNames) {
+            Long resolved = departmentMasterRepository
+                    .findFirstByBranchIdAndNameIgnoreCaseAndDeletedFalseOrderByIdAsc(branch.getId(), departmentName.trim())
+                    .map(DepartmentMaster::getId)
+                    .orElse(null);
+            if (resolved != null) {
+                return resolved;
+            }
+        }
+        return null;
+    }
+
+    private List<Long> resolveExistingDepartmentIds(UserGroup existingGroup) {
+        if (existingGroup == null || !StringUtils.hasText(existingGroup.getDepartmentName())) {
+            return List.of();
+        }
+        BranchMaster branch = resolveExistingBranch(existingGroup);
+        if (branch == null) {
+            return List.of();
+        }
+        List<Long> ids = new ArrayList<>();
+        for (String departmentName : parseDepartmentNamesCsv(existingGroup.getDepartmentName())) {
+            departmentMasterRepository
+                    .findFirstByBranchIdAndNameIgnoreCaseAndDeletedFalseOrderByIdAsc(branch.getId(), departmentName.trim())
+                    .map(DepartmentMaster::getId)
+                    .ifPresent(ids::add);
+        }
+        return ids.stream().distinct().toList();
+    }
+
+    private BranchMaster resolveExistingBranch(UserGroup existingGroup) {
+        if (existingGroup == null || !StringUtils.hasText(existingGroup.getInstitutionName())) {
+            return null;
+        }
+        return branchMasterRepository
+                .findFirstByNameIgnoreCaseAndDeletedFalseOrderByIdAsc(existingGroup.getInstitutionName().trim())
+                .orElse(null);
+    }
+
+    private List<String> validateDesignationNamesForDepartment(Long departmentId, List<String> requestedTeamNames) {
+        List<String> availableDesignations = designationMasterRepository
+                .findByDepartmentMasterIdAndDeletedFalseOrderByIdDesc(departmentId)
+                .stream()
+                .map(DesignationMaster::getName)
+                .filter(StringUtils::hasText)
+                .map(String::trim)
+                .toList();
+        Map<String, String> availableByLower = availableDesignations.stream()
+                .collect(Collectors.toMap(this::normalizeLower, name -> name, (a, b) -> a, LinkedHashMap::new));
+        Set<String> resolved = new LinkedHashSet<>();
+        for (String name : requestedTeamNames) {
+            String canonical = availableByLower.get(normalizeLower(name));
+            if (canonical == null) {
+                throw new AccessDeniedException("Selected designation is outside the selected department: " + name);
+            }
+            resolved.add(canonical);
+        }
+        return new ArrayList<>(resolved);
+    }
+
+    private List<Long> sanitizeLongIds(List<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return List.of();
+        }
+        return ids.stream()
+                .filter(java.util.Objects::nonNull)
+                .distinct()
+                .toList();
     }
 
     private String requiredScopeValue(String value, String message) {
@@ -1160,12 +1458,45 @@ public class UserGroupService {
         response.setName(group.getName());
         response.setCanDelete(!group.isSystemGroup());
         response.setMembers(resolveMembers(group));
+        ResolvedGroupScope scope = resolveStoredGroupScope(group);
+        response.setHeadOfficeId(scope.headOfficeId());
+        response.setBranchId(scope.branchId());
+        response.setDepartmentId(scope.departmentId());
+        response.setDepartmentIds(scope.departmentIds());
         response.setInstitutionName(group.getInstitutionName());
-        response.setDepartmentName(group.getDepartmentName());
+        response.setDepartmentName(scope.departmentName());
+        response.setDepartmentNames(scope.departmentNames());
         response.setTeamNames(parseTeamNames(group));
         response.setPageKeys(parseTeamNamesCsv(group.getPageKeysCsv()));
         response.setMemberScope(group.getMemberScope() == null ? null : group.getMemberScope().name());
         return response;
+    }
+
+    private ResolvedGroupScope resolveStoredGroupScope(UserGroup group) {
+        BranchMaster branch = resolveExistingBranch(group);
+        Long headOfficeId = branch == null ? null : branch.getHeadOfficeId();
+        Long branchId = branch == null ? null : branch.getId();
+        Long departmentId = null;
+        List<Long> departmentIds = resolveExistingDepartmentIds(group);
+        List<String> departmentNames = parseDepartmentNamesCsv(group.getDepartmentName());
+        if (!departmentIds.isEmpty()) {
+            departmentId = departmentIds.getFirst();
+        } else if (branch != null && StringUtils.hasText(group.getDepartmentName())) {
+            departmentId = departmentMasterRepository
+                    .findFirstByBranchIdAndNameIgnoreCaseAndDeletedFalseOrderByIdAsc(branch.getId(), group.getDepartmentName().trim())
+                    .map(DepartmentMaster::getId)
+                    .orElse(null);
+        }
+        return new ResolvedGroupScope(
+                headOfficeId,
+                branchId,
+                departmentId,
+                departmentIds,
+                branch == null ? trimOrEmpty(group.getInstitutionName()) : trimOrEmpty(branch.getName()),
+                trimOrEmpty(group.getDepartmentName()),
+                departmentNames,
+                parseTeamNames(group)
+        );
     }
 
     private long resolveMembers(UserGroup group) {
@@ -1176,48 +1507,55 @@ public class UserGroupService {
             return userRepository.countActiveAdminsByBranch(group.getInstitutionName());
         }
         if (group.getMemberScope() == UserGroupMemberScope.MANAGERS) {
-            if (!StringUtils.hasText(group.getInstitutionName()) || !StringUtils.hasText(group.getDepartmentName())) {
+            List<String> departments = parseDepartmentNamesCsv(group.getDepartmentName());
+            if (!StringUtils.hasText(group.getInstitutionName()) || departments.isEmpty()) {
                 return 0;
             }
-            return userRepository.countActiveManagersInScope(
-                    group.getInstitutionName(),
-                    group.getDepartmentName(),
-                    ""
-            );
+            long total = 0;
+            for (String departmentName : departments) {
+                total += userRepository.countActiveManagersInScope(
+                        group.getInstitutionName(),
+                        departmentName,
+                        ""
+                );
+            }
+            return total;
         }
         if (group.getMemberScope() == UserGroupMemberScope.TEAM_LEADS) {
-            if (!StringUtils.hasText(group.getInstitutionName()) || !StringUtils.hasText(group.getDepartmentName())) {
+            List<String> departments = parseDepartmentNamesCsv(group.getDepartmentName());
+            if (!StringUtils.hasText(group.getInstitutionName()) || departments.isEmpty()) {
                 return 0;
             }
             List<String> teams = parseTeamNames(group).stream().map(this::normalizeLower).toList();
             if (teams.isEmpty()) {
                 return 0;
             }
-            return userRepository.findActiveByRoleInAndDepartmentScopeAndTeamNameIn(
-                    List.of(Role.TEAM_LEAD),
-                    ActivationStatus.ACTIVE,
-                    group.getInstitutionName(),
-                    group.getDepartmentName(),
-                    teams
-            ).size();
+            return countUsersByDepartmentsAndTeams(List.of(Role.TEAM_LEAD), group.getInstitutionName(), departments, teams);
         }
         if (group.getMemberScope() == UserGroupMemberScope.EMPLOYEES) {
-            if (!StringUtils.hasText(group.getInstitutionName()) || !StringUtils.hasText(group.getDepartmentName())) {
+            List<String> departments = parseDepartmentNamesCsv(group.getDepartmentName());
+            if (!StringUtils.hasText(group.getInstitutionName()) || departments.isEmpty()) {
                 return 0;
             }
             List<String> teams = parseTeamNames(group).stream().map(this::normalizeLower).toList();
             if (teams.isEmpty()) {
                 return 0;
             }
-            return userRepository.findActiveByRoleInAndDepartmentScopeAndTeamNameIn(
-                    List.of(Role.EMPLOYEE),
-                    ActivationStatus.ACTIVE,
-                    group.getInstitutionName(),
-                    group.getDepartmentName(),
-                    teams
-            ).size();
+            return countUsersByDepartmentsAndTeams(List.of(Role.EMPLOYEE), group.getInstitutionName(), departments, teams);
         }
         return userGroupMemberRepository.countByGroup(group);
+    }
+
+    private HeadOfficeMaster findActiveHeadOffice(Long headOfficeId) {
+        if (headOfficeId == null) {
+            return null;
+        }
+        HeadOfficeMaster headOffice = headOfficeMasterRepository.findById(headOfficeId)
+                .orElseThrow(() -> new IllegalStateException("Selected head office does not exist or is inactive"));
+        if (Boolean.TRUE.equals(headOffice.getDeleted())) {
+            throw new IllegalStateException("Selected head office does not exist or is inactive");
+        }
+        return headOffice;
     }
 
     private UserGroupAssignableUserResponse toAssignableUserResponse(User user) {

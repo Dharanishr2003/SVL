@@ -238,7 +238,7 @@ export default function TrainingPage() {
 
   return (
     <>
-      <div className="content">
+      <div className="content wf-shell">
 
         <div className="d-md-flex d-block align-items-center justify-content-between page-breadcrumb mb-3">
           <div className="my-auto mb-2">
@@ -339,7 +339,7 @@ export default function TrainingPage() {
       {showAddModal && (
         <>
           <div className="modal fade show" style={{ display: "block" }} tabIndex="-1">
-            <div className="modal-dialog modal-dialog-centered modal-lg">
+            <div className="modal-dialog modal-dialog-centered modal-lg wf-wizard-modal">
               <div className="modal-content">
                 <div className="modal-header">
                   <h4 className="modal-title">Add Training</h4>
@@ -463,7 +463,7 @@ export default function TrainingPage() {
       {showEditModal && (
         <>
           <div className="modal fade show" style={{ display: "block" }} tabIndex="-1">
-            <div className="modal-dialog modal-dialog-centered modal-lg">
+            <div className="modal-dialog modal-dialog-centered modal-lg wf-wizard-modal">
               <div className="modal-content">
                 <div className="modal-header">
                   <h4 className="modal-title">Edit Training</h4>

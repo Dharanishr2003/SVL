@@ -12,6 +12,7 @@ import { getBranches } from "../../api/branchesApi";
 import { getEmployees } from "../../api/employeesApi";
 import { extractApiErrorMessage } from "../../utils/errorMessage";
 import { useToast } from "../../components/system/ToastProvider";
+import "../../../public/assets/css/addModalShared.css";
 
 const initialForm = {
   branchId: "",
@@ -544,21 +545,16 @@ export default function DepartmentsPage() {
       </div>
 
       {showAddModal && (
-        <>
-          <div className="modal fade show" style={{ display: "block" }} tabIndex="-1">
-            <div className="modal-dialog modal-dialog-centered modal-md">
-              <div className="modal-content">
-                <div className="modal-header">
-                  <h4 className="modal-title">Add Department</h4>
-                  <button type="button" className="btn-close custom-btn-close" onClick={() => setShowAddModal(false)}>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <line x1="6" y1="6" x2="18" y2="18" />
-                      <line x1="18" y1="6" x2="6" y2="18" />
-                    </svg>
-                  </button>
-                </div>
-                <form onSubmit={handleAddDepartment}>
-                  <div className="modal-body pb-0">
+        <div className="avm-backdrop" role="presentation">
+          <div className="avm-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+            <div className="avm-modal-header">
+              <h2 className="avm-modal-title">Add Department</h2>
+              <button type="button" className="avm-modal-close" onClick={() => setShowAddModal(false)} aria-label="Close">
+                x
+              </button>
+            </div>
+            <form onSubmit={handleAddDepartment}>
+              <div className="avm-body">
                     <div className="row">
                       <div className="col-md-12">
                         <div className="mb-3">
@@ -624,38 +620,33 @@ export default function DepartmentsPage() {
                       </div>
                     </div>
                   </div>
-                  <div className="modal-footer">
-                    <button type="button" className="btn btn-light me-2" onClick={() => setShowAddModal(false)}>
+                  <div className="avm-footer">
+                    <div />
+                    <div className="avm-footer-right">
+                    <button type="button" className="avm-btn light" onClick={() => setShowAddModal(false)}>
                       Cancel
                     </button>
-                    <button type="submit" className="btn btn-primary" disabled={saving}>
+                    <button type="submit" className="avm-btn primary" disabled={saving}>
                       {saving ? "Adding..." : "Add Department"}
                     </button>
+                    </div>
                   </div>
                 </form>
-              </div>
-            </div>
           </div>
-          <div className="modal-backdrop fade show" />
-        </>
+        </div>
       )}
 
       {showEditModal && (
-        <>
-          <div className="modal fade show" style={{ display: "block" }} tabIndex="-1">
-            <div className="modal-dialog modal-dialog-centered modal-md">
-              <div className="modal-content">
-                <div className="modal-header">
-                  <h4 className="modal-title">Edit Department</h4>
-                  <button type="button" className="btn-close custom-btn-close" onClick={() => setShowEditModal(false)}>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <line x1="6" y1="6" x2="18" y2="18" />
-                      <line x1="18" y1="6" x2="6" y2="18" />
-                    </svg>
-                  </button>
-                </div>
-                <form onSubmit={handleEditDepartment}>
-                  <div className="modal-body pb-0">
+        <div className="avm-backdrop" role="presentation">
+          <div className="avm-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+            <div className="avm-modal-header">
+              <h2 className="avm-modal-title">Edit Department</h2>
+              <button type="button" className="avm-modal-close" onClick={() => setShowEditModal(false)} aria-label="Close">
+                x
+              </button>
+            </div>
+            <form onSubmit={handleEditDepartment}>
+              <div className="avm-body">
                     <div className="row">
                       <div className="col-md-12">
                         <div className="mb-3">
@@ -727,56 +718,51 @@ export default function DepartmentsPage() {
                       </div>
                     </div>
                   </div>
-                  <div className="modal-footer">
-                    <button type="button" className="btn btn-light me-2" onClick={() => setShowEditModal(false)}>
+                  <div className="avm-footer">
+                    <div />
+                    <div className="avm-footer-right">
+                    <button type="button" className="avm-btn light" onClick={() => setShowEditModal(false)}>
                       Cancel
                     </button>
-                    <button type="submit" className="btn btn-primary" disabled={saving}>
+                    <button type="submit" className="avm-btn primary" disabled={saving}>
                       {saving ? "Saving..." : "Save Changes"}
                     </button>
+                    </div>
                   </div>
                 </form>
-              </div>
-            </div>
           </div>
-          <div className="modal-backdrop fade show" />
-        </>
+        </div>
       )}
 
       {showDeleteModal && (
-        <>
-          <div className="modal fade show" style={{ display: "block" }} tabIndex="-1">
-            <div className="modal-dialog modal-dialog-centered">
-              <div className="modal-content">
-                <div className="modal-header">
-                  <h4 className="modal-title">Confirm Delete</h4>
-                  <button type="button" className="btn-close custom-btn-close" onClick={() => setShowDeleteModal(false)}>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <line x1="6" y1="6" x2="18" y2="18" />
-                      <line x1="18" y1="6" x2="6" y2="18" />
-                    </svg>
-                  </button>
-                </div>
-                <div className="modal-body">
+        <div className="avm-backdrop" role="presentation">
+          <div className="avm-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+            <div className="avm-modal-header">
+              <h2 className="avm-modal-title">Confirm Delete</h2>
+              <button type="button" className="avm-modal-close" onClick={() => setShowDeleteModal(false)} aria-label="Close">
+                x
+              </button>
+            </div>
+                <div className="avm-body">
                   <p>
                     Are you sure you want to delete
                     {deleteTarget?.name ? ` "${deleteTarget.name}"` : " this department"}
                     ?
                   </p>
                 </div>
-                <div className="modal-footer">
-                  <button type="button" className="btn btn-light me-2" onClick={() => setShowDeleteModal(false)}>
+                <div className="avm-footer">
+                  <div />
+                  <div className="avm-footer-right">
+                  <button type="button" className="avm-btn light" onClick={() => setShowDeleteModal(false)}>
                     Cancel
                   </button>
-                  <button type="button" className="btn btn-danger" onClick={handleDelete} disabled={saving}>
+                  <button type="button" className="avm-btn primary" onClick={handleDelete} disabled={saving}>
                     {saving ? "Deleting..." : "Delete"}
                   </button>
+                  </div>
                 </div>
               </div>
-            </div>
-          </div>
-          <div className="modal-backdrop fade show" />
-        </>
+        </div>
       )}
     </>
   );

@@ -9,12 +9,11 @@ import {
   removeGroupMember,
   updateUserGroup,
 } from "../../api/userGroupApi";
-import {
-  getDepartments,
-  getInstitutions,
-  getTeams,
-  getUserOrgSelection,
-} from "../../api/orgHierarchyApi";
+import { getUserOrgSelection } from "../../api/orgHierarchyApi";
+import { getHeadOffices } from "../../api/headOfficesApi";
+import { getBranches } from "../../api/branchesApi";
+import { getDepartmentsMasterByBranch } from "../../api/departmentsApi";
+import { getDesignations } from "../../api/designationsApi";
 import { extractApiErrorMessage } from "../../utils/errorMessage";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../components/system/ToastProvider";
@@ -22,6 +21,8 @@ import ConfirmDialog from "../../components/system/ConfirmDialog";
 import UserGroupEditModal from "../../components/admin/UserGroupEditModal";
 
 const EMPTY_SCOPE = {
+  headOfficeId: "",
+  branchId: "",
   institutionId: "",
   departmentId: "",
   teamIds: [],
@@ -34,6 +35,7 @@ export default function UserGroupEditPage() {
   const navigate = useNavigate();
   const { user: currentUser } = useAuth();
   const currentRole = String(currentUser?.role || "").toUpperCase();
+  const isSuperAdmin = currentRole === "SUPER_ADMIN";
   const isAdmin = currentRole === "ADMIN";
   const isManager = currentRole === "MANAGER";
   const isTeamLead = currentRole === "TEAM_LEAD";
@@ -43,12 +45,14 @@ export default function UserGroupEditPage() {
   const [form, setForm] = useState({ name: "" });
   const [scope, setScope] = useState(EMPTY_SCOPE);
   const [orgSelection, setOrgSelection] = useState(null);
-  const [institutions, setInstitutions] = useState([]);
+  const [headOffices, setHeadOffices] = useState([]);
+  const [branches, setBranches] = useState([]);
   const [departments, setDepartments] = useState([]);
-  const [teams, setTeams] = useState([]);
+  const [designations, setDesignations] = useState([]);
   const [members, setMembers] = useState([]);
   const [assignableUsers, setAssignableUsers] = useState([]);
   const [selectedUserId, setSelectedUserId] = useState("");
+  const [selectedDepartmentId, setSelectedDepartmentId] = useState("");
   const [loading, setLoading] = useState(false);
   const [orgLoading, setOrgLoading] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -59,19 +63,36 @@ export default function UserGroupEditPage() {
     rows.find((row) => normalize(row?.name) === normalize(name));
 
   const selectedInstitution = useMemo(
-    () => institutions.find((item) => String(item.id) === String(scope.institutionId)),
-    [institutions, scope.institutionId],
+    () => headOffices.find((item) => String(item.id) === String(scope.headOfficeId)),
+    [headOffices, scope.headOfficeId],
+  );
+  const selectedBranch = useMemo(
+    () => branches.find((item) => String(item.id) === String(scope.branchId)),
+    [branches, scope.branchId],
   );
   const selectedDepartment = useMemo(
     () => departments.find((item) => String(item.id) === String(scope.departmentId)),
     [departments, scope.departmentId],
   );
+  const selectedDepartmentIds = useMemo(
+    () =>
+      Array.isArray(scope.departmentIds) && scope.departmentIds.length
+        ? scope.departmentIds
+        : scope.departmentId
+          ? [String(scope.departmentId)]
+          : [],
+    [scope.departmentId, scope.departmentIds],
+  );
+  const selectedDepartments = useMemo(
+    () => departments.filter((item) => selectedDepartmentIds.some((id) => String(id) === String(item.id))),
+    [departments, selectedDepartmentIds],
+  );
   const selectedTeams = useMemo(
-    () => teams.filter((team) => scope.teamIds.some((tid) => String(tid) === String(team.id))),
-    [teams, scope.teamIds],
+    () => designations.filter((designation) => scope.teamIds.some((tid) => String(tid) === String(designation.id))),
+    [designations, scope.teamIds],
   );
   const selectedTeamNames = useMemo(
-    () => selectedTeams.map((team) => String(team.name || "").trim()).filter(Boolean),
+    () => selectedTeams.map((designation) => String(designation.name || "").trim()).filter(Boolean),
     [selectedTeams],
   );
   const selectedMemberScope = String(group?.memberScope || "NONE").toUpperCase();
@@ -81,12 +102,12 @@ export default function UserGroupEditPage() {
     const loadBase = async () => {
       setOrgLoading(true);
       try {
-        const [instRows, selection] = await Promise.all([
-          getInstitutions(),
+        const [headOfficeRows, selection] = await Promise.all([
+          getHeadOffices(),
           currentUser?.id ? getUserOrgSelection(currentUser.id) : Promise.resolve(null),
         ]);
         if (!isMounted) return;
-        setInstitutions(Array.isArray(instRows) ? instRows : []);
+        setHeadOffices(Array.isArray(headOfficeRows) ? headOfficeRows : []);
         setOrgSelection(selection || null);
       } catch (e) {
         if (isMounted) showError(extractApiErrorMessage(e, "Failed to load organization data"));
@@ -133,35 +154,75 @@ export default function UserGroupEditPage() {
   useEffect(() => {
     let isMounted = true;
     const hydrateScope = async () => {
-      if (!group || !institutions.length) return;
+      if (!group || !headOffices.length) return;
       try {
-        const institution = findByName(institutions, group.institutionName);
-        const institutionId = institution?.id ? String(institution.id) : "";
-        if (!institutionId) return;
-        const departmentRows = await getDepartments(institutionId);
+        const preferredHeadOfficeId = String(group.headOfficeId || "");
+        const preferredBranches = preferredHeadOfficeId ? await getBranches(preferredHeadOfficeId) : [];
         if (!isMounted) return;
-        setDepartments(Array.isArray(departmentRows) ? departmentRows : []);
-        const department = findByName(departmentRows, group.departmentName);
-        const departmentId = department?.id ? String(department.id) : "";
-        if (!departmentId) {
-          setScope((prev) => ({ ...prev, institutionId }));
+        let branchRows = Array.isArray(preferredBranches) ? preferredBranches : [];
+        let branch = group.branchId
+          ? branchRows.find((item) => String(item.id) === String(group.branchId))
+          : findByName(branchRows, group.institutionName);
+        if (!branch) {
+          const allBranches = await getBranches();
+          if (!isMounted) return;
+          branchRows = Array.isArray(allBranches) ? allBranches : branchRows;
+          branch = group.branchId
+            ? branchRows.find((item) => String(item.id) === String(group.branchId))
+            : findByName(branchRows, group.institutionName);
+        }
+        const branchId = branch?.id ? String(branch.id) : "";
+        if (!branchId) {
+          setBranches(branchRows);
+          setScope((prev) => ({ ...prev, headOfficeId: preferredHeadOfficeId || prev.headOfficeId || "" }));
           return;
         }
-        const teamRows = await getTeams(institutionId, departmentId);
+        setBranches(branchRows);
+        const departmentRows = await getDepartmentsMasterByBranch(branchId);
         if (!isMounted) return;
-        setTeams(Array.isArray(teamRows) ? teamRows : []);
+        setDepartments(Array.isArray(departmentRows) ? departmentRows : []);
+        const groupDepartmentNames = String(group.departmentName || "")
+          .split(",")
+          .map((item) => item.trim())
+          .filter(Boolean);
+        const departmentMatches = [];
+        if (Array.isArray(group.departmentIds) && group.departmentIds.length) {
+          for (const departmentIdValue of group.departmentIds) {
+            const match = departmentRows.find((item) => String(item.id) === String(departmentIdValue));
+            if (match) departmentMatches.push(match);
+          }
+        } else if (groupDepartmentNames.length) {
+          for (const departmentName of groupDepartmentNames) {
+            const match = departmentRows.find((item) => normalize(item.name) === normalize(departmentName));
+            if (match) departmentMatches.push(match);
+          }
+        } else if (group.departmentId) {
+          const match = departmentRows.find((item) => String(item.id) === String(group.departmentId));
+          if (match) departmentMatches.push(match);
+        }
+        if (!departmentMatches.length) {
+          setScope((prev) => ({ ...prev, headOfficeId, branchId }));
+          return;
+        }
+        const primaryDepartmentId = String(departmentMatches[0].id);
+        const teamRows = await getDesignations(primaryDepartmentId);
+        if (!isMounted) return;
+        setDesignations(Array.isArray(teamRows) ? teamRows : []);
         const teamIds = Array.isArray(group.teamNames)
           ? teamRows
-              .filter((team) =>
-                group.teamNames.some((name) => normalize(name) === normalize(team.name)),
+              .filter((designation) =>
+                group.teamNames.some((name) => normalize(name) === normalize(designation.name)),
               )
-              .map((team) => String(team.id))
+              .map((designation) => String(designation.id))
           : [];
         setScope({
-          institutionId,
-          departmentId,
+          headOfficeId: String(branch.headOfficeId || preferredHeadOfficeId || ""),
+          branchId,
+          departmentId: primaryDepartmentId,
+          departmentIds: departmentMatches.map((item) => String(item.id)),
           teamIds,
         });
+        setSelectedDepartmentId("");
       } catch (e) {
         if (isMounted) showError(extractApiErrorMessage(e, "Failed to load group scope"));
       }
@@ -170,7 +231,7 @@ export default function UserGroupEditPage() {
     return () => {
       isMounted = false;
     };
-  }, [group, institutions, showError]);
+  }, [group, headOffices, orgSelection?.institutionId, showError]);
 
   useEffect(() => {
     let isMounted = true;
@@ -224,12 +285,32 @@ export default function UserGroupEditPage() {
   useEffect(() => {
     let isMounted = true;
     const run = async () => {
-      if (!scope.institutionId) {
+      if (!scope.headOfficeId) {
+        setBranches([]);
+        return;
+      }
+      try {
+        const rows = await getBranches(scope.headOfficeId);
+        if (isMounted) setBranches(Array.isArray(rows) ? rows : []);
+      } catch (e) {
+        if (isMounted) showError(extractApiErrorMessage(e, "Failed to load branches"));
+      }
+    };
+    run();
+    return () => {
+      isMounted = false;
+    };
+  }, [scope.headOfficeId, showError]);
+
+  useEffect(() => {
+    let isMounted = true;
+    const run = async () => {
+      if (!scope.branchId) {
         setDepartments([]);
         return;
       }
       try {
-        const rows = await getDepartments(scope.institutionId);
+        const rows = await getDepartmentsMasterByBranch(scope.branchId);
         if (isMounted) setDepartments(Array.isArray(rows) ? rows : []);
       } catch (e) {
         if (isMounted) showError(extractApiErrorMessage(e, "Failed to load departments"));
@@ -239,57 +320,72 @@ export default function UserGroupEditPage() {
     return () => {
       isMounted = false;
     };
-  }, [scope.institutionId, showError]);
+  }, [scope.branchId, showError]);
 
   useEffect(() => {
     let isMounted = true;
     const run = async () => {
-      if (!scope.institutionId || !scope.departmentId) {
-        setTeams([]);
+      if (!scope.departmentId) {
+        setDesignations([]);
         return;
       }
       try {
-        const rows = await getTeams(scope.institutionId, scope.departmentId);
-        if (isMounted) setTeams(Array.isArray(rows) ? rows : []);
+        const rows = await getDesignations(scope.departmentId);
+        if (isMounted) setDesignations(Array.isArray(rows) ? rows : []);
       } catch (e) {
-        if (isMounted) showError(extractApiErrorMessage(e, "Failed to load teams"));
+        if (isMounted) showError(extractApiErrorMessage(e, "Failed to load designations"));
       }
     };
     run();
     return () => {
       isMounted = false;
     };
-  }, [scope.institutionId, scope.departmentId, showError]);
+  }, [scope.departmentId, showError]);
 
   useEffect(() => {
     if (!orgSelection) return;
     if (currentRole === "SUPER_ADMIN") return;
     setScope((prev) => ({
       ...prev,
-      institutionId: String(orgSelection.institutionId || prev.institutionId || ""),
+      headOfficeId: String(orgSelection.institutionId || prev.headOfficeId || ""),
+      branchId: String(prev.branchId || ""),
       departmentId: String(orgSelection.departmentId || prev.departmentId || ""),
-      teamIds:
-        (currentRole === "MANAGER" || currentRole === "TEAM_LEAD") && orgSelection.teamId
-          ? [String(orgSelection.teamId)]
-          : prev.teamIds,
+      departmentIds: Array.isArray(prev.departmentIds) && prev.departmentIds.length
+        ? prev.departmentIds
+        : orgSelection.departmentId
+          ? [String(orgSelection.departmentId)]
+          : [],
+      teamIds: prev.teamIds,
     }));
   }, [orgSelection, currentRole]);
 
-  const handleMemberScopeChange = (nextScope) => {
-    const scopeKey = String(nextScope || "NONE").toUpperCase();
-    setGroup((prev) => (prev ? { ...prev, memberScope: scopeKey } : prev));
+  const handleDepartmentSelect = (departmentId) => {
+    const nextDepartmentId = String(departmentId || "");
+    setSelectedDepartmentId(nextDepartmentId);
+    if (!nextDepartmentId) return;
     setScope((prev) => {
-      const next = {
+      const alreadySelected = Array.isArray(prev.departmentIds) && prev.departmentIds.some((id) => String(id) === nextDepartmentId);
+      const departmentIds = alreadySelected
+        ? prev.departmentIds
+        : [...(Array.isArray(prev.departmentIds) ? prev.departmentIds : []), nextDepartmentId];
+      return {
         ...prev,
-        memberScope: scopeKey,
+        departmentIds,
+        departmentId: departmentIds[0] || "",
       };
-      if (scopeKey === "ADMINS") {
-        next.departmentId = "";
-        next.teamIds = [];
-      } else if (scopeKey === "MANAGERS") {
-        next.teamIds = [];
-      }
-      return next;
+    });
+    setSelectedDepartmentId("");
+  };
+
+  const removeDepartment = (departmentId) => {
+    const nextDepartmentId = String(departmentId || "");
+    setScope((prev) => {
+      const departmentIds = (Array.isArray(prev.departmentIds) ? prev.departmentIds : []).filter((id) => String(id) !== nextDepartmentId);
+      return {
+        ...prev,
+        departmentIds,
+        departmentId: departmentIds[0] || "",
+      };
     });
   };
 
@@ -313,35 +409,38 @@ export default function UserGroupEditPage() {
       showError("Group name is required");
       return;
     }
-    if (!selectedInstitution || !selectedDepartment) {
-      if (selectedMemberScope === "ADMINS") {
-        if (!selectedInstitution) {
-          showError("Branch is required");
-          return;
-        }
-      } else if (selectedMemberScope === "MANAGERS") {
-        if (!selectedInstitution || !selectedDepartment) {
-          showError("Branch and department are required");
-          return;
-        }
-      } else {
-        showError("Branch and department are required");
-        return;
-      }
+    if (!selectedInstitution) {
+      showError("Head office is required");
+      return;
     }
-    if (selectedMemberScope !== "ADMINS" && selectedMemberScope !== "MANAGERS" && currentRole !== "SUPER_ADMIN" && !selectedTeams.length) {
-      showError("At least one team is required");
+    if (!selectedBranch) {
+      showError("Branch is required");
+      return;
+    }
+    if (selectedDepartments.length === 0) {
+      showError("Department is required");
+      return;
+    }
+    const invalidDepartment = selectedDepartments.find(
+      (department) => String(department.branchId || "") !== String(selectedBranch.id || ""),
+    );
+    if (invalidDepartment) {
+      showError("Selected department does not belong to the selected branch");
       return;
     }
     setLoading(true);
     try {
       const updated = await updateUserGroup(group.id, {
         name: form.name.trim(),
-        institutionName: selectedInstitution.name,
-        departmentName: selectedDepartment?.name || "",
-        teamNames: selectedMemberScope === "ADMINS" || selectedMemberScope === "MANAGERS" ? [] : selectedTeams.map((team) => team.name),
+        headOfficeId: selectedInstitution.id,
+        branchId: selectedBranch.id,
+        departmentId: selectedDepartments[0]?.id || null,
+        departmentIds: selectedDepartments.map((department) => department.id),
+        institutionName: selectedBranch.name,
+        departmentName: selectedDepartments.map((department) => department.name).join(","),
+        teamNames: selectedTeams.map((designation) => designation.name),
         pageKeys: Array.isArray(group?.pageKeys) ? group.pageKeys : [],
-        memberScope: selectedMemberScope,
+        memberScope: "NONE",
       });
       const nextPageKeys = Array.isArray(updated.pageKeys)
         ? updated.pageKeys
@@ -434,15 +533,20 @@ export default function UserGroupEditPage() {
             form={form}
             onFormChange={setForm}
             scope={{ ...scope, memberScope: selectedMemberScope }}
-            onScopeChange={setScope}
-            onMemberScopeChange={handleMemberScopeChange}
-            institutions={institutions}
+            onScopeChange={(updates) => setScope((prev) => ({ ...prev, ...updates }))}
+            headOffices={headOffices}
+            branches={branches}
             departments={departments}
-            teams={teams}
+            teams={designations}
+            selectedDepartmentId={selectedDepartmentId}
+            onDepartmentSelect={handleDepartmentSelect}
+            onDepartmentRemove={removeDepartment}
             orgLoading={orgLoading}
             isAdmin={isAdmin}
             isManager={isManager}
             isTeamLead={isTeamLead}
+            departmentMultiSelect={isManager}
+            showDesignationPicker={!isAdmin && !isManager}
             selectedUserId={selectedUserId}
             onUserSelect={setSelectedUserId}
             assignableUsers={assignableUsers}
@@ -452,7 +556,10 @@ export default function UserGroupEditPage() {
             onSave={handleSave}
             onDelete={() => setShowDeleteConfirm(true)}
             loading={loading}
+            saving={loading}
             groupName={group?.name}
+            showScopeEditor={isSuperAdmin}
+            showActions={isSuperAdmin}
           />
         </div>
       </div>

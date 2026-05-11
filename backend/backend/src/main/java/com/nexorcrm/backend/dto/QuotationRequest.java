@@ -31,6 +31,7 @@ public class QuotationRequest {
     private BigDecimal igstPct;
     private String notes;
     private LocalDate validityDate;
+    private String status;
     private List<QuotationItemRequest> items;
     private List<GstRowRequest> gstRows;
 
@@ -60,6 +61,8 @@ public class QuotationRequest {
     public void setNotes(String notes) { this.notes = notes; }
     public LocalDate getValidityDate() { return validityDate; }
     public void setValidityDate(LocalDate validityDate) { this.validityDate = validityDate; }
+    public String getStatus() { return status; }
+    public void setStatus(String status) { this.status = status; }
     public List<QuotationItemRequest> getItems() { return items; }
     public void setItems(List<QuotationItemRequest> items) { this.items = items; }
     public List<GstRowRequest> getGstRows() { return gstRows; }

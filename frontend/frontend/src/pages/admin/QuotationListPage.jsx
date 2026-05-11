@@ -85,14 +85,17 @@ function canTeamLeadApproveQuotation(quotation, user) {
 }
 
 function canApproveQuotation(quotation, userRole, user) {
-  if (quotation.status !== QUOTATION_STATUS_VERIFICATION_PENDING) {
-    return false;
-  }
   if (["MANAGER", "ADMIN", "SUPER_ADMIN"].includes(userRole)) {
-    return true;
+    return (
+      quotation.status === QUOTATION_STATUS_DRAFT ||
+      quotation.status === QUOTATION_STATUS_VERIFICATION_PENDING
+    );
   }
   if (userRole === "TEAM_LEAD") {
-    return canTeamLeadApproveQuotation(quotation, user);
+    return (
+      quotation.status === QUOTATION_STATUS_VERIFICATION_PENDING &&
+      canTeamLeadApproveQuotation(quotation, user)
+    );
   }
   return false;
 }

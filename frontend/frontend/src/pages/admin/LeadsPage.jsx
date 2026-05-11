@@ -26,7 +26,7 @@ import { getTertiarySources } from "../../api/tertiarySourceApi";
 import { getGroupMembers, getUserGroups } from "../../api/userGroupApi";
 import { getProjects } from "../../api/projectApi";
 import { getLeadFlow } from "../../api/flowApi";
-import { getInstitutions } from "../../api/orgHierarchyApi";
+import { getBranches } from "../../api/branchesApi";
 import { updateCustomerLeadStatus } from "../../api/customerApi";
 import { extractApiErrorMessage } from "../../utils/errorMessage";
 import { formatStatusLabel, uniqueStatusOptions, normalizeStatusLabelKey } from "../../utils/statusLabels";
@@ -48,6 +48,7 @@ import { useCountryCodePicker } from "../../hooks/useCountryCodePicker";
 import "./LeadsPage.css";
 
 const EMPTY_CREATE_FORM = {
+  createBranchId: "",
   createBranchName: "",
   projectName: "",
   name: "",
@@ -569,7 +570,7 @@ export default function LeadsPage() {
           projects,
           groups,
           allGroups,
-          institutions,
+          branches,
           filterPayload,
           leadStatuses,
           flowPayload,
@@ -580,7 +581,7 @@ export default function LeadsPage() {
           safeLoad(() => getProjects(), []),
           safeLoad(() => getAssignableLeadGroups(), []),
           canLoadGroupDirectory ? safeLoad(() => getUserGroups(), []) : Promise.resolve([]),
-          role === "SUPER_ADMIN" ? safeLoad(() => getInstitutions(), []) : Promise.resolve([]),
+          role === "SUPER_ADMIN" ? safeLoad(() => getBranches(), []) : Promise.resolve([]),
           safeLoad(() => getLeadFilters(), {}),
           safeLoad(() => getLeadStatuses(), []),
           canLoadFlowConfig ? safeLoad(() => getLeadFlow(createFlowScope), {}) : Promise.resolve({}),
@@ -596,13 +597,7 @@ export default function LeadsPage() {
           toOptionNames(tertiaries, ["tertiarySource", "name", "label"]),
         );
         setProjectOptions(toProjectNames(projects));
-        setBranchOptions(
-          Array.isArray(institutions)
-            ? institutions
-                .map((item) => String(item?.name || "").trim())
-                .filter(Boolean)
-            : [],
-        );
+        setBranchOptions(Array.isArray(branches) ? branches : []);
         const assignable = Array.isArray(groups) ? groups : [];
         if (role === "EMPLOYEE") {
           setGroupOptions(assignable);
@@ -783,7 +778,7 @@ export default function LeadsPage() {
   const createBranchOptions = useMemo(
     () =>
       role === "SUPER_ADMIN"
-        ? Array.from(new Set(branchOptions))
+        ? (Array.isArray(branchOptions) ? branchOptions : []).filter((branch) => branch?.id != null)
         : Array.from(
             new Set(
               leadEligibleGroups
@@ -842,8 +837,9 @@ export default function LeadsPage() {
 
   useEffect(() => {
     if (!showCreate || !shouldSelectCreateLeadGroup) return;
+    const branchId = String(createForm.createBranchId || "").trim();
     const branchName = String(createForm.createBranchName || "").trim();
-    if (!branchName) {
+    if (!branchId && !branchName) {
       setCreateBranchFlowGroupId("");
       setCreateForm((prev) => ({
         ...prev,
@@ -856,7 +852,10 @@ export default function LeadsPage() {
     let isMounted = true;
     const loadBranchFlow = async () => {
       try {
-        const flowPayload = await getLeadFlow({ institutionName: branchName });
+        const flowPayload = await getLeadFlow({
+          branchId: branchId || null,
+          institutionName: branchName,
+        });
         if (!isMounted) return;
         const branchRules = Array.isArray(flowPayload?.rules) ? flowPayload.rules : [];
         const newLeadRule = branchRules.find(
@@ -887,7 +886,7 @@ export default function LeadsPage() {
     return () => {
       isMounted = false;
     };
-  }, [showCreate, shouldSelectCreateLeadGroup, createForm.createBranchName]);
+  }, [showCreate, shouldSelectCreateLeadGroup, createForm.createBranchId, createForm.createBranchName]);
 
   const loadDuplicateLeads = async () => {
     setDupLoading(true);
@@ -2386,20 +2385,26 @@ export default function LeadsPage() {
                             <label className="form-label">Branch</label>
                             <select
                               className="form-select"
-                              value={createForm.createBranchName}
+                              value={createForm.createBranchId}
                               onChange={(e) =>
-                                setCreateForm((prev) => ({
-                                  ...prev,
-                                  createBranchName: e.target.value,
-                                  leadGroupId: "",
-                                  assignedUserId: "",
-                                }))
+                                setCreateForm((prev) => {
+                                  const selected = createBranchOptions.find(
+                                    (branch) => String(branch.id) === String(e.target.value),
+                                  );
+                                  return {
+                                    ...prev,
+                                    createBranchId: e.target.value,
+                                    createBranchName: selected?.name || "",
+                                    leadGroupId: "",
+                                    assignedUserId: "",
+                                  };
+                                })
                               }
                             >
                               <option value="">Select Branch</option>
-                              {createBranchOptions.map((branchName) => (
-                                <option key={branchName} value={branchName}>
-                                  {branchName}
+                              {createBranchOptions.map((branch) => (
+                                <option key={branch.id} value={branch.id}>
+                                  {branch.name}
                                 </option>
                               ))}
                             </select>

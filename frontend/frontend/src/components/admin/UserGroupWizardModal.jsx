@@ -32,6 +32,37 @@ function TeamBadgeList({ teamIds, teams, onRemove }) {
   );
 }
 
+function DepartmentBadgeList({ departmentIds, departments, onRemove }) {
+  const shouldReduceMotion = useReducedMotion();
+
+  if (!departmentIds.length) return null;
+
+  return (
+    <div className="mt-2 d-flex flex-wrap gap-2">
+      <AnimatePresence initial={false}>
+        {departmentIds.map((departmentId) => {
+          const department = departments.find((item) => String(item.id) === String(departmentId));
+          return (
+            <motion.span
+              key={departmentId}
+              layout
+              initial={shouldReduceMotion ? false : { opacity: 0, scale: 0.92, y: 6 }}
+              animate={shouldReduceMotion ? {} : { opacity: 1, scale: 1, y: 0 }}
+              exit={shouldReduceMotion ? {} : { opacity: 0, scale: 0.9, y: -6 }}
+              transition={{ duration: 0.18, ease: "easeOut" }}
+              className="badge bg-secondary d-inline-flex align-items-center gap-2 user-group-team-badge"
+              style={{ fontSize: "0.875rem", padding: "0.5rem 0.75rem" }}
+            >
+              {department?.name || departmentId}
+              <i className="ti ti-x" style={{ cursor: "pointer" }} onClick={() => onRemove(departmentId)}></i>
+            </motion.span>
+          );
+        })}
+      </AnimatePresence>
+    </div>
+  );
+}
+
 export default function UserGroupWizardModal({
   title,
   icon,
@@ -40,17 +71,22 @@ export default function UserGroupWizardModal({
   onFormNameChange,
   scope,
   onScopeChange,
-  institutions,
+  headOffices,
+  branches,
   departments,
   teams,
   selectedTeamId = "",
   onTeamSelect,
   onTeamRemove,
+  selectedDepartmentId = "",
+  onDepartmentSelect,
+  onDepartmentRemove,
   orgLoading,
   disableBranch = false,
   disableDepartment = false,
   disableTeam = false,
-  onMemberScopeChange,
+  departmentMultiSelect = false,
+  showDesignationPicker = true,
   errorMessage = "",
   onClose,
   onSubmit,
@@ -60,17 +96,9 @@ export default function UserGroupWizardModal({
   memberSection = null,
 }) {
   const shouldReduceMotion = useReducedMotion();
-  const memberScope = String(scope?.memberScope || "NONE").toUpperCase();
-  const scopeLabel = {
-    NONE: "Custom",
-    ADMINS: "Admins Only",
-    MANAGERS: "Managers Only",
-    TEAM_LEADS: "Team Leads Only",
-    EMPLOYEES: "Employees Only",
-  };
   const lockBranch = disableBranch;
-  const lockDepartment = disableDepartment || memberScope === "ADMINS";
-  const lockTeam = disableTeam || memberScope === "ADMINS" || memberScope === "MANAGERS";
+  const lockDepartment = disableDepartment;
+  const lockTeam = disableTeam;
 
   return (
     <>
@@ -139,38 +167,24 @@ export default function UserGroupWizardModal({
                     <label className="form-label">Group Name</label>
                     <input className="form-control" value={formName} onChange={(e) => onFormNameChange(e.target.value)} />
                   </div>
-                  <div className="mb-3">
-                    <label className="form-label">Member Scope</label>
-                    <select
-                      className="form-select"
-                      value={memberScope}
-                      onChange={(e) => onMemberScopeChange?.(String(e.target.value || "NONE").toUpperCase())}
-                    >
-                      <option value="NONE">Custom</option>
-                      <option value="ADMINS">Admins Only</option>
-                      <option value="MANAGERS">Managers Only</option>
-                      <option value="TEAM_LEADS">Team Leads Only</option>
-                      <option value="EMPLOYEES">Employees Only</option>
-                    </select>
-                    <small className="text-muted">{scopeLabel[memberScope] || "Custom"}</small>
-                  </div>
                   {errorMessage ? <div className="alert alert-danger py-2">{errorMessage}</div> : null}
                   <div className="mb-3">
-                    <label className="form-label">Branch</label>
+                    <label className="form-label">Head Office</label>
                     <select
                       className="form-select"
-                      value={scope.institutionId}
+                      value={scope.headOfficeId}
                       onChange={(e) =>
                         onScopeChange({
-                          institutionId: e.target.value,
+                          headOfficeId: e.target.value,
+                          branchId: "",
                           departmentId: "",
                           teamIds: [],
                         })
                       }
                       disabled={orgLoading || lockBranch}
                     >
-                      <option value="">Select Branch</option>
-                      {institutions.map((item) => (
+                      <option value="">Select Head Office</option>
+                      {headOffices.map((item) => (
                         <option key={item.id} value={item.id}>
                           {item.name}
                         </option>
@@ -178,47 +192,103 @@ export default function UserGroupWizardModal({
                     </select>
                   </div>
                   <div className="mb-3">
-                    <label className="form-label">Department</label>
+                    <label className="form-label">Branch</label>
                     <select
                       className="form-select"
-                      value={scope.departmentId}
+                      value={scope.branchId}
                       onChange={(e) =>
                         onScopeChange({
-                          departmentId: e.target.value,
+                          branchId: e.target.value,
+                          departmentId: "",
                           teamIds: [],
                         })
                       }
-                      disabled={orgLoading || !scope.institutionId || lockDepartment}
+                      disabled={orgLoading || !scope.headOfficeId || lockDepartment}
                     >
-                      <option value="">Select Department</option>
-                      {departments.map((item) => (
+                      <option value="">Select Branch</option>
+                      {branches.map((item) => (
                         <option key={item.id} value={item.id}>
                           {item.name}
                         </option>
                       ))}
                     </select>
                   </div>
-                  <div className="mb-3">
-                    <label className="form-label">Teams</label>
-                    <div className="team-picker-row">
-                      <select
-                        className="form-select"
-                        value={selectedTeamId}
-                        onChange={(e) => onTeamSelect(e.target.value)}
-                        disabled={orgLoading || !scope.departmentId || lockTeam}
-                      >
-                        <option value="">Select Team</option>
-                        {teams
-                          .filter((item) => !scope.teamIds.includes(String(item.id)))
-                          .map((item) => (
-                            <option key={item.id} value={item.id}>
-                              {item.name}
-                            </option>
-                          ))}
-                      </select>
+                  {!disableDepartment ? (
+                    <div className="mb-3">
+                      <label className="form-label">Department</label>
+                      {departmentMultiSelect ? (
+                        <>
+                          <div className="team-picker-row">
+                            <select
+                              className="form-select"
+                              value={selectedDepartmentId}
+                              onChange={(e) => onDepartmentSelect?.(e.target.value)}
+                              disabled={orgLoading || !scope.branchId}
+                            >
+                              <option value="">Select Department</option>
+                              {departments
+                                .filter((item) => !Array.isArray(scope.departmentIds) || !scope.departmentIds.includes(String(item.id)))
+                                .map((item) => (
+                                  <option key={item.id} value={item.id}>
+                                    {item.name}
+                                  </option>
+                                ))}
+                            </select>
+                          </div>
+                          <DepartmentBadgeList
+                            departmentIds={Array.isArray(scope.departmentIds) ? scope.departmentIds : []}
+                            departments={departments}
+                            onRemove={onDepartmentRemove}
+                          />
+                        </>
+                      ) : (
+                        <div className="team-picker-row">
+                          <select
+                            className="form-select"
+                            value={scope.departmentId}
+                            onChange={(e) =>
+                              onScopeChange({
+                                departmentId: e.target.value,
+                                departmentIds: e.target.value ? [String(e.target.value)] : [],
+                                teamIds: [],
+                              })
+                            }
+                            disabled={orgLoading || !scope.branchId || lockTeam}
+                          >
+                            <option value="">Select Department</option>
+                            {departments.map((item) => (
+                              <option key={item.id} value={item.id}>
+                                {item.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+                      {showDesignationPicker ? (
+                        <div className="mt-3">
+                          <label className="form-label">Designations</label>
+                          <div className="team-picker-row">
+                            <select
+                              className="form-select"
+                              value={selectedTeamId}
+                              onChange={(e) => onTeamSelect(e.target.value)}
+                              disabled={orgLoading || !scope.departmentId || lockTeam}
+                            >
+                              <option value="">Select Designation</option>
+                              {teams
+                                .filter((item) => !scope.teamIds.includes(String(item.id)))
+                                .map((item) => (
+                                  <option key={item.id} value={item.id}>
+                                    {item.name}
+                                  </option>
+                                ))}
+                            </select>
+                          </div>
+                          <TeamBadgeList teamIds={scope.teamIds} teams={teams} onRemove={onTeamRemove} />
+                        </div>
+                      ) : null}
                     </div>
-                    <TeamBadgeList teamIds={scope.teamIds} teams={teams} onRemove={onTeamRemove} />
-                  </div>
+                  ) : null}
                 </motion.div>
 
                 {memberSection ? (

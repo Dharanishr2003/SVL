@@ -76,7 +76,7 @@ public class EmployeeProfileFormService {
     @Value("${app.mail.from-name:SVL}")
     private String mailFromName;
 
-    @Value("${app.employee-form.required-fields:DATE_OF_BIRTH,GENDER,CURRENT_ADDRESS,AADHAAR_NUMBER,PAN_NUMBER,BANK_ACCOUNT_HOLDER_NAME,BANK_ACCOUNT_NUMBER,BANK_IFSC,BANK_NAME_BRANCH}")
+    @Value("${app.employee-form.required-fields:PHONE,DATE_OF_BIRTH,GENDER,CURRENT_ADDRESS,AADHAAR_NUMBER,PAN_NUMBER,BANK_ACCOUNT_HOLDER_NAME,BANK_ACCOUNT_NUMBER,BANK_IFSC,BANK_NAME_BRANCH}")
     private String requiredFieldsConfig;
 
     @Value("${app.employee-form.required-docs:PHOTO,RESUME,CERTIFICATE}")
@@ -745,12 +745,7 @@ public class EmployeeProfileFormService {
         boolean allScalarApproved = requiredFields.stream()
                 .allMatch(k -> verifications.get(k) != null && verifications.get(k).getStatus() == VerificationStatus.APPROVED);
 
-        boolean allDocsApproved = requiredDocs.stream().allMatch(dt -> {
-            if (dt == EmployeeDocumentType.CERTIFICATE) {
-                return anyApproved(docsByType.getOrDefault(dt, List.of()));
-            }
-            return latestApproved(docsByType.getOrDefault(dt, List.of()));
-        });
+        boolean allDocsApproved = requiredDocs.stream().allMatch(dt -> isRequiredDocApproved(employee, dt, docsByType));
 
         EmployeeProfileStatus newStatus = (allScalarApproved && allDocsApproved)
                 ? EmployeeProfileStatus.VERIFIED
@@ -773,6 +768,31 @@ public class EmployeeProfileFormService {
         return docs.stream().anyMatch(d -> d.getStatus() == VerificationStatus.APPROVED);
     }
 
+    private boolean isRequiredDocApproved(
+            Employee employee,
+            EmployeeDocumentType docType,
+            Map<EmployeeDocumentType, List<EmployeeDocument>> docsByType
+    ) {
+        if (docType == EmployeeDocumentType.CERTIFICATE) {
+            return anyApproved(certificateFamilyDocs(docsByType)) || hasLegacyCertificatePath(employee);
+        }
+        if (docType == EmployeeDocumentType.PHOTO) {
+            return latestApproved(photoFamilyDocs(docsByType)) || StringUtils.hasText(employee.getCandidatePhotoPath());
+        }
+        return latestApproved(docsByType.getOrDefault(docType, List.of()));
+    }
+
+    private boolean hasLegacyCertificatePath(Employee employee) {
+        return employee != null && (
+                StringUtils.hasText(employee.getExperienceCertificatePath())
+                        || StringUtils.hasText(employee.getGraduationCertificatePath())
+                        || StringUtils.hasText(employee.getGraduationMarksheetPath())
+                        || StringUtils.hasText(employee.getHscMarksheetPath())
+                        || StringUtils.hasText(employee.getSslcMarksheetPath())
+                        || StringUtils.hasText(employee.getCommunityCertificatePath())
+        );
+    }
+
     private Set<EmployeePublicFieldKey> rejectedScalarKeys(Map<String, EmployeeProfileFieldVerification> verifications) {
         return verifications.values().stream()
                 .filter(v -> v.getStatus() == VerificationStatus.REJECTED)
@@ -785,12 +805,13 @@ public class EmployeeProfileFormService {
     private Set<EmployeeDocumentType> rejectedUploadTypes(Map<EmployeeDocumentType, List<EmployeeDocument>> docsByType) {
         Set<EmployeeDocumentType> rejected = new LinkedHashSet<>();
         for (EmployeeDocumentType t : docsByType.keySet()) {
-            List<EmployeeDocument> docs = docsByType.getOrDefault(t, List.of());
             if (t == EmployeeDocumentType.CERTIFICATE) {
+                List<EmployeeDocument> docs = certificateFamilyDocs(docsByType);
                 if (docs.stream().anyMatch(d -> d.getStatus() == VerificationStatus.REJECTED)) {
                     rejected.add(t);
                 }
             } else {
+                List<EmployeeDocument> docs = docsByType.getOrDefault(t, List.of());
                 Optional<EmployeeDocument> latest = docs.stream()
                         .max(Comparator.comparing(EmployeeDocument::getUploadedAt, Comparator.nullsLast(Comparator.naturalOrder())));
                 if (latest.isPresent() && latest.get().getStatus() == VerificationStatus.REJECTED) {
@@ -840,6 +861,12 @@ public class EmployeeProfileFormService {
             if (pending != null) {
                 return new UploadStatus(VerificationStatus.PENDING, pending.getRemarks());
             }
+            EmployeeDocument approved = docs.stream().filter(d -> d.getStatus() == VerificationStatus.APPROVED)
+                    .max(Comparator.comparing(EmployeeDocument::getUploadedAt, Comparator.nullsLast(Comparator.naturalOrder())))
+                    .orElse(null);
+            if (approved != null) {
+                return new UploadStatus(VerificationStatus.APPROVED, approved.getRemarks());
+            }
             return new UploadStatus(null, null);
         }
 
@@ -853,6 +880,33 @@ public class EmployeeProfileFormService {
     }
 
     private record UploadStatus(VerificationStatus status, String remarks) {}
+
+    private List<EmployeeDocument> certificateFamilyDocs(Map<EmployeeDocumentType, List<EmployeeDocument>> docsByType) {
+        List<EmployeeDocument> docs = new ArrayList<>();
+        for (EmployeeDocumentType type : List.of(
+                EmployeeDocumentType.CERTIFICATE,
+                EmployeeDocumentType.EXPERIENCE_CERTIFICATE,
+                EmployeeDocumentType.GRADUATION_CERTIFICATE,
+                EmployeeDocumentType.GRADUATION_MARKSHEET,
+                EmployeeDocumentType.HSC_MARKSHEET,
+                EmployeeDocumentType.SSLC_MARKSHEET,
+                EmployeeDocumentType.COMMUNITY_CERTIFICATE
+        )) {
+            docs.addAll(docsByType.getOrDefault(type, List.of()));
+        }
+        return docs;
+    }
+
+    private List<EmployeeDocument> photoFamilyDocs(Map<EmployeeDocumentType, List<EmployeeDocument>> docsByType) {
+        List<EmployeeDocument> docs = new ArrayList<>();
+        for (EmployeeDocumentType type : List.of(
+                EmployeeDocumentType.PHOTO,
+                EmployeeDocumentType.CANDIDATE_PHOTO
+        )) {
+            docs.addAll(docsByType.getOrDefault(type, List.of()));
+        }
+        return docs;
+    }
 
     private static String prettyDocLabel(EmployeeDocumentType dt) {
         return switch (dt) {

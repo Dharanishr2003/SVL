@@ -790,20 +790,7 @@ export default function QuotationPage() {
     console.log("Creating quotation with leadId:", selectedLead?.id);
     setIsSaving(true);
     try {
-      const HIGHER_ROLES = ["TEAM_LEAD", "MANAGER", "ADMIN", "SUPER_ADMIN"];
       const payload = buildCurrentQuotation();
-      if (HIGHER_ROLES.includes(userRole) && payload.status !== QUOTATION_STATUS_APPROVED) {
-        const now = new Date().toISOString();
-        const displayName =
-          `${user?.firstName || ""} ${user?.lastName || ""}`.trim() ||
-          user?.username || user?.email || null;
-        payload.status = QUOTATION_STATUS_APPROVED;
-        payload.approvedAt = now;
-        payload.approvedById = user?.id ?? null;
-        payload.approvedByName = displayName;
-        payload.approvedByRole = userRole;
-        payload.approvalNotes = payload.approvalNotes || "";
-      }
       const savedQuotation = await saveQuotation(payload);
 
       setQuotationId(savedQuotation.id);

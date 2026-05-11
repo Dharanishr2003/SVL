@@ -6,9 +6,11 @@ import com.nexorcrm.backend.dto.EmployeeResponse;
 import com.nexorcrm.backend.dto.EmployeeOnboardRequest;
 import com.nexorcrm.backend.entity.DepartmentMaster;
 import com.nexorcrm.backend.entity.DesignationMaster;
+import com.nexorcrm.backend.entity.ActivationStatus;
 import com.nexorcrm.backend.entity.Employee;
 import com.nexorcrm.backend.entity.EmployeeProfileStatus;
 import com.nexorcrm.backend.entity.EmployeeTokenScope;
+import com.nexorcrm.backend.entity.User;
 import com.nexorcrm.backend.repo.EmployeeProfileTokenRepository;
 import com.nexorcrm.backend.repo.DepartmentMasterRepository;
 import com.nexorcrm.backend.repo.EmployeeRepository;
@@ -150,11 +152,29 @@ public class EmployeeService {
         );
     }
 
-    public List<EmployeeResponse> getAvailableEmployees() {
+    public List<EmployeeResponse> getAvailableEmployees(
+            Long headOfficeId,
+            Long branchId,
+            Long departmentId,
+            Long designationId,
+            String institution,
+            String department,
+            String team
+    ) {
         try {
+            Long normalizedHeadOfficeId = headOfficeId;
+            Long normalizedBranchId = branchId;
+            Long normalizedDepartmentId = departmentId;
+            Long normalizedDesignationId = designationId;
+            String normalizedInstitution = trimToNull(institution);
+            String normalizedDepartment = trimToNull(department);
+            String normalizedTeam = trimToNull(team);
+
             // Only active users should block an employee from appearing in the dropdown.
             Set<String> userEmails = userRepository.findByIsDeletedFalse()
                     .stream()
+                    .filter(User::isActive)
+                    .filter(user -> user.getActivationStatus() == ActivationStatus.ACTIVE)
                     .filter(user -> user.getEmail() != null && !user.getEmail().trim().isEmpty())
                     .map(user -> user.getEmail().toLowerCase().trim())
                     .collect(Collectors.toSet());
@@ -162,8 +182,15 @@ public class EmployeeService {
             // Get all non-deleted employees and filter out those with existing user accounts
             return employeeRepository.findByDeletedFalseOrderByIdDesc()
                     .stream()
-                    .filter(emp -> emp.getEmail() != null && !emp.getEmail().trim().isEmpty())
-                    .filter(emp -> !userEmails.contains(emp.getEmail().toLowerCase().trim()))
+                    .filter(emp -> resolveEmployeeEmail(emp) != null)
+                    .filter(emp -> !userEmails.contains(resolveEmployeeEmail(emp)))
+                    .filter(emp -> matchesHeadOfficeId(emp.getHeadOfficeId(), normalizedHeadOfficeId))
+                    .filter(emp -> matchesId(emp.getBranchId(), normalizedBranchId))
+                    .filter(emp -> matchesId(emp.getDepartmentMasterId(), normalizedDepartmentId))
+                    .filter(emp -> matchesId(emp.getDesignationMasterId(), normalizedDesignationId))
+                    .filter(emp -> matchesScope(emp.getInstitution(), normalizedInstitution))
+                    .filter(emp -> matchesScope(emp.getDepartmentName(), normalizedDepartment))
+                    .filter(emp -> matchesScope(emp.getTeam(), normalizedTeam))
                     .map(this::toResponse)
                     .toList();
         } catch (Exception e) {
@@ -485,7 +512,7 @@ public class EmployeeService {
         r.setId(e.getId());
         r.setEmployeeCode(e.getEmployeeCode());
         r.setName(e.getName());
-        r.setEmail(e.getEmail());
+        r.setEmail(resolveEmployeeEmail(e));
         r.setCountryCode(e.getCountryCode());
         r.setPhone(e.getPhone());
         r.setDept(e.getDept());
@@ -565,11 +592,44 @@ public class EmployeeService {
         return firstValue != null ? firstValue : trimToNull(second);
     }
 
+    private String resolveEmployeeEmail(Employee employee) {
+        if (employee == null) {
+            return null;
+        }
+        String resolvedEmail = firstNonBlank(employee.getEmail(), employee.getOfficialEmail());
+        resolvedEmail = firstNonBlank(resolvedEmail, employee.getPersonalEmail());
+        return resolvedEmail == null ? null : resolvedEmail.toLowerCase();
+    }
+
     private String trimToNull(String value) {
         if (value == null) {
             return null;
         }
         String trimmed = value.trim();
         return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private boolean matchesScope(String value, String scope) {
+        if (scope == null) {
+            return true;
+        }
+        return trimToNull(value) != null && trimToNull(value).equalsIgnoreCase(scope);
+    }
+
+    private boolean matchesId(Long actual, Long expected) {
+        if (expected == null) {
+            return true;
+        }
+        return actual != null && actual.equals(expected);
+    }
+
+    private boolean matchesHeadOfficeId(Long actual, Long expected) {
+        if (expected == null) {
+            return true;
+        }
+        if (actual == null) {
+            return true;
+        }
+        return actual.equals(expected);
     }
 }

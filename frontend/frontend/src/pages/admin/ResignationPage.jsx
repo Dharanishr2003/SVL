@@ -4,11 +4,11 @@ import { getEmployees } from "../../api/employeesApi";
 import { createResignation, deleteResignation, getResignations, updateResignation } from "../../api/resignationApi";
 import { extractApiErrorMessage } from "../../utils/errorMessage";
 import { useToast } from "../../components/system/ToastProvider";
+import "../../../public/assets/css/addModalShared.css";
 
 const initialForm = {
   employeeId: "",
   employeeName: "",
-  department: "",
   reason: "",
   noticeDate: "",
   resignationDate: "",
@@ -61,7 +61,6 @@ export default function ResignationPage() {
         .map((e) => ({
           id: e?.id,
           name: e?.name || e?.employeeName || e?.fullName || "",
-          department: e?.dept || e?.department || "",
         }))
         .filter((e) => e.id != null && e.name)
         .sort((a, b) => a.name.localeCompare(b.name)),
@@ -93,7 +92,6 @@ export default function ResignationPage() {
     setEditForm({
       employeeId: row?.employeeId ? String(row.employeeId) : "",
       employeeName: row?.employeeName || "",
-      department: row?.department || "",
       reason: row?.reason || "",
       noticeDate: row?.noticeDate ? String(row.noticeDate).slice(0, 10) : "",
       resignationDate: row?.resignationDate ? String(row.resignationDate).slice(0, 10) : "",
@@ -114,10 +112,6 @@ export default function ResignationPage() {
       showError("Resigning employee is required");
       return;
     }
-    if (!form.department.trim()) {
-      showError("Department is required");
-      return;
-    }
     if (!form.reason.trim()) {
       showError("Reason is required");
       return;
@@ -131,7 +125,6 @@ export default function ResignationPage() {
       await createResignation({
         employeeId: form.employeeId ? Number(form.employeeId) : null,
         employeeName: form.employeeName.trim(),
-        department: form.department.trim(),
         reason: form.reason.trim(),
         noticeDate: form.noticeDate,
         resignationDate: form.resignationDate,
@@ -154,10 +147,6 @@ export default function ResignationPage() {
       showError("Resigning employee is required");
       return;
     }
-    if (!editForm.department.trim()) {
-      showError("Department is required");
-      return;
-    }
     if (!editForm.reason.trim()) {
       showError("Reason is required");
       return;
@@ -171,7 +160,6 @@ export default function ResignationPage() {
       await updateResignation(selectedId, {
         employeeId: editForm.employeeId ? Number(editForm.employeeId) : null,
         employeeName: editForm.employeeName.trim(),
-        department: editForm.department.trim(),
         reason: editForm.reason.trim(),
         noticeDate: editForm.noticeDate,
         resignationDate: editForm.resignationDate,
@@ -210,13 +198,12 @@ export default function ResignationPage() {
       ...prev,
       employeeId: value,
       employeeName: match?.name || "",
-      department: match?.department || "",
     }));
   };
 
   return (
     <>
-      <div className="content">
+      <div className="content wf-shell">
         <div className="d-md-flex d-block align-items-center justify-content-between page-breadcrumb mb-3">
           <div className="my-auto mb-2">
             <h2 className="mb-1">Resignation</h2>
@@ -302,202 +289,134 @@ export default function ResignationPage() {
       </div>
 
       {showAddModal && (
-        <>
-          <div className="modal fade show" style={{ display: "block" }} tabIndex="-1">
-            <div className="modal-dialog modal-dialog-centered modal-md">
-              <div className="modal-content">
-                <div className="modal-header">
-                  <h4 className="modal-title">Add Resignation</h4>
-                  <button type="button" className="btn-close custom-btn-close" onClick={() => setShowAddModal(false)}>
-                    <i className="ti ti-x"></i>
-                  </button>
-                </div>
-                <form onSubmit={handleAdd}>
-                  <div className="modal-body pb-0">
-                    <div className="row">
-                      <div className="col-md-12">
-                        <div className="mb-3">
-                          <label className="form-label">Resigning Employee</label>
-                          <select
-                            className="form-select"
-                            value={form.employeeId}
-                            onChange={(e) => handleEmployeeChange(e.target.value, setForm)}
-                          >
-                            <option value="">Select</option>
-                            {employeeOptions.map((e) => (
-                              <option key={e.id} value={e.id}>{e.name}</option>
-                            ))}
-                          </select>
-                        </div>
-                      </div>
-                      <div className="col-md-12">
-                        <div className="mb-3">
-                          <label className="form-label">Department</label>
-                          <input type="text" className="form-control" value={form.department} readOnly />
-                        </div>
-                      </div>
-                      <div className="col-md-12">
-                        <div className="mb-3">
-                          <label className="form-label">Notice Date</label>
-                          <input
-                            type="date"
-                            className="form-control"
-                            value={form.noticeDate}
-                            onChange={(e) => setForm((prev) => ({ ...prev, noticeDate: e.target.value }))}
-                          />
-                        </div>
-                      </div>
-                      <div className="col-md-12">
-                        <div className="mb-3">
-                          <label className="form-label">Resignation Date</label>
-                          <input
-                            type="date"
-                            className="form-control"
-                            value={form.resignationDate}
-                            onChange={(e) => setForm((prev) => ({ ...prev, resignationDate: e.target.value }))}
-                          />
-                        </div>
-                      </div>
-                      <div className="col-md-12">
-                        <div className="mb-3">
-                          <label className="form-label">Reason</label>
-                          <textarea
-                            className="form-control"
-                            rows="3"
-                            value={form.reason}
-                            onChange={(e) => setForm((prev) => ({ ...prev, reason: e.target.value }))}
-                          />
-                        </div>
-                      </div>
+        <div className="avm-backdrop" role="presentation">
+          <div className="avm-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+            <div className="avm-modal-header">
+              <h2 className="avm-modal-title">Add Resignation</h2>
+              <button type="button" className="avm-modal-close" onClick={() => setShowAddModal(false)} aria-label="Close">x</button>
+            </div>
+            <form onSubmit={handleAdd}>
+              <div className="avm-body">
+                <div className="row g-3">
+                  <div className="col-md-12">
+                    <div className="avm-field">
+                      <label className="avm-label">Resigning Employee</label>
+                      <select className="avm-select" value={form.employeeId} onChange={(e) => handleEmployeeChange(e.target.value, setForm)}>
+                        <option value="">Select</option>
+                        {employeeOptions.map((e) => (
+                          <option key={e.id} value={e.id}>{e.name}</option>
+                        ))}
+                      </select>
                     </div>
                   </div>
-                  <div className="modal-footer">
-                    <button type="button" className="btn btn-white border me-2" onClick={() => setShowAddModal(false)}>
-                      Cancel
-                    </button>
-                    <button type="submit" className="btn btn-primary" disabled={saving}>
-                      {saving ? "Adding..." : "Add Resignation"}
-                    </button>
+                  <div className="col-md-12">
+                    <div className="avm-field">
+                      <label className="avm-label">Notice Date</label>
+                      <input type="date" className="avm-input" value={form.noticeDate} onChange={(e) => setForm((prev) => ({ ...prev, noticeDate: e.target.value }))} />
+                    </div>
                   </div>
-                </form>
+                  <div className="col-md-12">
+                    <div className="avm-field">
+                      <label className="avm-label">Resignation Date</label>
+                      <input type="date" className="avm-input" value={form.resignationDate} onChange={(e) => setForm((prev) => ({ ...prev, resignationDate: e.target.value }))} />
+                    </div>
+                  </div>
+                  <div className="col-md-12">
+                    <div className="avm-field">
+                      <label className="avm-label">Reason</label>
+                      <textarea className="avm-input" rows="3" value={form.reason} onChange={(e) => setForm((prev) => ({ ...prev, reason: e.target.value }))} />
+                    </div>
+                  </div>
+                </div>
               </div>
-            </div>
+              <div className="avm-footer">
+                <div></div>
+                <div className="avm-footer-right">
+                  <button type="button" className="avm-btn light" onClick={() => setShowAddModal(false)} disabled={saving}>Cancel</button>
+                  <button type="submit" className="avm-btn primary" disabled={saving}>{saving ? "Adding..." : "Add Resignation"}</button>
+                </div>
+              </div>
+            </form>
           </div>
-          <div className="modal-backdrop fade show" />
-        </>
+        </div>
       )}
 
       {showEditModal && (
-        <>
-          <div className="modal fade show" style={{ display: "block" }} tabIndex="-1">
-            <div className="modal-dialog modal-dialog-centered modal-md">
-              <div className="modal-content">
-                <div className="modal-header">
-                  <h4 className="modal-title">Edit Resignation</h4>
-                  <button type="button" className="btn-close custom-btn-close" onClick={() => setShowEditModal(false)}>
-                    <i className="ti ti-x"></i>
-                  </button>
-                </div>
-                <form onSubmit={handleEdit}>
-                  <div className="modal-body pb-0">
-                    <div className="row">
-                      <div className="col-md-12">
-                        <div className="mb-3">
-                          <label className="form-label">Resigning Employee</label>
-                          <select
-                            className="form-select"
-                            value={editForm.employeeId}
-                            onChange={(e) => handleEmployeeChange(e.target.value, setEditForm)}
-                          >
-                            <option value="">Select</option>
-                            {employeeOptions.map((e) => (
-                              <option key={e.id} value={e.id}>{e.name}</option>
-                            ))}
-                          </select>
-                        </div>
-                      </div>
-                      <div className="col-md-12">
-                        <div className="mb-3">
-                          <label className="form-label">Department</label>
-                          <input type="text" className="form-control" value={editForm.department} readOnly />
-                        </div>
-                      </div>
-                      <div className="col-md-12">
-                        <div className="mb-3">
-                          <label className="form-label">Notice Date</label>
-                          <input
-                            type="date"
-                            className="form-control"
-                            value={editForm.noticeDate}
-                            onChange={(e) => setEditForm((prev) => ({ ...prev, noticeDate: e.target.value }))}
-                          />
-                        </div>
-                      </div>
-                      <div className="col-md-12">
-                        <div className="mb-3">
-                          <label className="form-label">Resignation Date</label>
-                          <input
-                            type="date"
-                            className="form-control"
-                            value={editForm.resignationDate}
-                            onChange={(e) => setEditForm((prev) => ({ ...prev, resignationDate: e.target.value }))}
-                          />
-                        </div>
-                      </div>
-                      <div className="col-md-12">
-                        <div className="mb-3">
-                          <label className="form-label">Reason</label>
-                          <textarea
-                            className="form-control"
-                            rows="3"
-                            value={editForm.reason}
-                            onChange={(e) => setEditForm((prev) => ({ ...prev, reason: e.target.value }))}
-                          />
-                        </div>
-                      </div>
+        <div className="avm-backdrop" role="presentation">
+          <div className="avm-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+            <div className="avm-modal-header">
+              <h2 className="avm-modal-title">Edit Resignation</h2>
+              <button type="button" className="avm-modal-close" onClick={() => setShowEditModal(false)} aria-label="Close">x</button>
+            </div>
+            <form onSubmit={handleEdit}>
+              <div className="avm-body">
+                <div className="row g-3">
+                  <div className="col-md-12">
+                    <div className="avm-field">
+                      <label className="avm-label">Resigning Employee</label>
+                      <select className="avm-select" value={editForm.employeeId} onChange={(e) => handleEmployeeChange(e.target.value, setEditForm)}>
+                        <option value="">Select</option>
+                        {employeeOptions.map((e) => (
+                          <option key={e.id} value={e.id}>{e.name}</option>
+                        ))}
+                      </select>
                     </div>
                   </div>
-                  <div className="modal-footer">
-                    <button type="button" className="btn btn-white border me-2" onClick={() => setShowEditModal(false)}>
-                      Cancel
-                    </button>
-                    <button type="submit" className="btn btn-primary" disabled={saving}>
-                      {saving ? "Saving..." : "Save Changes"}
-                    </button>
+                  <div className="col-md-12">
+                    <div className="avm-field">
+                      <label className="avm-label">Notice Date</label>
+                      <input type="date" className="avm-input" value={editForm.noticeDate} onChange={(e) => setEditForm((prev) => ({ ...prev, noticeDate: e.target.value }))} />
+                    </div>
                   </div>
-                </form>
+                  <div className="col-md-12">
+                    <div className="avm-field">
+                      <label className="avm-label">Resignation Date</label>
+                      <input type="date" className="avm-input" value={editForm.resignationDate} onChange={(e) => setEditForm((prev) => ({ ...prev, resignationDate: e.target.value }))} />
+                    </div>
+                  </div>
+                  <div className="col-md-12">
+                    <div className="avm-field">
+                      <label className="avm-label">Reason</label>
+                      <textarea className="avm-input" rows="3" value={editForm.reason} onChange={(e) => setEditForm((prev) => ({ ...prev, reason: e.target.value }))} />
+                    </div>
+                  </div>
+                </div>
               </div>
-            </div>
+              <div className="avm-footer">
+                <div></div>
+                <div className="avm-footer-right">
+                  <button type="button" className="avm-btn light" onClick={() => setShowEditModal(false)} disabled={saving}>Cancel</button>
+                  <button type="submit" className="avm-btn primary" disabled={saving}>{saving ? "Saving..." : "Save Changes"}</button>
+                </div>
+              </div>
+            </form>
           </div>
-          <div className="modal-backdrop fade show" />
-        </>
+        </div>
       )}
 
       {showDeleteModal && (
-        <>
-          <div className="modal fade show" style={{ display: "block" }} tabIndex="-1">
-            <div className="modal-dialog modal-dialog-centered">
-              <div className="modal-content">
-                <div className="modal-body text-center">
-                  <span className="avatar avatar-xl bg-transparent-danger text-danger mb-3">
-                    <i className="ti ti-trash-x fs-36"></i>
-                  </span>
-                  <h4 className="mb-1">Confirm Delete</h4>
-                  <p className="mb-3">You want to delete this resignation, this cant be undone once you delete.</p>
-                  <div className="d-flex justify-content-center">
-                    <button type="button" className="btn btn-light me-3" onClick={() => setShowDeleteModal(false)}>
-                      Cancel
-                    </button>
-                    <button type="button" className="btn btn-danger" onClick={handleDelete} disabled={saving}>
-                      {saving ? "Deleting..." : "Yes, Delete"}
-                    </button>
-                  </div>
-                </div>
+        <div className="avm-backdrop" role="presentation">
+          <div className="avm-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+            <div className="avm-modal-header">
+              <h2 className="avm-modal-title">Confirm Delete</h2>
+              <button type="button" className="avm-modal-close" onClick={() => setShowDeleteModal(false)} aria-label="Close">x</button>
+            </div>
+            <div className="avm-body text-center">
+              <span className="avatar avatar-xl bg-transparent-danger text-danger mb-3">
+                <i className="ti ti-trash-x fs-36"></i>
+              </span>
+              <h4 className="mb-1">Confirm Delete</h4>
+              <p className="mb-3">You want to delete this resignation, this cant be undone once you delete.</p>
+            </div>
+            <div className="avm-footer">
+              <div></div>
+              <div className="avm-footer-right">
+                <button type="button" className="avm-btn light" onClick={() => setShowDeleteModal(false)} disabled={saving}>Cancel</button>
+                <button type="button" className="avm-btn danger" onClick={handleDelete} disabled={saving}>{saving ? "Deleting..." : "Yes, Delete"}</button>
               </div>
             </div>
           </div>
-          <div className="modal-backdrop fade show" />
-        </>
+        </div>
       )}
     </>
   );

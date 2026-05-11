@@ -9,7 +9,9 @@ import com.nexorcrm.backend.entity.Department;
 import com.nexorcrm.backend.entity.Institution;
 import com.nexorcrm.backend.entity.Role;
 import com.nexorcrm.backend.entity.Team;
+import com.nexorcrm.backend.entity.Employee;
 import com.nexorcrm.backend.entity.User;
+import com.nexorcrm.backend.repo.EmployeeRepository;
 import com.nexorcrm.backend.repo.DepartmentRepository;
 import com.nexorcrm.backend.repo.InstitutionRepository;
 import com.nexorcrm.backend.repo.TeamRepository;
@@ -30,17 +32,20 @@ public class OrgHierarchyService {
     private final InstitutionRepository institutionRepository;
     private final DepartmentRepository departmentRepository;
     private final TeamRepository teamRepository;
+    private final EmployeeRepository employeeRepository;
     private final UserRepository userRepository;
 
     public OrgHierarchyService(
             InstitutionRepository institutionRepository,
             DepartmentRepository departmentRepository,
             TeamRepository teamRepository,
+            EmployeeRepository employeeRepository,
             UserRepository userRepository
     ) {
         this.institutionRepository = institutionRepository;
         this.departmentRepository = departmentRepository;
         this.teamRepository = teamRepository;
+        this.employeeRepository = employeeRepository;
         this.userRepository = userRepository;
     }
 
@@ -140,9 +145,20 @@ public class OrgHierarchyService {
 
         OrgSelectionResponse response = new OrgSelectionResponse();
 
-        String institutionName = target.getInstitutionName();
-        String departmentName = target.getDepartmentName();
-        String teamName = target.getTeamName();
+        Employee employee = StringUtils.hasText(target.getEmail())
+                ? employeeRepository.findFirstByEmailIgnoreCaseAndDeletedFalse(target.getEmail().trim())
+                .orElse(null)
+                : null;
+
+        String institutionName = employee != null && StringUtils.hasText(employee.getInstitution())
+                ? employee.getInstitution()
+                : target.getInstitutionName();
+        String departmentName = employee != null && StringUtils.hasText(employee.getDepartmentName())
+                ? employee.getDepartmentName()
+                : target.getDepartmentName();
+        String teamName = employee != null && StringUtils.hasText(employee.getTeam())
+                ? employee.getTeam()
+                : target.getTeamName();
 
         response.setInstitutionName(institutionName);
         response.setCategoryName(null);

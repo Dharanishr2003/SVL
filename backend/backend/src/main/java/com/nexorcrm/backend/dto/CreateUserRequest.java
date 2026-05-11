@@ -7,12 +7,10 @@ import jakarta.validation.constraints.Size;
 
 public class CreateUserRequest {
 
+    private Long employeeId;
+
     @NotBlank
     @Size(min = 3, max = 80)
-    @Pattern(
-            regexp = "^[A-Z].*$",
-            message = "Username must start with an uppercase letter"
-    )
     private String username;
 
     @Size(max = 80)
@@ -35,6 +33,9 @@ public class CreateUserRequest {
     )
     private String password;
 
+    @Size(min = 8, max = 100)
+    private String confirmPassword;
+
     @Size(max = 160)
     private String institution;
 
@@ -46,6 +47,14 @@ public class CreateUserRequest {
 
     @Size(max = 40)
     private String role;
+
+    public Long getEmployeeId() {
+        return employeeId;
+    }
+
+    public void setEmployeeId(Long employeeId) {
+        this.employeeId = employeeId;
+    }
 
     public String getUsername() {
         return username;
@@ -85,6 +94,14 @@ public class CreateUserRequest {
 
     public void setPassword(String password) {
         this.password = password;
+    }
+
+    public String getConfirmPassword() {
+        return confirmPassword;
+    }
+
+    public void setConfirmPassword(String confirmPassword) {
+        this.confirmPassword = confirmPassword;
     }
 
     public String getInstitution() {

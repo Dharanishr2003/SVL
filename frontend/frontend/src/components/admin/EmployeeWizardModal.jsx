@@ -1,5 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
+import "../../../public/assets/css/addModalShared.css";
 import "./UserWizardModal.css";
+import {
+  COUNTRY_CODE_OPTIONS,
+  defaultCountryOption,
+  getCountryDisplayMaxLength,
+  sanitizePhoneDigits,
+  validatePhoneNumber,
+} from "../../utils/phoneUtils";
 
 export default function EmployeeWizardModal({
   wizardStep,
@@ -28,6 +36,7 @@ export default function EmployeeWizardModal({
   const totalSteps = 4;
   const [viewer, setViewer] = useState(null); // { title, url }
   const [viewerObjectUrl, setViewerObjectUrl] = useState(null);
+  const [phoneError, setPhoneError] = useState("");
 
   const apiBase = useMemo(
     () => (import.meta.env.VITE_API_URL || "http://localhost:8081").replace(/\/+$/, ""),
@@ -111,16 +120,35 @@ export default function EmployeeWizardModal({
 
   const stepPercent = `${((wizardStep + 1) / totalSteps) * 100}%`;
 
+  const phoneFieldProps = (fieldKey) => ({
+    value: form[fieldKey] || "",
+    onChange: (e) => {
+      const sanitized = sanitizePhoneDigits(e.target.value, getCountryDisplayMaxLength(form.countryCode || defaultCountryOption.value));
+      setForm((p) => ({ ...p, [fieldKey]: sanitized }));
+      if (phoneError) {
+        setPhoneError(validatePhoneNumber(sanitized, form.countryCode || defaultCountryOption.value));
+      }
+    },
+  });
+
   return (
     <>
-      <div className="modal fade show" style={{ display: "block" }} tabIndex="-1">
-        <div className="modal-dialog modal-xl modal-dialog-centered">
-          <div className="modal-content">
-            <div className="modal-header">
-              <h5 className="modal-title">Add Employee</h5>
-              <button className="btn-close" onClick={onClose} />
-            </div>
+      <div className="avm-backdrop" role="presentation">
+        <div
+          className="avm-modal"
+          style={{ maxWidth: "980px" }}
+          onClick={(e) => e.stopPropagation()}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="avm-modal-header">
+            <h2 className="avm-modal-title">Add Employee</h2>
+            <button type="button" className="avm-modal-close" onClick={onClose} aria-label="Close">
+              ×
+            </button>
+          </div>
 
+          <div className="avm-body">
             <div className="user-wizard">
               <div className="wizard-progress-bar">
                 <div className="wizard-progress" style={{ width: stepPercent }} />
@@ -235,16 +263,7 @@ export default function EmployeeWizardModal({
                       />
                     </div>
                     <div className="col-md-6">
-                      <label className="form-label">Employee ID Number *</label>
-                      <input
-                        type="text"
-                        className="form-control user-wizard-input"
-                        value={form.employeeIdNumber}
-                        onChange={(e) => setForm((p) => ({ ...p, employeeIdNumber: e.target.value }))}
-                      />
-                    </div>
-                    <div className="col-md-6">
-                      <label className="form-label">Father’s Name *</label>
+                      <label className="form-label">Father’s Name</label>
                       <input
                         type="text"
                         className="form-control user-wizard-input"
@@ -253,7 +272,7 @@ export default function EmployeeWizardModal({
                       />
                     </div>
                     <div className="col-md-6">
-                      <label className="form-label">Mother's Name *</label>
+                      <label className="form-label">Mother's Name</label>
                       <input
                         type="text"
                         className="form-control user-wizard-input"
@@ -263,21 +282,64 @@ export default function EmployeeWizardModal({
                     </div>
                     <div className="col-md-6">
                       <label className="form-label">Personal Contact Number *</label>
-                      <input
-                        type="text"
-                        className="form-control user-wizard-input"
-                        value={form.personalContactNumber}
-                        onChange={(e) => setForm((p) => ({ ...p, personalContactNumber: e.target.value }))}
-                      />
+                      <div className="employee-phone-input user-wizard-phone-group">
+                        <select
+                          className="employee-phone-code"
+                          value={form.countryCode || defaultCountryOption.value}
+                          onChange={(e) => {
+                            setForm((p) => ({ ...p, countryCode: e.target.value }));
+                            setPhoneError("");
+                          }}
+                        >
+                          {COUNTRY_CODE_OPTIONS.map((option) => (
+                            <option key={`${option.country}-${option.callingCode}`} value={option.value}>
+                              {option.value}
+                            </option>
+                          ))}
+                        </select>
+                        <input
+                          type="tel"
+                          className="employee-phone-number"
+                          placeholder={`Enter ${getCountryDisplayMaxLength(form.countryCode || defaultCountryOption.value)} digit number`}
+                          {...phoneFieldProps("personalContactNumber")}
+                        />
+                      </div>
+                      {phoneError ? <div className="avm-error">{phoneError}</div> : null}
                     </div>
                     <div className="col-md-6">
-                      <label className="form-label">Alternate Contact Number *</label>
-                      <input
-                        type="text"
-                        className="form-control user-wizard-input"
-                        value={form.alternateContactNumber}
-                        onChange={(e) => setForm((p) => ({ ...p, alternateContactNumber: e.target.value }))}
-                      />
+                      <label className="form-label">Alternate Contact Number</label>
+                      <div className="employee-phone-input user-wizard-phone-group">
+                        <select
+                          className="employee-phone-code"
+                          value={form.countryCode || defaultCountryOption.value}
+                          onChange={(e) => {
+                            setForm((p) => ({ ...p, countryCode: e.target.value }));
+                            setPhoneError("");
+                          }}
+                        >
+                          {COUNTRY_CODE_OPTIONS.map((option) => (
+                            <option key={`${option.country}-${option.callingCode}`} value={option.value}>
+                              {option.value}
+                            </option>
+                          ))}
+                        </select>
+                        <input
+                          type="tel"
+                          className="employee-phone-number"
+                          placeholder={`Enter ${getCountryDisplayMaxLength(form.countryCode || defaultCountryOption.value)} digit number`}
+                          value={form.alternateContactNumber || ""}
+                          onChange={(e) => {
+                            const sanitized = sanitizePhoneDigits(
+                              e.target.value,
+                              getCountryDisplayMaxLength(form.countryCode || defaultCountryOption.value)
+                            );
+                            setForm((p) => ({ ...p, alternateContactNumber: sanitized }));
+                            if (phoneError) {
+                              setPhoneError(validatePhoneNumber(sanitized, form.countryCode || defaultCountryOption.value));
+                            }
+                          }}
+                        />
+                      </div>
                     </div>
                     <div className="col-md-6">
                       <label className="form-label">Location *</label>
@@ -290,7 +352,7 @@ export default function EmployeeWizardModal({
                     </div>
                     
                     <div className="col-md-6">
-                      <label className="form-label">Pin Code *</label>
+                      <label className="form-label">Pin Code</label>
                       <input
                         type="text"
                         className="form-control user-wizard-input"
@@ -299,7 +361,7 @@ export default function EmployeeWizardModal({
                       />
                     </div>
                     <div className="col-md-6">
-                      <label className="form-label">State *</label>
+                      <label className="form-label">State</label>
                       <input
                         type="text"
                         className="form-control user-wizard-input"
@@ -308,7 +370,7 @@ export default function EmployeeWizardModal({
                       />
                     </div>
                     <div className="col-md-6">
-                      <label className="form-label">Date of Joining *</label>
+                      <label className="form-label">Date of Joining</label>
                       <input
                         type="date"
                         className="form-control user-wizard-input"
@@ -317,7 +379,7 @@ export default function EmployeeWizardModal({
                       />
                     </div>
                     <div className="col-md-6">
-                      <label className="form-label">Current Address *</label>
+                      <label className="form-label">Current Address</label>
                       <textarea
                         rows={2}
                         className="form-control user-wizard-input"
@@ -326,7 +388,7 @@ export default function EmployeeWizardModal({
                       />
                     </div>
                     <div className="col-md-6">
-                      <label className="form-label">Permanent Address *</label>
+                      <label className="form-label">Permanent Address</label>
                       <textarea
                         rows={2}
                         className="form-control user-wizard-input"
@@ -344,7 +406,7 @@ export default function EmployeeWizardModal({
                       />
                     </div>
                     <div className="col-md-6">
-                      <label className="form-label">Official Email *</label>
+                      <label className="form-label">Official Email</label>
                       <input
                         type="email"
                         className="form-control user-wizard-input"
@@ -362,7 +424,7 @@ export default function EmployeeWizardModal({
                       />
                     </div>
                     <div className="col-md-6">
-  <label className="form-label">Blood Group *</label>
+  <label className="form-label">Blood Group</label>
   <select
     className="form-select user-wizard-input"
     value={form.bloodGroup}
@@ -403,7 +465,7 @@ export default function EmployeeWizardModal({
                     </div>
                     
                     <div className="col-md-6">
-                      <label className="form-label">Pan Card No *</label>
+                      <label className="form-label">Pan Card No</label>
                       <input
                         type="text"
                         className="form-control user-wizard-input"
@@ -412,7 +474,7 @@ export default function EmployeeWizardModal({
                       />
                     </div>
                     <div className="col-md-6">
-                      <label className="form-label">Aadhar Card No *</label>
+                      <label className="form-label">Aadhar Card No</label>
                       <input
                         type="text"
                         className="form-control user-wizard-input"
@@ -427,7 +489,7 @@ export default function EmployeeWizardModal({
                 {wizardStep === 2 && (
                   <div className="row g-3">
                     <div className="col-md-6">
-                      <label className="form-label">Candidate Photo *</label>
+                      <label className="form-label">Candidate Photo</label>
                       <input
                         type="file"
                         className="form-control user-wizard-input"
@@ -449,7 +511,7 @@ export default function EmployeeWizardModal({
                       )}
                     </div>
                     <div className="col-md-6">
-                      <label className="form-label">Upload Candidate Aadhar Card *</label>
+                      <label className="form-label">Upload Candidate Aadhar Card</label>
                       <input type="file" className="form-control user-wizard-input" onChange={(e) => setForm((p) => ({ ...p, uploadCandidateAadharCard: e.target.files?.[0] || null }))} />
                       {(form.uploadCandidateAadharCard || form.aadharCardPath) && (
                         <div className="mt-1 small">
@@ -466,7 +528,7 @@ export default function EmployeeWizardModal({
                       )}
                     </div>
                     <div className="col-md-6">
-                      <label className="form-label">Upload Candidate Pan Card *</label>
+                      <label className="form-label">Upload Candidate Pan Card</label>
                       <input type="file" className="form-control user-wizard-input" onChange={(e) => setForm((p) => ({ ...p, uploadCandidatePanCard: e.target.files?.[0] || null }))} />
                       {(form.uploadCandidatePanCard || form.panCardPath) && (
                         <div className="mt-1 small">
@@ -483,7 +545,7 @@ export default function EmployeeWizardModal({
                       )}
                     </div>
                     <div className="col-md-6">
-                      <label className="form-label">Upload Bank Pass Book / Cancelled Cheque *</label>
+                      <label className="form-label">Upload Bank Pass Book / Cancelled Cheque</label>
                       <input type="file" className="form-control user-wizard-input" onChange={(e) => setForm((p) => ({ ...p, uploadBankPassBookCopy: e.target.files?.[0] || null }))} />
                       {(form.uploadBankPassBookCopy || form.bankPassbookPath) && (
                         <div className="mt-1 small">
@@ -517,7 +579,7 @@ export default function EmployeeWizardModal({
                       )}
                     </div>
                     <div className="col-md-6">
-                      <label className="form-label">Graduation Certificate *</label>
+                      <label className="form-label">Graduation Certificate</label>
                       <input type="file" className="form-control user-wizard-input" onChange={(e) => setForm((p) => ({ ...p, uploadGraduationCertificate: e.target.files?.[0] || null }))} />
                       {(form.uploadGraduationCertificate || form.graduationCertificatePath) && (
                         <div className="mt-1 small">
@@ -534,7 +596,7 @@ export default function EmployeeWizardModal({
                       )}
                     </div>
                     <div className="col-md-6">
-                      <label className="form-label">Graduation Marksheet *</label>
+                      <label className="form-label">Graduation Marksheet</label>
                       <input type="file" className="form-control user-wizard-input" onChange={(e) => setForm((p) => ({ ...p, uploadGraduationMarksheet: e.target.files?.[0] || null }))} />
                       {(form.uploadGraduationMarksheet || form.graduationMarksheetPath) && (
                         <div className="mt-1 small">
@@ -551,7 +613,7 @@ export default function EmployeeWizardModal({
                       )}
                     </div>
                     <div className="col-md-6">
-                      <label className="form-label">HSC Mark Sheet *</label>
+                      <label className="form-label">HSC Mark Sheet</label>
                       <input type="file" className="form-control user-wizard-input" onChange={(e) => setForm((p) => ({ ...p, uploadHscMarkSheet: e.target.files?.[0] || null }))} />
                       {(form.uploadHscMarkSheet || form.hscMarksheetPath) && (
                         <div className="mt-1 small">
@@ -568,7 +630,7 @@ export default function EmployeeWizardModal({
                       )}
                     </div>
                     <div className="col-md-6">
-                      <label className="form-label">SSLC Mark Sheet *</label>
+                      <label className="form-label">SSLC Mark Sheet</label>
                       <input type="file" className="form-control user-wizard-input" onChange={(e) => setForm((p) => ({ ...p, uploadSslcMarkSheet: e.target.files?.[0] || null }))} />
                       {(form.uploadSslcMarkSheet || form.sslcMarksheetPath) && (
                         <div className="mt-1 small">
@@ -585,7 +647,7 @@ export default function EmployeeWizardModal({
                       )}
                     </div>
                     <div className="col-md-6">
-                      <label className="form-label">Community Certificate *</label>
+                      <label className="form-label">Community Certificate</label>
                       <input type="file" className="form-control user-wizard-input" onChange={(e) => setForm((p) => ({ ...p, uploadCommunityCertificate: e.target.files?.[0] || null }))} />
                       {(form.uploadCommunityCertificate || form.communityCertificatePath) && (
                         <div className="mt-1 small">
@@ -607,27 +669,27 @@ export default function EmployeeWizardModal({
                 {wizardStep === 3 && (
                   <div className="row g-3">
                     <div className="col-md-6">
-                      <label className="form-label">Bank Account Holder Name *</label>
+                      <label className="form-label">Bank Account Holder Name</label>
                       <input type="text" className="form-control user-wizard-input" value={form.bankAccountHolderName} onChange={(e) => setForm((p) => ({ ...p, bankAccountHolderName: e.target.value }))} />
                     </div>
                     <div className="col-md-6">
-                      <label className="form-label">Bank Account Number *</label>
+                      <label className="form-label">Bank Account Number</label>
                       <input type="text" className="form-control user-wizard-input" value={form.bankAccountNumber} onChange={(e) => setForm((p) => ({ ...p, bankAccountNumber: e.target.value }))} />
                     </div>
                     <div className="col-md-6">
-                      <label className="form-label">IFSC Code *</label>
+                      <label className="form-label">IFSC Code</label>
                       <input type="text" className="form-control user-wizard-input" value={form.ifscCode} onChange={(e) => setForm((p) => ({ ...p, ifscCode: e.target.value }))} />
                     </div>
                     <div className="col-md-6">
-                      <label className="form-label">Bank & Branch *</label>
+                      <label className="form-label">Bank & Branch</label>
                       <input type="text" className="form-control user-wizard-input" value={form.bankAndBranch} onChange={(e) => setForm((p) => ({ ...p, bankAndBranch: e.target.value }))} />
                     </div>
                     <div className="col-md-6">
-                      <label className="form-label">Employment Details (Last Two Organizations) 1 *</label>
+                      <label className="form-label">Employment Details (Last Two Organizations) 1</label>
                       <textarea rows={2} className="form-control user-wizard-input" value={form.employmentDetails1} onChange={(e) => setForm((p) => ({ ...p, employmentDetails1: e.target.value }))} />
                     </div>
                     <div className="col-md-6">
-                      <label className="form-label">Employment Details (Last Two Organizations) 2 *</label>
+                      <label className="form-label">Employment Details (Last Two Organizations) 2</label>
                       <textarea rows={2} className="form-control user-wizard-input" value={form.employmentDetails2} onChange={(e) => setForm((p) => ({ ...p, employmentDetails2: e.target.value }))} />
                     </div>
                     <div className="col-md-4">
@@ -655,28 +717,82 @@ export default function EmployeeWizardModal({
                       <h6 className="mb-0">Emergency Contacts</h6>
                     </div>
                     <div className="col-md-4">
-                      <label className="form-label">Name 1 *</label>
+                      <label className="form-label">Name 1</label>
                       <input type="text" className="form-control user-wizard-input" value={form.emergencyContactName1} onChange={(e) => setForm((p) => ({ ...p, emergencyContactName1: e.target.value }))} />
                     </div>
                     <div className="col-md-4">
-                      <label className="form-label">Relationship 1 *</label>
+                      <label className="form-label">Relationship 1</label>
                       <input type="text" className="form-control user-wizard-input" value={form.emergencyContactRelation1} onChange={(e) => setForm((p) => ({ ...p, emergencyContactRelation1: e.target.value }))} />
                     </div>
                     <div className="col-md-4">
-                      <label className="form-label">Contact No 1 *</label>
-                      <input type="text" className="form-control user-wizard-input" value={form.emergencyContactPhone1} onChange={(e) => setForm((p) => ({ ...p, emergencyContactPhone1: e.target.value }))} />
+                      <label className="form-label">Contact No 1</label>
+                      <div className="employee-phone-input user-wizard-phone-group">
+                        <select
+                          className="employee-phone-code"
+                          value={form.countryCode || defaultCountryOption.value}
+                          onChange={(e) => {
+                            setForm((p) => ({ ...p, countryCode: e.target.value }));
+                            setPhoneError("");
+                          }}
+                        >
+                          {COUNTRY_CODE_OPTIONS.map((option) => (
+                            <option key={`${option.country}-${option.callingCode}`} value={option.value}>
+                              {option.value}
+                            </option>
+                          ))}
+                        </select>
+                        <input
+                          type="tel"
+                          className="employee-phone-number"
+                          value={form.emergencyContactPhone1 || ""}
+                          onChange={(e) => {
+                            const sanitized = sanitizePhoneDigits(
+                              e.target.value,
+                              getCountryDisplayMaxLength(form.countryCode || defaultCountryOption.value)
+                            );
+                            setForm((p) => ({ ...p, emergencyContactPhone1: sanitized }));
+                          }}
+                        />
+                      </div>
                     </div>
                     <div className="col-md-4">
-                      <label className="form-label">Name 2 *</label>
+                      <label className="form-label">Name 2</label>
                       <input type="text" className="form-control user-wizard-input" value={form.emergencyContactName2} onChange={(e) => setForm((p) => ({ ...p, emergencyContactName2: e.target.value }))} />
                     </div>
                     <div className="col-md-4">
-                      <label className="form-label">Relationship 2 *</label>
+                      <label className="form-label">Relationship 2</label>
                       <input type="text" className="form-control user-wizard-input" value={form.emergencyContactRelation2} onChange={(e) => setForm((p) => ({ ...p, emergencyContactRelation2: e.target.value }))} />
                     </div>
                     <div className="col-md-4">
-                      <label className="form-label">Contact No 2 *</label>
-                      <input type="text" className="form-control user-wizard-input" value={form.emergencyContactPhone2} onChange={(e) => setForm((p) => ({ ...p, emergencyContactPhone2: e.target.value }))} />
+                      <label className="form-label">Contact No 2</label>
+                      <div className="employee-phone-input user-wizard-phone-group">
+                        <select
+                          className="employee-phone-code"
+                          value={form.countryCode || defaultCountryOption.value}
+                          onChange={(e) => {
+                            setForm((p) => ({ ...p, countryCode: e.target.value }));
+                            setPhoneError("");
+                          }}
+                        >
+                          {COUNTRY_CODE_OPTIONS.map((option) => (
+                            <option key={`${option.country}-${option.callingCode}`} value={option.value}>
+                              {option.value}
+                            </option>
+                          ))}
+                        </select>
+                        <input
+                          type="tel"
+                          className="employee-phone-number"
+                          value={form.emergencyContactPhone2 || ""}
+                          onChange={(e) => {
+                            const sanitized = sanitizePhoneDigits(
+                              e.target.value,
+                              getCountryDisplayMaxLength(form.countryCode || defaultCountryOption.value)
+                            );
+                            setForm((p) => ({ ...p, emergencyContactPhone2: sanitized }));
+                          }}
+                        />
+                      </div>
                     </div>
 
                     <div className="col-12">
@@ -684,44 +800,98 @@ export default function EmployeeWizardModal({
                       <h6 className="mb-0">Friends / Ex-Colleagues</h6>
                     </div>
                     <div className="col-md-6">
-                      <label className="form-label">Name 1 *</label>
+                      <label className="form-label">Name 1</label>
                       <input type="text" className="form-control user-wizard-input" value={form.friendRefName1} onChange={(e) => setForm((p) => ({ ...p, friendRefName1: e.target.value }))} />
                     </div>
                     <div className="col-md-6">
-                      <label className="form-label">Contact No 1 *</label>
-                      <input type="text" className="form-control user-wizard-input" value={form.friendRefContact1} onChange={(e) => setForm((p) => ({ ...p, friendRefContact1: e.target.value }))} />
+                      <label className="form-label">Contact No 1</label>
+                      <div className="employee-phone-input user-wizard-phone-group">
+                        <select
+                          className="employee-phone-code"
+                          value={form.countryCode || defaultCountryOption.value}
+                          onChange={(e) => {
+                            setForm((p) => ({ ...p, countryCode: e.target.value }));
+                            setPhoneError("");
+                          }}
+                        >
+                          {COUNTRY_CODE_OPTIONS.map((option) => (
+                            <option key={`${option.country}-${option.callingCode}`} value={option.value}>
+                              {option.value}
+                            </option>
+                          ))}
+                        </select>
+                        <input
+                          type="tel"
+                          className="employee-phone-number"
+                          value={form.friendRefContact1 || ""}
+                          onChange={(e) => {
+                            const sanitized = sanitizePhoneDigits(
+                              e.target.value,
+                              getCountryDisplayMaxLength(form.countryCode || defaultCountryOption.value)
+                            );
+                            setForm((p) => ({ ...p, friendRefContact1: sanitized }));
+                          }}
+                        />
+                      </div>
                     </div>
                     <div className="col-md-6">
-                      <label className="form-label">Name 2 *</label>
+                      <label className="form-label">Name 2</label>
                       <input type="text" className="form-control user-wizard-input" value={form.friendRefName2} onChange={(e) => setForm((p) => ({ ...p, friendRefName2: e.target.value }))} />
                     </div>
                     <div className="col-md-6">
-                      <label className="form-label">Contact No 2 *</label>
-                      <input type="text" className="form-control user-wizard-input" value={form.friendRefContact2} onChange={(e) => setForm((p) => ({ ...p, friendRefContact2: e.target.value }))} />
+                      <label className="form-label">Contact No 2</label>
+                      <div className="employee-phone-input user-wizard-phone-group">
+                        <select
+                          className="employee-phone-code"
+                          value={form.countryCode || defaultCountryOption.value}
+                          onChange={(e) => {
+                            setForm((p) => ({ ...p, countryCode: e.target.value }));
+                            setPhoneError("");
+                          }}
+                        >
+                          {COUNTRY_CODE_OPTIONS.map((option) => (
+                            <option key={`${option.country}-${option.callingCode}`} value={option.value}>
+                              {option.value}
+                            </option>
+                          ))}
+                        </select>
+                        <input
+                          type="tel"
+                          className="employee-phone-number"
+                          value={form.friendRefContact2 || ""}
+                          onChange={(e) => {
+                            const sanitized = sanitizePhoneDigits(
+                              e.target.value,
+                              getCountryDisplayMaxLength(form.countryCode || defaultCountryOption.value)
+                            );
+                            setForm((p) => ({ ...p, friendRefContact2: sanitized }));
+                          }}
+                        />
+                      </div>
                     </div>
 
                     <div className="col-md-6">
-                      <label className="form-label">In Which Branch You Need to Join *</label>
+                      <label className="form-label">In Which Branch You Need to Join</label>
                       <input type="text" className="form-control user-wizard-input" value={form.branchToJoin} onChange={(e) => setForm((p) => ({ ...p, branchToJoin: e.target.value }))} />
                     </div>
                     <div className="col-md-6">
-                      <label className="form-label">From Which Platform You Came to Know *</label>
+                      <label className="form-label">From Which Platform You Came to Know</label>
                       <input type="text" className="form-control user-wizard-input" value={form.platformSource} onChange={(e) => setForm((p) => ({ ...p, platformSource: e.target.value }))} />
                     </div>
                     <div className="col-md-6">
-                      <label className="form-label">If PF Account Available (UAN) *</label>
+                      <label className="form-label">If PF Account Available (UAN)</label>
                       <input type="text" className="form-control user-wizard-input" value={form.pfUan} onChange={(e) => setForm((p) => ({ ...p, pfUan: e.target.value }))} />
                     </div>
                     <div className="col-md-6">
-                      <label className="form-label">ESI No (If Available) *</label>
+                      <label className="form-label">ESI No (If Available)</label>
                       <input type="text" className="form-control user-wizard-input" value={form.esiNo} onChange={(e) => setForm((p) => ({ ...p, esiNo: e.target.value }))} />
                     </div>
                     <div className="col-md-6">
-                      <label className="form-label">Declaration (Date) *</label>
+                      <label className="form-label">Declaration (Date)</label>
                       <input type="date" className="form-control user-wizard-input" value={form.declarationDate} onChange={(e) => setForm((p) => ({ ...p, declarationDate: e.target.value }))} />
                     </div>
                     <div className="col-md-6">
-                      <label className="form-label">Declaration (Place) *</label>
+                      <label className="form-label">Declaration (Place)</label>
                       <input type="text" className="form-control user-wizard-input" value={form.declarationPlace} onChange={(e) => setForm((p) => ({ ...p, declarationPlace: e.target.value }))} />
                     </div>
                   </div>
@@ -751,7 +921,6 @@ export default function EmployeeWizardModal({
           </div>
         </div>
       </div>
-      <div className="modal-backdrop fade show user-wizard-modal-backdrop" />
 
       {viewer?.url && (
         <>
@@ -777,3 +946,5 @@ export default function EmployeeWizardModal({
     </>
   );
 }
+
+

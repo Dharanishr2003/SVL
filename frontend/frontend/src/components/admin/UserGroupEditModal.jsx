@@ -30,19 +30,53 @@ function TeamBadgeList({ teamIds, teams, onRemove }) {
   );
 }
 
+function DepartmentBadgeList({ departmentIds, departments, onRemove }) {
+  const shouldReduceMotion = useReducedMotion();
+
+  if (!departmentIds.length) return null;
+
+  return (
+    <div className="mt-2 d-flex flex-wrap gap-2">
+      {departmentIds.map((departmentId) => {
+        const department = departments.find((item) => String(item.id) === String(departmentId));
+        return (
+          <motion.span
+            key={departmentId}
+            layout
+            initial={shouldReduceMotion ? false : { opacity: 0, scale: 0.92, y: 6 }}
+            animate={shouldReduceMotion ? {} : { opacity: 1, scale: 1, y: 0 }}
+            exit={shouldReduceMotion ? {} : { opacity: 0, scale: 0.9, y: -6 }}
+            transition={{ duration: 0.18, ease: "easeOut" }}
+            className="badge bg-secondary d-inline-flex align-items-center gap-2 user-group-team-badge"
+            style={{ fontSize: "0.875rem", padding: "0.5rem 0.75rem" }}
+          >
+            {department?.name || departmentId}
+            <i className="ti ti-x" style={{ cursor: "pointer" }} onClick={() => onRemove(departmentId)}></i>
+          </motion.span>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function UserGroupEditModal({
   form,
   onFormChange,
   scope,
   onScopeChange,
-  institutions,
+  headOffices,
+  branches,
   departments,
   teams,
+  selectedDepartmentId = "",
+  onDepartmentSelect,
+  onDepartmentRemove,
   orgLoading,
   isAdmin,
   isManager,
   isTeamLead,
-  onMemberScopeChange,
+  departmentMultiSelect = false,
+  showDesignationPicker = true,
   selectedUserId,
   onUserSelect,
   assignableUsers,
@@ -52,12 +86,17 @@ export default function UserGroupEditModal({
   onSave,
   onDelete,
   loading,
+  saving = false,
   groupName,
+  showScopeEditor = true,
+  showActions = true,
 }) {
   const shouldReduceMotion = useReducedMotion();
-  const memberScope = String(scope?.memberScope || "NONE").toUpperCase();
-  const lockDepartment = memberScope === "ADMINS";
-  const lockTeam = memberScope === "ADMINS" || memberScope === "MANAGERS";
+  const lockDepartment = false;
+  const lockTeam = false;
+  const employeeAssignableUsers = Array.isArray(assignableUsers)
+    ? assignableUsers.filter((userItem) => String(userItem?.role || "").toUpperCase() === "EMPLOYEE")
+    : [];
 
   return (
     <motion.div
@@ -78,108 +117,153 @@ export default function UserGroupEditModal({
             <input
               className="form-control user-group-edit-input"
               value={form.name}
+              readOnly={!showScopeEditor}
               onChange={(e) => onFormChange({ ...form, name: e.target.value })}
             />
           </div>
+          {showScopeEditor ? (
           <div className="col-md-6">
-            <label className="form-label">Member Scope</label>
+            <label className="form-label">Head Office</label>
             <select
               className="form-select user-group-edit-input"
-              value={memberScope}
+              value={scope.headOfficeId}
               onChange={(e) =>
-                onMemberScopeChange?.(String(e.target.value || "NONE").toUpperCase())
+                onScopeChange({
+                  headOfficeId: e.target.value,
+                  branchId: "",
+                  departmentId: "",
+                  departmentIds: [],
+                  teamIds: [],
+                })
               }
+              disabled={orgLoading || isTeamLead || saving}
             >
-              <option value="NONE">Custom</option>
-              <option value="ADMINS">Admins Only</option>
-              <option value="MANAGERS">Managers Only</option>
-              <option value="TEAM_LEADS">Team Leads Only</option>
-              <option value="EMPLOYEES">Employees Only</option>
+              <option value="">Select Head Office</option>
+              {headOffices.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name}
+                </option>
+              ))}
             </select>
           </div>
+          ) : null}
+          {showScopeEditor ? (
           <div className="col-md-6">
             <label className="form-label">Branch</label>
             <select
               className="form-select user-group-edit-input"
-              value={scope.institutionId}
-              onChange={(e) =>
-                onScopeChange({
-                  institutionId: e.target.value,
-                  departmentId: "",
-                  teamIds: [],
-                })
-              }
-              disabled={orgLoading || isAdmin || isManager || isTeamLead}
-            >
-              <option value="">Select Branch</option>
-              {institutions.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="col-md-6">
-            <label className="form-label">Department</label>
-            <select
-              className="form-select user-group-edit-input"
-              value={scope.departmentId}
+              value={scope.branchId}
               onChange={(e) =>
                 onScopeChange({
                   ...scope,
-                  departmentId: e.target.value,
+                  branchId: e.target.value,
+                  departmentId: "",
+                  departmentIds: [],
                   teamIds: [],
                 })
               }
-              disabled={orgLoading || !scope.institutionId || isAdmin || isManager || isTeamLead || lockDepartment}
+              disabled={orgLoading || !scope.headOfficeId || isTeamLead || saving}
             >
-              <option value="">Select Department</option>
-              {departments.map((item) => (
+              <option value="">Select Branch</option>
+              {branches.map((item) => (
                 <option key={item.id} value={item.id}>
                   {item.name}
                 </option>
               ))}
             </select>
           </div>
-          <div className="col-12">
-            <label className="form-label">Teams</label>
-            <div className="d-flex gap-2">
-              <select
-                className="form-select user-group-edit-input"
-                value=""
-                onChange={(e) => {
-                  const teamId = e.target.value;
-                  if (teamId && !scope.teamIds.includes(teamId)) {
+          ) : null}
+          {showScopeEditor && !isAdmin ? (
+            <div className="col-md-6">
+              <label className="form-label">Department</label>
+              {departmentMultiSelect ? (
+                <>
+                  <select
+                    className="form-select user-group-edit-input"
+                    value={selectedDepartmentId}
+                    onChange={(e) => onDepartmentSelect?.(e.target.value)}
+                    disabled={orgLoading || !scope.branchId || saving}
+                  >
+                    <option value="">Select Department</option>
+                    {departments
+                      .filter((item) => !Array.isArray(scope.departmentIds) || !scope.departmentIds.includes(String(item.id)))
+                      .map((item) => (
+                        <option key={item.id} value={item.id}>
+                          {item.name}
+                        </option>
+                      ))}
+                  </select>
+                  <DepartmentBadgeList
+                    departmentIds={Array.isArray(scope.departmentIds) ? scope.departmentIds : []}
+                    departments={departments}
+                    onRemove={onDepartmentRemove}
+                  />
+                </>
+              ) : (
+                <select
+                  className="form-select user-group-edit-input"
+                  value={scope.departmentId}
+                  onChange={(e) =>
                     onScopeChange({
                       ...scope,
-                      teamIds: [...scope.teamIds, teamId],
-                    });
+                      departmentId: e.target.value,
+                      departmentIds: e.target.value ? [String(e.target.value)] : [],
+                      teamIds: [],
+                    })
                   }
-                  e.target.value = "";
-                }}
-                disabled={orgLoading || !scope.departmentId || isManager || isTeamLead || lockTeam}
-              >
-                <option value="">Select Team</option>
-                {teams
-                  .filter((item) => !scope.teamIds.includes(String(item.id)))
-                  .map((item) => (
+                  disabled={orgLoading || !scope.branchId || (isTeamLead && !showDesignationPicker) || saving}
+                >
+                  <option value="">Select Department</option>
+                  {departments.map((item) => (
                     <option key={item.id} value={item.id}>
                       {item.name}
                     </option>
                   ))}
-              </select>
+                </select>
+              )}
             </div>
-            <TeamBadgeList
-              teamIds={scope.teamIds}
-              teams={teams}
-              onRemove={(teamId) =>
-                onScopeChange({
-                  ...scope,
-                  teamIds: scope.teamIds.filter((item) => item !== teamId),
-                })
-              }
-            />
-          </div>
+          ) : null}
+          {showScopeEditor && showDesignationPicker ? (
+            <div className="col-12">
+              <label className="form-label">Designations</label>
+              <div className="d-flex gap-2">
+                <select
+                  className="form-select user-group-edit-input"
+                  value=""
+                  onChange={(e) => {
+                    const teamId = e.target.value;
+                    if (teamId && !scope.teamIds.includes(teamId)) {
+                      onScopeChange({
+                        ...scope,
+                        teamIds: [...scope.teamIds, teamId],
+                      });
+                    }
+                    e.target.value = "";
+                  }}
+                  disabled={orgLoading || !scope.departmentId || isManager || isTeamLead || lockTeam || saving}
+                >
+                  <option value="">Select Designation</option>
+                  {teams
+                    .filter((item) => !scope.teamIds.includes(String(item.id)))
+                    .map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.name}
+                      </option>
+                    ))}
+                </select>
+              </div>
+              <TeamBadgeList
+                teamIds={scope.teamIds}
+                teams={teams}
+                onRemove={(teamId) =>
+                  onScopeChange({
+                    ...scope,
+                    teamIds: scope.teamIds.filter((item) => item !== teamId),
+                  })
+                }
+              />
+            </div>
+          ) : null}
         </div>
       </motion.div>
 
@@ -198,7 +282,7 @@ export default function UserGroupEditModal({
               onChange={(e) => onUserSelect(e.target.value)}
             >
               <option value="">Select Add Users</option>
-              {assignableUsers
+              {employeeAssignableUsers
                 .filter((userItem) => !members.some((member) => String(member.userId) === String(userItem.id)))
                 .map((userItem) => (
                   <option key={userItem.id} value={userItem.id}>
@@ -248,19 +332,21 @@ export default function UserGroupEditModal({
         </div>
       </motion.div>
 
-      <motion.div
-        className="user-group-edit-actions"
-        initial={shouldReduceMotion ? false : { opacity: 0, y: 8 }}
-        animate={shouldReduceMotion ? {} : { opacity: 1, y: 0 }}
-        transition={{ duration: 0.2, delay: 0.15 }}
-      >
-        <button className="btn btn-danger" onClick={onDelete} disabled={loading}>
-          Delete Group
-        </button>
-        <button className="btn btn-primary" onClick={onSave} disabled={loading}>
-          {loading ? "Saving..." : "Save Group"}
-        </button>
-      </motion.div>
+      {showActions ? (
+        <motion.div
+          className="user-group-edit-actions"
+          initial={shouldReduceMotion ? false : { opacity: 0, y: 8 }}
+          animate={shouldReduceMotion ? {} : { opacity: 1, y: 0 }}
+          transition={{ duration: 0.2, delay: 0.15 }}
+        >
+          <button className="btn btn-danger" onClick={onDelete} disabled={loading}>
+            Delete Group
+          </button>
+          <button className="btn btn-primary" onClick={onSave} disabled={loading}>
+            {loading ? "Saving..." : "Save Group"}
+          </button>
+        </motion.div>
+      ) : null}
     </motion.div>
   );
 }

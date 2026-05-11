@@ -11,6 +11,10 @@ public class UpdateUserGroupRequest {
     @Size(min = 2, max = 120)
     private String name;
 
+    private Long headOfficeId;
+    private Long branchId;
+    private Long departmentId;
+    private java.util.List<Long> departmentIds;
     private String institutionName;
     private String departmentName;
     private List<String> teamNames;
@@ -23,6 +27,38 @@ public class UpdateUserGroupRequest {
 
     public void setName(String name) {
         this.name = name;
+    }
+
+    public Long getHeadOfficeId() {
+        return headOfficeId;
+    }
+
+    public void setHeadOfficeId(Long headOfficeId) {
+        this.headOfficeId = headOfficeId;
+    }
+
+    public Long getBranchId() {
+        return branchId;
+    }
+
+    public void setBranchId(Long branchId) {
+        this.branchId = branchId;
+    }
+
+    public Long getDepartmentId() {
+        return departmentId;
+    }
+
+    public void setDepartmentId(Long departmentId) {
+        this.departmentId = departmentId;
+    }
+
+    public java.util.List<Long> getDepartmentIds() {
+        return departmentIds;
+    }
+
+    public void setDepartmentIds(java.util.List<Long> departmentIds) {
+        this.departmentIds = departmentIds;
     }
 
     public String getInstitutionName() {

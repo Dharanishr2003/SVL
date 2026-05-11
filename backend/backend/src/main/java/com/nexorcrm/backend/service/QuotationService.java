@@ -21,6 +21,7 @@ import java.time.LocalDateTime;
 import java.time.Year;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.stream.Collectors;
 
 @Service
@@ -44,7 +45,8 @@ public class QuotationService {
         quotation.setClientCompany(request.getClientCompany());
         quotation.setNotes(request.getNotes());
         quotation.setValidityDate(request.getValidityDate());
-        quotation.setStatus("draft");
+        String requestedStatus = normalizeStatus(request.getStatus());
+        quotation.setStatus(requestedStatus != null ? requestedStatus : "DRAFT");
         if (request.getCreatedById() != null) quotation.setCreatedById(request.getCreatedById());
         if (request.getCreatedByName() != null) quotation.setCreatedByName(request.getCreatedByName());
         if (request.getCreatedByEmail() != null) quotation.setCreatedByEmail(request.getCreatedByEmail());
@@ -95,6 +97,8 @@ public class QuotationService {
                 BigDecimal.ONE.add(gstPercent.divide(new BigDecimal("100"), 10, RoundingMode.HALF_UP))
         ).setScale(2, RoundingMode.HALF_UP);
         quotation.setGrandTotal(grandTotal);
+
+        applyApprovalMetadata(quotation, quotation.getStatus(), request);
 
         Quotation saved = quotationRepository.save(quotation);
         return toResponse(saved);
@@ -190,6 +194,12 @@ public class QuotationService {
         q.setNotes(request.getNotes());
         q.setValidityDate(request.getValidityDate());
 
+        String requestedStatus = normalizeStatus(request.getStatus());
+        if (requestedStatus != null) {
+            q.setStatus(requestedStatus);
+            applyApprovalMetadata(q, requestedStatus, request);
+        }
+
         if (request.getDiscountPercent() != null) q.setDiscountPercent(request.getDiscountPercent());
         q.setGstPercent(resolveGstPercent(request));
         q.setCgstPercent(scalePercent(request.getCgstPct()));
@@ -229,6 +239,30 @@ public class QuotationService {
         }
 
         return toResponse(quotationRepository.save(q));
+    }
+
+    private String normalizeStatus(String status) {
+        if (status == null || status.isBlank()) {
+            return null;
+        }
+        return status.trim().toUpperCase(Locale.ROOT);
+    }
+
+    private void applyApprovalMetadata(Quotation quotation, String status, QuotationRequest request) {
+        if (!"APPROVED".equals(status)) {
+            quotation.setApprovedAt(null);
+            quotation.setApprovedById(null);
+            quotation.setApprovedByName(null);
+            quotation.setApprovedByRole(null);
+            quotation.setApprovalNotes(null);
+            return;
+        }
+
+        quotation.setApprovedAt(LocalDateTime.now());
+        quotation.setApprovedById(request.getCreatedById());
+        quotation.setApprovedByName(request.getCreatedByName());
+        quotation.setApprovedByRole(request.getCreatedByRole());
+        quotation.setApprovalNotes(request.getNotes());
     }
 
     private BigDecimal resolveGstPercent(QuotationRequest request) {

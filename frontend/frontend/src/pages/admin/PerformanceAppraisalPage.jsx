@@ -246,7 +246,7 @@ export default function PerformanceAppraisalPage() {
 
   return (
     <>
-      <div className="content">
+      <div className="content wf-shell">
         <div className="d-md-flex d-block align-items-center justify-content-between page-breadcrumb mb-3">
           <div className="my-auto mb-2">
             <h2 className="mb-1">Performance Appraisal</h2>
@@ -336,7 +336,7 @@ export default function PerformanceAppraisalPage() {
       {showAddModal && (
         <>
           <div className="modal fade show" style={{ display: "block" }} tabIndex="-1">
-            <div className="modal-dialog modal-dialog-centered modal-lg">
+            <div className="modal-dialog modal-dialog-centered modal-lg wf-wizard-modal">
               <div className="modal-content">
                 <div className="modal-header">
                   <h4 className="modal-title">Add Appraisal</h4>
@@ -422,7 +422,7 @@ export default function PerformanceAppraisalPage() {
       {showEditModal && (
         <>
           <div className="modal fade show" style={{ display: "block" }} tabIndex="-1">
-            <div className="modal-dialog modal-dialog-centered modal-lg">
+            <div className="modal-dialog modal-dialog-centered modal-lg wf-wizard-modal">
               <div className="modal-content">
                 <div className="modal-header">
                   <h4 className="modal-title">Edit Appraisal</h4>

@@ -19,9 +19,8 @@ export default function Sidebar() {
 
   // Section heading visibility — hide heading when no items underneath are accessible
   const hasHrmItems =
-    canAccessAny("employees", "employees-list", "policy", "email-settings", "email-template") ||
+    canAccessAny("employees", "employees-list", "email-settings", "email-template") ||
     canAccessAny("organization", "head-offices", "branches", "departments", "designations") ||
-    canAccess("tickets") ||
     canAccess("holidays") ||
     canAccessAny(
       "attendance",
@@ -96,6 +95,7 @@ export default function Sidebar() {
     isAdminEquivalent &&
     canAccessAny(
       "settings-useradmin",
+      "settings-page-access",
       "settings-group-access",
       "settings-usergroups",
       "settings-registration",
@@ -500,7 +500,7 @@ export default function Sidebar() {
               )}
               <li>
                 <ul>
-                  {canAccessAny("employees", "employees-list", "policy", "email-settings", "email-template") && (
+                  {canAccessAny("employees", "employees-list", "email-settings", "email-template") && (
                   <li className="submenu">
                     <a href="javascript:void(0);" className=" ">
                       <i className="ti ti-users"></i>
@@ -512,13 +512,6 @@ export default function Sidebar() {
                       <li>
                         <a href="/employees" className="">
                           Employees
-                        </a>
-                      </li>
-                      )}
-                      {canAccessAny("employees", "policy") && (
-                      <li>
-                        <a href="/policy" className="">
-                          Policies
                         </a>
                       </li>
                       )}
@@ -575,22 +568,6 @@ export default function Sidebar() {
                         </a>
                       </li>
                       )}
-                    </ul>
-                  </li>
-                  )}
-                  {canAccess("tickets") && (
-                  <li className="submenu">
-                    <a href="javascript:void(0);" className=" ">
-                      <i className="ti ti-ticket"></i>
-                      <span>Tickets</span>
-                      <span className="menu-arrow"></span>
-                    </a>
-                    <ul>
-                      <li>
-                        <a href="/tickets" className="">
-                          Tickets
-                        </a>
-                      </li>
                     </ul>
                   </li>
                   )}
@@ -730,38 +707,6 @@ export default function Sidebar() {
                       <li>
                         <a href="/goal-type" className="">
                           Goal Type
-                        </a>
-                      </li>
-                      )}
-                    </ul>
-                  </li>
-                  )}
-                  {canAccessAny("training", "training-list", "trainers", "training-type") && (
-                  <li className="submenu">
-                    <a href="javascript:void(0);" className=" ">
-                      <i className="ti ti-edit"></i>
-                      <span>Training</span>
-                      <span className="menu-arrow"></span>
-                    </a>
-                    <ul>
-                      {canAccessAny("training", "training-list") && (
-                      <li>
-                        <a href="/training" className="">
-                          Training List
-                        </a>
-                      </li>
-                      )}
-                      {canAccessAny("training", "trainers") && (
-                      <li>
-                        <a href="/trainers" className="">
-                          Trainers
-                        </a>
-                      </li>
-                      )}
-                      {canAccessAny("training", "training-type") && (
-                      <li>
-                        <a href="/training-type" className="">
-                          Training Type
                         </a>
                       </li>
                       )}
@@ -1057,16 +1002,16 @@ export default function Sidebar() {
                       </li>
                       )}
 
-                      {canAccess("settings-group-access") && (
+                      {canAccess("settings-page-access") && (
                       <li>
-                        <a href="/group-access">
-                          <i className="ti ti-layout-grid"></i>
-                          <span>Group Access</span>
+                        <a href="/page-access">
+                          <i className="ti ti-lock"></i>
+                          <span>Page Access</span>
                         </a>
                       </li>
                       )}
 
-                      {canAccess("settings-usergroups") && (
+                      {canAccessAny("settings-group-access", "settings-usergroups") && (
                       <li>
                         <a href="/usergroups">
                           <i className="ti ti-users-group"></i>

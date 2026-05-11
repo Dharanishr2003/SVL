@@ -25,11 +25,19 @@ import com.nexorcrm.backend.entity.Deal;
 import com.nexorcrm.backend.entity.Lead;
 import com.nexorcrm.backend.entity.LeadLog;
 import com.nexorcrm.backend.entity.LeadInvoiceItem;
+import com.nexorcrm.backend.entity.BranchMaster;
+import com.nexorcrm.backend.entity.DepartmentMaster;
+import com.nexorcrm.backend.entity.DesignationMaster;
+import com.nexorcrm.backend.entity.Employee;
 import com.nexorcrm.backend.entity.Role;
 import com.nexorcrm.backend.entity.User;
 import com.nexorcrm.backend.entity.UserGroup;
 import com.nexorcrm.backend.entity.UserGroupMember;
+import com.nexorcrm.backend.repo.BranchMasterRepository;
 import com.nexorcrm.backend.repo.DealRepository;
+import com.nexorcrm.backend.repo.DepartmentMasterRepository;
+import com.nexorcrm.backend.repo.DesignationMasterRepository;
+import com.nexorcrm.backend.repo.EmployeeRepository;
 import com.nexorcrm.backend.repo.LeadRepository;
 import com.nexorcrm.backend.repo.LeadLogRepository;
 import com.nexorcrm.backend.repo.LeadInvoiceItemRepository;
@@ -105,6 +113,10 @@ public class LeadService {
     private final UserRepository userRepository;
     private final UserGroupRepository userGroupRepository;
     private final UserGroupMemberRepository userGroupMemberRepository;
+    private final EmployeeRepository employeeRepository;
+    private final DesignationMasterRepository designationMasterRepository;
+    private final DepartmentMasterRepository departmentMasterRepository;
+    private final BranchMasterRepository branchMasterRepository;
     private final AuditService auditService;
     private final LeadFlowService leadFlowService;
     private final DealFlowService dealFlowService;
@@ -129,6 +141,10 @@ public class LeadService {
                        UserRepository userRepository,
                        UserGroupRepository userGroupRepository,
                        UserGroupMemberRepository userGroupMemberRepository,
+                       EmployeeRepository employeeRepository,
+                       DesignationMasterRepository designationMasterRepository,
+                       DepartmentMasterRepository departmentMasterRepository,
+                       BranchMasterRepository branchMasterRepository,
                        AuditService auditService,
                        LeadFlowService leadFlowService,
                        DealFlowService dealFlowService,
@@ -146,6 +162,10 @@ public class LeadService {
         this.userRepository = userRepository;
         this.userGroupRepository = userGroupRepository;
         this.userGroupMemberRepository = userGroupMemberRepository;
+        this.employeeRepository = employeeRepository;
+        this.designationMasterRepository = designationMasterRepository;
+        this.departmentMasterRepository = departmentMasterRepository;
+        this.branchMasterRepository = branchMasterRepository;
         this.auditService = auditService;
         this.leadFlowService = leadFlowService;
         this.dealFlowService = dealFlowService;
@@ -2054,16 +2074,10 @@ public class LeadService {
         if (row == null || row.getAssignedGroupId() == null) {
             return List.of();
         }
-        return userGroupRepository.findById(row.getAssignedGroupId())
-                .map(userGroupMemberRepository::findByGroupOrderByUserUsernameAsc)
-                .orElse(List.of())
+        String institutionName = resolveInstitutionNameForDesignation(row.getAssignedGroupId());
+        return loadUsersForDesignationGroup(row.getAssignedGroupId(), institutionName)
                 .stream()
-                .filter(this::memberHasLeadVisibility)
-                .map(UserGroupMember::getUser)
-                .filter(Objects::nonNull)
-                .filter(User::isActive)
-                .filter(user -> user.getActivationStatus() == ActivationStatus.ACTIVE)
-                .filter(user -> user.getRole() == Role.EMPLOYEE)
+                .filter(user -> user != null && user.getRole() == Role.EMPLOYEE)
                 .toList();
     }
 
@@ -2079,6 +2093,48 @@ public class LeadService {
             return false;
         }
         return groupEmployees.stream().anyMatch(emp -> isSameDepartmentScope(emp, admin));
+    }
+
+    private List<User> loadUsersForDesignationGroup(Long designationId, String institutionName) {
+        if (designationId == null) {
+            return List.of();
+        }
+        String normalizedInstitution = StringUtils.hasText(institutionName) ? institutionName.trim() : null;
+        return userGroupMemberRepository
+                .findByGroup_IdAndUser_RoleAndUser_ActivationStatusAndUser_ActiveTrueAndUser_IsDeletedFalseOrderByUserUsernameAsc(
+                        designationId,
+                        Role.EMPLOYEE,
+                        ActivationStatus.ACTIVE
+                )
+                .stream()
+                .map(UserGroupMember::getUser)
+                .filter(Objects::nonNull)
+                .filter(User::isActive)
+                .filter(user -> user.getActivationStatus() == ActivationStatus.ACTIVE)
+                .filter(user -> matchesInstitution(user, normalizedInstitution))
+                .sorted(Comparator.comparing((User user) -> String.valueOf(user.getUsername() == null ? "" : user.getUsername()).toLowerCase(Locale.ROOT))
+                        .thenComparing(User::getId))
+                .toList();
+    }
+
+    private boolean matchesInstitution(User user, String institutionName) {
+        if (user == null) {
+            return false;
+        }
+        if (!StringUtils.hasText(institutionName)) {
+            return true;
+        }
+        return StringUtils.hasText(user.getInstitutionName())
+                && user.getInstitutionName().trim().equalsIgnoreCase(institutionName);
+    }
+
+    private String resolveInstitutionNameForDesignation(Long designationId) {
+        if (designationId == null) {
+            return null;
+        }
+        return userGroupRepository.findById(designationId)
+                .map(UserGroup::getInstitutionName)
+                .orElse(null);
     }
 
     private Long resolveFlowGroupForStatus(User actor, String status) {
@@ -2365,20 +2421,13 @@ public class LeadService {
         if (groupId == null) {
             throw new IllegalStateException("Payment group is required for round robin assignment");
         }
-        List<UserGroupMember> eligibleMembers = userGroupMemberRepository
-                .findByGroup_IdAndUser_RoleAndUser_ActivationStatusAndUser_ActiveTrueAndUser_IsDeletedFalseOrderByUserUsernameAsc(
-                        groupId,
-                        Role.EMPLOYEE,
-                        ActivationStatus.ACTIVE
-                ).stream()
-                .filter(this::memberHasLeadRecordVisibility)
-                .toList();
-
-        if (eligibleMembers.isEmpty()) {
+        String scopeInstitution = resolveInstitutionNameForDesignation(groupId);
+        List<User> candidates = loadUsersForDesignationGroup(groupId, scopeInstitution);
+        if (candidates.isEmpty()) {
             throw new IllegalStateException("Selected group has no eligible active employee available for lead assignment");
         }
 
-        return resolveRoundRobinOwner(groupId, eligibleMembers);
+        return resolveRoundRobinOwnerFromUsers(groupId, candidates);
     }
 
     /**
@@ -2391,23 +2440,8 @@ public class LeadService {
             throw new IllegalStateException("Deal group is required for round robin assignment");
         }
 
-        List<UserGroupMember> eligibleMembers = userGroupMemberRepository
-                .findByGroup_IdAndUser_RoleAndUser_ActivationStatusAndUser_ActiveTrueAndUser_IsDeletedFalseOrderByUserUsernameAsc(
-                        groupId,
-                        Role.EMPLOYEE,
-                        ActivationStatus.ACTIVE
-                ).stream()
-                .filter(this::memberHasLeadVisibility)
-                .toList();
-
-        if (eligibleMembers.isEmpty()) {
-            throw new IllegalStateException("Selected group has no eligible active employee available for lead assignment");
-        }
-
-        List<User> candidates = eligibleMembers.stream()
-                .map(UserGroupMember::getUser)
-                .filter(Objects::nonNull)
-                .toList();
+        String scopeInstitution = resolveInstitutionNameForDesignation(groupId);
+        List<User> candidates = loadUsersForDesignationGroup(groupId, scopeInstitution);
         if (candidates.isEmpty()) {
             throw new IllegalStateException("Selected group has no eligible active employee available for lead assignment");
         }
@@ -2760,6 +2794,42 @@ public class LeadService {
         return candidates.get(nextIndex);
     }
 
+    private User resolveRoundRobinOwnerFromUsers(Long groupId, List<User> candidates) {
+        if (groupId == null) {
+            throw new IllegalStateException("Payment group is required for round robin assignment");
+        }
+        if (candidates == null || candidates.isEmpty()) {
+            throw new IllegalStateException("Selected group has no eligible active employee available for lead assignment");
+        }
+
+        List<Long> candidateIds = candidates.stream().map(User::getId).toList();
+        Set<Long> candidateIdSet = new HashSet<>(candidateIds);
+
+        Long lastOwnerUserId = leadRepository.findByDeletedFalseAndAssignedGroupIdOrderByCreatedAtDesc(groupId)
+                .stream()
+                .map(Lead::getOwnerUserId)
+                .filter(Objects::nonNull)
+                .filter(candidateIdSet::contains)
+                .findFirst()
+                .orElse(null);
+
+        if (lastOwnerUserId == null) {
+            return candidates.get(0);
+        }
+
+        int currentIndex = -1;
+        for (int idx = 0; idx < candidates.size(); idx++) {
+            if (Objects.equals(candidates.get(idx).getId(), lastOwnerUserId)) {
+                currentIndex = idx;
+                break;
+            }
+        }
+        if (currentIndex < 0) {
+            return candidates.get(0);
+        }
+        return candidates.get((currentIndex + 1) % candidates.size());
+    }
+
     private void assertActorHasDepartmentScope(User actor) {
         if (!StringUtils.hasText(actor.getInstitutionName())
                 || !StringUtils.hasText(actor.getDepartmentName())) {
@@ -2789,41 +2859,27 @@ public class LeadService {
                 return; // No flow rules configured, skip assignment
             }
             
-        // Find the group assigned to the "Accounts" status in flow (case-insensitive)
-        Long handledByGroupId = null;
-        for (Map<String, Object> rule : rules) {
-            if (rule == null) continue;
-            Object statusVal = rule.get("status");
-            if (statusVal != null && statusVal.toString().trim().equalsIgnoreCase("Accounts")) {
-                Object groupIdVal = rule.get("handledByGroupId");
-                if (groupIdVal != null) {
-                    handledByGroupId = Long.parseLong(groupIdVal.toString());
+            Long handledByGroupId = null;
+            for (Map<String, Object> rule : rules) {
+                if (rule == null) continue;
+                Object statusVal = rule.get("status");
+                if (statusVal != null && statusVal.toString().trim().equalsIgnoreCase("Accounts")) {
+                    Object groupIdVal = rule.get("handledByGroupId");
+                    if (groupIdVal != null) {
+                        handledByGroupId = Long.parseLong(groupIdVal.toString());
                         break;
                     }
                 }
             }
-            
             if (handledByGroupId == null) {
-                return; // No group assigned to this status
+                return;
             }
-            
-            // Get all eligible members of the assigned group
-            List<UserGroupMember> eligibleMembers = userGroupMemberRepository
-                    .findByGroup_IdAndUser_RoleAndUser_ActivationStatusAndUser_ActiveTrueAndUser_IsDeletedFalseOrderByUserUsernameAsc(
-                            handledByGroupId,
-                            Role.EMPLOYEE,
-                            ActivationStatus.ACTIVE
-                    );
-            
-            if (eligibleMembers.isEmpty()) {
-                return; // No eligible members in group
+
+            String scopeInstitution = resolveInstitutionNameForDesignation(handledByGroupId);
+            List<User> candidates = loadUsersForDesignationGroup(handledByGroupId, scopeInstitution);
+            if (candidates.isEmpty()) {
+                return;
             }
-            
-            // Extract candidates
-            List<User> candidates = eligibleMembers.stream()
-                    .map(UserGroupMember::getUser)
-                    .filter(Objects::nonNull)
-                    .toList();
             
             List<Long> candidateIds = candidates.stream().map(User::getId).toList();
             Set<Long> candidateIdSet = new HashSet<>(candidateIds);
@@ -2885,13 +2941,9 @@ public class LeadService {
             }
             if (handledByGroupId == null) return;
 
-            List<UserGroupMember> eligibleMembers = userGroupMemberRepository
-                    .findByGroup_IdAndUser_RoleAndUser_ActivationStatusAndUser_ActiveTrueAndUser_IsDeletedFalseOrderByUserUsernameAsc(
-                            handledByGroupId, Role.EMPLOYEE, ActivationStatus.ACTIVE);
-            if (eligibleMembers.isEmpty()) return;
-
-            List<User> candidates = eligibleMembers.stream()
-                    .map(UserGroupMember::getUser).filter(Objects::nonNull).toList();
+            String scopeInstitution = resolveInstitutionNameForDesignation(handledByGroupId);
+            List<User> candidates = loadUsersForDesignationGroup(handledByGroupId, scopeInstitution);
+            if (candidates.isEmpty()) return;
             List<Long> candidateIds = candidates.stream().map(User::getId).toList();
             Set<Long> candidateIdSet = new HashSet<>(candidateIds);
 
@@ -2925,8 +2977,8 @@ public class LeadService {
     private List<Map<String, Object>> getFlowRulesForLeadScope(User actor, Lead lead) {
         try {
             if (lead != null && lead.getAssignedGroupId() != null) {
-                return userGroupRepository.findById(lead.getAssignedGroupId())
-                        .map(group -> leadFlowService.getFlowForScope(group.getInstitutionName()).getRules())
+                return Optional.ofNullable(resolveInstitutionNameForDesignation(lead.getAssignedGroupId()))
+                        .map(scope -> leadFlowService.getFlowForScope(scope).getRules())
                         .orElseGet(() -> leadFlowService.getFlowForActor(actor).getRules());
             }
             return leadFlowService.getFlowForActor(actor).getRules();
@@ -2940,8 +2992,8 @@ public class LeadService {
             if (lead == null || lead.getAssignedGroupId() == null) {
                 return leadFlowService.getFlow().getRules();
             }
-            return userGroupRepository.findById(lead.getAssignedGroupId())
-                    .map(group -> leadFlowService.getFlowForScope(group.getInstitutionName()).getRules())
+            return Optional.ofNullable(resolveInstitutionNameForDesignation(lead.getAssignedGroupId()))
+                    .map(scope -> leadFlowService.getFlowForScope(scope).getRules())
                     .orElseGet(() -> leadFlowService.getFlow().getRules());
         } catch (Exception e) {
             return leadFlowService.getFlow().getRules();
@@ -3203,6 +3255,8 @@ public class LeadService {
             return out;
         }
         userGroupRepository.findAllById(ids)
+                .stream()
+                .filter(Objects::nonNull)
                 .forEach(group -> out.put(group.getId(), group.getName()));
         return out;
     }
