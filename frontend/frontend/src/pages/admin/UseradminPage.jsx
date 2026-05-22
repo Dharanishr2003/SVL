@@ -1,9 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { AnimatePresence } from "motion/react";
 import {
   changeUserRole,
-  createUser,
   deleteSelectedSessions,
   deleteUser,
   getPendingUsers,
@@ -12,25 +10,18 @@ import {
   getUsers,
   setUserActive,
 } from "../../api/userAdminApi";
-import { getAvailableEmployees } from "../../api/employeesApi";
-import { getBranches } from "../../api/branchesApi";
 import {
-  createDepartmentMaster,
   getDepartmentsMasterByBranch,
 } from "../../api/departmentsApi";
-import { createDesignation, getDesignations } from "../../api/designationsApi";
+import { getDesignations } from "../../api/designationsApi";
 import { extractApiErrorMessage } from "../../utils/errorMessage";
 import { useAuth } from "../../context/AuthContext";
 import {
-  createInstitution,
   getInstitutions,
   getUserOrgSelection,
 } from "../../api/orgHierarchyApi";
-import { getHeadOffices } from "../../api/headOfficesApi";
 import { useToast } from "../../components/system/ToastProvider";
 import ConfirmDialog from "../../components/system/ConfirmDialog";
-import UserWizardModal from "../../components/admin/UserWizardModal";
-import { useCreateUserWizard } from "../../hooks/useCreateUserWizard";
 
 const FALLBACK_ROLES = ["SUPER_ADMIN", "ADMIN", "MANAGER", "TEAM_LEAD", "EMPLOYEE"];
 const ENV_ROLE_OPTIONS = String(
@@ -57,32 +48,7 @@ function UseradminPage() {
   const [size, setSize] = useState(10);
   const [totalPages, setTotalPages] = useState(0);
   const [loading, setLoading] = useState(false);
-  const {
-    form,
-    setForm,
-    wizardStep,
-    setWizardStep,
-    phoneCountryCode,
-    setPhoneCountryCode,
-    phoneError,
-    setPhoneError,
-    showCreatePassword,
-    setShowCreatePassword,
-    showModal,
-    setShowModal,
-    updateFormField,
-    handlePhoneInput,
-    handlePhoneBlur,
-    validatePhoneForSubmit,
-    nextStep,
-    prevStep,
-    openModal,
-    closeModal,
-    resetForm,
-    getPhoneMaxLength,
-    getFormattedPhone,
-    COUNTRY_CODE_OPTIONS,
-  } = useCreateUserWizard();
+
 
   const [saving, setSaving] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
@@ -95,9 +61,7 @@ function UseradminPage() {
   const [pendingTotalPages, setPendingTotalPages] = useState(0);
   const [pendingLoading, setPendingLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("users");
-  const [showOrgModal, setShowOrgModal] = useState(false);
-  const [orgModalLevel, setOrgModalLevel] = useState("");
-  const [orgModalName, setOrgModalName] = useState("");
+
   const [filters, setFilters] = useState({
     search: "",
     role: "",
@@ -116,18 +80,7 @@ function UseradminPage() {
   const [orgSelection, setOrgSelection] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [userToDelete, setUserToDelete] = useState(null);
-  const [employees, setEmployees] = useState([]);
-  const [createHeadOfficeId, setCreateHeadOfficeId] = useState("");
-  const [createBranchId, setCreateBranchId] = useState("");
-  const [createDepartmentId, setCreateDepartmentId] = useState("");
-  const [createTeamId, setCreateTeamId] = useState("");
-  const [createHeadOffices, setCreateHeadOffices] = useState([]);
-  const [createBranches, setCreateBranches] = useState([]);
-  const [createDepartments, setCreateDepartments] = useState([]);
-  const [createTeams, setCreateTeams] = useState([]);
-  const [createOrgLoading, setCreateOrgLoading] = useState(false);
-  const [createEmployeesLoading, setCreateEmployeesLoading] = useState(false);
-  const [selectedEmployeeId, setSelectedEmployeeId] = useState("");
+
 
   const load = async (nextPage = page, nextSize = size) => {
     setLoading(true);
@@ -212,81 +165,7 @@ function UseradminPage() {
   const selectedTeam = teams.find(
     (item) => String(item.id) === String(teamId),
   );
-  const selectedRole = String(form.role || "EMPLOYEE").toUpperCase();
-  const roleRequiresDepartment = selectedRole !== "ADMIN";
-  const roleRequiresTeam = ["TEAM_LEAD", "EMPLOYEE"].includes(selectedRole);
 
-  const selectedCreateBranch = useMemo(
-    () => createBranches.find((item) => String(item.id) === String(createBranchId)),
-    [createBranches, createBranchId],
-  );
-  const selectedCreateDepartment = useMemo(
-    () => createDepartments.find((item) => String(item.id) === String(createDepartmentId)),
-    [createDepartments, createDepartmentId],
-  );
-  const selectedCreateTeam = useMemo(
-    () => createTeams.find((item) => String(item.id) === String(createTeamId)),
-    [createTeams, createTeamId],
-  );
-
-  const createEmployeeScope = useMemo(() => {
-    const headOfficeId = String(createHeadOfficeId || "").trim();
-    const branchId = String(createBranchId || "").trim();
-    const departmentId = String(createDepartmentId || "").trim();
-    const designationId = String(createTeamId || "").trim();
-    if (!headOfficeId || !branchId) return null;
-
-    const scope = {
-      headOfficeId,
-      branchId,
-    };
-    if (departmentId) {
-      scope.departmentId = departmentId;
-    }
-    if (designationId) {
-      scope.designationId = designationId;
-    }
-    return scope;
-  }, [createHeadOfficeId, createBranchId, createDepartmentId, createTeamId]);
-
-  const loadAvailableEmployees = async (scope = createEmployeeScope) => {
-    if (!scope || !scope.branchId) {
-      setEmployees([]);
-      return;
-    }
-    setCreateEmployeesLoading(true);
-    try {
-      const data = await getAvailableEmployees(scope);
-      setEmployees(Array.isArray(data) ? data : []);
-    } catch (e) {
-      showError(extractApiErrorMessage(e, "Failed to load employees"));
-      setEmployees([]);
-    } finally {
-      setCreateEmployeesLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    let isMounted = true;
-    const loadCreateHeadOffices = async () => {
-      try {
-        const data = await getHeadOffices();
-        if (!isMounted) return;
-        setCreateHeadOffices(Array.isArray(data) ? data : []);
-      } catch (e) {
-        if (isMounted) {
-          showError(extractApiErrorMessage(e, "Failed to load head offices"));
-        }
-        if (isMounted) {
-          setCreateHeadOffices([]);
-        }
-      }
-    };
-    loadCreateHeadOffices();
-    return () => {
-      isMounted = false;
-    };
-  }, [showError]);
 
   useEffect(() => {
     let isMounted = true;
@@ -513,464 +392,16 @@ function UseradminPage() {
     return (ROLE_ASSIGNMENT_OPTIONS[currentRole] || []).filter((role) => configured.has(role));
   }, [currentRole]);
 
-  // Show available employees from the selected org scope.
-  const availableEmployees = useMemo(() => {
-    return Array.isArray(employees) ? employees : [];
-  }, [employees]);
-
-  const selectedEmployee = useMemo(
-    () => availableEmployees.find((emp) => String(emp.id) === String(selectedEmployeeId)) || null,
-    [availableEmployees, selectedEmployeeId],
-  );
-
-  useEffect(() => {
-    if (!form.institution || institutionId) return;
-    const match = institutions.find(
-      (item) =>
-        String(item?.name || "").trim().toLowerCase() ===
-        String(form.institution || "").trim().toLowerCase(),
-    );
-    if (match?.id) setInstitutionId(String(match.id));
-  }, [form.institution, institutionId, institutions]);
-
-  useEffect(() => {
-    if (!form.departmentName || departmentId) return;
-    const match = departments.find(
-      (item) =>
-        String(item?.name || "").trim().toLowerCase() ===
-        String(form.departmentName || "").trim().toLowerCase(),
-    );
-    if (match?.id) setDepartmentId(String(match.id));
-  }, [form.departmentName, departmentId, departments]);
-
-  useEffect(() => {
-    if (!form.team || teamId) return;
-    const match = teams.find(
-      (item) =>
-        String(item?.name || "").trim().toLowerCase() ===
-        String(form.team || "").trim().toLowerCase(),
-    );
-    if (match?.id) setTeamId(String(match.id));
-  }, [form.team, teamId, teams]);
-
-  const clearSelectedEmployeeDraft = () => {
-    setSelectedEmployeeId("");
-    setForm((prev) => ({
-      ...prev,
-      username: "",
-      email: "",
-      firstName: "",
-      lastName: "",
-      phone: "",
-    }));
-  };
-
   const openCreate = () => {
-    const defaultRole = allowedAssignRoles[0] || "EMPLOYEE";
-    openModal();
-    setForm((prev) => ({ ...prev, role: defaultRole }));
-    clearSelectedEmployeeDraft();
-    setCreateHeadOfficeId("");
-    setCreateBranchId("");
-    setCreateDepartmentId("");
-    setCreateTeamId("");
-    setEmployees([]);
-    setCreateBranches([]);
-    setCreateDepartments([]);
-    setCreateTeams([]);
+    navigate("/useradmin/create");
   };
-
-  const handleCloseCreate = () => {
-    clearSelectedEmployeeDraft();
-    setEmployees([]);
-    setCreateHeadOfficeId("");
-    setCreateBranches([]);
-    setCreateDepartments([]);
-    setCreateTeams([]);
-    setCreateBranchId("");
-    setCreateDepartmentId("");
-    setCreateTeamId("");
-    closeModal();
-  };
-
-  const handleCreateRoleChange = (role) => {
-    const nextRole = String(role || "EMPLOYEE").toUpperCase();
-    setForm((prev) => ({ ...prev, role: nextRole }));
-    clearSelectedEmployeeDraft();
-  };
-
-  const handleCreateHeadOfficeChange = (headOfficeIdValue) => {
-    setCreateHeadOfficeId(headOfficeIdValue);
-    setCreateBranchId("");
-    setCreateDepartmentId("");
-    setCreateTeamId("");
-    setCreateBranches([]);
-    setCreateDepartments([]);
-    setCreateTeams([]);
-    clearSelectedEmployeeDraft();
-    setEmployees([]);
-  };
-
-  const handleCreateBranchChange = (branchIdValue) => {
-    setCreateBranchId(branchIdValue);
-    setCreateDepartmentId("");
-    setCreateTeamId("");
-    setCreateDepartments([]);
-    setCreateTeams([]);
-    clearSelectedEmployeeDraft();
-    setEmployees([]);
-  };
-
-  const handleCreateDepartmentChange = (departmentIdValue) => {
-    setCreateDepartmentId(departmentIdValue);
-    setCreateTeamId("");
-    setCreateTeams([]);
-    clearSelectedEmployeeDraft();
-    setEmployees([]);
-  };
-
-  const handleCreateTeamChange = (teamIdValue) => {
-    setCreateTeamId(teamIdValue);
-    clearSelectedEmployeeDraft();
-    setEmployees([]);
-  };
-
-  const applySelectedEmployee = (employee) => {
-    if (!employee) return;
-
-    const name = String(
-      employee.name || employee.fullName || employee.employeeName || "",
-    ).trim();
-    const nameParts = name.split(/\s+/).filter(Boolean);
-    const email = String(employee.email || employee.officialEmail || employee.personalEmail || "").trim();
-    const emailPrefix = email.includes("@") ? email.split("@")[0] : email;
-    const countryCode = String(employee.countryCode || "").trim();
-    const phoneRaw = String(
-      employee.phone || employee.personalContactNumber || employee.alternateContactNumber || "",
-    ).trim();
-
-    setPhoneCountryCode((prev) => countryCode || prev || "+91");
-    setForm((prev) => ({
-      ...prev,
-      username: emailPrefix || prev.username,
-      email: email || prev.email,
-      phone: phoneRaw.replace(/\D/g, ""),
-      firstName: nameParts[0] || prev.firstName || "",
-      lastName: nameParts.slice(1).join(" ") || prev.lastName || "",
-    }));
-  };
-
-  const handleSelectEmployee = (employeeId) => {
-    setSelectedEmployeeId(employeeId);
-    const employee = employees.find((emp) => String(emp.id) === String(employeeId));
-    applySelectedEmployee(employee);
-  };
-
-  useEffect(() => {
-    if (!selectedEmployeeId || !selectedEmployee) return;
-    applySelectedEmployee(selectedEmployee);
-  }, [selectedEmployeeId, selectedEmployee]);
-
-  useEffect(() => {
-    if (!showModal) return;
-    if (!createHeadOfficeId) {
-      setCreateBranches([]);
-      setCreateDepartments([]);
-      setCreateTeams([]);
-      return;
-    }
-
-    let isMounted = true;
-    const loadCreateBranches = async () => {
-      setCreateOrgLoading(true);
-      try {
-        const data = await getBranches(createHeadOfficeId);
-        if (!isMounted) return;
-        setCreateBranches(Array.isArray(data) ? data : []);
-      } catch (e) {
-        if (isMounted) {
-          showError(extractApiErrorMessage(e, "Failed to load branches"));
-        }
-        if (isMounted) {
-          setCreateBranches([]);
-        }
-      } finally {
-        if (isMounted) {
-          setCreateOrgLoading(false);
-        }
-      }
-    };
-
-    loadCreateBranches();
-    return () => {
-      isMounted = false;
-    };
-  }, [showModal, createHeadOfficeId, showError]);
-
-  useEffect(() => {
-    if (!showModal) return;
-    if (!createBranchId) {
-      setCreateDepartments([]);
-      setCreateTeams([]);
-      return;
-    }
-
-    let isMounted = true;
-    const loadCreateDepartments = async () => {
-      setCreateOrgLoading(true);
-      try {
-        const data = await getDepartmentsMasterByBranch(createBranchId);
-        if (!isMounted) return;
-        setCreateDepartments(Array.isArray(data) ? data : []);
-      } catch (e) {
-        if (isMounted) {
-          showError(extractApiErrorMessage(e, "Failed to load departments"));
-        }
-        if (isMounted) {
-          setCreateDepartments([]);
-        }
-      } finally {
-        if (isMounted) {
-          setCreateOrgLoading(false);
-        }
-      }
-    };
-
-    loadCreateDepartments();
-    return () => {
-      isMounted = false;
-    };
-  }, [showModal, createBranchId, showError]);
-
-  useEffect(() => {
-    if (!showModal) return;
-    if (!createBranchId || !createDepartmentId) {
-      setCreateTeams([]);
-      return;
-    }
-
-    let isMounted = true;
-    const loadCreateTeams = async () => {
-      setCreateOrgLoading(true);
-      try {
-        const data = await getDesignations(createDepartmentId);
-        if (!isMounted) return;
-        setCreateTeams(Array.isArray(data) ? data : []);
-      } catch (e) {
-        if (isMounted) {
-          showError(extractApiErrorMessage(e, "Failed to load teams"));
-        }
-        if (isMounted) {
-          setCreateTeams([]);
-        }
-      } finally {
-        if (isMounted) {
-          setCreateOrgLoading(false);
-        }
-      }
-    };
-
-    loadCreateTeams();
-    return () => {
-      isMounted = false;
-    };
-  }, [showModal, createBranchId, createDepartmentId, showError]);
-
-  useEffect(() => {
-    if (!showModal) return;
-    loadAvailableEmployees(createEmployeeScope);
-  }, [showModal, createEmployeeScope]);
 
   const openEdit = (row) => {
     if (!row?.id) return;
     navigate(`/user-edit/${row.id}`, { state: { user: row } });
   };
 
-  const handleAddInstitution = async () => {
-    setOrgModalLevel("institution");
-    setOrgModalName("");
-    setShowOrgModal(true);
-  };
 
-  const handleAddDepartment = async () => {
-    if (!createBranchId) {
-      showError("Select a branch first");
-      return;
-    }
-    setOrgModalLevel("department");
-    setOrgModalName("");
-    setShowOrgModal(true);
-  };
-
-  const handleAddTeam = async () => {
-    if (!createBranchId || !departmentId) {
-      showError("Select a branch and department first");
-      return;
-    }
-    setOrgModalLevel("team");
-    setOrgModalName("");
-    setShowOrgModal(true);
-  };
-
-  const handleCreateOrgNode = async () => {
-    const name = String(orgModalName || "").trim();
-    if (!name) {
-      showError("Name is required");
-      return;
-    }
-
-    setSaving(true);
-    try {
-      if (orgModalLevel === "institution") {
-        const created = await createInstitution(name);
-        const data = await getInstitutions();
-        setInstitutions(Array.isArray(data) ? data : []);
-        if (created?.id) setInstitutionId(String(created.id));
-        showSuccess("Branch created");
-      } else if (orgModalLevel === "department") {
-        const created = await createDepartmentMaster({
-          branchId: Number(createBranchId),
-          name,
-          status: "ACTIVE",
-        });
-        const data = await getDepartmentsMasterByBranch(createBranchId);
-        setDepartments(Array.isArray(data) ? data : []);
-        if (created?.id) setDepartmentId(String(created.id));
-        showSuccess("Department created");
-      } else if (orgModalLevel === "team") {
-        const created = await createDesignation({
-          departmentId: Number(departmentId),
-          name,
-          status: "ACTIVE",
-        });
-        const data = await getDesignations(departmentId);
-        setTeams(Array.isArray(data) ? data : []);
-        if (created?.id) setTeamId(String(created.id));
-        showSuccess("Designation created");
-      }
-      setShowOrgModal(false);
-      setOrgModalName("");
-      setOrgModalLevel("");
-    } catch (e) {
-      showError(extractApiErrorMessage(e, "Failed to create item"));
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleSave = async () => {
-    if (!form.username.trim()) {
-      showError("Username is required");
-      return;
-    }
-    if (!form.email.trim()) {
-      showError("Email is required");
-      return;
-    }
-    if (!selectedEmployeeId) {
-      showError("Please select an employee");
-      return;
-    }
-
-    const phoneValidation = validatePhoneForSubmit();
-    if (!phoneValidation.isValid) {
-      showError(phoneValidation.message);
-      return;
-    }
-
-    setSaving(true);
-    try {
-      if (!form.password.trim()) {
-        showError("Password is required");
-        setSaving(false);
-        return;
-      }
-      if (!createHeadOfficeId) {
-        showError("Please select a head office");
-        setSaving(false);
-        return;
-      }
-      if (!createBranchId) {
-        showError("Please select a branch");
-        setSaving(false);
-        return;
-      }
-      if (roleRequiresDepartment && !createDepartmentId) {
-        showError("Please select a department");
-        setSaving(false);
-        return;
-      }
-      if (roleRequiresTeam && !createTeamId) {
-        showError("Please select a designation");
-        setSaving(false);
-        return;
-      }
-      const selectedEmployee = employees.find(
-        (emp) => String(emp.id) === String(selectedEmployeeId),
-      );
-      if (!selectedEmployee) {
-        showError("Selected employee is no longer available");
-        setSaving(false);
-        return;
-      }
-      const scopeHeadOfficeId = String(createHeadOfficeId || "").trim();
-      const scopeBranchId = String(createBranchId || "").trim();
-      const scopeDepartmentId = String(createDepartmentId || "").trim();
-      const scopeDesignationId = String(createTeamId || "").trim();
-      const employeeHeadOfficeId = String(selectedEmployee.headOfficeId || "").trim();
-      const employeeBranchId = String(selectedEmployee.branchId || "").trim();
-      const employeeDepartmentId = String(selectedEmployee.departmentMasterId || "").trim();
-      const employeeDesignationId = String(selectedEmployee.designationMasterId || "").trim();
-
-      if (scopeHeadOfficeId && employeeHeadOfficeId !== scopeHeadOfficeId) {
-        showError("Selected employee does not belong to the selected head office");
-        setSaving(false);
-        return;
-      }
-      if (scopeBranchId && employeeBranchId !== scopeBranchId) {
-        showError("Selected employee does not belong to the selected branch");
-        setSaving(false);
-        return;
-      }
-      if (roleRequiresDepartment && scopeDepartmentId && employeeDepartmentId !== scopeDepartmentId) {
-        showError("Selected employee does not belong to the selected department");
-        setSaving(false);
-        return;
-      }
-      if (roleRequiresTeam && scopeDesignationId && employeeDesignationId !== scopeDesignationId) {
-        showError("Selected employee does not belong to the selected designation");
-        setSaving(false);
-        return;
-      }
-      const payload = {
-        employeeId: selectedEmployee.id,
-        username: form.username,
-        firstName: form.firstName,
-        lastName: form.lastName,
-        email: form.email,
-        phone: getFormattedPhone(),
-        role: String(form.role || "EMPLOYEE").toUpperCase(),
-        headOfficeId: selectedEmployee.headOfficeId || null,
-        branchId: selectedEmployee.branchId || null,
-        departmentId: selectedEmployee.departmentMasterId || null,
-        designationId: selectedEmployee.designationMasterId || null,
-        institution: selectedEmployee.institution || "",
-        departmentName: selectedEmployee.departmentName || "",
-        team: selectedEmployee.team || "",
-        password: form.password,
-        confirmPassword: form.confirmPassword,
-      };
-      await createUser(payload);
-      showSuccess("User created");
-      handleCloseCreate();
-      await load();
-      await loadPending();
-    } catch (e) {
-      showError(extractApiErrorMessage(e, "Failed to save user"));
-    } finally {
-      setSaving(false);
-    }
-  };
 
   const handleToggleActive = async (row) => {
     setSaving(true);
@@ -1018,7 +449,6 @@ function UseradminPage() {
       showSuccess("User deleted");
       await load();
       await loadPending();
-      await loadAvailableEmployees();
     } catch (e) {
       showError(extractApiErrorMessage(e, "Failed to delete user"));
     } finally {
@@ -1781,103 +1211,7 @@ function UseradminPage() {
         </div>
       </div>
 
-      <AnimatePresence>
-        {showModal && (
-          <UserWizardModal
-            wizardStep={wizardStep}
-            form={form}
-            setForm={setForm}
-            onRoleChange={handleCreateRoleChange}
-            phoneCountryCode={phoneCountryCode}
-            setPhoneCountryCode={setPhoneCountryCode}
-            phoneError={phoneError}
-            setPhoneError={setPhoneError}
-            handlePhoneInput={handlePhoneInput}
-            handlePhoneBlur={handlePhoneBlur}
-            getPhoneMaxLength={getPhoneMaxLength}
-            COUNTRY_CODE_OPTIONS={COUNTRY_CODE_OPTIONS}
-            showCreatePassword={showCreatePassword}
-            setShowCreatePassword={setShowCreatePassword}
-            allowedAssignRoles={allowedAssignRoles}
-            headOfficeOptions={createHeadOffices}
-            selectedHeadOfficeId={createHeadOfficeId}
-            onHeadOfficeChange={handleCreateHeadOfficeChange}
-            branchOptions={createBranches}
-            departmentOptions={createDepartments}
-            teamOptions={createTeams}
-            selectedBranchId={createBranchId}
-            selectedDepartmentId={createDepartmentId}
-            selectedTeamId={createTeamId}
-            onBranchChange={handleCreateBranchChange}
-            onDepartmentChange={handleCreateDepartmentChange}
-            onTeamChange={handleCreateTeamChange}
-            availableEmployees={availableEmployees}
-            selectedEmployeeId={selectedEmployeeId}
-            handleSelectEmployee={handleSelectEmployee}
-            employeeScopeReady={Boolean(createEmployeeScope)}
-            employeeScopeLoading={createEmployeesLoading}
-            onNext={nextStep}
-            onPrev={prevStep}
-            onSubmit={handleSave}
-            onClose={handleCloseCreate}
-            saving={saving}
-          />
-        )}
-      </AnimatePresence>
 
-      {showOrgModal && (
-        <>
-          <div className="modal fade show" style={{ display: "block" }} tabIndex="-1">
-            <div className="modal-dialog modal-sm">
-              <div className="modal-content">
-                <div className="modal-header">
-                  <h5 className="modal-title">
-                    Add {orgModalLevel ? orgModalLevel.charAt(0).toUpperCase() + orgModalLevel.slice(1) : "Item"}
-                  </h5>
-                  <button
-                    className="btn-close"
-                    onClick={() => {
-                      setShowOrgModal(false);
-                      setOrgModalName("");
-                      setOrgModalLevel("");
-                    }}
-                  />
-                </div>
-                <div className="modal-body">
-                  <label className="form-label">Name</label>
-                  <input
-                    className="form-control"
-                    value={orgModalName}
-                    onChange={(e) => setOrgModalName(e.target.value)}
-                    placeholder={`Enter ${orgModalLevel || "item"} name`}
-                  />
-                </div>
-                <div className="modal-footer">
-                  <button
-                    className="btn btn-light"
-                    onClick={() => {
-                      setShowOrgModal(false);
-                      setOrgModalName("");
-                      setOrgModalLevel("");
-                    }}
-                    disabled={saving}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    className="btn btn-primary"
-                    onClick={handleCreateOrgNode}
-                    disabled={saving}
-                  >
-                    {saving ? "Creating..." : "Create"}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div className="modal-backdrop fade show" />
-        </>
-      )}
 
       <ConfirmDialog
         open={showDeleteConfirm}

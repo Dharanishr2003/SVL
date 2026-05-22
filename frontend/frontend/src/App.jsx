@@ -70,6 +70,7 @@ const publicRoutePaths = new Set([
 
 const adminOnlyPaths = new Set([
   "useradmin",
+  "useradmin/create",
   "user-edit/:id",
   "page-access",
   "group-access",

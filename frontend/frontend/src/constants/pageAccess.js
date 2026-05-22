@@ -229,7 +229,7 @@ const ROUTE_ACCESS_RULES = [
   { pageKeys: ["admin-dashboard"], prefixes: ["/admin-dashboard"] },
   { pageKeys: ["employee-dashboard"], prefixes: ["/employee-dashboard"] },
   { pageKeys: ["sales-dashboard"], prefixes: ["/dashboard"] },
-  { pageKeys: ["settings-useradmin"], prefixes: ["/useradmin", "/user-edit"] },
+  { pageKeys: ["settings-useradmin"], prefixes: ["/useradmin/create", "/useradmin", "/user-edit"] },
   { pageKeys: ["settings-page-access"], prefixes: ["/page-access"] },
   { pageKeys: ["settings-group-access"], prefixes: ["/group-access"] },
   { pageKeys: ["settings-usergroups"], prefixes: ["/usergroups"] },

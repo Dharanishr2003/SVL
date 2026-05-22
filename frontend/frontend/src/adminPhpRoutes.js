@@ -1186,6 +1186,10 @@ export const adminPhpRoutes = [
     component: "UseradminPage",
   },
   {
+    path: "useradmin/create",
+    component: "UserAdminCreatePage",
+  },
+  {
     path: "user-edit/:id",
     component: "UserEditPage",
   },
