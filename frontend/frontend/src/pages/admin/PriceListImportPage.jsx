@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import PageHeader from "../../components/admin/PageHeader";
 import { saveCustomOption } from "../../api/customOptionsApi";
 import { getFieldsByServiceType } from "../../api/productFieldConfigApi";
-import { getPriceList, importPriceEntries } from "../../api/priceListApi";
+import { getPriceList, importPriceEntries, normalizePriceListEntries } from "../../api/priceListApi";
 import { getServiceCategories } from "../../api/serviceCategoriesApi";
 import { getServiceTypes } from "../../api/serviceTypesApi";
 import {
@@ -252,7 +252,7 @@ export default function PriceListImportPage() {
       .then(([cats, types, prices]) => {
         setCategories(Array.isArray(cats) ? cats : []);
         setAllTypes(Array.isArray(types) ? types : []);
-        setExistingRows(Array.isArray(prices) ? prices : []);
+        setExistingRows(normalizePriceListEntries(prices));
       })
       .catch(() => {
         setCategories([]);
@@ -466,7 +466,7 @@ export default function PriceListImportPage() {
       } else {
         setMessage(`${result.created} price entr${result.created === 1 ? "y" : "ies"} imported successfully.`);
         const refreshed = await getPriceList();
-        setExistingRows(refreshed);
+        setExistingRows(normalizePriceListEntries(refreshed));
         setParsedRows((previous) => previous.filter((row) => !selectedKeys.has(variantKey(row.variantFields))));
         setSelectedKeys(new Set());
       }

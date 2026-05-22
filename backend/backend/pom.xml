@@ -9,9 +9,9 @@
 		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
 	<groupId>com.nexorcrm</groupId>
-	<artifactId>backend</artifactId>
+	<artifactId>svlbackend</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
-	<name>backend</name>
+	<name>svlbackend</name>
 	<description>Demo project for Spring Boot</description>
 	<url/>
 	<licenses>
@@ -111,6 +111,7 @@
 	</dependencies>
 
 	<build>
+		<finalName>svlbackend</finalName>
 		<plugins>
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>

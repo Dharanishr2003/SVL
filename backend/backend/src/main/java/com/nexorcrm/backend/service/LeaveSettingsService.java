@@ -17,13 +17,16 @@ import com.nexorcrm.backend.repo.LeaveTypeRepository;
 import com.nexorcrm.backend.repo.LeaveTypeSettingsRepository;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 
 @Service
+@Transactional
 public class LeaveSettingsService {
 
     private final LeaveTypeRepository leaveTypeRepository;
@@ -49,6 +52,7 @@ public class LeaveSettingsService {
         this.employeeRepository = employeeRepository;
     }
 
+    @Transactional(readOnly = true)
     public List<LeaveTypeResponse> listLeaveTypes() {
         return leaveTypeRepository.findAll().stream().map(this::toTypeResponse).toList();
     }
@@ -86,11 +90,13 @@ public class LeaveSettingsService {
         return toTypeResponse(saved, settings);
     }
 
+    @Transactional(readOnly = true)
     public List<LeavePolicyResponse> listPolicies(Long leaveTypeId) {
         return policyRepository.findByDeletedFalseAndLeaveType_IdOrderByNameAsc(leaveTypeId)
                 .stream().map(this::toPolicyResponse).toList();
     }
 
+    @Transactional(readOnly = true)
     public List<LeavePolicyResponse> listPoliciesAll() {
         return policyRepository.findByDeletedFalseOrderByNameAsc()
                 .stream().map(this::toPolicyResponse).toList();
@@ -133,6 +139,7 @@ public class LeaveSettingsService {
         policyRepository.save(policy);
     }
 
+    @Transactional(readOnly = true)
     public List<LeaveEligibilityResponse> getEligibility(Long employeeId) {
         List<LeaveEligibilityResponse> items = new ArrayList<>();
         int year = LocalDate.now().getYear();
@@ -259,10 +266,10 @@ public class LeaveSettingsService {
     }
 
     private void replaceEmployees(LeavePolicy policy, List<Long> employeeIds) {
-        policyEmployeeRepository.deleteByPolicy_Id(policy.getId());
+        policyEmployeeRepository.deleteByPolicyId(policy.getId());
         if (employeeIds == null || employeeIds.isEmpty()) return;
         List<LeavePolicyEmployee> rows = new ArrayList<>();
-        for (Long empId : employeeIds) {
+        for (Long empId : new LinkedHashSet<>(employeeIds)) {
             if (empId == null) continue;
             LeavePolicyEmployee row = new LeavePolicyEmployee();
             row.setPolicy(policy);

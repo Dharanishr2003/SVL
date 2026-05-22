@@ -1,16 +1,26 @@
 package com.nexorcrm.backend.service;
 
 import com.nexorcrm.backend.dto.ServiceTypeRequest;
+import com.nexorcrm.backend.dto.ServiceTypePageResponse;
 import com.nexorcrm.backend.dto.ServiceTypeResponse;
+import com.nexorcrm.backend.dto.ServiceTypeTreeResponse;
 import com.nexorcrm.backend.entity.ServiceType;
 import com.nexorcrm.backend.entity.ServiceCategory;
 import com.nexorcrm.backend.repo.ServiceTypeRepository;
 import com.nexorcrm.backend.repo.ServiceCategoryRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -30,6 +40,48 @@ public class ServiceTypeService {
                 .stream()
                 .map(ServiceTypeResponse::new)
                 .collect(Collectors.toList());
+    }
+
+    public ServiceTypePageResponse listPaged(Integer page, Integer size, Long categoryId) {
+        int safePage = page == null ? 0 : Math.max(0, page);
+        int safeSize = size == null ? 10 : Math.max(1, size);
+        Pageable pageable = PageRequest.of(safePage, safeSize, Sort.by(Sort.Direction.ASC, "name").and(Sort.by(Sort.Direction.ASC, "id")));
+        Page<ServiceType> parentPage = categoryId == null
+                ? repository.findByDeletedFalseAndParentIsNull(pageable)
+                : repository.findByDeletedFalseAndParentIsNullAndCategory_Id(categoryId, pageable);
+
+        List<ServiceType> allParents = parentPage.getContent();
+
+        List<Long> parentIds = allParents.stream().map(ServiceType::getId).collect(Collectors.toList());
+        Map<Long, List<ServiceTypeTreeResponse>> childrenByParent = new HashMap<>();
+        if (!parentIds.isEmpty()) {
+            List<ServiceType> children = repository.findByDeletedFalseAndParentIdIn(parentIds);
+            children.stream()
+                    .sorted(Comparator.comparing(ServiceType::getName, String.CASE_INSENSITIVE_ORDER)
+                            .thenComparing(ServiceType::getId, Comparator.nullsLast(Long::compareTo)))
+                    .forEach(child -> {
+                        Long parentId = child.getParent() != null ? child.getParent().getId() : null;
+                        if (parentId == null) return;
+                        childrenByParent.computeIfAbsent(parentId, key -> new ArrayList<>())
+                                .add(new ServiceTypeTreeResponse(child));
+                    });
+        }
+
+        List<ServiceTypeTreeResponse> content = allParents.stream()
+                .map(parent -> {
+                    ServiceTypeTreeResponse response = new ServiceTypeTreeResponse(parent);
+                    response.setChildren(childrenByParent.getOrDefault(parent.getId(), List.of()));
+                    return response;
+                })
+                .collect(Collectors.toList());
+
+        return new ServiceTypePageResponse(
+                content,
+                parentPage.getNumber() + 1,
+                parentPage.getSize(),
+                parentPage.getTotalElements(),
+                parentPage.getTotalPages()
+        );
     }
 
     public ServiceTypeResponse create(ServiceTypeRequest request) {

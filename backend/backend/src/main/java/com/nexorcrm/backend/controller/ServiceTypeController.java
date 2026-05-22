@@ -1,6 +1,7 @@
 package com.nexorcrm.backend.controller;
 
 import com.nexorcrm.backend.dto.ServiceTypeRequest;
+import com.nexorcrm.backend.dto.ServiceTypePageResponse;
 import com.nexorcrm.backend.dto.ServiceTypeResponse;
 import com.nexorcrm.backend.service.ServiceTypeService;
 import jakarta.validation.Valid;
@@ -22,8 +23,16 @@ public class ServiceTypeController {
     }
 
     @GetMapping
-    public ResponseEntity<List<ServiceTypeResponse>> getAll() {
-        return ResponseEntity.ok(service.list());
+    public ResponseEntity<?> getAll(
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size,
+            @RequestParam(required = false) Long categoryId
+    ) {
+        if (page == null && size == null && categoryId == null) {
+            return ResponseEntity.ok(service.list());
+        }
+        ServiceTypePageResponse response = service.listPaged(page, size, categoryId);
+        return ResponseEntity.ok(response);
     }
 
     @PostMapping

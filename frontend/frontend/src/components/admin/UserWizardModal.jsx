@@ -1,5 +1,11 @@
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import "./UserWizardModal.css";
+import {
+  getCountryAllowedLengths,
+  getCountryOptionByValue,
+  sanitizePhoneDigits,
+} from "../../utils/phoneUtils";
 
 export default function UserWizardModal({
   wizardStep,
@@ -9,6 +15,7 @@ export default function UserWizardModal({
   phoneCountryCode,
   setPhoneCountryCode,
   phoneError,
+  setPhoneError,
   handlePhoneInput,
   handlePhoneBlur,
   getPhoneMaxLength,
@@ -41,6 +48,8 @@ export default function UserWizardModal({
 }) {
   const shouldReduceMotion = useReducedMotion();
   const totalSteps = 4;
+  const phonePickerRef = useRef(null);
+  const [phonePickerOpen, setPhonePickerOpen] = useState(false);
   const selectedRole = String(form.role || "EMPLOYEE").toUpperCase();
   const selectedBranch = branchOptions.find((branch) => String(branch.id) === String(selectedBranchId));
   const selectedDepartment = departmentOptions.find(
@@ -62,6 +71,39 @@ export default function UserWizardModal({
             { label: "Department", value: selectedDepartment?.name || "Not selected" },
             { label: "Designation", value: selectedDesignation?.name || "Not selected" },
           ];
+  const phoneDisplayMaxLength = getPhoneMaxLength();
+  const phoneLengthDisplay = useMemo(() => {
+    const allowed = getCountryAllowedLengths(phoneCountryCode);
+    return allowed.length ? allowed.join(" or ") : phoneDisplayMaxLength || 15;
+  }, [phoneCountryCode, phoneDisplayMaxLength]);
+
+  useEffect(() => {
+    const handleOutsideClick = (event) => {
+      if (!phonePickerRef.current) return;
+      if (!phonePickerRef.current.contains(event.target)) {
+        setPhonePickerOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => document.removeEventListener("mousedown", handleOutsideClick);
+  }, []);
+
+  const handlePhoneCountryCodeChange = (value) => {
+    const nextCode = value || "+91";
+    const option = getCountryOptionByValue(nextCode);
+    const lengths = getCountryAllowedLengths(nextCode);
+    const maxLength = option?.maxLength || 15;
+
+    setPhoneCountryCode(nextCode);
+    setForm((prev) => ({
+      ...prev,
+      phone: sanitizePhoneDigits(prev.phone, maxLength, lengths),
+    }));
+    setPhoneError?.("");
+    setPhonePickerOpen(false);
+  };
+
   return (
     <>
       <motion.div
@@ -344,38 +386,55 @@ export default function UserWizardModal({
                         />
                       </div>
                       <div className="col-md-6">
-                        <label className="form-label">Country Code</label>
-                        <select
-                          className="form-select user-wizard-input"
-                          value={phoneCountryCode}
-                          onChange={(e) => setPhoneCountryCode(e.target.value)}
-                        >
-                          {COUNTRY_CODE_OPTIONS.map((opt, index) => (
-                            <option key={`${opt.value}-${index}`} value={opt.value}>
-                              {opt.label}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <div className="col-md-6">
-                        <label className="form-label">Phone Number</label>
-                        <input
-                          type="tel"
-                          className={`form-control user-wizard-input ${phoneError ? "is-invalid" : ""}`}
-                          value={form.phone || ""}
-                          onChange={(e) => handlePhoneInput(e.target.value)}
-                          onBlur={handlePhoneBlur}
-                          placeholder="Enter phone number"
-                          maxLength={getPhoneMaxLength()}
-                        />
-                        {phoneError && (
-                          <div
-                            className="invalid-feedback d-block"
-                            style={{ fontSize: "0.85rem", marginTop: "0.25rem" }}
-                          >
-                            {phoneError}
+                        <label className="form-label">Mobile Number</label>
+                        <div className="user-wizard-phone-field" ref={phonePickerRef}>
+                          <div className="user-wizard-phone-input-wrap">
+                            <button
+                              type="button"
+                              className="user-wizard-phone-code-trigger"
+                              onClick={() => setPhonePickerOpen((prev) => !prev)}
+                              aria-expanded={phonePickerOpen}
+                            >
+                              <span>{phoneCountryCode}</span>
+                              <i className="ti ti-chevron-down" />
+                            </button>
+                            <input
+                              type="tel"
+                              className={`form-control user-wizard-input user-wizard-phone-input ${phoneError ? "is-invalid" : ""}`}
+                              value={form.phone || ""}
+                              onChange={(e) => handlePhoneInput(e.target.value)}
+                              onBlur={handlePhoneBlur}
+                              placeholder={`Enter ${phoneDisplayMaxLength || ""} digit number`}
+                              inputMode="numeric"
+                              pattern="\d*"
+                              maxLength={phoneDisplayMaxLength || undefined}
+                            />
                           </div>
-                        )}
+                          {phonePickerOpen && (
+                            <div className="user-wizard-phone-code-menu">
+                              {COUNTRY_CODE_OPTIONS.length > 0 ? (
+                                COUNTRY_CODE_OPTIONS.map((opt) => (
+                                  <button
+                                    key={`${opt.country}-${opt.callingCode}`}
+                                    type="button"
+                                    className={`user-wizard-phone-code-option${phoneCountryCode === opt.value ? " is-active" : ""}`}
+                                    onClick={() => handlePhoneCountryCodeChange(opt.value)}
+                                  >
+                                    <span>{opt.label}</span>
+                                  </button>
+                                ))
+                              ) : (
+                                <div className="user-wizard-phone-code-empty">No countries found</div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        <div className="user-wizard-field-helper-row">
+                          <small className="text-muted">
+                            {phoneLengthDisplay ? `${phoneLengthDisplay} digits` : "Numeric value"}
+                          </small>
+                          {phoneError && <small className="text-danger">{phoneError}</small>}
+                        </div>
                       </div>
                     </motion.div>
                   )}

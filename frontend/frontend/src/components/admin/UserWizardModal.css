@@ -123,6 +123,112 @@
   background-color: #ffffff !important;
 }
 
+.user-wizard-phone-field {
+  position: relative;
+}
+
+.user-wizard-phone-input-wrap {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  overflow: hidden;
+  border: 1px solid #d0d5dd;
+  border-radius: 2rem;
+  background: #ffffff;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+}
+
+.user-wizard-phone-input-wrap:focus-within {
+  border-color: #45597a;
+  box-shadow: 0 0 0 0.2rem rgba(69, 89, 122, 0.15);
+}
+
+.user-wizard-phone-code-trigger {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.6rem 0.9rem 0.6rem 1rem;
+  border: 0;
+  border-right: 1px solid #e4e8f0;
+  background: #f8fafc;
+  color: #1f2a37;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.user-wizard-phone-code-trigger:hover {
+  background: #eef3f9;
+  color: #10233f;
+}
+
+.user-wizard-phone-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+.user-wizard-phone-input:focus {
+  box-shadow: none !important;
+}
+
+.user-wizard-phone-code-menu {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  left: 0;
+  z-index: 12;
+  width: min(100%, 360px);
+  max-height: 280px;
+  overflow: auto;
+  padding: 0.4rem;
+  border: 1px solid #e3e8ef;
+  border-radius: 1rem;
+  background: #ffffff;
+  box-shadow: 0 16px 32px rgba(15, 23, 42, 0.12);
+}
+
+.user-wizard-phone-code-option {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.7rem 0.85rem;
+  border: 0;
+  border-radius: 0.8rem;
+  background: transparent;
+  color: #10233f;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.user-wizard-phone-code-option:hover,
+.user-wizard-phone-code-option.is-active {
+  background: #edf3fb;
+  color: #0f172a;
+}
+
+.user-wizard-phone-code-empty {
+  padding: 0.75rem 0.85rem;
+  color: #6b7280;
+  font-size: 0.92rem;
+}
+
+.user-wizard-field-helper-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 0.45rem;
+  font-size: 0.85rem;
+}
+
+.user-wizard-field-helper-row small:last-child {
+  text-align: right;
+}
+
 .user-wizard .wizard-nav {
   display: flex;
   justify-content: space-between;

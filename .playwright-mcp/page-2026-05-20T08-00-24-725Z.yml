@@ -1,0 +1,1345 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - complementary [ref=e3]:
+      - button [ref=e4] [cursor=pointer]:
+        - img [ref=e6]
+      - generic [ref=e8]:
+        - link "site logo" [ref=e9] [cursor=pointer]:
+          - /url: "#"
+          - img "site logo" [ref=e10]
+        - button "Collapse Sidebar" [ref=e11] [cursor=pointer]:
+          - img [ref=e13]
+      - button "User admin SUPER_ADMIN" [ref=e17] [cursor=pointer]:
+        - generic [ref=e18]:
+          - img "User" [ref=e19]
+          - generic [ref=e20]:
+            - generic [ref=e21]: admin
+            - generic [ref=e22]: SUPER_ADMIN
+        - img [ref=e25]
+      - list [ref=e28]:
+        - listitem [ref=e29]: Core System
+        - listitem [ref=e30]:
+          - link "Dashboard" [ref=e31] [cursor=pointer]:
+            - /url: "#"
+            - img [ref=e33]
+            - generic [ref=e35]: Dashboard
+            - img [ref=e37]
+          - list [ref=e39]:
+            - listitem [ref=e40]:
+              - link "School" [ref=e41] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e42]: School
+            - listitem [ref=e43]:
+              - link "Student" [ref=e44] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e45]: Student
+            - listitem [ref=e46]:
+              - link "Teacher" [ref=e47] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e48]: Teacher
+            - listitem [ref=e49]:
+              - link "Parent" [ref=e50] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e51]: Parent
+            - listitem [ref=e52]:
+              - link "LMS" [ref=e53] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e54]: LMS
+        - listitem [ref=e55]:
+          - link "Administrator" [ref=e56] [cursor=pointer]:
+            - /url: "#"
+            - img [ref=e58]
+            - generic [ref=e60]: Administrator
+            - img [ref=e62]
+          - list [ref=e64]:
+            - listitem [ref=e65]:
+              - link "Head Offices" [ref=e66] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e67]: Head Offices
+            - listitem [ref=e68]:
+              - link "General Settings" [ref=e69] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e70]: General Settings
+            - listitem [ref=e71]:
+              - link "Manage School" [ref=e72] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e73]: Manage School
+            - listitem [ref=e74]:
+              - link "Payment Setting" [ref=e75] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e76]: Payment Setting
+            - listitem [ref=e77]:
+              - link "SMS Setting" [ref=e78] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e79]: SMS Setting
+            - listitem [ref=e80]:
+              - link "Email Setting" [ref=e81] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e82]: Email Setting
+            - listitem [ref=e83]:
+              - link "Academic Year" [ref=e84] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e85]: Academic Year
+            - listitem [ref=e86]:
+              - link "Manage User Roles" [ref=e87] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e88]: Manage User Roles
+            - listitem [ref=e89]:
+              - link "Manage Super Admin" [ref=e90] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e91]: Manage Super Admin
+            - listitem [ref=e92]:
+              - link "Manage Feedback" [ref=e93] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e94]: Manage Feedback
+            - listitem [ref=e95]:
+              - link "Backup Database" [ref=e96] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e97]: Backup Database
+            - listitem [ref=e98]:
+              - link "Opening Hour" [ref=e99] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e100]: Opening Hour
+        - listitem [ref=e101]: Office Services
+        - listitem [ref=e102]:
+          - link "Visitor Management" [ref=e103] [cursor=pointer]:
+            - /url: "#"
+            - img [ref=e105]
+            - generic [ref=e107]: Visitor Management
+            - img [ref=e109]
+          - list [ref=e111]:
+            - listitem [ref=e112]:
+              - link "Visitor Purpose" [ref=e113] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e114]: Visitor Purpose
+            - listitem [ref=e115]:
+              - link "Visitor Info" [ref=e116] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e117]: Visitor Info
+            - listitem [ref=e118]:
+              - link "Call Log" [ref=e119] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e120]: Call Log
+            - listitem [ref=e121]:
+              - link "Postal Dispatch" [ref=e122] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e123]: Postal Dispatch
+            - listitem [ref=e124]:
+              - link "Postal Receive" [ref=e125] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e126]: Postal Receive
+        - listitem [ref=e127]:
+          - link "Complain" [ref=e128] [cursor=pointer]:
+            - /url: "#"
+            - img [ref=e130]
+            - generic [ref=e132]: Complain
+            - img [ref=e134]
+          - list [ref=e136]:
+            - listitem [ref=e137]:
+              - link "Complaints Type" [ref=e138] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e139]: Complaints Type
+            - listitem [ref=e140]:
+              - link "Manage Complain" [ref=e141] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e142]: Manage Complain
+        - listitem [ref=e143]:
+          - link "Announcement" [ref=e144] [cursor=pointer]:
+            - /url: "#"
+            - img [ref=e146]
+            - generic [ref=e148]: Announcement
+            - img [ref=e150]
+          - list [ref=e152]:
+            - listitem [ref=e153]:
+              - link "Notice" [ref=e154] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e155]: Notice
+            - listitem [ref=e156]:
+              - link "News" [ref=e157] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e158]: News
+            - listitem [ref=e159]:
+              - link "Holiday" [ref=e160] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e161]: Holiday
+        - listitem [ref=e162]:
+          - link "Event" [ref=e163] [cursor=pointer]:
+            - /url: "#"
+            - img [ref=e165]
+            - generic [ref=e167]: Event
+        - listitem [ref=e168]:
+          - link "Media Gallery" [ref=e169] [cursor=pointer]:
+            - /url: "#"
+            - img [ref=e171]
+            - generic [ref=e173]: Media Gallery
+            - img [ref=e175]
+          - list [ref=e177]:
+            - listitem [ref=e178]:
+              - link "Gallery" [ref=e179] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e180]: Gallery
+            - listitem [ref=e181]:
+              - link "Images" [ref=e182] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e183]: Images
+            - listitem [ref=e184]:
+              - link "Videos" [ref=e185] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e186]: Videos
+        - listitem [ref=e187]: Student Management
+        - listitem [ref=e188]:
+          - link "Manage Student" [ref=e189] [cursor=pointer]:
+            - /url: "#"
+            - img [ref=e191]
+            - generic [ref=e193]: Manage Student
+            - img [ref=e195]
+          - list [ref=e197]:
+            - listitem [ref=e198]:
+              - link "Student Type" [ref=e199] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e200]: Student Type
+            - listitem [ref=e201]:
+              - link "Student List" [ref=e202] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e203]: Student List
+            - listitem [ref=e204]:
+              - link "Online Admission" [ref=e205] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e206]: Online Admission
+            - listitem [ref=e207]:
+              - link "Student Activity" [ref=e208] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e209]: Student Activity
+        - listitem [ref=e210]:
+          - link "Attendance" [ref=e211] [cursor=pointer]:
+            - /url: "#"
+            - img [ref=e213]
+            - generic [ref=e215]: Attendance
+            - img [ref=e217]
+          - list [ref=e219]:
+            - listitem [ref=e220]:
+              - link "Student Attendance" [ref=e221] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e222]: Student Attendance
+            - listitem [ref=e223]:
+              - link "Teacher Attendance" [ref=e224] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e225]: Teacher Attendance
+            - listitem [ref=e226]:
+              - link "Employee Attendance" [ref=e227] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e228]: Employee Attendance
+            - listitem [ref=e229]:
+              - link "Absent Email" [ref=e230] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e231]: Absent Email
+            - listitem [ref=e232]:
+              - link "Absent SMS" [ref=e233] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e234]: Absent SMS
+        - listitem [ref=e235]:
+          - link "Promotion" [ref=e236] [cursor=pointer]:
+            - /url: "#"
+            - img [ref=e238]
+            - generic [ref=e240]: Promotion
+        - listitem [ref=e241]:
+          - link "Generate Card" [ref=e242] [cursor=pointer]:
+            - /url: "#"
+            - img [ref=e244]
+            - generic [ref=e246]: Generate Card
+            - img [ref=e248]
+          - list [ref=e250]:
+            - listitem [ref=e251]:
+              - link "ID Card Setting" [ref=e252] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e253]: ID Card Setting
+            - listitem [ref=e254]:
+              - link "Admit Card Setting" [ref=e255] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e256]: Admit Card Setting
+        - listitem [ref=e257]:
+          - link "Certificate" [ref=e258] [cursor=pointer]:
+            - /url: "#"
+            - img [ref=e260]
+            - generic [ref=e262]: Certificate
+            - img [ref=e264]
+          - list [ref=e266]:
+            - listitem [ref=e267]:
+              - link "Certificate Type" [ref=e268] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e269]: Certificate Type
+            - listitem [ref=e270]:
+              - link "Generate Certificate" [ref=e271] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e272]: Generate Certificate
+        - listitem [ref=e273]:
+          - link "Scholarship" [ref=e274] [cursor=pointer]:
+            - /url: "#"
+            - img [ref=e276]
+            - generic [ref=e278]: Scholarship
+            - img [ref=e280]
+          - list [ref=e282]:
+            - listitem [ref=e283]:
+              - link "Candidate" [ref=e284] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e285]: Candidate
+            - listitem [ref=e286]:
+              - link "Donar" [ref=e287] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e288]: Donar
+            - listitem [ref=e289]:
+              - link "Scholarship" [ref=e290] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e291]: Scholarship
+        - listitem [ref=e292]:
+          - link "Guardian" [ref=e293] [cursor=pointer]:
+            - /url: "#"
+            - img [ref=e295]
+            - generic [ref=e297]: Guardian
+        - listitem [ref=e298]: Academic Management
+        - listitem [ref=e299]:
+          - link "Academic" [ref=e300] [cursor=pointer]:
+            - /url: "#"
+            - img [ref=e302]
+            - generic [ref=e304]: Academic
+            - img [ref=e306]
+          - list [ref=e308]:
+            - listitem [ref=e309]:
+              - link "Class" [ref=e310] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e311]: Class
+            - listitem [ref=e312]:
+              - link "Section" [ref=e313] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e314]: Section
+            - listitem [ref=e315]:
+              - link "Subject" [ref=e316] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e317]: Subject
+            - listitem [ref=e318]:
+              - link "Syllabus" [ref=e319] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e320]: Syllabus
+            - listitem [ref=e321]:
+              - link "Study Material" [ref=e322] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e323]: Study Material
+            - listitem [ref=e324]:
+              - link "Live Class" [ref=e325] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e326]: Live Class
+            - listitem [ref=e327]:
+              - link "Assignment" [ref=e328] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e329]: Assignment
+            - listitem [ref=e330]:
+              - link "Submission" [ref=e331] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e332]: Submission
+        - listitem [ref=e333]:
+          - link "Lesson Plan" [ref=e334] [cursor=pointer]:
+            - /url: "#"
+            - img [ref=e336]
+            - generic [ref=e338]: Lesson Plan
+            - img [ref=e340]
+          - list [ref=e342]:
+            - listitem [ref=e343]:
+              - link "Lesson" [ref=e344] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e345]: Lesson
+            - listitem [ref=e346]:
+              - link "Topic" [ref=e347] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e348]: Topic
+            - listitem [ref=e349]:
+              - link "Lesson Timeline" [ref=e350] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e351]: Lesson Timeline
+            - listitem [ref=e352]:
+              - link "Lesson Status" [ref=e353] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e354]: Lesson Status
+            - listitem [ref=e355]:
+              - link "Lesson Plan" [ref=e356] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e357]: Lesson Plan
+        - listitem [ref=e358]:
+          - link "Class Routine" [ref=e359] [cursor=pointer]:
+            - /url: "#"
+            - img [ref=e361]
+            - generic [ref=e363]: Class Routine
+        - listitem [ref=e364]:
+          - link "Teacher" [ref=e365] [cursor=pointer]:
+            - /url: "#"
+            - img [ref=e367]
+            - generic [ref=e369]: Teacher
+            - img [ref=e371]
+          - list [ref=e373]:
+            - listitem [ref=e374]:
+              - link "Department" [ref=e375] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e376]: Department
+            - listitem [ref=e377]:
+              - link "Manage Teacher" [ref=e378] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e379]: Manage Teacher
+            - listitem [ref=e380]:
+              - link "Class Lecture" [ref=e381] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e382]: Class Lecture
+            - listitem [ref=e383]:
+              - link "Rating" [ref=e384] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e385]: Rating
+        - listitem [ref=e386]: Examination System
+        - listitem [ref=e387]:
+          - link "Online Exam" [ref=e388] [cursor=pointer]:
+            - /url: "#"
+            - img [ref=e390]
+            - generic [ref=e392]: Online Exam
+            - img [ref=e394]
+          - list [ref=e396]:
+            - listitem [ref=e397]:
+              - link "Exam Instruction" [ref=e398] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e399]: Exam Instruction
+            - listitem [ref=e400]:
+              - link "Question Bank" [ref=e401] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e402]: Question Bank
+            - listitem [ref=e403]:
+              - link "Online Exam" [ref=e404] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e405]: Online Exam
+            - listitem [ref=e406]:
+              - link "Exam Result" [ref=e407] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e408]: Exam Result
+        - listitem [ref=e409]:
+          - link "Manage Exam" [ref=e410] [cursor=pointer]:
+            - /url: "#"
+            - img [ref=e412]
+            - generic [ref=e414]: Manage Exam
+            - img [ref=e416]
+          - list [ref=e418]:
+            - listitem [ref=e419]:
+              - link "Exam Grade" [ref=e420] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e421]: Exam Grade
+            - listitem [ref=e422]:
+              - link "Exam Term" [ref=e423] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e424]: Exam Term
+            - listitem [ref=e425]:
+              - link "Schedule" [ref=e426] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e427]: Schedule
+            - listitem [ref=e428]:
+              - link "Suggestion" [ref=e429] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e430]: Suggestion
+            - listitem [ref=e431]:
+              - link "Attendance" [ref=e432] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e433]: Attendance
+        - listitem [ref=e434]:
+          - link "Exam Mark" [ref=e435] [cursor=pointer]:
+            - /url: "#"
+            - img [ref=e437]
+            - generic [ref=e439]: Exam Mark
+            - img [ref=e441]
+          - list [ref=e443]:
+            - listitem [ref=e444]:
+              - link "Manage Mark" [ref=e445] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e446]: Manage Mark
+            - listitem [ref=e447]:
+              - link "Exam Term Result" [ref=e448] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e449]: Exam Term Result
+            - listitem [ref=e450]:
+              - link "Exam Final Result" [ref=e451] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e452]: Exam Final Result
+            - listitem [ref=e453]:
+              - link "Merit List" [ref=e454] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e455]: Merit List
+            - listitem [ref=e456]:
+              - link "Mark Sheet" [ref=e457] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e458]: Mark Sheet
+            - listitem [ref=e459]:
+              - link "Result Card" [ref=e460] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e461]: Result Card
+            - listitem [ref=e462]:
+              - link "Mark Send by Email" [ref=e463] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e464]: Mark Send by Email
+            - listitem [ref=e465]:
+              - link "Mark Send by SMS" [ref=e466] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e467]: Mark Send by SMS
+            - listitem [ref=e468]:
+              - link "Result Send by Email" [ref=e469] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e470]: Result Send by Email
+            - listitem [ref=e471]:
+              - link "Result Send by SMS" [ref=e472] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e473]: Result Send by SMS
+        - listitem [ref=e474]: Human Resource (HR)
+        - listitem [ref=e475]:
+          - link "Human Resource" [ref=e476] [cursor=pointer]:
+            - /url: "#"
+            - img [ref=e478]
+            - generic [ref=e480]: Human Resource
+            - img [ref=e482]
+          - list [ref=e484]:
+            - listitem [ref=e485]:
+              - link "Manage Designation" [ref=e486] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e487]: Manage Designation
+            - listitem [ref=e488]:
+              - link "Manage Employees" [ref=e489] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e490]: Manage Employees
+        - listitem [ref=e491]: Manage Leave
+        - listitem [ref=e492]:
+          - link "Manage Leave" [ref=e493] [cursor=pointer]:
+            - /url: "#"
+            - img [ref=e495]
+            - generic [ref=e497]: Manage Leave
+            - img [ref=e499]
+          - list [ref=e501]:
+            - listitem [ref=e502]:
+              - link "Leave Type" [ref=e503] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e504]: Leave Type
+            - listitem [ref=e505]:
+              - link "Leave Application" [ref=e506] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e507]: Leave Application
+            - listitem [ref=e508]:
+              - link "Waiting Application" [ref=e509] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e510]: Waiting Application
+            - listitem [ref=e511]:
+              - link "Approved Application" [ref=e512] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e513]: Approved Application
+            - listitem [ref=e514]:
+              - link "Declined Application" [ref=e515] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e516]: Declined Application
+        - listitem [ref=e517]: Payroll
+        - listitem [ref=e518]:
+          - link "Payroll" [ref=e519] [cursor=pointer]:
+            - /url: "#"
+            - img [ref=e521]
+            - generic [ref=e523]: Payroll
+            - img [ref=e525]
+          - list [ref=e527]:
+            - listitem [ref=e528]:
+              - link "Salary Grade" [ref=e529] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e530]: Salary Grade
+            - listitem [ref=e531]:
+              - link "Salary Payment" [ref=e532] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e533]: Salary Payment
+            - listitem [ref=e534]:
+              - link "Salary History" [ref=e535] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e536]: Salary History
+        - listitem [ref=e537]: Finance & Accounts
+        - listitem [ref=e538]:
+          - link "Accounting" [ref=e539] [cursor=pointer]:
+            - /url: "#"
+            - img [ref=e541]
+            - generic [ref=e543]: Accounting
+            - img [ref=e545]
+          - list [ref=e547]:
+            - listitem [ref=e548]:
+              - link "Discount" [ref=e549] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e550]: Discount
+            - listitem [ref=e551]:
+              - link "Fee Type" [ref=e552] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e553]: Fee Type
+            - listitem [ref=e554]:
+              - link "Fee Collection" [ref=e555] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e556]: Fee Collection
+            - listitem [ref=e557]:
+              - link "Manage Invoice" [ref=e558] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e559]: Manage Invoice
+            - listitem [ref=e560]:
+              - link "Due Invoice" [ref=e561] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e562]: Due Invoice
+            - listitem [ref=e563]:
+              - link "Due Receipt" [ref=e564] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e565]: Due Receipt
+            - listitem [ref=e566]:
+              - link "Paid Receipt" [ref=e567] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e568]: Paid Receipt
+            - listitem [ref=e569]:
+              - link "Due Fee Email" [ref=e570] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e571]: Due Fee Email
+            - listitem [ref=e572]:
+              - link "Due Fee SMS" [ref=e573] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e574]: Due Fee SMS
+            - listitem [ref=e575]:
+              - link "Income Head" [ref=e576] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e577]: Income Head
+            - listitem [ref=e578]:
+              - link "Income" [ref=e579] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e580]: Income
+            - listitem [ref=e581]:
+              - link "Expenditure Head" [ref=e582] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e583]: Expenditure Head
+            - listitem [ref=e584]:
+              - link "Expenditure" [ref=e585] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e586]: Expenditure
+        - listitem [ref=e587]:
+          - link "Report" [ref=e588] [cursor=pointer]:
+            - /url: "#"
+            - img [ref=e590]
+            - generic [ref=e592]: Report
+            - img [ref=e594]
+          - list [ref=e596]:
+            - listitem [ref=e597]:
+              - link "Income Report" [ref=e598] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e599]: Income Report
+            - listitem [ref=e600]:
+              - link "Expenditure Report" [ref=e601] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e602]: Expenditure Report
+            - listitem [ref=e603]:
+              - link "Invoice Report" [ref=e604] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e605]: Invoice Report
+            - listitem [ref=e606]:
+              - link "Due Fee Report" [ref=e607] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e608]: Due Fee Report
+            - listitem [ref=e609]:
+              - link "Fee Collection Report" [ref=e610] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e611]: Fee Collection Report
+            - listitem [ref=e612]:
+              - link "Accounting Balance Report" [ref=e613] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e614]: Accounting Balance Report
+            - listitem [ref=e615]:
+              - link "Library Report" [ref=e616] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e617]: Library Report
+            - listitem [ref=e618]:
+              - link "Student Attendance Report" [ref=e619] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e620]: Student Attendance Report
+            - listitem [ref=e621]:
+              - link "Student Yearly Attendance Report" [ref=e622] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e623]: Student Yearly Attendance Report
+            - listitem [ref=e624]:
+              - link "Teacher Attendance Report" [ref=e625] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e626]: Teacher Attendance Report
+            - listitem [ref=e627]:
+              - link "Teacher Yearly Attendance Report" [ref=e628] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e629]: Teacher Yearly Attendance Report
+            - listitem [ref=e630]:
+              - link "Employee Attendance Report" [ref=e631] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e632]: Employee Attendance Report
+            - listitem [ref=e633]:
+              - link "Employee Yearly Attendance Report" [ref=e634] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e635]: Employee Yearly Attendance Report
+            - listitem [ref=e636]:
+              - link "Student Report" [ref=e637] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e638]: Student Report
+            - listitem [ref=e639]:
+              - link "Student Invoice Report" [ref=e640] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e641]: Student Invoice Report
+            - listitem [ref=e642]:
+              - link "Student Activity Report" [ref=e643] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e644]: Student Activity Report
+            - listitem [ref=e645]:
+              - link "Payroll Report" [ref=e646] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e647]: Payroll Report
+            - listitem [ref=e648]:
+              - link "Daily Transaction Report" [ref=e649] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e650]: Daily Transaction Report
+            - listitem [ref=e651]:
+              - link "Daily Statement Report" [ref=e652] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e653]: Daily Statement Report
+            - listitem [ref=e654]:
+              - link "Exam Result Report" [ref=e655] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e656]: Exam Result Report
+        - listitem [ref=e657]: Inventory & Assets
+        - listitem [ref=e658]:
+          - link "Inventory" [ref=e659] [cursor=pointer]:
+            - /url: "#"
+            - img [ref=e661]
+            - generic [ref=e663]: Inventory
+            - img [ref=e665]
+          - list [ref=e667]:
+            - listitem [ref=e668]:
+              - link "Supplier" [ref=e669] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e670]: Supplier
+            - listitem [ref=e671]:
+              - link "Warehouse" [ref=e672] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e673]: Warehouse
+            - listitem [ref=e674]:
+              - link "Category" [ref=e675] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e676]: Category
+            - listitem [ref=e677]:
+              - link "Product" [ref=e678] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e679]: Product
+            - listitem [ref=e680]:
+              - link "Purchase" [ref=e681] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e682]: Purchase
+            - listitem [ref=e683]:
+              - link "Sale" [ref=e684] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e685]: Sale
+            - listitem [ref=e686]:
+              - link "Issue" [ref=e687] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e688]: Issue
+        - listitem [ref=e689]:
+          - link "Library" [ref=e690] [cursor=pointer]:
+            - /url: "#"
+            - img [ref=e692]
+            - generic [ref=e694]: Library
+            - img [ref=e696]
+          - list [ref=e698]:
+            - listitem [ref=e699]:
+              - link "Book" [ref=e700] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e701]: Book
+            - listitem [ref=e702]:
+              - link "Library Members" [ref=e703] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e704]: Library Members
+            - listitem [ref=e705]:
+              - link "Non Library Members" [ref=e706] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e707]: Non Library Members
+            - listitem [ref=e708]:
+              - link "Issue/Return" [ref=e709] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e710]: Issue/Return
+            - listitem [ref=e711]:
+              - link "E-Book" [ref=e712] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e713]: E-Book
+        - listitem [ref=e714]: Transport & Facilities
+        - listitem [ref=e715]:
+          - link "Transport" [ref=e716] [cursor=pointer]:
+            - /url: "#"
+            - img [ref=e718]
+            - generic [ref=e720]: Transport
+            - img [ref=e722]
+          - list [ref=e724]:
+            - listitem [ref=e725]:
+              - link "Vehicle" [ref=e726] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e727]: Vehicle
+            - listitem [ref=e728]:
+              - link "Transport Route" [ref=e729] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e730]: Transport Route
+            - listitem [ref=e731]:
+              - link "Transport Member" [ref=e732] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e733]: Transport Member
+            - listitem [ref=e734]:
+              - link "Non Transport Member" [ref=e735] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e736]: Non Transport Member
+        - listitem [ref=e737]:
+          - link "Hostel" [ref=e738] [cursor=pointer]:
+            - /url: "#"
+            - img [ref=e740]
+            - generic [ref=e742]: Hostel
+            - img [ref=e744]
+          - list [ref=e746]:
+            - listitem [ref=e747]:
+              - link "Manage Hostel" [ref=e748] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e749]: Manage Hostel
+            - listitem [ref=e750]:
+              - link "Manage Room" [ref=e751] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e752]: Manage Room
+            - listitem [ref=e753]:
+              - link "Hostel Member" [ref=e754] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e755]: Hostel Member
+            - listitem [ref=e756]:
+              - link "Non Hostel Member" [ref=e757] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e758]: Non Hostel Member
+        - listitem [ref=e759]: Communication System
+        - listitem [ref=e760]:
+          - link "Mail & SMS" [ref=e761] [cursor=pointer]:
+            - /url: "#"
+            - img [ref=e763]
+            - generic [ref=e765]: Mail & SMS
+            - img [ref=e767]
+          - list [ref=e769]:
+            - listitem [ref=e770]:
+              - link "Email" [ref=e771] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e772]: Email
+            - listitem [ref=e773]:
+              - link "SMS" [ref=e774] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e775]: SMS
+        - listitem [ref=e776]: Website (CMS)
+        - listitem [ref=e777]:
+          - link "Manage Frontend" [ref=e778] [cursor=pointer]:
+            - /url: "#"
+            - img [ref=e780]
+            - generic [ref=e782]: Manage Frontend
+            - img [ref=e784]
+          - list [ref=e786]:
+            - listitem [ref=e787]:
+              - link "Frontend Page" [ref=e788] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e789]: Frontend Page
+            - listitem [ref=e790]:
+              - link "Slider" [ref=e791] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e792]: Slider
+            - listitem [ref=e793]:
+              - link "About School" [ref=e794] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e795]: About School
+        - listitem [ref=e796]: Miscellaneous
+        - listitem [ref=e797]:
+          - link "Miscellaneous" [ref=e798] [cursor=pointer]:
+            - /url: "#"
+            - img [ref=e800]
+            - generic [ref=e802]: Miscellaneous
+            - img [ref=e804]
+          - list [ref=e806]:
+            - listitem [ref=e807]:
+              - link "Manage Award" [ref=e808] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e809]: Manage Award
+            - listitem [ref=e810]:
+              - link "Todo" [ref=e811] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e812]: Todo
+            - listitem [ref=e813]:
+              - link "FAQ" [ref=e814] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e815]: FAQ
+        - listitem [ref=e816]:
+          - link "Subscription (SaaS)" [ref=e817] [cursor=pointer]:
+            - /url: "#"
+            - img [ref=e819]
+            - generic [ref=e821]: Subscription (SaaS)
+            - img [ref=e823]
+          - list [ref=e825]:
+            - listitem [ref=e826]:
+              - link "FAQ" [ref=e827] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e828]: FAQ
+            - listitem [ref=e829]:
+              - link "Slider" [ref=e830] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e831]: Slider
+            - listitem [ref=e832]:
+              - link "Subscription Settings" [ref=e833] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e834]: Subscription Settings
+            - listitem [ref=e835]:
+              - link "General Settings" [ref=e836] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e837]: General Settings
+            - listitem [ref=e838]:
+              - link "Subscription Plans" [ref=e839] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e840]: Subscription Plans
+            - listitem [ref=e841]:
+              - link "School Subscription" [ref=e842] [cursor=pointer]:
+                - /url: "#"
+                - generic [ref=e843]: School Subscription
+    - main [ref=e844]:
+      - generic [ref=e846]:
+        - button "Sidebar Mobile Toggler Button" [ref=e847] [cursor=pointer]:
+          - img [ref=e849]
+        - generic [ref=e851]:
+          - generic [ref=e852]:
+            - img [ref=e855]
+            - searchbox "Search" [ref=e857]
+          - generic [ref=e858]:
+            - button "Notifications" [ref=e860] [cursor=pointer]:
+              - generic [ref=e861]: 
+              - generic [ref=e862]: "3"
+            - button "Theme" [ref=e863] [cursor=pointer]:
+              - generic [ref=e864]: 
+            - button "Profile" [ref=e866] [cursor=pointer]:
+              - generic [ref=e867]: 
+      - generic [ref=e868]:
+        - generic [ref=e870]:
+          - heading "Dashboard" [level=6] [ref=e871]
+          - paragraph [ref=e872]: LMS -> Manage courses, students, assignments and performance metrics in one centralized LMS Dashboard.
+        - generic [ref=e874]:
+          - generic [ref=e877]:
+            - generic [ref=e879]:
+              - generic [ref=e880]:
+                - img "Icon" [ref=e882]
+                - generic [ref=e883]: Enrolled Courses
+              - generic [ref=e884]:
+                - img "Gradient BG" [ref=e885]
+                - generic [ref=e887]:
+                  - heading "500" [level=6] [ref=e888]
+                  - generic [ref=e889]:
+                    - generic [ref=e890]: 
+                    - text: 43,9%
+                  - generic [ref=e891]: From last month
+            - generic [ref=e893]:
+              - generic [ref=e894]:
+                - img "Icon" [ref=e896]
+                - generic [ref=e897]: Total Students
+              - generic [ref=e898]:
+                - img "Gradient BG" [ref=e899]
+                - generic [ref=e901]:
+                  - heading "3,570" [level=6] [ref=e902]
+                  - generic [ref=e903]:
+                    - generic [ref=e904]: 
+                    - text: 43,9%
+                  - generic [ref=e905]: From last month
+            - generic [ref=e907]:
+              - generic [ref=e908]:
+                - img "Icon" [ref=e910]
+                - generic [ref=e911]: Total Courses
+              - generic [ref=e912]:
+                - img "Gradient BG" [ref=e913]
+                - generic [ref=e915]:
+                  - heading "30" [level=6] [ref=e916]
+                  - generic [ref=e917]:
+                    - generic [ref=e918]: 
+                    - text: 43,9%
+                  - generic [ref=e919]: From last month
+            - generic [ref=e921]:
+              - generic [ref=e922]:
+                - img "Icon" [ref=e924]
+                - generic [ref=e925]: Total Earnings
+              - generic [ref=e926]:
+                - img "Gradient BG" [ref=e927]
+                - generic [ref=e929]:
+                  - heading "$50,000" [level=6] [ref=e930]
+                  - generic [ref=e931]:
+                    - generic [ref=e932]: 
+                    - text: 20,3%
+                  - generic [ref=e933]: From last month
+          - generic [ref=e936]:
+            - generic [ref=e937]:
+              - heading "Earning Statistic" [level=6] [ref=e938]
+              - combobox [ref=e939] [cursor=pointer]:
+                - option "Yearly" [selected]
+                - option "Monthly"
+                - option "Weekly"
+                - option "Today"
+            - generic [ref=e940]:
+              - heading "$27,200" [level=6] [ref=e941]
+              - generic [ref=e942]: 10%
+              - generic [ref=e943]: + $1500 Per Day
+          - generic [ref=e949]:
+            - generic [ref=e950]:
+              - button "" [ref=e951] [cursor=pointer]:
+                - generic [ref=e952]: 
+              - paragraph [ref=e953]: May 2026
+              - button "" [ref=e954] [cursor=pointer]:
+                - generic [ref=e955]: 
+            - generic [ref=e956]:
+              - generic [ref=e957]: Su
+              - generic [ref=e958]: Mo
+              - generic [ref=e959]: Tu
+              - generic [ref=e960]: We
+              - generic [ref=e961]: Th
+              - generic [ref=e962]: Fr
+              - generic [ref=e963]: Sa
+            - generic [ref=e964]:
+              - generic [ref=e970]: "1"
+              - generic [ref=e971]: "2"
+              - generic [ref=e972]: "3"
+              - generic [ref=e973]: "4"
+              - generic [ref=e974]: "5"
+              - generic [ref=e975]: "6"
+              - generic [ref=e976]: "7"
+              - generic [ref=e977]: "8"
+              - generic [ref=e978]: "9"
+              - generic [ref=e979]: "10"
+              - generic [ref=e980]: "11"
+              - generic [ref=e981]: "12"
+              - generic [ref=e982]: "13"
+              - generic [ref=e983]: "14"
+              - generic [ref=e984]: "15"
+              - generic [ref=e985]: "16"
+              - generic [ref=e986]: "17"
+              - generic [ref=e987]: "18"
+              - generic [ref=e988]: "19"
+              - generic [ref=e989]: "20"
+              - generic [ref=e990]: "21"
+              - generic [ref=e991]: "22"
+              - generic [ref=e992]: "23"
+              - generic [ref=e993]: "24"
+              - generic [ref=e994]: "25"
+              - generic [ref=e995]: "26"
+              - generic [ref=e996]: "27"
+              - generic [ref=e997]: "28"
+              - generic [ref=e998]: "29"
+              - generic [ref=e999]: "30"
+              - generic [ref=e1000]: "31"
+          - generic [ref=e1003]:
+            - heading "Upcoming Sessions" [level=6] [ref=e1005]
+            - generic [ref=e1006]:
+              - generic [ref=e1008]:
+                - generic [ref=e1009]:
+                  - img "Session" [ref=e1011]
+                  - generic [ref=e1012]:
+                    - heading "Cameron Williamson" [level=6] [ref=e1013]
+                    - generic [ref=e1014]: English
+                    - generic [ref=e1015]:
+                      - generic [ref=e1016]:
+                        - generic [ref=e1017]: 
+                        - text: 15 Jun 2025
+                      - generic [ref=e1018]:
+                        - generic [ref=e1019]: 
+                        - text: 12:30 PM
+                - generic [ref=e1020]:
+                  - link "Join Class" [ref=e1021] [cursor=pointer]:
+                    - /url: "#"
+                  - link "" [ref=e1022] [cursor=pointer]:
+                    - /url: "#"
+                    - generic [ref=e1023]: 
+                  - link " Join Class" [ref=e1024] [cursor=pointer]:
+                    - /url: "#"
+                    - generic [ref=e1025]: 
+                    - text: Join Class
+              - generic [ref=e1027]:
+                - generic [ref=e1028]:
+                  - img "Session" [ref=e1030]
+                  - generic [ref=e1031]:
+                    - heading "Kristin Watson" [level=6] [ref=e1032]
+                    - generic [ref=e1033]: English
+                    - generic [ref=e1034]:
+                      - generic [ref=e1035]:
+                        - generic [ref=e1036]: 
+                        - text: 15 Jun 2025
+                      - generic [ref=e1037]:
+                        - generic [ref=e1038]: 
+                        - text: 12:30 PM
+                - generic [ref=e1039]:
+                  - link "Join Class" [ref=e1040] [cursor=pointer]:
+                    - /url: "#"
+                  - link "" [ref=e1041] [cursor=pointer]:
+                    - /url: "#"
+                    - generic [ref=e1042]: 
+                  - link " Join Class" [ref=e1043] [cursor=pointer]:
+                    - /url: "#"
+                    - generic [ref=e1044]: 
+                    - text: Join Class
+              - generic [ref=e1046]:
+                - generic [ref=e1047]:
+                  - img "Session" [ref=e1049]
+                  - generic [ref=e1050]:
+                    - heading "Kristin Watson" [level=6] [ref=e1051]
+                    - generic [ref=e1052]: English
+                    - generic [ref=e1053]:
+                      - generic [ref=e1054]:
+                        - generic [ref=e1055]: 
+                        - text: 15 Jun 2025
+                      - generic [ref=e1056]:
+                        - generic [ref=e1057]: 
+                        - text: 12:30 PM
+                - generic [ref=e1058]:
+                  - link "Join Class" [ref=e1059] [cursor=pointer]:
+                    - /url: "#"
+                  - link "" [ref=e1060] [cursor=pointer]:
+                    - /url: "#"
+                    - generic [ref=e1061]: 
+                  - link " Join Class" [ref=e1062] [cursor=pointer]:
+                    - /url: "#"
+                    - generic [ref=e1063]: 
+                    - text: Join Class
+              - generic [ref=e1065]:
+                - generic [ref=e1066]:
+                  - img "Session" [ref=e1068]
+                  - generic [ref=e1069]:
+                    - heading "Cameron Williamson" [level=6] [ref=e1070]
+                    - generic [ref=e1071]: English
+                    - generic [ref=e1072]:
+                      - generic [ref=e1073]:
+                        - generic [ref=e1074]: 
+                        - text: 15 Jun 2025
+                      - generic [ref=e1075]:
+                        - generic [ref=e1076]: 
+                        - text: 12:30 PM
+                - generic [ref=e1077]:
+                  - link "Join Class" [ref=e1078] [cursor=pointer]:
+                    - /url: "#"
+                  - link "" [ref=e1079] [cursor=pointer]:
+                    - /url: "#"
+                    - generic [ref=e1080]: 
+                  - link " Join Class" [ref=e1081] [cursor=pointer]:
+                    - /url: "#"
+                    - generic [ref=e1082]: 
+                    - text: Join Class
+          - generic [ref=e1084]:
+            - generic [ref=e1085]:
+              - heading "User activity" [level=6] [ref=e1086]
+              - combobox [ref=e1087] [cursor=pointer]:
+                - option "Yearly" [selected]
+                - option "Monthly"
+                - option "Weekly"
+                - option "Today"
+            - generic [ref=e1090]:
+              - generic [ref=e1094]:
+                - paragraph [ref=e1095]: Organic Search
+                - heading "875" [level=6] [ref=e1096]
+              - generic [ref=e1100]:
+                - paragraph [ref=e1101]: Referrals
+                - heading "350" [level=6] [ref=e1102]
+              - generic [ref=e1106]:
+                - paragraph [ref=e1107]: Social Media
+                - heading "320" [level=6] [ref=e1108]
+              - generic [ref=e1112]:
+                - paragraph [ref=e1113]: Google Search
+                - heading "340" [level=6] [ref=e1114]
+          - generic [ref=e1116]:
+            - generic [ref=e1117]:
+              - heading "Top Student" [level=6] [ref=e1118]
+              - generic:
+                - button
+            - generic [ref=e1120]:
+              - generic [ref=e1121]:
+                - generic [ref=e1122]:
+                  - img "Brooklyn Simmons" [ref=e1124]
+                  - generic [ref=e1125]:
+                    - heading "Brooklyn Simmons" [level=6] [ref=e1126]
+                    - generic [ref=e1127]: "Class: Six"
+                - generic [ref=e1128]:
+                  - generic [ref=e1129]: Marks
+                  - img [ref=e1131]:
+                    - generic [ref=e1134]: "20"
+              - generic [ref=e1135]:
+                - generic [ref=e1136]:
+                  - img "Floyd Miles" [ref=e1138]
+                  - generic [ref=e1139]:
+                    - heading "Floyd Miles" [level=6] [ref=e1140]
+                    - generic [ref=e1141]: "Class: Seven"
+                - generic [ref=e1142]:
+                  - generic [ref=e1143]: Marks
+                  - img [ref=e1145]:
+                    - generic [ref=e1148]: "35"
+              - generic [ref=e1149]:
+                - generic [ref=e1150]:
+                  - img "Courtney Henry" [ref=e1152]
+                  - generic [ref=e1153]:
+                    - heading "Courtney Henry" [level=6] [ref=e1154]
+                    - generic [ref=e1155]: "Class: Eight"
+                - generic [ref=e1156]:
+                  - generic [ref=e1157]: Marks
+                  - img [ref=e1159]:
+                    - generic [ref=e1162]: "45"
+              - generic [ref=e1163]:
+                - generic [ref=e1164]:
+                  - img "Kathryn Murphy" [ref=e1166]
+                  - generic [ref=e1167]:
+                    - heading "Kathryn Murphy" [level=6] [ref=e1168]
+                    - generic [ref=e1169]: "Class: Nine"
+                - generic [ref=e1170]:
+                  - generic [ref=e1171]: Marks
+                  - img [ref=e1173]:
+                    - generic [ref=e1176]: "65"
+              - generic [ref=e1177]:
+                - generic [ref=e1178]:
+                  - img "Annette Black" [ref=e1180]
+                  - generic [ref=e1181]:
+                    - heading "Annette Black" [level=6] [ref=e1182]
+                    - generic [ref=e1183]: "Class: Ten"
+                - generic [ref=e1184]:
+                  - generic [ref=e1185]: Marks
+                  - img [ref=e1187]:
+                    - generic [ref=e1190]: "65"
+          - generic [ref=e1192]:
+            - generic [ref=e1193]:
+              - heading "Top Instructor" [level=6] [ref=e1194]
+              - generic:
+                - button
+            - generic [ref=e1195]:
+              - generic [ref=e1196]:
+                - generic [ref=e1197]:
+                  - img "Dianne Russell" [ref=e1198]
+                  - generic [ref=e1199]:
+                    - heading "Dianne Russell" [level=6] [ref=e1200]
+                    - generic [ref=e1201]: "Agent ID: 36254"
+                - generic [ref=e1202]:
+                  - generic [ref=e1203]:
+                    - generic [ref=e1205]: 
+                    - generic [ref=e1207]: 
+                    - generic [ref=e1209]: 
+                    - generic [ref=e1211]: 
+                    - generic [ref=e1213]: 
+                  - generic [ref=e1214]: "5.0"
+              - generic [ref=e1215]:
+                - generic [ref=e1216]:
+                  - img "Wade Warren" [ref=e1217]
+                  - generic [ref=e1218]:
+                    - heading "Wade Warren" [level=6] [ref=e1219]
+                    - generic [ref=e1220]: "Agent ID: 36255"
+                - generic [ref=e1221]:
+                  - generic [ref=e1222]:
+                    - generic [ref=e1224]: 
+                    - generic [ref=e1226]: 
+                    - generic [ref=e1228]: 
+                    - generic [ref=e1230]: 
+                    - generic [ref=e1232]: 
+                  - generic [ref=e1233]: "5.0"
+              - generic [ref=e1234]:
+                - generic [ref=e1235]:
+                  - img "Albert Flores" [ref=e1236]
+                  - generic [ref=e1237]:
+                    - heading "Albert Flores" [level=6] [ref=e1238]
+                    - generic [ref=e1239]: "Agent ID: 36256"
+                - generic [ref=e1240]:
+                  - generic [ref=e1241]:
+                    - generic [ref=e1243]: 
+                    - generic [ref=e1245]: 
+                    - generic [ref=e1247]: 
+                    - generic [ref=e1249]: 
+                    - generic [ref=e1251]: 
+                  - generic [ref=e1252]: "5.0"
+              - generic [ref=e1253]:
+                - generic [ref=e1254]:
+                  - img "Bessie Cooper" [ref=e1255]
+                  - generic [ref=e1256]:
+                    - heading "Bessie Cooper" [level=6] [ref=e1257]
+                    - generic [ref=e1258]: "Agent ID: 36257"
+                - generic [ref=e1259]:
+                  - generic [ref=e1260]:
+                    - generic [ref=e1262]: 
+                    - generic [ref=e1264]: 
+                    - generic [ref=e1266]: 
+                    - generic [ref=e1268]: 
+                    - generic [ref=e1270]: 
+                  - generic [ref=e1271]: "5.0"
+              - generic [ref=e1272]:
+                - generic [ref=e1273]:
+                  - img "Arlene McCoy" [ref=e1274]
+                  - generic [ref=e1275]:
+                    - heading "Arlene McCoy" [level=6] [ref=e1276]
+                    - generic [ref=e1277]: "Agent ID: 36258"
+                - generic [ref=e1278]:
+                  - generic [ref=e1279]:
+                    - generic [ref=e1281]: 
+                    - generic [ref=e1283]: 
+                    - generic [ref=e1285]: 
+                    - generic [ref=e1287]: 
+                    - generic [ref=e1289]: 
+                  - generic [ref=e1290]: "5.0"
+          - generic [ref=e1292]:
+            - generic [ref=e1293]:
+              - heading "Recent Enrolled Courses" [level=6] [ref=e1294]
+              - generic:
+                - button
+            - table [ref=e1297]:
+              - rowgroup [ref=e1298]:
+                - row "Invoice Student Courses Name Amount Payment By Date" [ref=e1299]:
+                  - columnheader "Invoice" [ref=e1300]
+                  - columnheader "Student" [ref=e1301]
+                  - columnheader "Courses Name" [ref=e1302]
+                  - columnheader "Amount" [ref=e1303]
+                  - columnheader "Payment By" [ref=e1304]
+                  - columnheader "Date" [ref=e1305]
+              - rowgroup [ref=e1306]:
+                - row "#829776 John Doe Scorm drawing course $29.00 PayPal 04 Feb, 2025" [ref=e1307]:
+                  - cell "#829776" [ref=e1308]
+                  - cell "John Doe" [ref=e1309]
+                  - cell "Scorm drawing course" [ref=e1310]
+                  - cell "$29.00" [ref=e1311]
+                  - cell "PayPal" [ref=e1312]
+                  - cell "04 Feb, 2025" [ref=e1313]
+                - row "#829777 Emily Carter Advanced UI/UX Design $49.00 Stripe 06 Feb, 2025" [ref=e1314]:
+                  - cell "#829777" [ref=e1315]
+                  - cell "Emily Carter" [ref=e1316]
+                  - cell "Advanced UI/UX Design" [ref=e1317]
+                  - cell "$49.00" [ref=e1318]
+                  - cell "Stripe" [ref=e1319]
+                  - cell "06 Feb, 2025" [ref=e1320]
+                - row "#829778 Michael Smith Full-Stack Development $79.00 MasterCard 08 Feb, 2025" [ref=e1321]:
+                  - cell "#829778" [ref=e1322]
+                  - cell "Michael Smith" [ref=e1323]
+                  - cell "Full-Stack Development" [ref=e1324]
+                  - cell "$79.00" [ref=e1325]
+                  - cell "MasterCard" [ref=e1326]
+                  - cell "08 Feb, 2025" [ref=e1327]
+                - row "#829779 Sarah Johnson Digital Marketing Pro $39.00 Visa 10 Feb, 2025" [ref=e1328]:
+                  - cell "#829779" [ref=e1329]
+                  - cell "Sarah Johnson" [ref=e1330]
+                  - cell "Digital Marketing Pro" [ref=e1331]
+                  - cell "$39.00" [ref=e1332]
+                  - cell "Visa" [ref=e1333]
+                  - cell "10 Feb, 2025" [ref=e1334]
+                - row "#829780 David Wilson Laravel API Development $59.00 PayPal 12 Feb, 2025" [ref=e1335]:
+                  - cell "#829780" [ref=e1336]
+                  - cell "David Wilson" [ref=e1337]
+                  - cell "Laravel API Development" [ref=e1338]
+                  - cell "$59.00" [ref=e1339]
+                  - cell "PayPal" [ref=e1340]
+                  - cell "12 Feb, 2025" [ref=e1341]
+          - generic [ref=e1344]:
+            - generic [ref=e1345]:
+              - heading "Course Activity" [level=6] [ref=e1346]
+              - combobox [ref=e1347] [cursor=pointer]:
+                - option "Yearly" [selected]
+                - option "Monthly"
+                - option "Weekly"
+                - option "Today"
+            - list [ref=e1348]:
+              - listitem [ref=e1349]:
+                - generic [ref=e1351]:
+                  - text: "Paid Course:"
+                  - generic [ref=e1352]: "500"
+              - listitem [ref=e1353]:
+                - generic [ref=e1355]:
+                  - text: "Free Course:"
+                  - generic [ref=e1356]: "200"
+    - text:    
+  - img

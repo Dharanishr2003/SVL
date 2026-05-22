@@ -1,6 +1,6 @@
-﻿export default function PageHeader({ title, breadcrumbs = [], actions = null }) {
+export default function PageHeader({ title, breadcrumbs = [], actions = null }) {
   return (
-    <div className="d-md-flex d-block align-items-center justify-content-between page-breadcrumb mb-3">
+    <div className="d-flex flex-column flex-md-row align-items-md-center justify-content-between page-breadcrumb mb-3 gap-3">
       <div className="my-auto mb-2">
         <h2 className="mb-1">{title}</h2>
         <nav>
@@ -27,7 +27,9 @@
           </ol>
         </nav>
       </div>
-      <div className="d-flex my-xl-auto right-content align-items-center flex-wrap ">{actions}</div>
+      <div className="d-flex my-xl-auto right-content align-items-center flex-wrap justify-content-end ms-md-auto">
+        {actions}
+      </div>
     </div>
   );
 }

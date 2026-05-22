@@ -1,0 +1,1 @@
+import{j as s}from"./index-HvPi_H2o.js";function r(){return s.jsx("div",{className:"card",children:s.jsxs("div",{className:"card-body",children:[s.jsx("h4",{className:"mb-2",children:"Form Basic Inputs"}),s.jsx("p",{className:"mb-0",children:"Layout working confirmation."})]})})}export{r as default};

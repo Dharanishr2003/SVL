@@ -1,10 +1,15 @@
 package com.nexorcrm.backend.service;
 
 import com.nexorcrm.backend.dto.ServiceCategoryRequest;
+import com.nexorcrm.backend.dto.ServiceCategoryPageResponse;
 import com.nexorcrm.backend.dto.ServiceCategoryResponse;
 import com.nexorcrm.backend.entity.ServiceCategory;
 import com.nexorcrm.backend.repo.ServiceCategoryRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -22,6 +27,20 @@ public class ServiceCategoryService {
                 .stream()
                 .map(ServiceCategoryResponse::new)
                 .collect(Collectors.toList());
+    }
+
+    public ServiceCategoryPageResponse listPaged(Integer page, Integer size) {
+        int safePage = page == null ? 0 : Math.max(0, page);
+        int safeSize = size == null ? 10 : Math.max(1, size);
+        Pageable pageable = PageRequest.of(safePage, safeSize);
+        Page<ServiceCategory> categoryPage = repository.findByDeletedFalse(pageable);
+        return new ServiceCategoryPageResponse(
+                categoryPage.getContent().stream().map(ServiceCategoryResponse::new).collect(Collectors.toList()),
+                categoryPage.getNumber() + 1,
+                categoryPage.getSize(),
+                categoryPage.getTotalElements(),
+                categoryPage.getTotalPages()
+        );
     }
 
     public ServiceCategoryResponse create(ServiceCategoryRequest request) {

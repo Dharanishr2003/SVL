@@ -341,6 +341,14 @@ export const adminPhpRoutes = [
     component: "EmployeesPage",
   },
   {
+    path: "employees/add",
+    component: "EmployeeFormPage",
+  },
+  {
+    path: "employees/:id/edit",
+    component: "EmployeeFormPage",
+  },
+  {
     path: "employees/:employeeId/verify",
     component: "EmployeeVerificationPage",
   },

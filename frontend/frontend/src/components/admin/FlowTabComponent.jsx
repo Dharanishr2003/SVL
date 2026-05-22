@@ -81,6 +81,9 @@ export default function FlowTabComponent({
         const flow = await getFn();
         if (!active) return;
         const loadedRules = Array.isArray(flow?.rules) ? flow.rules : [];
+        const knownGroupIds = new Set(
+          groupOptions.map((group) => String(group?.id)).filter(Boolean),
+        );
         const nextStatuses = loadedRules.flatMap((rule) =>
           rule?.next && typeof rule.next === "object"
             ? Object.keys(rule.next).map((k) => String(k || "").trim()).filter(Boolean)
@@ -93,19 +96,26 @@ export default function FlowTabComponent({
             ...nextStatuses,
           ]),
         );
-        const fallbackGroupId = flow?.defaultGroupId
+        const loadedDefaultGroupId = flow?.defaultGroupId != null && String(flow.defaultGroupId).trim() !== ""
           ? String(flow.defaultGroupId)
-          : groups.length ? String(groups[0].id) : "";
+          : "";
+        const fallbackGroupId = loadedDefaultGroupId
+          ? (knownGroupIds.has(loadedDefaultGroupId) ? loadedDefaultGroupId : "")
+          : groupOptions.length ? String(groupOptions[0].id) : "";
         setDefaultGroupId(fallbackGroupId);
         const merged = knownStatuses.map((status) => {
           const found = loadedRules.find(
             (r) => String(r?.status || "").trim().toLowerCase() === status.toLowerCase(),
           );
+          const loadedGroupId =
+            found?.handledByGroupId != null && String(found.handledByGroupId).trim() !== ""
+              ? String(found.handledByGroupId)
+              : "";
           return {
             ...emptyRule(status),
             ...found,
             status,
-            handledByGroupId: found?.handledByGroupId != null ? String(found.handledByGroupId) : "",
+            handledByGroupId: loadedGroupId && knownGroupIds.has(loadedGroupId) ? loadedGroupId : "",
             next: found?.next && typeof found.next === "object" ? found.next : {},
           };
         });

@@ -705,6 +705,13 @@ export default function LeadsPage() {
           }
         }
       } catch (e) {
+        const status = Number(e?.response?.status ?? e?.status ?? e?.code ?? 0);
+        if (status === 404) {
+          if (isMounted) {
+            setCreateGroupMembers([]);
+          }
+          return;
+        }
         if (isMounted) {
           setCreateGroupMembers([]);
           setError(extractApiErrorMessage(e, "Failed to load group members"));

@@ -1,0 +1,35 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e5]:
+    - generic [ref=e8]:
+      - generic [ref=e9]: School Management
+      - generic [ref=e10]: Smart Education, Bright Future
+    - heading "Welcome Back!" [level=1] [ref=e11]
+    - paragraph [ref=e12]: Login to continue to your account
+    - generic [ref=e13]:
+      - generic [ref=e14]:
+        - img [ref=e15]
+        - textbox "Username / Email" [ref=e18]
+      - generic [ref=e19]:
+        - img [ref=e20]
+        - textbox "Password" [ref=e23]
+        - button "Show password" [ref=e24] [cursor=pointer]:
+          - img [ref=e25]
+      - generic [ref=e28]:
+        - generic [ref=e29]:
+          - checkbox "Remember me" [checked]
+          - text: Remember me
+        - button "Forgot Password?" [ref=e30] [cursor=pointer]
+      - button "Login" [disabled] [ref=e31]:
+        - generic [ref=e32]: Login
+      - generic [ref=e34]: or continue with
+      - generic "Social login (UI only)" [ref=e35]:
+        - button [ref=e36] [cursor=pointer]:
+          - img [ref=e37]
+        - button [ref=e43] [cursor=pointer]:
+          - img [ref=e44]
+        - button [ref=e49] [cursor=pointer]:
+          - img [ref=e50]
+      - generic [ref=e52]:
+        - generic [ref=e53]: Don't have an account?
+        - button "Create Account" [ref=e54] [cursor=pointer]
+  - img

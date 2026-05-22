@@ -226,6 +226,25 @@ public class EmployeeService {
         return toResponse(employeeRepository.save(e));
     }
 
+    public EmployeeResponse getById(Long id) {
+        Employee e = employeeRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Employee not found"));
+        if (Boolean.TRUE.equals(e.getDeleted())) {
+            throw new EntityNotFoundException("Employee not found");
+        }
+        LocalDateTime offerLetterLinkExpiresAt = employeeProfileTokenRepository
+                .findActiveUnusedLatestTokensForEmployees(
+                        List.of(e.getId()),
+                        EmployeeTokenScope.MISSING_FIELDS,
+                        LocalDateTime.now()
+                )
+                .stream()
+                .findFirst()
+                .map(token -> token.getExpiresAt())
+                .orElse(null);
+        return toResponse(e, offerLetterLinkExpiresAt);
+    }
+
     public EmployeeResponse onboard(EmployeeOnboardRequest request) {
         Employee e = new Employee();
         applyOnboard(e, request);

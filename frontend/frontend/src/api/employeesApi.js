@@ -61,6 +61,11 @@ export async function updateEmployee(id, payload) {
   return response?.data || null;
 }
 
+export async function getEmployeeById(id) {
+  const response = await api.get(`/api/employees/${id}`);
+  return response?.data || null;
+}
+
 export async function deleteEmployee(id) {
   const response = await api.delete(`/api/employees/${id}`);
   return response?.data || null;

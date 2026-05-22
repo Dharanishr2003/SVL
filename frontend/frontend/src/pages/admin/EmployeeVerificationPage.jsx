@@ -69,6 +69,9 @@ export default function EmployeeVerificationPage() {
     return anyFieldNonApproved || anyDocNonApproved;
   }, [data]);
 
+  const isVerifiedProfile = String(data?.profileStatus || "").toUpperCase() === "VERIFIED";
+  const canVerifyProfile = !isVerifiedProfile && hasNonApproved;
+
   async function handleSave() {
     const payload = {
       fieldDecisions: Object.entries(fieldDecisions)
@@ -194,9 +197,15 @@ export default function EmployeeVerificationPage() {
             <button className="btn btn-light" onClick={load} disabled={loading || saving}>
               Refresh
             </button>
-            <button className="btn btn-primary" onClick={handleSave} disabled={loading || saving}>
-              {saving ? "Saving..." : "Save Decisions"}
-            </button>
+            {canVerifyProfile ? (
+              <button className="btn btn-primary" onClick={handleSave} disabled={loading || saving}>
+                {saving ? "Saving..." : "Save Decisions"}
+              </button>
+            ) : (
+              <span className="badge bg-success align-self-center px-3 py-2">
+                {isVerifiedProfile ? "Verified" : "No Pending Changes"}
+              </span>
+            )}
           </div>
         </div>
 

@@ -5,7 +5,7 @@ import { getLeads } from "../../api/leadsApi";
 import { getRequirementsByLeadId } from "../../api/requirementApi";
 import { approveQuotation, saveQuotation } from "../../api/quotationApi";
 import { getQuotationTemplate } from "../../api/quotationTemplateApi";
-import { getPriceList } from "../../api/priceListApi";
+import { getPriceList, normalizePriceListEntries } from "../../api/priceListApi";
 import { getActiveGstMasters, createGstMaster } from "../../api/gstMasterApi";
 import "./QuotationPage.css";
 import AddItemModal from "./AddItemModal";
@@ -472,7 +472,7 @@ export default function QuotationPage() {
   useEffect(() => {
     setPriceListLoading(true);
     getPriceList()
-      .then((data) => setPriceList(Array.isArray(data) ? data : []))
+      .then((data) => setPriceList(normalizePriceListEntries(data)))
       .catch(() => setPriceList([]))
       .finally(() => setPriceListLoading(false));
   }, []);

@@ -518,6 +518,11 @@ function UseradminPage() {
     return Array.isArray(employees) ? employees : [];
   }, [employees]);
 
+  const selectedEmployee = useMemo(
+    () => availableEmployees.find((emp) => String(emp.id) === String(selectedEmployeeId)) || null,
+    [availableEmployees, selectedEmployeeId],
+  );
+
   useEffect(() => {
     if (!form.institution || institutionId) return;
     const match = institutions.find(
@@ -630,25 +635,41 @@ function UseradminPage() {
     setEmployees([]);
   };
 
-  const handleSelectEmployee = (employeeId) => {
-    setSelectedEmployeeId(employeeId);
-    const employee = employees.find((emp) => String(emp.id) === String(employeeId));
-    if (!employee) {
-      return;
-    }
-    const nameParts = String(employee.name || "").trim().split(/\s+/).filter(Boolean);
-    const email = String(employee.email || "").trim();
-    const emailPrefix = email.includes("@") ? email.split("@")[0] : email;
+  const applySelectedEmployee = (employee) => {
+    if (!employee) return;
 
+    const name = String(
+      employee.name || employee.fullName || employee.employeeName || "",
+    ).trim();
+    const nameParts = name.split(/\s+/).filter(Boolean);
+    const email = String(employee.email || employee.officialEmail || employee.personalEmail || "").trim();
+    const emailPrefix = email.includes("@") ? email.split("@")[0] : email;
+    const countryCode = String(employee.countryCode || "").trim();
+    const phoneRaw = String(
+      employee.phone || employee.personalContactNumber || employee.alternateContactNumber || "",
+    ).trim();
+
+    setPhoneCountryCode((prev) => countryCode || prev || "+91");
     setForm((prev) => ({
       ...prev,
       username: emailPrefix || prev.username,
-      email,
-      phone: String(employee.phone || "").trim(),
-      firstName: nameParts[0] || "",
-      lastName: nameParts.slice(1).join(" ") || "",
+      email: email || prev.email,
+      phone: phoneRaw.replace(/\D/g, ""),
+      firstName: nameParts[0] || prev.firstName || "",
+      lastName: nameParts.slice(1).join(" ") || prev.lastName || "",
     }));
   };
+
+  const handleSelectEmployee = (employeeId) => {
+    setSelectedEmployeeId(employeeId);
+    const employee = employees.find((emp) => String(emp.id) === String(employeeId));
+    applySelectedEmployee(employee);
+  };
+
+  useEffect(() => {
+    if (!selectedEmployeeId || !selectedEmployee) return;
+    applySelectedEmployee(selectedEmployee);
+  }, [selectedEmployeeId, selectedEmployee]);
 
   useEffect(() => {
     if (!showModal) return;
@@ -1770,6 +1791,7 @@ function UseradminPage() {
             phoneCountryCode={phoneCountryCode}
             setPhoneCountryCode={setPhoneCountryCode}
             phoneError={phoneError}
+            setPhoneError={setPhoneError}
             handlePhoneInput={handlePhoneInput}
             handlePhoneBlur={handlePhoneBlur}
             getPhoneMaxLength={getPhoneMaxLength}

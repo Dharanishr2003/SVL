@@ -2,13 +2,18 @@ package com.nexorcrm.backend.service;
 
 import com.nexorcrm.backend.dto.PriceListEntryRequest;
 import com.nexorcrm.backend.dto.PriceListEntryResponse;
+import com.nexorcrm.backend.dto.PriceListPageResponse;
+import com.nexorcrm.backend.dto.PriceListCountResponse;
+import com.nexorcrm.backend.dto.PriceListSummaryResponse;
 import com.nexorcrm.backend.entity.PriceListEntry;
 import com.nexorcrm.backend.repo.PriceListEntryRepository;
 import jakarta.persistence.EntityNotFoundException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.util.List;
 
 @Service
 public class PriceListService {
@@ -20,8 +25,60 @@ public class PriceListService {
     }
 
     @Transactional(readOnly = true)
-    public List<PriceListEntryResponse> list() {
-        return repo.findAllByOrderByIdDesc().stream().map(this::toResponse).toList();
+    public PriceListPageResponse listPaged(
+            Integer page,
+            Integer size,
+            String search,
+            Long categoryId,
+            Long typeId,
+            Long subtypeId
+    ) {
+        int safePage = page == null ? 0 : Math.max(0, page);
+        int safeSize = size == null ? 10 : Math.max(1, size);
+        String normalizedSearch = search == null ? null : search.trim();
+        if (normalizedSearch != null && normalizedSearch.isEmpty()) {
+            normalizedSearch = null;
+        }
+
+        Pageable pageable = PageRequest.of(safePage, safeSize, Sort.by(Sort.Direction.DESC, "id"));
+        Page<PriceListEntry> pageResult = repo.findAllFiltered(
+                categoryId,
+                typeId,
+                subtypeId,
+                normalizedSearch,
+                pageable
+        );
+
+        return new PriceListPageResponse(
+                pageResult.getContent().stream().map(this::toResponse).toList(),
+                pageResult.getNumber() + 1,
+                pageResult.getSize(),
+                pageResult.getTotalElements(),
+                pageResult.getTotalPages()
+        );
+    }
+
+    @Transactional(readOnly = true)
+    public PriceListSummaryResponse summary(Long categoryId, Long typeId) {
+        var typeCounts = repo.countTypesByCategory(categoryId).stream()
+                .map(row -> new PriceListCountResponse(
+                        row.getId(),
+                        row.getName(),
+                        row.getTotalCount() == null ? 0L : row.getTotalCount()
+                ))
+                .toList();
+
+        var subtypeCounts = typeId == null
+                ? java.util.List.<PriceListCountResponse>of()
+                : repo.countSubtypesByType(typeId).stream()
+                .map(row -> new PriceListCountResponse(
+                        row.getId(),
+                        row.getName(),
+                        row.getTotalCount() == null ? 0L : row.getTotalCount()
+                ))
+                .toList();
+
+        return new PriceListSummaryResponse(typeCounts, subtypeCounts);
     }
 
     @Transactional(readOnly = true)

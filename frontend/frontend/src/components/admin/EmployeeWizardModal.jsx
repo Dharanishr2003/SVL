@@ -254,7 +254,7 @@ export default function EmployeeWizardModal({
                 {wizardStep === 1 && (
                   <div className="row g-3">
                     <div className="col-md-6">
-                      <label className="form-label">Name In Caps (As per Aadhar) *</label>
+                      <label className="form-label">Name *</label>
                       <input
                         type="text"
                         className="form-control user-wizard-input"
@@ -281,7 +281,7 @@ export default function EmployeeWizardModal({
                       />
                     </div>
                     <div className="col-md-6">
-                      <label className="form-label">Personal Contact Number *</label>
+                      <label className="form-label">Contact Number *</label>
                       <div className="employee-phone-input user-wizard-phone-group">
                         <select
                           className="employee-phone-code"
@@ -342,7 +342,7 @@ export default function EmployeeWizardModal({
                       </div>
                     </div>
                     <div className="col-md-6">
-                      <label className="form-label">Location *</label>
+                      <label className="form-label">Location</label>
                       <input
                         type="text"
                         className="form-control user-wizard-input"
@@ -397,7 +397,7 @@ export default function EmployeeWizardModal({
                       />
                     </div>
                     <div className="col-md-6">
-                      <label className="form-label">Personal Email *</label>
+                      <label className="form-label">Email *</label>
                       <input
                         type="email"
                         className="form-control user-wizard-input"
@@ -415,7 +415,7 @@ export default function EmployeeWizardModal({
                       />
                     </div>
                     <div className="col-md-6">
-                      <label className="form-label">Date of Birth *</label>
+                      <label className="form-label">DOB *</label>
                       <input
                         type="date"
                         className="form-control user-wizard-input"
@@ -442,7 +442,7 @@ export default function EmployeeWizardModal({
   </select>
 </div>
                     <div className="col-md-6">
-                      <label className="form-label">Marital Status *</label>
+                      <label className="form-label">Marital Status</label>
                       <select
                         className="form-select user-wizard-input"
                         value={form.maritalStatus}

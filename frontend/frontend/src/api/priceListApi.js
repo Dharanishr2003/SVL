@@ -21,12 +21,42 @@ function normalizePriceEntry(entry) {
   };
 }
 
-export function getPriceList() {
-  return api.get('/api/price-list').then((r) => {
-    const data = r.data;
-    if (!Array.isArray(data)) return [];
-    return data.map(normalizePriceEntry);
-  });
+export function normalizePriceListPage(data) {
+  if (Array.isArray(data)) {
+    return {
+      content: data.map(normalizePriceEntry),
+      page: 1,
+      size: data.length,
+      totalElements: data.length,
+      totalPages: 1,
+    };
+  }
+
+  const content = Array.isArray(data?.content) ? data.content.map(normalizePriceEntry) : [];
+
+  return {
+    content,
+    page: Number(data?.page ?? data?.number ?? 1) || 1,
+    size: Number(data?.size ?? data?.pageSize ?? 10) || 10,
+    totalElements: Number(data?.totalElements ?? data?.total ?? content.length) || 0,
+    totalPages: Number(data?.totalPages ?? data?.pages ?? 1) || 1,
+  };
+}
+
+export function normalizePriceListEntries(data) {
+  return normalizePriceListPage(data).content;
+}
+
+export function getPriceList(params = {}) {
+  return api.get('/api/price-list', {
+    params: params && Object.keys(params).length > 0 ? params : undefined,
+  }).then((r) => normalizePriceListPage(r.data));
+}
+
+export function getPriceListSummary(params = {}) {
+  return api.get('/api/price-list/summary', {
+    params: params && Object.keys(params).length > 0 ? params : undefined,
+  }).then((r) => r.data || { typeCounts: [], subtypeCounts: [] });
 }
 
 export function savePriceEntry(entry) {

@@ -70,6 +70,11 @@ public class EmployeeController {
         return employeeService.onboard(request);
     }
 
+    @GetMapping("/{id}")
+    public EmployeeResponse getById(@PathVariable Long id) {
+        return employeeService.getById(id);
+    }
+
     @PutMapping(value = "/{id}/onboard", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public EmployeeResponse onboardUpdate(@PathVariable Long id, @ModelAttribute EmployeeOnboardRequest request) {
         return employeeService.onboardUpdate(id, request);

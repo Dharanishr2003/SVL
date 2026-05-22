@@ -2,7 +2,7 @@ import { Fragment, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import PageHeader from "../../components/admin/PageHeader";
 import { getFieldsByServiceType } from "../../api/productFieldConfigApi";
-import { getPriceList, savePriceEntry, deletePriceEntry } from "../../api/priceListApi";
+import { getPriceList, getPriceListSummary, normalizePriceListPage, savePriceEntry, deletePriceEntry } from "../../api/priceListApi";
 import { getServiceCategories } from "../../api/serviceCategoriesApi";
 import { getServiceTypes } from "../../api/serviceTypesApi";
 import { getCustomOptions, saveCustomOption } from "../../api/customOptionsApi";
@@ -1093,9 +1093,16 @@ export default function PriceListPage() {
   const navigate = useNavigate();
   const [rows, setRows] = useState([]);
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [totalRows, setTotalRows] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+  const [loading, setLoading] = useState(false);
   const [selectedCategoryId, setSelectedCategoryId] = useState(null);
   const [selectedTypeId, setSelectedTypeId] = useState(null);
   const [selectedSubtypeId, setSelectedSubtypeId] = useState(null);
+  const [priceSummary, setPriceSummary] = useState({ typeCounts: [], subtypeCounts: [] });
 
   // Service data
   const [categories, setCategories] = useState([]);
@@ -1103,9 +1110,8 @@ export default function PriceListPage() {
   const [sizeFieldConfigsByServiceId, setSizeFieldConfigsByServiceId] = useState({});
 
   useEffect(() => {
-    Promise.all([getPriceList(), getServiceCategories(), getServiceTypes()])
-      .then(([priceList, cats, types]) => {
-        setRows(Array.isArray(priceList) ? priceList : []);
+    Promise.all([getServiceCategories(), getServiceTypes()])
+      .then(([cats, types]) => {
         const catArray = Array.isArray(cats) ? cats : [];
         setCategories(catArray);
         if (catArray.length > 0) setSelectedCategoryId((prev) => prev ?? catArray[0].id);
@@ -1130,32 +1136,55 @@ export default function PriceListPage() {
   // Delete modal
   const [deleteTarget, setDeleteTarget] = useState(null);
 
-  const reload = async () => {
-    const data = await getPriceList();
-    setRows(Array.isArray(data) ? data : []);
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search.trim());
+      setPage(1);
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  const loadPriceList = async (
+    nextPage = page,
+    nextPageSize = pageSize,
+    nextSearch = debouncedSearch,
+    nextCategoryId = selectedCategoryId,
+    nextTypeId = selectedTypeId,
+    nextSubtypeId = selectedSubtypeId
+  ) => {
+    setLoading(true);
+    try {
+      const data = await getPriceList({
+        page: Math.max(0, Number(nextPage) - 1),
+        size: Number(nextPageSize) || 10,
+        search: nextSearch || undefined,
+        categoryId: nextCategoryId || undefined,
+        typeId: nextTypeId || undefined,
+        subtypeId: nextSubtypeId || undefined,
+      });
+      const normalized = normalizePriceListPage(data);
+      setRows(normalized.content);
+      setTotalRows(normalized.totalElements || normalized.content.length || 0);
+      setTotalPages(Math.max(1, normalized.totalPages || 1));
+      return normalized;
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const filteredRows = useMemo(() => {
-    let result = selectedCategoryId
-      ? rows.filter((r) => String(r.categoryId) === String(selectedCategoryId))
-      : rows;
-    if (selectedTypeId) {
-      result = result.filter((r) => String(r.typeId) === String(selectedTypeId));
-    }
-    if (selectedSubtypeId) {
-      result = result.filter((r) => String(r.subtypeId) === String(selectedSubtypeId));
-    }
-    const q = search.toLowerCase().trim();
-    if (q) {
-      result = result.filter(
-        (r) =>
-          (r.typeName || "").toLowerCase().includes(q) ||
-          (r.subtypeName || "").toLowerCase().includes(q) ||
-          Object.values(r.variantFields || {}).some((v) => String(v).toLowerCase().includes(q))
-      );
-    }
-    return result;
-  }, [rows, search, selectedCategoryId, selectedTypeId, selectedSubtypeId]);
+  useEffect(() => {
+    loadPriceList(page, pageSize, debouncedSearch, selectedCategoryId, selectedTypeId, selectedSubtypeId).catch(() => {
+      setRows([]);
+      setTotalRows(0);
+      setTotalPages(1);
+    });
+  }, [page, pageSize, debouncedSearch, selectedCategoryId, selectedTypeId, selectedSubtypeId]);
+
+  const reload = async () => {
+    return loadPriceList(page, pageSize, debouncedSearch, selectedCategoryId, selectedTypeId, selectedSubtypeId);
+  };
+
+  const filteredRows = useMemo(() => rows, [rows]);
 
   const groupedRows = useMemo(() => {
     const map = new Map();
@@ -1221,27 +1250,44 @@ export default function PriceListPage() {
 
   const selectedTypeHasSubtypes = subtypesForType.length > 0;
 
+  useEffect(() => {
+    let cancelled = false;
+    getPriceListSummary({
+      categoryId: selectedCategoryId || undefined,
+      typeId: selectedTypeId || undefined,
+    })
+      .then((data) => {
+        if (cancelled) return;
+        setPriceSummary({
+          typeCounts: Array.isArray(data?.typeCounts) ? data.typeCounts : [],
+          subtypeCounts: Array.isArray(data?.subtypeCounts) ? data.subtypeCounts : [],
+        });
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setPriceSummary({ typeCounts: [], subtypeCounts: [] });
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedCategoryId, selectedTypeId]);
+
   const countByTypeId = useMemo(() => {
     const map = {};
-    rows
-      .filter((r) => String(r.categoryId) === String(selectedCategoryId))
-      .forEach((r) => {
-        const k = String(r.typeId);
-        map[k] = (map[k] || 0) + 1;
-      });
+    (priceSummary.typeCounts || []).forEach((item) => {
+      map[String(item.id)] = Number(item.totalCount || 0);
+    });
     return map;
-  }, [rows, selectedCategoryId]);
+  }, [priceSummary.typeCounts]);
 
   const countBySubtypeId = useMemo(() => {
     const map = {};
-    rows
-      .filter((r) => String(r.typeId) === String(selectedTypeId))
-      .forEach((r) => {
-        const k = String(r.subtypeId ?? "__none__");
-        map[k] = (map[k] || 0) + 1;
-      });
+    (priceSummary.subtypeCounts || []).forEach((item) => {
+      map[String(item.id)] = Number(item.totalCount || 0);
+    });
     return map;
-  }, [rows, selectedTypeId]);
+  }, [priceSummary.subtypeCounts]);
 
   /* ── wizard action handler ── */
   function handleWizardAction(action, form, step, setStep, setError, entryId, subtypeOptions, fieldDefs, pricingStep = 2) {
@@ -1349,11 +1395,17 @@ export default function PriceListPage() {
 
   /* ── delete ── */
   function handleDelete() {
-    deletePriceEntry(deleteTarget.id).then(() => {
-      reload();
+    deletePriceEntry(deleteTarget.id).then(async () => {
+      const refreshed = await loadPriceList(page, pageSize, debouncedSearch, selectedCategoryId, selectedTypeId, selectedSubtypeId);
+      if (refreshed.content.length === 0 && page > 1) {
+        setPage(page - 1);
+      }
       setDeleteTarget(null);
     }).catch(() => {});
   }
+
+  const startRow = totalRows === 0 ? 0 : (page - 1) * pageSize + 1;
+  const endRow = totalRows === 0 ? 0 : Math.min(page * pageSize, totalRows);
 
   return (
     <div className="products-shell">
@@ -1410,7 +1462,7 @@ export default function PriceListPage() {
               {categories.map((cat) => (
                 <button
                   key={cat.id}
-                  onClick={() => { setSelectedCategoryId(cat.id); setSelectedTypeId(null); setSelectedSubtypeId(null); }}
+                  onClick={() => { setSelectedCategoryId(cat.id); setSelectedTypeId(null); setSelectedSubtypeId(null); setPage(1); }}
                   style={{
                     padding: "0.75rem 1rem",
                     backgroundColor: selectedCategoryId === cat.id ? "#45597a" : "transparent",
@@ -1433,7 +1485,7 @@ export default function PriceListPage() {
         {selectedTypeId && (
           <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "1rem", fontSize: "0.875rem", color: "#666" }}>
             <button
-              onClick={() => { setSelectedTypeId(null); setSelectedSubtypeId(null); }}
+              onClick={() => { setSelectedTypeId(null); setSelectedSubtypeId(null); setPage(1); }}
               style={{ background: "none", border: "none", cursor: "pointer", color: "#45597a", fontWeight: 600, padding: 0 }}
             >
               ← Back
@@ -1465,7 +1517,7 @@ export default function PriceListPage() {
               typesForCategory.map((t) => (
                 <button
                   key={t.id}
-                  onClick={() => { setSelectedTypeId(t.id); setSelectedSubtypeId(null); }}
+                  onClick={() => { setSelectedTypeId(t.id); setSelectedSubtypeId(null); setPage(1); }}
                   style={{
                     textAlign: "left",
                     background: "#fff",
@@ -1493,7 +1545,7 @@ export default function PriceListPage() {
             {subtypesForType.map((st) => (
               <button
                 key={st.id}
-                onClick={() => setSelectedSubtypeId(st.id)}
+                onClick={() => { setSelectedSubtypeId(st.id); setPage(1); }}
                 style={{
                   textAlign: "left",
                   background: "#fff",
@@ -1517,25 +1569,69 @@ export default function PriceListPage() {
         {/* Level 3: Variant table */}
         {selectedTypeId && (!selectedTypeHasSubtypes || selectedSubtypeId) && (
           <div className="leads-table-wrap">
+            <div className="d-flex align-items-center justify-content-between flex-wrap gap-2 px-3 pt-3 pb-2">
+              <div className="text-muted small">
+                Showing {startRow}-{endRow} of {totalRows}
+              </div>
+              <div className="d-flex align-items-center gap-2 flex-wrap">
+                <label className="text-muted small mb-0">Rows per page</label>
+                <select
+                  className="form-select form-select-sm"
+                  style={{ width: 92 }}
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value));
+                    setPage(1);
+                  }}
+                >
+                  {[10, 20, 50].map((size) => (
+                    <option key={size} value={size}>{size}</option>
+                  ))}
+                </select>
+                <button
+                  className="btn btn-outline-secondary btn-sm"
+                  disabled={page <= 1 || loading}
+                  onClick={() => setPage((current) => Math.max(1, current - 1))}
+                >
+                  Prev
+                </button>
+                <span className="text-muted small">
+                  Page {page} of {totalPages}
+                </span>
+                <button
+                  className="btn btn-outline-secondary btn-sm"
+                  disabled={page >= totalPages || loading}
+                  onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
+                >
+                  Next
+                </button>
+              </div>
+            </div>
             <table className="table leads-table mb-0">
               <thead>
                 <tr>
                   <th style={{ width: 60 }}>#</th>
-                  <th>Product</th>
+                  <th style={{ width: 90 }}>ID</th>
                   <th>Variant Details</th>
                   <th>Qty Slabs</th>
                   <th style={{ width: 100 }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {filteredRows.length === 0 ? (
+                {loading ? (
+                  <tr>
+                    <td colSpan={5} className="text-center text-muted py-4">
+                      Loading price list...
+                    </td>
+                  </tr>
+                ) : filteredRows.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="text-center text-muted py-4">
                       No price entries yet. Click "Add Price" to get started.
                     </td>
                   </tr>
                 ) : (() => {
-                  let rowNum = 0;
+                  let rowNum = startRow - 1;
                   return groupedRows.map((group) => {
                     const headerLabel = group.subtypeName
                       ? `${group.typeName} — ${group.subtypeName}`
@@ -1564,7 +1660,9 @@ export default function PriceListPage() {
                           return (
                             <tr key={row.id}>
                               <td className="text-muted" style={{ fontSize: "0.82rem" }}>{rowNum}</td>
-                              <td />
+                              <td className="text-muted" style={{ fontSize: "0.82rem" }}>
+                                {row.id}
+                              </td>
                               <td>
                                 {badges.length === 0 ? (
                                   <small className="text-muted">—</small>
@@ -1594,11 +1692,17 @@ export default function PriceListPage() {
                                 )}
                               </td>
                               <td>
-                                {(row.quantitySlabs || []).map((s, i) => (
-                                  <div key={i}>
-                                    <small>{s.minQty}–{s.maxQty} pcs: ₹{s.pricePerPiece}/pc</small>
-                                  </div>
-                                ))}
+                                {(() => {
+                                  const slabs = Array.isArray(row.quantitySlabs) ? row.quantitySlabs : [];
+                                  const slabSummary = slabs
+                                    .map((s) => `${s.minQty}-${s.maxQty} pcs: Rs ${s.pricePerPiece}/pc`)
+                                    .join(" | ");
+                                  return slabSummary ? (
+                                    <small style={{ whiteSpace: "normal", lineHeight: 1.5 }}>{slabSummary}</small>
+                                  ) : (
+                                    <small className="text-muted">-</small>
+                                  );
+                                })()}
                               </td>
                               <td>
                                 <button
@@ -1627,6 +1731,27 @@ export default function PriceListPage() {
                 })()}
               </tbody>
             </table>
+            <div className="d-flex align-items-center justify-content-between flex-wrap gap-2 px-3 py-3 border-top">
+              <div className="text-muted small">
+                Page {page} of {totalPages}
+              </div>
+              <div className="d-flex gap-2">
+                <button
+                  className="btn btn-outline-secondary btn-sm"
+                  disabled={page <= 1 || loading}
+                  onClick={() => setPage((current) => Math.max(1, current - 1))}
+                >
+                  Prev
+                </button>
+                <button
+                  className="btn btn-outline-secondary btn-sm"
+                  disabled={page >= totalPages || loading}
+                  onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
+                >
+                  Next
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </div>
@@ -1707,5 +1832,6 @@ export default function PriceListPage() {
     </div>
   );
 }
+
 
 

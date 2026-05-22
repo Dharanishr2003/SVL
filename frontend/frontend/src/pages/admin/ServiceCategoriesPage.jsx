@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import {
-  getServiceCategories,
+  getServiceCategoriesPaged,
   createServiceCategory,
   updateServiceCategory,
   deleteServiceCategory,
@@ -21,20 +21,25 @@ export default function ServiceCategoriesPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState({ name: "", isActive: true });
   const [saving, setSaving] = useState(false);
-  const [search, setSearch] = useState("");
   const [editingId, setEditingId] = useState(null);
   const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    loadCategories();
-  }, []);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [totalRows, setTotalRows] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
 
   const loadCategories = async () => {
     setLoading(true);
     try {
-      const data = await getServiceCategories();
-      console.log("Loaded categories:", data);
-      setCategories(Array.isArray(data) ? data : []);
+      const data = await getServiceCategoriesPaged({
+        page: Math.max(0, Number(page) - 1),
+        size: Number(pageSize) || 10,
+      });
+      setCategories(Array.isArray(data?.content) ? data.content : []);
+      setPage(Number(data?.page ?? page) || page);
+      setPageSize(Number(data?.size ?? pageSize) || pageSize);
+      setTotalRows(Number(data?.totalElements ?? 0) || 0);
+      setTotalPages(Math.max(1, Number(data?.totalPages ?? 1) || 1));
     } catch (e) {
       const message = extractApiErrorMessage(e, "Failed to load categories");
       showError(message);
@@ -43,9 +48,13 @@ export default function ServiceCategoriesPage() {
     }
   };
 
-  const filteredCategories = categories.filter((cat) =>
-    cat.name.toLowerCase().includes(search.toLowerCase())
-  );
+  useEffect(() => {
+    loadCategories();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, pageSize]);
+
+  const clampedPage = Math.min(Math.max(1, page), totalPages);
+  const pageOffset = (clampedPage - 1) * pageSize;
 
   const handleOpenCreate = () => {
     setForm({ name: "", isActive: true });
@@ -112,118 +121,162 @@ export default function ServiceCategoriesPage() {
     <div className="product-categories-shell">
       <PageHeader
         title="Service Categories"
-        breadcrumb={[
+        breadcrumbs={[
           { label: "Dashboard", path: "/admin-dashboard" },
           { label: "Services", path: "" },
           { label: "Service Categories", path: "" },
         ]}
+        actions={
+          <div className="d-flex justify-content-end" style={{ minWidth: "fit-content" }}>
+            <button className="btn btn-primary" onClick={handleOpenCreate}>
+              Add Category +
+            </button>
+          </div>
+        }
       />
 
       <div className="leads-page-body">
-        <div className="leads-toolbar">
-          <div />
-          <div className="d-flex flex-wrap gap-2 align-items-center">
-            <button
-              className="btn btn-success leads-toolbar-btn leads-primary-action"
-              onClick={handleOpenCreate}
-              style={{ marginLeft: "auto" }}
-            >
-              <i className="ti ti-plus me-1" />
-              Add Category
-            </button>
+        <div className="card">
+          <div className="card-header d-flex justify-content-between align-items-center">
+            <h5 className="mb-0">Service Category List</h5>
+            <span className="badge bg-primary">
+              {totalRows} categor{totalRows === 1 ? "y" : "ies"}
+            </span>
           </div>
-        </div>
-
-        <div className="leads-search-row">
-          <div className="leads-search-box">
-            <label className="mb-0 leads-search-label">Search</label>
-            <input
-              className="form-control leads-search-input"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search categories..."
-            />
-          </div>
-        </div>
-
-        <div className="leads-table-wrap">
-          <table className="table leads-table mb-0">
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Status</th>
-                <th style={{ width: "120px" }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr>
-                  <td colSpan="3" className="text-center text-muted py-4">
-                    Loading...
-                  </td>
-                </tr>
-              ) : filteredCategories.length > 0 ? (
-                filteredCategories.map((category) => (
-                  <tr key={category.id}>
-                    <td>{category.name}</td>
-                    <td>
-                      <span className={`badge ${category.isActive ? "bg-success" : "bg-danger"}`}>
-                        {category.isActive ? "Active" : "Inactive"}
-                      </span>
-                    </td>
-                    <td>
-                      <button
-                        className="btn btn-sm d-inline-flex align-items-center justify-content-center"
-                        style={{
-                          backgroundColor: "#6f65d6",
-                          color: "#fff",
-                          width: 32,
-                          height: 32,
-                          padding: 0,
-                          borderRadius: 4,
-                          border: "none",
-                          marginRight: "0.5rem",
-                        }}
-                        onClick={() => handleEdit(category)}
-                        title="Edit"
-                      >
-                        <i className="ti ti-edit" style={{ fontSize: "14px" }} />
-                      </button>
-                      <button
-                        className="btn btn-sm d-inline-flex align-items-center justify-content-center"
-                        style={{
-                          backgroundColor: "#e74c3c",
-                          color: "#fff",
-                          width: 32,
-                          height: 32,
-                          padding: 0,
-                          borderRadius: 4,
-                          border: "none",
-                        }}
-                        onClick={() => handleDelete(category)}
-                        title="Delete"
-                      >
-                        <i className="ti ti-trash" style={{ fontSize: "14px" }} />
-                      </button>
-                    </td>
+          <div className="card-body p-0">
+            <div className="d-flex flex-wrap align-items-center justify-content-between gap-2 px-3 py-2 border-bottom">
+              <div className="d-flex align-items-center gap-2">
+                <span className="text-muted small">Rows per page</span>
+                <select
+                  className="form-select form-select-sm"
+                  style={{ width: 110 }}
+                  value={pageSize}
+                  onChange={(e) => {
+                    const next = Number(e.target.value);
+                    setPageSize(Number.isFinite(next) && next > 0 ? next : 10);
+                    setPage(1);
+                  }}
+                  disabled={loading}
+                >
+                  {[10, 25, 50].map((n) => (
+                    <option key={n} value={n}>
+                      {n}
+                    </option>
+                  ))}
+                </select>
+                <span className="text-muted small">
+                  {totalRows === 0
+                    ? "0 rows"
+                    : `Showing ${pageOffset + 1}-${Math.min(pageOffset + pageSize, totalRows)} of ${totalRows}`}
+                </span>
+              </div>
+              <div className="d-flex align-items-center gap-2">
+                <button
+                  type="button"
+                  className="btn btn-sm btn-light"
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={loading || clampedPage <= 1}
+                >
+                  Prev
+                </button>
+                <span className="text-muted small">
+                  Page {clampedPage} of {totalPages}
+                </span>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-light"
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={loading || clampedPage >= totalPages}
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+            <div className="table-responsive">
+              <table className="table leads-table mb-0">
+                <thead>
+                  <tr>
+                    <th style={{ width: "90px" }}>Index</th>
+                    <th>Name</th>
+                    <th>Status</th>
+                    <th style={{ width: "120px" }}>Actions</th>
                   </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan="3" className="text-center text-muted py-4">
-                    No categories found
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+                </thead>
+                <tbody>
+                  {loading ? (
+                    <tr>
+                      <td colSpan="4" className="text-center text-muted py-4">
+                        Loading...
+                      </td>
+                    </tr>
+                  ) : categories.length > 0 ? (
+                    categories.map((category, index) => (
+                      <tr key={category.id}>
+                        <td>{pageOffset + index + 1}</td>
+                        <td>{category.name}</td>
+                        <td>
+                          <span className={`badge ${category.isActive ? "bg-success" : "bg-danger"}`}>
+                            {category.isActive ? "Active" : "Inactive"}
+                          </span>
+                        </td>
+                        <td>
+                          <button
+                            className="btn btn-sm d-inline-flex align-items-center justify-content-center"
+                            style={{
+                              backgroundColor: "#6f65d6",
+                              color: "#fff",
+                              width: 32,
+                              height: 32,
+                              padding: 0,
+                              borderRadius: 4,
+                              border: "none",
+                              marginRight: "0.5rem",
+                            }}
+                            onClick={() => handleEdit(category)}
+                            title="Edit"
+                          >
+                            <i className="ti ti-edit" style={{ fontSize: "14px" }} />
+                          </button>
+                          <button
+                            className="btn btn-sm d-inline-flex align-items-center justify-content-center"
+                            style={{
+                              backgroundColor: "#e74c3c",
+                              color: "#fff",
+                              width: 32,
+                              height: 32,
+                              padding: 0,
+                              borderRadius: 4,
+                              border: "none",
+                            }}
+                            onClick={() => handleDelete(category)}
+                            title="Delete"
+                          >
+                            <i className="ti ti-trash" style={{ fontSize: "14px" }} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan="4" className="text-center text-muted py-4">
+                        No categories found
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       </div>
 
       {showCreate && (
         <>
           <div className="modal fade show lead-create-modal" style={{ display: "block" }} tabIndex="-1">
-            <div className="modal-dialog modal-md">
+            <div
+              className="modal-dialog modal-dialog-centered"
+              style={{ maxWidth: "420px", width: "calc(100% - 1rem)" }}
+            >
               <div className="modal-content">
                 <div className="modal-header">
                   <h5 className="modal-title">
