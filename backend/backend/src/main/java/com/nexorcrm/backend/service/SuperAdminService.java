@@ -161,26 +161,26 @@ public class SuperAdminService {
         if (!employeeEmail.equals(email)) {
             throw new IllegalStateException("Selected employee email does not match the user email");
         }
-        String institutionName = resolveEmployeeBranchName(employee);
-        String departmentName = resolveEmployeeDepartmentName(employee);
-        String teamNameFromEmployee = resolveEmployeeTeamName(employee);
-        if (StringUtils.hasText(request.getInstitution()) && !textEquals(request.getInstitution(), institutionName)) {
+        String employeeBranchName = resolveEmployeeBranchName(employee);
+        if (StringUtils.hasText(request.getInstitution()) && !textEquals(request.getInstitution(), employeeBranchName)) {
             throw new IllegalStateException("Selected employee does not belong to the selected branch");
         }
-        if (StringUtils.hasText(request.getDepartmentName()) && !textEquals(request.getDepartmentName(), departmentName)) {
-            throw new IllegalStateException("Selected employee does not belong to the selected department");
-        }
-        if (StringUtils.hasText(request.getTeam()) && !textEquals(request.getTeam(), teamNameFromEmployee)) {
-            throw new IllegalStateException("Selected employee does not belong to the selected team");
-        }
-        String branchName = required(institutionName, "Branch is required");
         Role requestedRole = parseRequestedRole(request);
-        String teamName = (requestedRole == Role.TEAM_LEAD || requestedRole == Role.EMPLOYEE)
-                ? required(teamNameFromEmployee, "Team is required")
-                : normalizeNullable(teamNameFromEmployee);
+        String branchName = required(employeeBranchName, "Branch is required");
+        String institutionName = StringUtils.hasText(request.getInstitution())
+                ? request.getInstitution().trim()
+                : branchName;
+        String departmentName = normalizeNullable(request.getDepartmentName());
+        String teamName = normalizeNullable(request.getTeam());
+        if (requestedRole == Role.MANAGER || requestedRole == Role.TEAM_LEAD || requestedRole == Role.EMPLOYEE) {
+            departmentName = required(departmentName, "Department Name is required for role assignment");
+        }
+        if (requestedRole == Role.TEAM_LEAD || requestedRole == Role.EMPLOYEE) {
+            teamName = required(teamName, "Team is required for role assignment");
+        }
         assertActorCanManagePlacement(
                 actor,
-                branchName,
+                institutionName,
                 departmentName,
                 teamName,
                 actor.getRole() == Role.TEAM_LEAD
@@ -193,7 +193,7 @@ public class SuperAdminService {
         if (!RolePermissionUtil.canAssign(actor.getRole(), requestedRole)) {
             throw new AccessDeniedException("You do not have permission to assign this role");
         }
-        assertRolePlacementConstraints(requestedRole, null, branchName, departmentName, teamName);
+        assertRolePlacementConstraints(requestedRole, null, institutionName, departmentName, teamName);
 
         User user = new User();
         user.setUsername(username);
@@ -202,7 +202,7 @@ public class SuperAdminService {
         user.setLastName(normalizeNullable(request.getLastName()));
         user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
         user.setRole(requestedRole);
-        user.setInstitutionName(branchName);
+        user.setInstitutionName(institutionName);
         user.setDepartmentName(departmentName);
         user.setTeamName(teamName);
         user.setActivationStatus(ActivationStatus.PENDING);

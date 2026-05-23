@@ -3,7 +3,6 @@ import { useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   deleteSelectedSessions,
   deleteUser,
-  getUserGroups,
   getUserLogs,
   getUserSessions,
   getUsers,
@@ -12,15 +11,10 @@ import {
   updateUserProfile,
 } from "../../api/userAdminApi";
 import {
-  addGroupMember,
-  getUserGroups as getAllGroups,
-  removeGroupMember,
-} from "../../api/userGroupApi";
-import {
   getInstitutions,
-  getDepartments,
-  getTeams,
 } from "../../api/orgHierarchyApi";
+import { getBranches } from "../../api/branchesApi";
+import { getUserDepartments, getUserDesignations } from "../../api/userPermissionsApi";
 import { extractApiErrorMessage } from "../../utils/errorMessage";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../components/system/ToastProvider";
@@ -32,6 +26,9 @@ const ROLE_RANK = {
   TEAM_LEAD: 1,
   EMPLOYEE: 0,
 };
+
+const sameText = (left, right) =>
+  String(left || "").trim().toLowerCase() === String(right || "").trim().toLowerCase();
 
 async function findUserById(targetId) {
   let page = 0;
@@ -59,9 +56,6 @@ export default function UserEditPage() {
   const [sessions, setSessions] = useState([]);
   const [sessionSelection, setSessionSelection] = useState(new Set());
   const [logs, setLogs] = useState([]);
-  const [userGroups, setUserGroups] = useState([]);
-  const [availableGroups, setAvailableGroups] = useState([]);
-  const [selectedGroupId, setSelectedGroupId] = useState("");
   const [activeTab, setActiveTab] = useState("general");
   const [loading, setLoading] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
@@ -80,6 +74,9 @@ export default function UserEditPage() {
   const [orgInstitutions, setOrgInstitutions] = useState([]);
   const [orgInstId, setOrgInstId] = useState("");
   const [orgDeptId, setOrgDeptId] = useState("");
+  const [loadingOrgInstitutions, setLoadingOrgInstitutions] = useState(false);
+  const [loadingUserDepartments, setLoadingUserDepartments] = useState(false);
+  const [loadingUserDesignations, setLoadingUserDesignations] = useState(false);
 
   const currentRole = String(currentUser?.role || "").toUpperCase();
   const isAdmin = currentRole === "ADMIN";
@@ -90,6 +87,8 @@ export default function UserEditPage() {
   const canEditTeam = isAdmin || isSuperAdmin || isManager;
   const canEditDepartment = isSuperAdmin || isAdmin;
   const canEditOrgScope = isSuperAdmin;
+  const currentInstitutionName = currentUser?.institution || currentUser?.institutionName || currentUser?.branch || "";
+  const currentDepartmentName = currentUser?.departmentName || "";
 
   const canSeeUser = (row) => {
     if (!row) return false;
@@ -173,16 +172,12 @@ export default function UserEditPage() {
     if (!user?.id) return;
     const loadDetails = async () => {
       try {
-        const [sessionRows, logRows, groupRows, allGroupRows] = await Promise.all([
+        const [sessionRows, logRows] = await Promise.all([
           getUserSessions(user.id),
           getUserLogs(user.id),
-          getUserGroups(user.id),
-          getAllGroups(),
         ]);
         setSessions(sessionRows || []);
         setLogs(logRows || []);
-        setUserGroups(groupRows || []);
-        setAvailableGroups(allGroupRows || []);
       } catch (e) {
         showError(extractApiErrorMessage(e, "Failed to load user details"));
       }
@@ -192,53 +187,77 @@ export default function UserEditPage() {
 
   useEffect(() => {
     if (!isAdmin && !isSuperAdmin && !isManager) return;
+    let isMounted = true;
     const load = async () => {
+      setLoadingOrgInstitutions(true);
       try {
-        const insts = await getInstitutions();
+        const insts = isSuperAdmin ? await getBranches() : await getInstitutions();
+        if (!isMounted) return;
         const institutionRows = Array.isArray(insts) ? insts : [];
         if (isSuperAdmin) {
           setOrgInstitutions(institutionRows);
         }
         if ((isAdmin || isManager) && currentUser) {
-          const instMatch = institutionRows.find(
-            (i) => String(i.name || "").toLowerCase() === String(currentUser.institution || "").toLowerCase()
-          );
+          const instMatch = institutionRows.find((i) => sameText(i.name, currentInstitutionName));
           const instId = instMatch ? String(instMatch.id) : "";
           if (!instId) return;
           setOrgInstId(instId);
-          const depts = await getDepartments(instId);
+          const depts = await getUserDepartments(instId);
+          if (!isMounted) return;
           const departmentRows = Array.isArray(depts) ? depts : [];
           setOrgDepartments(departmentRows);
-          const deptMatch = departmentRows.find(
-            (d) => String(d.name || "").toLowerCase() === String(currentUser.departmentName || "").toLowerCase()
-          );
+          const deptMatch = departmentRows.find((d) => sameText(d.name, currentDepartmentName));
           const deptId = deptMatch ? String(deptMatch.id) : "";
           if (!deptId) return;
           setOrgDeptId(deptId);
-          const teams = await getTeams(instId, deptId);
+          const teams = await getUserDesignations(deptId);
+          if (!isMounted) return;
           setOrgTeams(Array.isArray(teams) ? teams : []);
         }
       } catch (e) {
-        // silently ignore org load errors
+        if (isMounted) showError(extractApiErrorMessage(e, "Failed to load user branch hierarchy"));
+      } finally {
+        if (isMounted) setLoadingOrgInstitutions(false);
       }
     };
     load();
-  }, [isAdmin, isSuperAdmin, isManager, currentUser]);
+    return () => {
+      isMounted = false;
+    };
+  }, [isAdmin, isSuperAdmin, isManager, currentUser, currentInstitutionName, currentDepartmentName, showError]);
 
   useEffect(() => {
-    if (!isSuperAdmin || !orgInstId) { setOrgDepartments([]); return; }
-    getDepartments(orgInstId).then((d) => setOrgDepartments(Array.isArray(d) ? d : [])).catch(() => {});
-  }, [isSuperAdmin, orgInstId]);
+    if (!isSuperAdmin) return;
+    if (!orgInstId) {
+      setOrgDepartments([]);
+      setOrgTeams([]);
+      setOrgDeptId("");
+      return;
+    }
+    setOrgTeams([]);
+    setLoadingUserDepartments(true);
+    getUserDepartments(orgInstId)
+      .then((d) => setOrgDepartments(Array.isArray(d) ? d : []))
+      .catch((e) => showError(extractApiErrorMessage(e, "Failed to load user departments")))
+      .finally(() => setLoadingUserDepartments(false));
+  }, [isSuperAdmin, orgInstId, showError]);
 
   useEffect(() => {
-    if (!orgInstId || !orgDeptId) { setOrgTeams([]); return; }
-    getTeams(orgInstId, orgDeptId).then((d) => setOrgTeams(Array.isArray(d) ? d : [])).catch(() => {});
-  }, [orgInstId, orgDeptId]);
+    if (!orgInstId || !orgDeptId) {
+      setOrgTeams([]);
+      return;
+    }
+    setLoadingUserDesignations(true);
+    getUserDesignations(orgDeptId)
+      .then((d) => setOrgTeams(Array.isArray(d) ? d : []))
+      .catch((e) => showError(extractApiErrorMessage(e, "Failed to load user designations")))
+      .finally(() => setLoadingUserDesignations(false));
+  }, [orgInstId, orgDeptId, showError]);
 
   useEffect(() => {
     if (!isSuperAdmin || orgInstId || !form.institutionName || orgInstitutions.length === 0) return;
     const match = orgInstitutions.find(
-      (item) => String(item.name || "").toLowerCase() === String(form.institutionName || "").toLowerCase(),
+      (item) => sameText(item.name, form.institutionName),
     );
     if (match?.id != null) {
       setOrgInstId(String(match.id));
@@ -248,7 +267,7 @@ export default function UserEditPage() {
   useEffect(() => {
     if (!isSuperAdmin || orgDeptId || !form.departmentName || orgDepartments.length === 0) return;
     const match = orgDepartments.find(
-      (item) => String(item.name || "").toLowerCase() === String(form.departmentName || "").toLowerCase(),
+      (item) => sameText(item.name, form.departmentName),
     );
     if (match?.id != null) {
       setOrgDeptId(String(match.id));
@@ -333,45 +352,6 @@ export default function UserEditPage() {
       navigate("/useradmin", { replace: true });
     } catch (e) {
       showError(extractApiErrorMessage(e, "Failed to delete user"));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const refreshGroups = async () => {
-    if (!user?.id) return;
-    const [groupRows, allGroupRows] = await Promise.all([
-      getUserGroups(user.id),
-      getAllGroups(),
-    ]);
-    setUserGroups(groupRows || []);
-    setAvailableGroups(allGroupRows || []);
-  };
-
-  const handleAddGroup = async () => {
-    if (!user?.id || !selectedGroupId) return;
-    setLoading(true);
-    try {
-      await addGroupMember(selectedGroupId, user.id);
-      await refreshGroups();
-      setSelectedGroupId("");
-      showSuccess("Group updated");
-    } catch (e) {
-      showError(extractApiErrorMessage(e, "Failed to add group"));
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleRemoveGroup = async (groupId) => {
-    if (!user?.id || !groupId) return;
-    setLoading(true);
-    try {
-      await removeGroupMember(groupId, user.id);
-      await refreshGroups();
-      showSuccess("Group updated");
-    } catch (e) {
-      showError(extractApiErrorMessage(e, "Failed to remove group"));
     } finally {
       setLoading(false);
     }
@@ -550,13 +530,13 @@ export default function UserEditPage() {
           </p>
         </div>
         <div className="d-flex flex-wrap gap-2">
-          <button className="btn btn-light" onClick={() => navigate(-1)}>
+          <button type="button" className="btn btn-light" onClick={() => navigate(-1)}>
             Back
           </button>
-          <button className="btn btn-outline-warning" onClick={handleToggleActive}>
+          <button type="button" className="btn btn-outline-warning" onClick={handleToggleActive}>
             {user.active ? "Ban User" : "Activate User"}
           </button>
-          <button className="btn btn-danger" onClick={handleDelete}>
+          <button type="button" className="btn btn-danger" onClick={handleDelete}>
             Delete User
           </button>
         </div>
@@ -600,17 +580,6 @@ export default function UserEditPage() {
                   onClick={() => setActiveTab("logs")}
                 >
                   Logs
-                </button>
-              </li>
-              <li className="nav-item" role="presentation">
-                <button
-                  className={`nav-link ${activeTab === "groups" ? "active" : ""}`}
-                  type="button"
-                  role="tab"
-                  aria-selected={activeTab === "groups"}
-                  onClick={() => setActiveTab("groups")}
-                >
-                  Group Membership
                 </button>
               </li>
             </ul>
@@ -728,8 +697,8 @@ export default function UserEditPage() {
                         {!canEditOrgScope && (
                           <>
                             <div className="mb-3">
-                              <label className="form-label">Department</label>
-                              {canEditDepartment && orgDepartments.length > 0 ? (
+                              <label className="form-label">User Department</label>
+                              {canEditDepartment ? (
                                 <select
                                   className="form-select"
                                   value={orgDeptId}
@@ -743,9 +712,11 @@ export default function UserEditPage() {
                                       teamName: "",
                                     }));
                                   }}
-                                  disabled={!canEditDepartment}
+                                  disabled={!canEditDepartment || loadingUserDepartments}
                                 >
-                                  <option value="">Select Department</option>
+                                  <option value="">
+                                    {loadingUserDepartments ? "Loading user departments..." : "Select User Department"}
+                                  </option>
                                   {orgDepartments.map((item) => (
                                     <option key={item.id} value={item.id}>
                                       {item.name}
@@ -768,8 +739,8 @@ export default function UserEditPage() {
                               )}
                             </div>
                             <div className="mb-3">
-                              <label className="form-label">Team</label>
-                              {canEditTeam && orgTeams.length > 0 ? (
+                              <label className="form-label">User Designation</label>
+                              {canEditTeam ? (
                                 <select
                                   className="form-select"
                                   value={form.teamName}
@@ -779,9 +750,11 @@ export default function UserEditPage() {
                                       teamName: e.target.value,
                                     }))
                                   }
-                                  disabled={!canEditTeam}
+                                  disabled={!canEditTeam || !orgDeptId || loadingUserDesignations}
                                 >
-                                  <option value="">Select Team</option>
+                                  <option value="">
+                                    {loadingUserDesignations ? "Loading user designations..." : "Select User Designation"}
+                                  </option>
                                   {orgTeams.map((team) => (
                                     <option key={team.id} value={team.name}>
                                       {team.name}
@@ -808,7 +781,7 @@ export default function UserEditPage() {
                         {canEditOrgScope && (
                           <>
                             <div className="mb-3">
-                              <label className="form-label">Branch</label>
+                              <label className="form-label">User Branch</label>
                               <select
                                 className="form-select"
                                 value={orgInstId}
@@ -826,8 +799,11 @@ export default function UserEditPage() {
                                     }));
                                   }
                                 }
+                                disabled={loadingOrgInstitutions}
                             >
-                                <option value="">Select Branch</option>
+                                <option value="">
+                                  {loadingOrgInstitutions ? "Loading user branches..." : "Select Branch"}
+                                </option>
                                 {orgInstitutions.map((item) => (
                                   <option key={item.id} value={item.id}>
                                     {item.name}
@@ -836,7 +812,7 @@ export default function UserEditPage() {
                               </select>
                             </div>
                             <div className="mb-3">
-                              <label className="form-label">Department</label>
+                              <label className="form-label">User Department</label>
                               <select
                                 className="form-select"
                                 value={orgDeptId}
@@ -850,9 +826,11 @@ export default function UserEditPage() {
                                     teamName: "",
                                   }));
                                 }}
-                                disabled={!orgInstId}
+                                disabled={!orgInstId || loadingUserDepartments}
                               >
-                                <option value="">Select Department</option>
+                                <option value="">
+                                  {loadingUserDepartments ? "Loading user departments..." : "Select User Department"}
+                                </option>
                                 {orgDepartments.map((item) => (
                                   <option key={item.id} value={item.id}>
                                     {item.name}
@@ -861,7 +839,7 @@ export default function UserEditPage() {
                               </select>
                             </div>
                             <div className="mb-3">
-                              <label className="form-label">Team</label>
+                              <label className="form-label">User Designation</label>
                               <select
                                 className="form-select"
                                 value={form.teamName}
@@ -871,9 +849,11 @@ export default function UserEditPage() {
                                     teamName: e.target.value,
                                   }))
                                 }
-                                disabled={!orgDeptId}
+                                disabled={!orgDeptId || loadingUserDesignations}
                               >
-                                <option value="">Select Team</option>
+                                <option value="">
+                                  {loadingUserDesignations ? "Loading user designations..." : "Select User Designation"}
+                                </option>
                                 {orgTeams.map((team) => (
                                   <option key={team.id} value={team.name}>
                                     {team.name}
@@ -954,6 +934,7 @@ export default function UserEditPage() {
                         <div className="d-flex justify-content-end gap-2">
                           <button
                             className="btn btn-primary"
+                            type="button"
                             onClick={handleSave}
                             disabled={loading}
                           >
@@ -961,6 +942,7 @@ export default function UserEditPage() {
                           </button>
                           <button
                             className="btn btn-light"
+                            type="button"
                             onClick={() =>
                               setForm({
                                 firstName: user.firstName || "",
@@ -1063,86 +1045,6 @@ export default function UserEditPage() {
               </div>
             )}
 
-            {activeTab === "groups" && (
-              <div className="tab-pane fade show active">
-                <div className="d-flex flex-wrap gap-2 align-items-end mb-3">
-                  <div>
-                    <label className="form-label">Add to Group</label>
-                    <select
-                      className="form-select"
-                      style={{ minWidth: 240 }}
-                      value={selectedGroupId}
-                      onChange={(e) => setSelectedGroupId(e.target.value)}
-                    >
-                      <option value="">Select group</option>
-                      {availableGroups
-                        .filter(
-                          (group) =>
-                            !userGroups.some(
-                              (current) => String(current.id) === String(group.id),
-                            ),
-                        )
-                        .filter((group) => {
-                          const userTeam = String(user?.teamName || "").trim().toLowerCase();
-                          const groupTeams = Array.isArray(group?.teamNames)
-                            ? group.teamNames.map((t) => String(t || "").trim().toLowerCase()).filter(Boolean)
-                            : [];
-                          if (!userTeam) {
-                            return false;
-                          }
-                          return groupTeams.includes(userTeam);
-                        })
-                        .map((group) => (
-                          <option key={group.id} value={group.id}>
-                            {group.name}
-                          </option>
-                        ))}
-                    </select>
-                  </div>
-                  <button
-                    className="btn btn-primary"
-                    onClick={handleAddGroup}
-                    disabled={!selectedGroupId || loading}
-                  >
-                    Add
-                  </button>
-                </div>
-
-                <div className="table-responsive">
-                  <table className="table table-sm table-striped">
-                    <thead className="table-light">
-                      <tr>
-                        <th>Group</th>
-                        <th>Level</th>
-                        <th></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {userGroups.length === 0 ? (
-                        <tr>
-                          <td colSpan={3}>No groups assigned</td>
-                        </tr>
-                      ) : (
-                        userGroups.map((group) => (
-                          <tr key={group.id}>
-                            <td>{group.name || "-"}</td>
-                            <td className="text-end">
-                              <button
-                                className="btn btn-sm btn-outline-danger"
-                                onClick={() => handleRemoveGroup(group.id)}
-                                disabled={loading}
-                              >
-                                Remove
-                              </button>
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
           </div>
         </div>
       </div>

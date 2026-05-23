@@ -412,6 +412,7 @@ public class LeadService {
             row.setLeadCountry(normalizeNullable(item.getLeadCountry()));
             row.setLeadState(normalizeNullable(item.getLeadState()));
             row.setLeadCity(normalizeNullable(item.getLeadCity()));
+            row.setStreetAddress(normalizeNullable(item.getStreetAddress()));
             row.setStatus("New Lead");
             row.setSvStatus(null);
             row.setAssignedGroupId(groupId);

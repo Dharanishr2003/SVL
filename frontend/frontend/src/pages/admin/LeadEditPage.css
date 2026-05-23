@@ -663,7 +663,7 @@
 }
 
 /* ── Modal close button styling ────────────────────────────────────────── */
-.btn-close {
+.lead-edit-page .btn-close {
   opacity: 1 !important;
   background-color: #45597a !important;
   border-radius: 4px;
@@ -676,7 +676,7 @@
   flex-shrink: 0;
 }
 
-.btn-close:hover {
+.lead-edit-page .btn-close:hover {
   background-color: #34455a !important;
 }
 

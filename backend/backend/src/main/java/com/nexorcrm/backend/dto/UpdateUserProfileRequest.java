@@ -18,13 +18,13 @@ public class UpdateUserProfileRequest {
     @Size(max = 80)
     private String lastName;
 
-    @Size(max = 160)
+    @Size(max = 255)
     private String teamName;
 
-    @Size(max = 160)
+    @Size(max = 255)
     private String departmentName;
 
-    @Size(max = 160)
+    @Size(max = 255)
     private String institutionName;
 
     @Size(min = 8, max = 100)

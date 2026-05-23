@@ -301,45 +301,11 @@ export default function EmployeeWizardModal({
                           type="tel"
                           className="employee-phone-number"
                           placeholder={`Enter ${getCountryDisplayMaxLength(form.countryCode || defaultCountryOption.value)} digit number`}
+                          maxLength={getCountryDisplayMaxLength(form.countryCode || defaultCountryOption.value) || 15}
                           {...phoneFieldProps("personalContactNumber")}
                         />
                       </div>
                       {phoneError ? <div className="avm-error">{phoneError}</div> : null}
-                    </div>
-                    <div className="col-md-6">
-                      <label className="form-label">Alternate Contact Number</label>
-                      <div className="employee-phone-input user-wizard-phone-group">
-                        <select
-                          className="employee-phone-code"
-                          value={form.countryCode || defaultCountryOption.value}
-                          onChange={(e) => {
-                            setForm((p) => ({ ...p, countryCode: e.target.value }));
-                            setPhoneError("");
-                          }}
-                        >
-                          {COUNTRY_CODE_OPTIONS.map((option) => (
-                            <option key={`${option.country}-${option.callingCode}`} value={option.value}>
-                              {option.value}
-                            </option>
-                          ))}
-                        </select>
-                        <input
-                          type="tel"
-                          className="employee-phone-number"
-                          placeholder={`Enter ${getCountryDisplayMaxLength(form.countryCode || defaultCountryOption.value)} digit number`}
-                          value={form.alternateContactNumber || ""}
-                          onChange={(e) => {
-                            const sanitized = sanitizePhoneDigits(
-                              e.target.value,
-                              getCountryDisplayMaxLength(form.countryCode || defaultCountryOption.value)
-                            );
-                            setForm((p) => ({ ...p, alternateContactNumber: sanitized }));
-                            if (phoneError) {
-                              setPhoneError(validatePhoneNumber(sanitized, form.countryCode || defaultCountryOption.value));
-                            }
-                          }}
-                        />
-                      </div>
                     </div>
                     <div className="col-md-6">
                       <label className="form-label">Location</label>
@@ -451,18 +417,21 @@ export default function EmployeeWizardModal({
                         <option value="">Select</option>
                         <option value="MARRIED">Married</option>
                         <option value="SINGLE">Single</option>
+                        <option value="DIVORCED">Divorced</option>
+                        <option value="WIDOWED">Widowed</option>
                       </select>
                     </div>
-                    <div className="col-md-6">
-                      <label className="form-label">If Married Spouse Name *</label>
-                      <input
-                        type="text"
-                        className="form-control user-wizard-input"
-                        value={form.spouseName}
-                        onChange={(e) => setForm((p) => ({ ...p, spouseName: e.target.value }))}
-                        disabled={String(form.maritalStatus || "").toUpperCase() !== "MARRIED"}
-                      />
-                    </div>
+                    {String(form.maritalStatus || "").toUpperCase() === "MARRIED" && (
+                      <div className="col-md-6">
+                        <label className="form-label">Spouse Name</label>
+                        <input
+                          type="text"
+                          className="form-control user-wizard-input"
+                          value={form.spouseName}
+                          onChange={(e) => setForm((p) => ({ ...p, spouseName: e.target.value }))}
+                        />
+                      </div>
+                    )}
                     
                     <div className="col-md-6">
                       <label className="form-label">Pan Card No</label>
@@ -744,6 +713,7 @@ export default function EmployeeWizardModal({
                         <input
                           type="tel"
                           className="employee-phone-number"
+                          maxLength={getCountryDisplayMaxLength(form.countryCode || defaultCountryOption.value) || 15}
                           value={form.emergencyContactPhone1 || ""}
                           onChange={(e) => {
                             const sanitized = sanitizePhoneDigits(
@@ -783,6 +753,7 @@ export default function EmployeeWizardModal({
                         <input
                           type="tel"
                           className="employee-phone-number"
+                          maxLength={getCountryDisplayMaxLength(form.countryCode || defaultCountryOption.value) || 15}
                           value={form.emergencyContactPhone2 || ""}
                           onChange={(e) => {
                             const sanitized = sanitizePhoneDigits(
@@ -823,6 +794,7 @@ export default function EmployeeWizardModal({
                         <input
                           type="tel"
                           className="employee-phone-number"
+                          maxLength={getCountryDisplayMaxLength(form.countryCode || defaultCountryOption.value) || 15}
                           value={form.friendRefContact1 || ""}
                           onChange={(e) => {
                             const sanitized = sanitizePhoneDigits(
@@ -858,6 +830,7 @@ export default function EmployeeWizardModal({
                         <input
                           type="tel"
                           className="employee-phone-number"
+                          maxLength={getCountryDisplayMaxLength(form.countryCode || defaultCountryOption.value) || 15}
                           value={form.friendRefContact2 || ""}
                           onChange={(e) => {
                             const sanitized = sanitizePhoneDigits(

@@ -61,6 +61,12 @@ public class Quotation {
     @Column(name = "igst_percent", precision = 6, scale = 2)
     private BigDecimal igstPercent = BigDecimal.ZERO;
 
+    @Column(name = "include_design_fee", nullable = false)
+    private boolean includeDesignFee = false;
+
+    @Column(name = "design_fee_amount", precision = 12, scale = 2, nullable = false)
+    private BigDecimal designFeeAmount = BigDecimal.ZERO;
+
     @Column(name = "gst_rows_json", columnDefinition = "TEXT")
     private String gstRowsJson;
 
@@ -167,6 +173,10 @@ public class Quotation {
     public void setSgstPercent(BigDecimal sgstPercent) { this.sgstPercent = sgstPercent; }
     public BigDecimal getIgstPercent() { return igstPercent; }
     public void setIgstPercent(BigDecimal igstPercent) { this.igstPercent = igstPercent; }
+    public boolean isIncludeDesignFee() { return includeDesignFee; }
+    public void setIncludeDesignFee(boolean includeDesignFee) { this.includeDesignFee = includeDesignFee; }
+    public BigDecimal getDesignFeeAmount() { return designFeeAmount; }
+    public void setDesignFeeAmount(BigDecimal designFeeAmount) { this.designFeeAmount = designFeeAmount; }
     public String getGstRowsJson() { return gstRowsJson; }
     public void setGstRowsJson(String gstRowsJson) { this.gstRowsJson = gstRowsJson; }
     public BigDecimal getGrandTotal() { return grandTotal; }

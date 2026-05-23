@@ -4,7 +4,7 @@ function pickFirstString(source, keys, fallback = '') {
   for (const key of keys) {
     const value = source?.[key]
     if (typeof value === 'string' && value.trim()) {
-      return value
+      return value.trim()
     }
   }
   return fallback
@@ -40,10 +40,10 @@ function normalizeUser(user) {
     lastLoginAt: user?.lastLoginAt || null,
     registeredIp: user?.registeredIp || '',
     lastActiveIp: user?.lastActiveIp || '',
-    branch: user?.branch || user?.institution || '',
-    institution: user?.institution || '',
-    departmentName: user?.departmentName || '',
-    team: user?.team || '',
+    branch: pickFirstString(user, ['branch', 'institution', 'institutionName']),
+    institution: pickFirstString(user, ['institution', 'institutionName', 'branch']),
+    departmentName: pickFirstString(user, ['departmentName', 'department_name']),
+    team: pickFirstString(user, ['team', 'teamName', 'team_name']),
   }
 }
 

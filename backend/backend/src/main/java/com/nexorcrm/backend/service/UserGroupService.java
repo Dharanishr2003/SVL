@@ -10,18 +10,18 @@ import com.nexorcrm.backend.dto.UserGroupResponse;
 import com.nexorcrm.backend.dto.UserGroupSummaryResponse;
 import com.nexorcrm.backend.entity.ActivationStatus;
 import com.nexorcrm.backend.entity.BranchMaster;
-import com.nexorcrm.backend.entity.DepartmentMaster;
-import com.nexorcrm.backend.entity.DesignationMaster;
 import com.nexorcrm.backend.entity.HeadOfficeMaster;
 import com.nexorcrm.backend.entity.Role;
 import com.nexorcrm.backend.entity.User;
 import com.nexorcrm.backend.entity.UserGroup;
 import com.nexorcrm.backend.entity.UserGroupMember;
 import com.nexorcrm.backend.entity.UserGroupMemberScope;
+import com.nexorcrm.backend.entity.UserDepartment;
+import com.nexorcrm.backend.entity.UserDesignation;
 import com.nexorcrm.backend.repo.BranchMasterRepository;
-import com.nexorcrm.backend.repo.DepartmentMasterRepository;
-import com.nexorcrm.backend.repo.DesignationMasterRepository;
 import com.nexorcrm.backend.repo.HeadOfficeMasterRepository;
+import com.nexorcrm.backend.repo.UserDepartmentRepository;
+import com.nexorcrm.backend.repo.UserDesignationRepository;
 import com.nexorcrm.backend.repo.UserGroupMemberRepository;
 import com.nexorcrm.backend.repo.UserGroupRepository;
 import com.nexorcrm.backend.repo.UserRepository;
@@ -183,6 +183,8 @@ public class UserGroupService {
             "settings-usergroups",
             "settings-department-permissions",
             "settings-designation-permissions",
+            "settings-user-departments",
+            "settings-user-designations",
             "settings-registration",
             "settings-session",
             "settings-user",
@@ -215,8 +217,8 @@ public class UserGroupService {
     private final UserRepository userRepository;
     private final HeadOfficeMasterRepository headOfficeMasterRepository;
     private final BranchMasterRepository branchMasterRepository;
-    private final DepartmentMasterRepository departmentMasterRepository;
-    private final DesignationMasterRepository designationMasterRepository;
+    private final UserDepartmentRepository userDepartmentRepository;
+    private final UserDesignationRepository userDesignationRepository;
     private final AuditService auditService;
 
     public UserGroupService(UserGroupRepository userGroupRepository,
@@ -224,16 +226,16 @@ public class UserGroupService {
                             UserRepository userRepository,
                             HeadOfficeMasterRepository headOfficeMasterRepository,
                             BranchMasterRepository branchMasterRepository,
-                            DepartmentMasterRepository departmentMasterRepository,
-                            DesignationMasterRepository designationMasterRepository,
+                            UserDepartmentRepository userDepartmentRepository,
+                            UserDesignationRepository userDesignationRepository,
                             AuditService auditService) {
         this.userGroupRepository = userGroupRepository;
         this.userGroupMemberRepository = userGroupMemberRepository;
         this.userRepository = userRepository;
         this.headOfficeMasterRepository = headOfficeMasterRepository;
         this.branchMasterRepository = branchMasterRepository;
-        this.departmentMasterRepository = departmentMasterRepository;
-        this.designationMasterRepository = designationMasterRepository;
+        this.userDepartmentRepository = userDepartmentRepository;
+        this.userDesignationRepository = userDesignationRepository;
         this.auditService = auditService;
     }
 
@@ -1233,17 +1235,17 @@ public class UserGroupService {
             }
         }
 
-        DepartmentMaster department = null;
-        List<DepartmentMaster> departments = new ArrayList<>();
+        UserDepartment department = null;
+        List<UserDepartment> departments = new ArrayList<>();
         List<Long> resolvedDepartmentIds = new ArrayList<>();
         if (resolvedDepartmentId != null) {
-            department = departmentMasterRepository.findByIdAndDeletedFalse(resolvedDepartmentId)
+            department = userDepartmentRepository.findById(resolvedDepartmentId)
                     .orElseThrow(() -> new EntityNotFoundException("Department not found"));
-            if (branch != null && !resolvedBranchId.equals(department.getBranchId())) {
+            if (branch != null && !resolvedBranchId.equals(department.getBranch().getId())) {
                 throw new IllegalStateException("Selected department does not belong to the selected branch");
             }
             if (branch == null) {
-                branch = branchMasterRepository.findByIdAndDeletedFalse(department.getBranchId())
+                branch = branchMasterRepository.findByIdAndDeletedFalse(department.getBranch().getId())
                         .orElseThrow(() -> new EntityNotFoundException("Branch not found"));
                 resolvedBranchId = branch.getId();
                 if (headOffice == null) {
@@ -1258,13 +1260,13 @@ public class UserGroupService {
         List<Long> requestedDepartmentIds = sanitizeLongIds(departmentIds);
         if (!requestedDepartmentIds.isEmpty()) {
             for (Long departmentKey : requestedDepartmentIds) {
-                DepartmentMaster row = departmentMasterRepository.findByIdAndDeletedFalse(departmentKey)
+                UserDepartment row = userDepartmentRepository.findById(departmentKey)
                         .orElseThrow(() -> new EntityNotFoundException("Department not found"));
-                if (branch != null && !resolvedBranchId.equals(row.getBranchId())) {
+                if (branch != null && !resolvedBranchId.equals(row.getBranch().getId())) {
                     throw new IllegalStateException("Selected department does not belong to the selected branch");
                 }
                 if (branch == null) {
-                    branch = branchMasterRepository.findByIdAndDeletedFalse(row.getBranchId())
+                    branch = branchMasterRepository.findByIdAndDeletedFalse(row.getBranch().getId())
                             .orElseThrow(() -> new EntityNotFoundException("Branch not found"));
                     resolvedBranchId = branch.getId();
                     if (headOffice == null) {
@@ -1326,7 +1328,7 @@ public class UserGroupService {
 
         String institutionName = branch == null ? "" : trimOrEmpty(branch.getName());
         List<String> departmentNames = departments.stream()
-                .map(DepartmentMaster::getName)
+                .map(UserDepartment::getName)
                 .filter(StringUtils::hasText)
                 .map(String::trim)
                 .distinct()
@@ -1364,9 +1366,8 @@ public class UserGroupService {
         }
         List<String> departmentNames = parseDepartmentNamesCsv(existingGroup.getDepartmentName());
         for (String departmentName : departmentNames) {
-            Long resolved = departmentMasterRepository
-                    .findFirstByBranchIdAndNameIgnoreCaseAndDeletedFalseOrderByIdAsc(branch.getId(), departmentName.trim())
-                    .map(DepartmentMaster::getId)
+            Long resolved = findUserDepartmentByBranchAndName(branch.getId(), departmentName)
+                    .map(UserDepartment::getId)
                     .orElse(null);
             if (resolved != null) {
                 return resolved;
@@ -1385,9 +1386,8 @@ public class UserGroupService {
         }
         List<Long> ids = new ArrayList<>();
         for (String departmentName : parseDepartmentNamesCsv(existingGroup.getDepartmentName())) {
-            departmentMasterRepository
-                    .findFirstByBranchIdAndNameIgnoreCaseAndDeletedFalseOrderByIdAsc(branch.getId(), departmentName.trim())
-                    .map(DepartmentMaster::getId)
+            findUserDepartmentByBranchAndName(branch.getId(), departmentName)
+                    .map(UserDepartment::getId)
                     .ifPresent(ids::add);
         }
         return ids.stream().distinct().toList();
@@ -1403,10 +1403,10 @@ public class UserGroupService {
     }
 
     private List<String> validateDesignationNamesForDepartment(Long departmentId, List<String> requestedTeamNames) {
-        List<String> availableDesignations = designationMasterRepository
-                .findByDepartmentMasterIdAndDeletedFalseOrderByIdDesc(departmentId)
+        List<String> availableDesignations = userDesignationRepository
+                .findByUserDepartmentId(departmentId)
                 .stream()
-                .map(DesignationMaster::getName)
+                .map(UserDesignation::getName)
                 .filter(StringUtils::hasText)
                 .map(String::trim)
                 .toList();
@@ -1482,9 +1482,8 @@ public class UserGroupService {
         if (!departmentIds.isEmpty()) {
             departmentId = departmentIds.getFirst();
         } else if (branch != null && StringUtils.hasText(group.getDepartmentName())) {
-            departmentId = departmentMasterRepository
-                    .findFirstByBranchIdAndNameIgnoreCaseAndDeletedFalseOrderByIdAsc(branch.getId(), group.getDepartmentName().trim())
-                    .map(DepartmentMaster::getId)
+            departmentId = findUserDepartmentByBranchAndName(branch.getId(), group.getDepartmentName())
+                    .map(UserDepartment::getId)
                     .orElse(null);
         }
         return new ResolvedGroupScope(
@@ -1497,6 +1496,15 @@ public class UserGroupService {
                 departmentNames,
                 parseTeamNames(group)
         );
+    }
+
+    private java.util.Optional<UserDepartment> findUserDepartmentByBranchAndName(Long branchId, String name) {
+        if (branchId == null || !StringUtils.hasText(name)) {
+            return java.util.Optional.empty();
+        }
+        return userDepartmentRepository.findByBranchId(branchId).stream()
+                .filter(row -> StringUtils.hasText(row.getName()) && row.getName().trim().equalsIgnoreCase(name.trim()))
+                .findFirst();
     }
 
     private long resolveMembers(UserGroup group) {

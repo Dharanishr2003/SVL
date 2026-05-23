@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { getLeads } from "../../api/leadsApi";
 import { getRequirementsByLeadId } from "../../api/requirementApi";
-import { approveQuotation, saveQuotation } from "../../api/quotationApi";
+import { approveQuotation, getQuotationById, saveQuotation } from "../../api/quotationApi";
 import { getQuotationTemplate } from "../../api/quotationTemplateApi";
 import { getPriceList, normalizePriceListEntries } from "../../api/priceListApi";
 import { getActiveGstMasters, createGstMaster } from "../../api/gstMasterApi";
@@ -17,6 +17,7 @@ import {
   createQuotationPayload,
   downloadQuotationPdf,
   getQuotationDraft,
+  quotationResponseToDraft,
 } from "../../utils/quotationUtils";
 import { getCustomSizeSummary } from "../../utils/customSizeUtils";
 
@@ -339,11 +340,63 @@ export default function QuotationPage() {
 
   const suggestionRef = useRef(null);
   const skipAutoGenerateRef = useRef(false);
+  const restoringDraftRef = useRef(false);
+  const hydratedQuotationIdRef = useRef(null);
 
   const customerName = selectedLead?.name || "";
   const leadStateValue = selectedLead?.leadState || selectedLead?.state || "";
   const leadStateDisplay = useMemo(() => formatLeadState(leadStateValue), [leadStateValue]);
   const quotationDate = new Date().toISOString().slice(0, 10);
+
+  const applyQuotationDraft = (source) => {
+    if (!source) return;
+
+    const initial = { ...createEmptyDraft(), ...source };
+    setQuotationId(initial.id);
+    setQuotationNumber(initial.quotationNumber || "");
+    setQuotationCreatedAt(initial.createdAt || "");
+    setQuotationStatus(initial.status || QUOTATION_STATUS_DRAFT);
+    setVerificationRequestedAt(initial.verificationRequestedAt || null);
+    setVerificationRequestedById(initial.verificationRequestedById || null);
+    setVerificationRequestedByName(initial.verificationRequestedByName || null);
+    setVerificationRequestedByRole(initial.verificationRequestedByRole || null);
+    setVerificationRequestNotes(initial.verificationRequestNotes || "");
+    setApprovedAt(initial.approvedAt || null);
+    setApprovedById(initial.approvedById || null);
+    setApprovedByName(initial.approvedByName || null);
+    setApprovedByRole(initial.approvedByRole || null);
+    setApprovalNotes(initial.approvalNotes || "");
+    setCreatedById(initial.createdById || null);
+    setCreatedByName(initial.createdByName || null);
+    setCreatedByEmail(initial.createdByEmail || null);
+    setCreatedByRole(initial.createdByRole || null);
+    setCreatedByTeam(initial.createdByTeam || null);
+    setPartyMode(initial.partyMode || "lead");
+    setSelectedLead(initial.selectedLead || null);
+    setLeadSearch(
+      initial.leadSearch ||
+        (initial.selectedLead
+          ? `${initial.selectedLead.leadId} - ${initial.selectedLead.name}`
+          : "")
+    );
+    setLineItems(Array.isArray(initial.lineItems) ? initial.lineItems.map(normalizeLineItem) : []);
+    setDiscountPct(String(initial.discountPct ?? "0"));
+    setIncludeDesignFee(initial.includeDesignFee || false);
+    setDesignFeeAmount(String(initial.designFeeAmount || ""));
+    setGstRows(
+      Array.isArray(initial.gstRows) && initial.gstRows.length
+        ? initial.gstRows.map((row, index) => ({
+            id: row.id || `gst-row-restored-${index}`,
+            gstMasterId: row.gstMasterId || "",
+            taxName: row.taxName || "",
+            taxPercent: Number(row.taxPercent || 0),
+          }))
+        : []
+    );
+    if (Array.isArray(initial.lineItems) && initial.lineItems.length > 0) {
+      skipAutoGenerateRef.current = true;
+    }
+  };
 
   const subtotal = useMemo(() => {
     const itemsTotal = lineItems.reduce((sum, item) => sum + Number(item.lineTotal || 0), 0);
@@ -412,53 +465,41 @@ export default function QuotationPage() {
       return;
     }
 
-    const initial = { ...createEmptyDraft(), ...draft };
-    setQuotationId(initial.id);
-    setQuotationNumber(initial.quotationNumber || "");
-    setQuotationCreatedAt(initial.createdAt || "");
-    setQuotationStatus(initial.status || QUOTATION_STATUS_DRAFT);
-    setVerificationRequestedAt(initial.verificationRequestedAt || null);
-    setVerificationRequestedById(initial.verificationRequestedById || null);
-    setVerificationRequestedByName(initial.verificationRequestedByName || null);
-    setVerificationRequestedByRole(initial.verificationRequestedByRole || null);
-    setVerificationRequestNotes(initial.verificationRequestNotes || "");
-    setApprovedAt(initial.approvedAt || null);
-    setApprovedById(initial.approvedById || null);
-    setApprovedByName(initial.approvedByName || null);
-    setApprovedByRole(initial.approvedByRole || null);
-    setApprovalNotes(initial.approvalNotes || "");
-    setCreatedById(initial.createdById || null);
-    setCreatedByName(initial.createdByName || null);
-    setCreatedByEmail(initial.createdByEmail || null);
-    setCreatedByRole(initial.createdByRole || null);
-    setCreatedByTeam(initial.createdByTeam || null);
-    setPartyMode(initial.partyMode || "lead");
-    setSelectedLead(initial.selectedLead || null);
-    setLeadSearch(
-      initial.leadSearch ||
-        (initial.selectedLead
-          ? `${initial.selectedLead.leadId} - ${initial.selectedLead.name}`
-          : "")
-    );
-    setLineItems(Array.isArray(initial.lineItems) ? initial.lineItems.map(normalizeLineItem) : []);
-    setDiscountPct(String(initial.discountPct ?? "0"));
-    setIncludeDesignFee(initial.includeDesignFee || false);
-    setDesignFeeAmount(String(initial.designFeeAmount || ""));
-    setGstRows(
-      Array.isArray(initial.gstRows) && initial.gstRows.length
-        ? initial.gstRows.map((row, index) => ({
-            id: row.id || `gst-row-restored-${index}`,
-            gstMasterId: row.gstMasterId || "",
-            taxName: row.taxName || "",
-            taxPercent: Number(row.taxPercent || 0),
-          }))
-        : []
-    );
-    if (Array.isArray(initial.lineItems) && initial.lineItems.length > 0) {
-      skipAutoGenerateRef.current = true;
-    }
+    restoringDraftRef.current = true;
+    applyQuotationDraft(draft);
     clearQuotationDraft();
   }, []);
+
+  useEffect(() => {
+    const numericQuotationId = Number(quotationId);
+    if (!Number.isFinite(numericQuotationId) || numericQuotationId <= 0) {
+      return;
+    }
+
+    if (hydratedQuotationIdRef.current === numericQuotationId) {
+      return;
+    }
+
+    let ignore = false;
+    getQuotationById(numericQuotationId)
+      .then((quotation) => {
+        if (ignore || !quotation) return;
+
+        const hydratedDraft = quotationResponseToDraft(quotation);
+        if (!hydratedDraft) return;
+
+        hydratedQuotationIdRef.current = numericQuotationId;
+        restoringDraftRef.current = true;
+        applyQuotationDraft(hydratedDraft);
+      })
+      .catch(() => {
+        // Keep the cached draft if the backend fetch fails.
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, [quotationId]);
 
   useEffect(() => {
     const prefill = location.state?.prefillLead;
@@ -511,20 +552,33 @@ export default function QuotationPage() {
   }, []);
 
   useEffect(() => {
-    if (skipAutoGenerateRef.current) {
-      skipAutoGenerateRef.current = false;
+    if (restoringDraftRef.current && !selectedLead?.id) {
       return;
     }
 
     const numericId = selectedLead?.id;
     if (!numericId || partyMode !== "lead") {
       setRequirements([]);
-      setLineItems([]);
+      if (!skipAutoGenerateRef.current) {
+        setLineItems([]);
+      }
       return;
     }
 
     // Wait for price list to be ready before building line items
     if (priceListLoading) return;
+
+    // Skip auto-generation when restoring a saved quotation draft
+    // (placed AFTER priceListLoading guard so the flag isn't consumed prematurely)
+    if (skipAutoGenerateRef.current) {
+      skipAutoGenerateRef.current = false;
+      restoringDraftRef.current = false;
+      // Still fetch requirements for display, but don't overwrite lineItems
+      getRequirementsByLeadId(numericId)
+        .then((data) => setRequirements(Array.isArray(data) ? data : []))
+        .catch(() => setRequirements([]));
+      return;
+    }
 
     setRequirementsLoading(true);
     setRequirementsError("");
@@ -565,6 +619,7 @@ export default function QuotationPage() {
             return {
               id: `req-auto-${req.id}-${i}`,
               productId: match?.id ?? null,
+              categoryId: req.categoryId ?? null,
               typeId: req.typeId,
               subtypeId: req.subtypeId ?? null,
               typeName: req.typeName,
@@ -588,6 +643,7 @@ export default function QuotationPage() {
           return {
             id: `req-auto-${req.id}-${i}`,
             productId: match?.id ?? null,
+            categoryId: req.categoryId ?? null,
             typeId: req.typeId,
             subtypeId: req.subtypeId ?? null,
             typeName: req.typeName,
@@ -648,6 +704,7 @@ export default function QuotationPage() {
 
   function buildPrefill(req) {
     return {
+      categoryId: req.categoryId ?? null,
       typeId: req.typeId,
       subtypeId: req.subtypeId ?? null,
       typeName: req.typeName,

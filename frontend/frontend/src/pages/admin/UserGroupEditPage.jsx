@@ -10,10 +10,9 @@ import {
   updateUserGroup,
 } from "../../api/userGroupApi";
 import { getUserOrgSelection } from "../../api/orgHierarchyApi";
+import { getUserDepartments, getUserDesignations } from "../../api/userPermissionsApi";
 import { getHeadOffices } from "../../api/headOfficesApi";
 import { getBranches } from "../../api/branchesApi";
-import { getDepartmentsMasterByBranch } from "../../api/departmentsApi";
-import { getDesignations } from "../../api/designationsApi";
 import { extractApiErrorMessage } from "../../utils/errorMessage";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../components/system/ToastProvider";
@@ -178,7 +177,7 @@ export default function UserGroupEditPage() {
           return;
         }
         setBranches(branchRows);
-        const departmentRows = await getDepartmentsMasterByBranch(branchId);
+        const departmentRows = await getUserDepartments(branchId);
         if (!isMounted) return;
         setDepartments(Array.isArray(departmentRows) ? departmentRows : []);
         const groupDepartmentNames = String(group.departmentName || "")
@@ -205,7 +204,7 @@ export default function UserGroupEditPage() {
           return;
         }
         const primaryDepartmentId = String(departmentMatches[0].id);
-        const teamRows = await getDesignations(primaryDepartmentId);
+        const teamRows = await getUserDesignations(primaryDepartmentId);
         if (!isMounted) return;
         setDesignations(Array.isArray(teamRows) ? teamRows : []);
         const teamIds = Array.isArray(group.teamNames)
@@ -310,7 +309,7 @@ export default function UserGroupEditPage() {
         return;
       }
       try {
-        const rows = await getDepartmentsMasterByBranch(scope.branchId);
+        const rows = await getUserDepartments(scope.branchId);
         if (isMounted) setDepartments(Array.isArray(rows) ? rows : []);
       } catch (e) {
         if (isMounted) showError(extractApiErrorMessage(e, "Failed to load departments"));
@@ -330,7 +329,7 @@ export default function UserGroupEditPage() {
         return;
       }
       try {
-        const rows = await getDesignations(scope.departmentId);
+        const rows = await getUserDesignations(scope.departmentId);
         if (isMounted) setDesignations(Array.isArray(rows) ? rows : []);
       } catch (e) {
         if (isMounted) showError(extractApiErrorMessage(e, "Failed to load designations"));
@@ -418,11 +417,11 @@ export default function UserGroupEditPage() {
       return;
     }
     if (selectedDepartments.length === 0) {
-      showError("Department is required");
+      showError("User Department is required");
       return;
     }
     const invalidDepartment = selectedDepartments.find(
-      (department) => String(department.branchId || "") !== String(selectedBranch.id || ""),
+      (department) => String(department.branchId || department.branch?.id || "") !== String(selectedBranch.id || ""),
     );
     if (invalidDepartment) {
       showError("Selected department does not belong to the selected branch");

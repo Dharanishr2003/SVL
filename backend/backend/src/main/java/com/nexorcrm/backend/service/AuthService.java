@@ -326,6 +326,7 @@ public class AuthService {
         }
 
         if (emp != null) {
+            res.setEmployeeId(emp.getId());
             res.setEmployeeCode(emp.getEmployeeCode());
             res.setPhone(emp.getPhone());
             res.setCountryCode(emp.getCountryCode());

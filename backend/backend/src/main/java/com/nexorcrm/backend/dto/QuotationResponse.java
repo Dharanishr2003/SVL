@@ -33,6 +33,8 @@ public class QuotationResponse {
     private BigDecimal cgstPct;
     private BigDecimal sgstPct;
     private BigDecimal igstPct;
+    private Boolean includeDesignFee;
+    private BigDecimal designFeeAmount;
     private BigDecimal grandTotal;
     private String notes;
     private LocalDate validityDate;
@@ -70,6 +72,10 @@ public class QuotationResponse {
     public void setSgstPct(BigDecimal sgstPct) { this.sgstPct = sgstPct; }
     public BigDecimal getIgstPct() { return igstPct; }
     public void setIgstPct(BigDecimal igstPct) { this.igstPct = igstPct; }
+    public Boolean getIncludeDesignFee() { return includeDesignFee; }
+    public void setIncludeDesignFee(Boolean includeDesignFee) { this.includeDesignFee = includeDesignFee; }
+    public BigDecimal getDesignFeeAmount() { return designFeeAmount; }
+    public void setDesignFeeAmount(BigDecimal designFeeAmount) { this.designFeeAmount = designFeeAmount; }
     public BigDecimal getGrandTotal() { return grandTotal; }
     public void setGrandTotal(BigDecimal grandTotal) { this.grandTotal = grandTotal; }
     public String getNotes() { return notes; }

@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.security.core.Authentication;
 
 import java.util.List;
 
@@ -42,8 +43,8 @@ public class QuotationController {
     }
 
     @GetMapping
-    public List<QuotationResponse> getAll() {
-        return quotationService.getAllQuotations();
+    public List<QuotationResponse> getAll(Authentication authentication) {
+        return quotationService.getAllQuotations(authentication != null ? authentication.getName() : null);
     }
 
     @PutMapping("/{id}")

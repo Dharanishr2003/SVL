@@ -76,10 +76,10 @@ public class Lead {
     @Column(name = "quantity")
     private Integer quantity;
 
-    @Column(name = "lead_country", length = 10)
+    @Column(name = "lead_country", length = 100)
     private String leadCountry;
 
-    @Column(name = "lead_state", length = 10)
+    @Column(name = "lead_state", length = 100)
     private String leadState;
 
     @Column(name = "lead_city", length = 200)

@@ -654,6 +654,7 @@ export default function EmployeeFormPage() {
                         type="tel"
                         className="employee-phone-number avm-input form-control"
                         placeholder={`Enter ${getCountryDisplayMaxLength(form.countryCode || defaultCountryOption.value)} digit number`}
+                        maxLength={getCountryDisplayMaxLength(form.countryCode || defaultCountryOption.value) || 15}
                         value={form.personalContactNumber}
                         onChange={(e) => handlePhoneChange(e.target.value)}
                       />
@@ -733,12 +734,6 @@ export default function EmployeeFormPage() {
                         <div className="avm-field">
                           <label className="avm-label">Mother's Name</label>
                           <input className="avm-input form-control" value={form.motherName} onChange={(e) => setField("motherName", e.target.value)} />
-                        </div>
-                      </div>
-                      <div className="col-md-6">
-                        <div className="avm-field">
-                          <label className="avm-label">Alternate Contact Number</label>
-                          <input className="avm-input form-control" value={form.alternateContactNumber} onChange={(e) => setField("alternateContactNumber", e.target.value)} />
                         </div>
                       </div>
                       <div className="col-md-6">

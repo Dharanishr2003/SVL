@@ -81,6 +81,7 @@ function userFromToken(token, fallbackEmail = "", responseData = null) {
     profilePhotoUrl: resolveProfilePhotoUrl(
       responseUser?.profilePhotoUrl || responseData?.profilePhotoUrl || "",
     ),
+    employeeId: responseUser?.employeeId ?? responseData?.employeeId ?? null,
   };
 }
 
@@ -108,7 +109,12 @@ function mergeProfileIntoUser(currentUser, profileData) {
     profilePhotoUrl: resolveProfilePhotoUrl(
       profileData.profilePhotoUrl ?? currentUser?.profilePhotoUrl ?? "",
     ),
+    employeeId: profileData.employeeId ?? currentUser?.employeeId ?? null,
   };
+}
+
+function isPublicUnauthenticatedRoute(pathname) {
+  return String(pathname || "").startsWith("/employee-form/");
 }
 
 export function AuthProvider({ children }) {
@@ -131,6 +137,9 @@ export function AuthProvider({ children }) {
       handleAuthFailure: (error) => {
         // Vendor portal uses its own auth stack; don't force staff logout redirects there.
         if (window.location.pathname.startsWith("/vendor")) {
+          return;
+        }
+        if (isPublicUnauthenticatedRoute(window.location.pathname)) {
           return;
         }
         const status = error?.response?.status;
@@ -168,6 +177,10 @@ export function AuthProvider({ children }) {
         setLoading(false);
         return;
       }
+      if (isPublicUnauthenticatedRoute(window.location.pathname)) {
+        setLoading(false);
+        return;
+      }
       try {
         const response = await api.post("/api/auth/refresh", {});
         const nextAccess = response.data?.accessToken;
@@ -184,6 +197,10 @@ export function AuthProvider({ children }) {
         const status = error?.response?.status;
         const isAuthExpired = status === 401 || status === 403;
         if (isAuthExpired) {
+          if (isPublicUnauthenticatedRoute(window.location.pathname)) {
+            setLoading(false);
+            return;
+          }
           console.debug("[AuthContext] Session restore skipped: refresh token expired");
           clearTokens();
           setUser(null);

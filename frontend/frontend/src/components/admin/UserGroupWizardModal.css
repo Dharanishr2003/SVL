@@ -83,8 +83,8 @@
 .user-group-wizard .member-picker-row .form-select {
   border-radius: 1.5rem !important;
   border: 1px solid #d0d5dd !important;
-  padding: 0.6rem 1rem !important;
-  font-size: 0.95rem !important;
+  padding: 0.5rem 0.9rem !important;
+  font-size: 0.875rem !important;
   background-color: #ffffff !important;
   color: #34393f !important;
   width: 100%;
@@ -108,7 +108,8 @@
 
 .user-group-wizard .team-picker-row,
 .user-group-wizard .member-picker-row {
-  max-width: 24rem;
+  width: 100%;
+  max-width: none;
 }
 
 .user-group-wizard .member-section {

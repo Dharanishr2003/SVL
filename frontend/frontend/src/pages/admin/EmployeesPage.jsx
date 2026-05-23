@@ -1472,6 +1472,7 @@
                             type="tel"
                             className="employee-phone-number"
                             value={form.phone}
+                            maxLength={getCountryDisplayMaxLength(form.countryCode) || 15}
                             onChange={(e) => {
                               const sanitized = sanitizePhoneDigits(
                                 e.target.value,

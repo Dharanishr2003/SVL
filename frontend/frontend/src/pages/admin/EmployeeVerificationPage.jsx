@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import {
   getEmployeeVerification,
   sendOfferLetterEmail,
@@ -33,6 +33,7 @@ function statusBadge(status) {
 
 export default function EmployeeVerificationPage() {
   const { employeeId } = useParams();
+  const navigate = useNavigate();
   const { showSuccess, showError } = useToast();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -194,7 +195,10 @@ export default function EmployeeVerificationPage() {
             <div className="text-muted small">Employee ID: {employeeId}</div>
           </div>
           <div className="d-flex gap-2">
-            <button className="btn btn-light" onClick={load} disabled={loading || saving}>
+            <button type="button" className="btn btn-outline-secondary" onClick={() => navigate(-1)}>
+              ← Back
+            </button>
+            <button type="button" className="btn btn-light" onClick={load} disabled={loading || saving}>
               Refresh
             </button>
             {canVerifyProfile ? (
@@ -365,14 +369,20 @@ export default function EmployeeVerificationPage() {
                                     <button
                                       type="button"
                                       className="btn btn-sm btn-outline-primary"
-                                      onClick={() => openDocPreview(d)}
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        openDocPreview(d);
+                                      }}
                                     >
                                       View
                                     </button>
                                     <button
                                       type="button"
                                       className="btn btn-sm btn-link p-0"
-                                      onClick={() => openDocPreview(d)}
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        openDocPreview(d);
+                                      }}
                                       title="Preview document"
                                     >
                                       {d.originalFilename || d.fileUrl}

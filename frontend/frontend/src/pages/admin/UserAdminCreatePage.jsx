@@ -6,6 +6,8 @@ import { getBranches } from "../../api/branchesApi";
 import { getDepartmentsMasterByBranch } from "../../api/departmentsApi";
 import { getDesignations } from "../../api/designationsApi";
 import { getHeadOffices } from "../../api/headOfficesApi";
+// NEW: Import the independent User Permissions Hierarchy API hooks
+import { getUserDepartments, getUserDesignations } from "../../api/userPermissionsApi";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../components/system/ToastProvider";
 import { extractApiErrorMessage } from "../../utils/errorMessage";
@@ -43,7 +45,7 @@ const EMPTY_FORM = {
   role: "EMPLOYEE",
   password: "",
   confirmPassword: "",
-};
+};  
 
 export default function UserAdminCreatePage() {
   const navigate = useNavigate();
@@ -60,27 +62,41 @@ export default function UserAdminCreatePage() {
   const [phoneError, setPhoneError] = useState("");
   const [showCreatePassword, setShowCreatePassword] = useState(false);
 
+  // 1. Core Physical HRM Hierarchy States
   const [createHeadOfficeId, setCreateHeadOfficeId] = useState("");
   const [createBranchId, setCreateBranchId] = useState("");
   const [createDepartmentId, setCreateDepartmentId] = useState("");
   const [createTeamId, setCreateTeamId] = useState("");
   const [selectedEmployeeId, setSelectedEmployeeId] = useState("");
 
+  // 2. NEW: Independent User Permissions Hierarchy States
+  const [selectedUserDepartmentId, setSelectedUserDepartmentId] = useState("");
+  const [selectedUserDesignationId, setSelectedUserDesignationId] = useState("");
+
+  // Data Arrays
   const [headOffices, setHeadOffices] = useState([]);
   const [branches, setBranches] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [designations, setDesignations] = useState([]);
   const [employees, setEmployees] = useState([]);
+  
+  // NEW: Dynamic permission hierarchy array data stores
+  const [userDepartments, setUserDepartments] = useState([]);
+  const [userDesignations, setUserDesignations] = useState([]);
 
+  // Loading flags
   const [loadingHeadOffices, setLoadingHeadOffices] = useState(false);
   const [loadingBranches, setLoadingBranches] = useState(false);
   const [loadingDepartments, setLoadingDepartments] = useState(false);
   const [loadingDesignations, setLoadingDesignations] = useState(false);
   const [loadingEmployees, setLoadingEmployees] = useState(false);
+  const [loadingUserDepartments, setLoadingUserDepartments] = useState(false);
+  const [loadingUserDesignations, setLoadingUserDesignations] = useState(false);
 
   const selectedRole = String(form.role || "EMPLOYEE").toUpperCase();
   const roleRequiresDepartment = selectedRole !== "ADMIN";
   const roleRequiresTeam = ["TEAM_LEAD", "EMPLOYEE"].includes(selectedRole);
+  
   const phoneDisplayMaxLength = getCountryDisplayMaxLength(phoneCountryCode) || 15;
   const phoneLengthDisplay = useMemo(() => {
     const allowed = getCountryAllowedLengths(phoneCountryCode);
@@ -98,6 +114,7 @@ export default function UserAdminCreatePage() {
     }
   }, [allowedAssignRoles]);
 
+  // Load Head Offices
   useEffect(() => {
     let isMounted = true;
     const loadHeadOffices = async () => {
@@ -117,6 +134,7 @@ export default function UserAdminCreatePage() {
     };
   }, [showError]);
 
+  // Load Physical Branches
   useEffect(() => {
     if (!createHeadOfficeId) {
       setBranches([]);
@@ -141,6 +159,7 @@ export default function UserAdminCreatePage() {
     };
   }, [createHeadOfficeId, showError]);
 
+  // Load Physical Departments
   useEffect(() => {
     if (!createBranchId) {
       setDepartments([]);
@@ -165,6 +184,7 @@ export default function UserAdminCreatePage() {
     };
   }, [createBranchId, showError]);
 
+  // Load Physical Designations
   useEffect(() => {
     if (!createDepartmentId) {
       setDesignations([]);
@@ -189,19 +209,68 @@ export default function UserAdminCreatePage() {
     };
   }, [createDepartmentId, showError]);
 
+  // NEW: Fetch User Departments dynamically using the selected physical branch anchor
+  useEffect(() => {
+    if (!createBranchId || !selectedEmployeeId) {
+      setUserDepartments([]);
+      setSelectedUserDepartmentId("");
+      return;
+    }
+    let isMounted = true;
+    const loadUserDepartments = async () => {
+      setLoadingUserDepartments(true);
+      try {
+        const data = await getUserDepartments(createBranchId);
+        if (isMounted) setUserDepartments(Array.isArray(data) ? data : []);
+      } catch (e) {
+        if (isMounted) showError(extractApiErrorMessage(e, "Failed to load user departments"));
+      } finally {
+        if (isMounted) setLoadingUserDepartments(false);
+      }
+    };
+    loadUserDepartments();
+    return () => {
+      isMounted = false;
+    };
+  }, [createBranchId, selectedEmployeeId, showError]);
+
+  // NEW: Fetch User Designations dynamically using the selected user department parent
+  useEffect(() => {
+    if (!selectedUserDepartmentId || !selectedEmployeeId) {
+      setUserDesignations([]);
+      setSelectedUserDesignationId("");
+      return;
+    }
+    let isMounted = true;
+    const loadUserDesignations = async () => {
+      setLoadingUserDesignations(true);
+      try {
+        const data = await getUserDesignations(selectedUserDepartmentId);
+        if (isMounted) setUserDesignations(Array.isArray(data) ? data : []);
+      } catch (e) {
+        if (isMounted) showError(extractApiErrorMessage(e, "Failed to load user designations"));
+      } finally {
+        if (isMounted) setLoadingUserDesignations(false);
+      }
+    };
+    loadUserDesignations();
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedUserDepartmentId, selectedEmployeeId, showError]);
+
+  // Build full physical scope matrix to look up targets inside HRM roster
   const createEmployeeScope = useMemo(() => {
     const headOfficeId = String(createHeadOfficeId || "").trim();
     const branchId = String(createBranchId || "").trim();
     const departmentId = String(createDepartmentId || "").trim();
     const designationId = String(createTeamId || "").trim();
-    if (!headOfficeId || !branchId) return null;
+    if (!headOfficeId || !branchId || !departmentId || !designationId) return null;
 
-    const scope = { headOfficeId, branchId };
-    if (departmentId) scope.departmentId = departmentId;
-    if (designationId) scope.designationId = designationId;
-    return scope;
+    return { headOfficeId, branchId, departmentId, designationId };
   }, [createHeadOfficeId, createBranchId, createDepartmentId, createTeamId]);
 
+  // Fetch employees matching the full physical scope layout
   useEffect(() => {
     if (!createEmployeeScope) {
       setEmployees([]);
@@ -229,10 +298,16 @@ export default function UserAdminCreatePage() {
   const selectedBranch = branches.find((item) => String(item.id) === String(createBranchId));
   const selectedDepartment = departments.find((item) => String(item.id) === String(createDepartmentId));
   const selectedDesignation = designations.find((item) => String(item.id) === String(createTeamId));
+  
+  // Custom user track selection references
+  const selectedUserDepartment = userDepartments.find((item) => String(item.id) === String(selectedUserDepartmentId));
+  const selectedUserDesignation = userDesignations.find((item) => String(item.id) === String(selectedUserDesignationId));
   const selectedEmployee = employees.find((item) => String(item.id) === String(selectedEmployeeId));
 
   const clearSelectedEmployeeDraft = () => {
     setSelectedEmployeeId("");
+    setSelectedUserDepartmentId("");
+    setSelectedUserDesignationId("");
     setForm((prev) => ({
       ...prev,
       username: "",
@@ -246,7 +321,23 @@ export default function UserAdminCreatePage() {
   const handleRoleChange = (role) => {
     const nextRole = String(role || "EMPLOYEE").toUpperCase();
     setForm((prev) => ({ ...prev, role: nextRole }));
-    clearSelectedEmployeeDraft();
+    
+    // Auto-sanitize trailing states on access level alteration
+    if (nextRole === "ADMIN") {
+      setSelectedUserDepartmentId("");
+      setSelectedUserDesignationId("");
+    } else if (nextRole === "MANAGER") {
+      setSelectedUserDesignationId("");
+    }
+  };
+
+  const handleUserDepartmentChange = (value) => {
+    setSelectedUserDepartmentId(value);
+    setSelectedUserDesignationId("");
+  };
+
+  const handleUserDesignationChange = (value) => {
+    setSelectedUserDesignationId(value);
   };
 
   const handleHeadOfficeChange = (value) => {
@@ -283,6 +374,9 @@ export default function UserAdminCreatePage() {
 
   const handleSelectEmployee = (employeeId) => {
     setSelectedEmployeeId(employeeId);
+    setSelectedUserDepartmentId("");
+    setSelectedUserDesignationId("");
+    
     const employee = employees.find((emp) => String(emp.id) === String(employeeId));
     if (!employee) return;
 
@@ -344,12 +438,15 @@ export default function UserAdminCreatePage() {
 
   const getFormattedPhone = () => (form.phone ? `${phoneCountryCode}${form.phone}` : "");
 
+  // Rigorous checking block balancing physical boundaries against digital permission rules
   const validateScopeStep = () => {
     if (!createHeadOfficeId) return "Please select a head office";
     if (!createBranchId) return "Please select a branch";
-    if (roleRequiresDepartment && !createDepartmentId) return "Please select a department";
-    if (roleRequiresTeam && !createTeamId) return "Please select a designation";
-    if (!selectedEmployeeId) return "Please select an employee";
+    if (!createDepartmentId) return "Please select a physical department";
+    if (!createTeamId) return "Please select a physical designation";
+    if (!selectedEmployeeId) return "Please select an employee profile";
+    if (roleRequiresDepartment && !selectedUserDepartmentId) return "Please assign a user department permissions scope";
+    if (roleRequiresTeam && !selectedUserDesignationId) return "Please assign a user designation permissions scope";
     return null;
   };
 
@@ -378,7 +475,6 @@ export default function UserAdminCreatePage() {
     const scopeValidation = validateScopeStep();
     if (scopeValidation) return showError(scopeValidation);
 
-    // Treat any accidental submit from step 1 as a step advance, not a final validation.
     if (activeTab === 0) {
       setActiveTab(1);
       return;
@@ -393,28 +489,6 @@ export default function UserAdminCreatePage() {
     const selected = employees.find((emp) => String(emp.id) === String(selectedEmployeeId));
     if (!selected) return showError("Selected employee is no longer available");
 
-    const scopeHeadOfficeId = String(createHeadOfficeId || "").trim();
-    const scopeBranchId = String(createBranchId || "").trim();
-    const scopeDepartmentId = String(createDepartmentId || "").trim();
-    const scopeDesignationId = String(createTeamId || "").trim();
-    const employeeHeadOfficeId = String(selected.headOfficeId || "").trim();
-    const employeeBranchId = String(selected.branchId || "").trim();
-    const employeeDepartmentId = String(selected.departmentMasterId || "").trim();
-    const employeeDesignationId = String(selected.designationMasterId || "").trim();
-
-    if (scopeHeadOfficeId && employeeHeadOfficeId !== scopeHeadOfficeId) {
-      return showError("Selected employee does not belong to the selected head office");
-    }
-    if (scopeBranchId && employeeBranchId !== scopeBranchId) {
-      return showError("Selected employee does not belong to the selected branch");
-    }
-    if (roleRequiresDepartment && scopeDepartmentId && employeeDepartmentId !== scopeDepartmentId) {
-      return showError("Selected employee does not belong to the selected department");
-    }
-    if (roleRequiresTeam && scopeDesignationId && employeeDesignationId !== scopeDesignationId) {
-      return showError("Selected employee does not belong to the selected designation");
-    }
-
     setSaving(true);
     try {
       await createUser({
@@ -425,13 +499,14 @@ export default function UserAdminCreatePage() {
         email: form.email.trim(),
         phone: getFormattedPhone(),
         role: String(form.role || "EMPLOYEE").toUpperCase(),
-        headOfficeId: selected.headOfficeId || null,
-        branchId: selected.branchId || null,
-        departmentId: selected.departmentMasterId || null,
-        designationId: selected.designationMasterId || null,
-        institution: selected.institution || "",
-        departmentName: selected.departmentName || "",
-        team: selected.team || "",
+        headOfficeId: selectedHeadOffice?.id || null,
+        branchId: selectedBranch?.id || null,
+        // Bind the new independent entity ids across core DTO fields
+        departmentId: selectedUserDepartment?.id || null,
+        designationId: selectedUserDesignation?.id || null,
+        institution: selectedBranch?.name || "",
+        departmentName: selectedUserDepartment?.name || "",
+        team: selectedUserDesignation?.name || "",
         password: form.password,
         confirmPassword: form.confirmPassword,
       });
@@ -446,12 +521,8 @@ export default function UserAdminCreatePage() {
 
   const handleWizardKeyDown = (e) => {
     if (e.key === "Enter") {
-      // Always block Enter so it never triggers an accidental form submit.
-      // Validation errors (e.g. "Password is required") should only appear
-      // when the user deliberately clicks the "Create User" button.
       e.preventDefault();
       if (activeTab === 0) {
-        // On the scope step, Enter works like clicking Next.
         handleTabChange(1);
       }
     }
@@ -460,12 +531,17 @@ export default function UserAdminCreatePage() {
   const scopeSummary = [
     selectedHeadOffice?.name,
     selectedBranch?.name,
-    roleRequiresDepartment ? selectedDepartment?.name : null,
-    roleRequiresTeam ? selectedDesignation?.name : null,
+    selectedDepartment?.name,
+    selectedDesignation?.name,
+  ].filter(Boolean).join(" / ");
+
+  const userPermissionSummary = [
+    roleRequiresDepartment ? selectedUserDepartment?.name : null,
+    roleRequiresTeam ? selectedUserDesignation?.name : null,
   ].filter(Boolean).join(" / ");
 
   const canGoToNext = validateScopeStep() === null;
-  const employeeScopeReady = Boolean(createHeadOfficeId && createBranchId);
+  const employeeScopeReady = Boolean(createHeadOfficeId && createBranchId && createDepartmentId && createTeamId);
 
   return (
     <div className="container-fluid user-admin-create-page">
@@ -538,6 +614,19 @@ export default function UserAdminCreatePage() {
           font-size: 0.84rem;
           margin-bottom: 1rem;
         }
+        .user-admin-create-page .wizard-section-divider {
+          border-top: 2px dashed #e7edf4;
+          margin: 1.5rem 0;
+          padding-top: 1rem;
+        }
+        .user-admin-create-page .wizard-section-subtitle {
+          font-size: 0.88rem;
+          font-weight: 700;
+          color: #45597a;
+          text-transform: uppercase;
+          letter-spacing: 0.03em;
+          margin-bottom: 0.75rem;
+        }
         .user-admin-create-page .wizard-summary-item + .wizard-summary-item {
           margin-top: 0.75rem;
         }
@@ -575,7 +664,7 @@ export default function UserAdminCreatePage() {
         <div className="card-header d-flex align-items-center justify-content-between flex-wrap gap-2">
           <div>
             <h5 className="mb-0">Create User</h5>
-            <small className="text-muted">Use the 2-step wizard to assign scope, choose an employee, and create access.</small>
+            <small className="text-muted">Drill down employee context to discover profiles, then manage portal mapping boundaries.</small>
           </div>
           <button
             type="button"
@@ -600,7 +689,7 @@ export default function UserAdminCreatePage() {
                 <span>
                   <span className="wizard-step-title">{tab}</span>
                   <span className="wizard-step-copy">
-                    {i === 0 ? "Scope, role, and employee mapping" : "Contact details and credentials"}
+                    {i === 0 ? "Profile discovery and role scoping" : "Contact details and credentials"}
                   </span>
                 </span>
               </button>
@@ -612,18 +701,11 @@ export default function UserAdminCreatePage() {
               <div className="row g-3">
                 <div className="col-lg-8">
                   <div className="wizard-panel">
-                    <div className="wizard-panel-title">Scope and employee</div>
-                    <div className="wizard-panel-copy">Choose the org scope, role, and employee in one place.</div>
+                    <div className="wizard-panel-title">Employee Scope Verification</div>
+                    <div className="wizard-panel-copy">Fill the core corporate matrix to pull matching unlinked staff logs.</div>
+                    
+                    {/* PHASE 1: CORE HRM LOOKUP FIELD REGION */}
                     <div className="row g-3">
-                      <div className="col-md-6">
-                        <label className="form-label">Role <span className="text-danger">*</span></label>
-                        <select className="form-select" value={form.role} onChange={(e) => handleRoleChange(e.target.value)}>
-                          {allowedAssignRoles.map((role) => (
-                            <option key={role} value={role}>{role.replace(/_/g, " ")}</option>
-                          ))}
-                        </select>
-                      </div>
-
                       <div className="col-md-6">
                         <label className="form-label">Head Office <span className="text-danger">*</span></label>
                         <select
@@ -633,8 +715,8 @@ export default function UserAdminCreatePage() {
                           disabled={loadingHeadOffices}
                         >
                           <option value="">Select</option>
-                          {headOffices.map((headOffice) => (
-                            <option key={headOffice.id} value={headOffice.id}>{headOffice.name}</option>
+                          {headOffices.map((ho) => (
+                            <option key={ho.id} value={ho.id}>{ho.name}</option>
                           ))}
                         </select>
                       </div>
@@ -648,14 +730,14 @@ export default function UserAdminCreatePage() {
                           disabled={!createHeadOfficeId || loadingBranches}
                         >
                           <option value="">Select</option>
-                          {branches.map((branch) => (
-                            <option key={branch.id} value={branch.id}>{branch.name}</option>
+                          {branches.map((b) => (
+                            <option key={b.id} value={b.id}>{b.name}</option>
                           ))}
                         </select>
                       </div>
 
                       <div className="col-md-6">
-                        <label className="form-label">Department {roleRequiresDepartment && <span className="text-danger">*</span>}</label>
+                        <label className="form-label"> Department <span className="text-danger">*</span></label>
                         <select
                           className="form-select"
                           value={createDepartmentId}
@@ -663,14 +745,14 @@ export default function UserAdminCreatePage() {
                           disabled={!createBranchId || departments.length === 0 || loadingDepartments}
                         >
                           <option value="">Select</option>
-                          {departments.map((department) => (
-                            <option key={department.id} value={department.id}>{department.name}</option>
+                          {departments.map((d) => (
+                            <option key={d.id} value={d.id}>{d.name}</option>
                           ))}
                         </select>
                       </div>
 
                       <div className="col-md-6">
-                        <label className="form-label">Designation {roleRequiresTeam && <span className="text-danger">*</span>}</label>
+                        <label className="form-label">Designation <span className="text-danger">*</span></label>
                         <select
                           className="form-select"
                           value={createTeamId}
@@ -678,14 +760,14 @@ export default function UserAdminCreatePage() {
                           disabled={!createBranchId || !createDepartmentId || designations.length === 0 || loadingDesignations}
                         >
                           <option value="">Select</option>
-                          {designations.map((designation) => (
-                            <option key={designation.id} value={designation.id}>{designation.name}</option>
+                          {designations.map((desig) => (
+                            <option key={desig.id} value={desig.id}>{desig.name}</option>
                           ))}
                         </select>
                       </div>
 
                       <div className="col-12">
-                        <label className="form-label">Select Employee <span className="text-danger">*</span></label>
+                        <label className="form-label">Select Target Employee <span className="text-danger">*</span></label>
                         <select
                           className="form-select"
                           value={selectedEmployeeId}
@@ -693,9 +775,9 @@ export default function UserAdminCreatePage() {
                           disabled={!employeeScopeReady || loadingEmployees}
                         >
                           {!employeeScopeReady ? (
-                            <option value="">Complete the scope first</option>
+                            <option value="">Complete the physical HRM profile selection above first</option>
                           ) : loadingEmployees ? (
-                            <option value="">Loading employees...</option>
+                            <option value="">Searching branch records...</option>
                           ) : (
                             <option value="">Select</option>
                           )}
@@ -705,27 +787,107 @@ export default function UserAdminCreatePage() {
                         </select>
                       </div>
                     </div>
+
+                    {/* PHASE 2: SYSTEM ACCESS ASSIGNMENT (Reveals underneath upon choosing employee) */}
+                    {selectedEmployeeId && (
+                      <div className="wizard-section-divider">
+                        <div className="wizard-section-subtitle">Portal Permissions Configuration</div>
+                        <div className="row g-3">
+                          <div className="col-md-12">
+                            <label className="form-label">System Role Access Level <span className="text-danger">*</span></label>
+                            <select className="form-select" value={form.role} onChange={(e) => handleRoleChange(e.target.value)}>
+                              {allowedAssignRoles.map((role) => (
+                                <option key={role} value={role}>{role.replace(/_/g, " ")}</option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div className="col-md-6">
+                            <label className="form-label">User Department Permissions Scope <span className="text-danger">*</span></label>
+                            <select
+                              className="form-select"
+                              value={selectedUserDepartmentId}
+                              onChange={(e) => handleUserDepartmentChange(e.target.value)}
+                              disabled={!roleRequiresDepartment || userDepartments.length === 0 || loadingUserDepartments}
+                            >
+                              {!roleRequiresDepartment ? (
+                                <option value="">Broad branch authority applied (Admin)</option>
+                              ) : loadingUserDepartments ? (
+                                <option value="">Loading department scopes...</option>
+                              ) : userDepartments.length === 0 ? (
+                                <option value="">No user department scopes found for this branch</option>
+                              ) : (
+                                <>
+                                  <option value="">Select</option>
+                                  {userDepartments.map((ud) => (
+                                    <option key={ud.id} value={ud.id}>{ud.name}</option>
+                                  ))}
+                                </>
+                              )}
+                            </select>
+                          </div>
+
+                          <div className="col-md-6">
+                            <label className="form-label">User Designation Permissions Scope <span className="text-danger">*</span></label>
+                            <select
+                              className="form-select"
+                              value={selectedUserDesignationId}
+                              onChange={(e) => handleUserDesignationChange(e.target.value)}
+                              disabled={!roleRequiresTeam || !selectedUserDepartmentId || userDesignations.length === 0 || loadingUserDesignations}
+                            >
+                              {!roleRequiresDepartment ? (
+                                <option value="">Broad branch authority applied (Admin)</option>
+                              ) : loadingUserDesignations ? (
+                                <option value="">Loading designation scopes...</option>
+                              ) : !roleRequiresTeam ? (
+                                <option value="">Not required for Manager operational scope</option>
+                              ) : userDesignations.length === 0 ? (
+                                <option value="">No user designation scopes found for this department</option>
+                              ) : (
+                                <>
+                                  <option value="">Select</option>
+                                  {userDesignations.map((uds) => (
+                                    <option key={uds.id} value={uds.id}>{uds.name}</option>
+                                  ))}
+                                </>
+                              )}
+                            </select>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
 
+                {/* VISUAL MONITORING SIDEBAR PANEL */}
                 <div className="col-lg-4">
                   <div className="wizard-summary-card">
-                    <div className="wizard-panel-title">Summary</div>
-                    <div className="wizard-panel-copy">This preview updates as you pick the scope.</div>
+                    <div className="wizard-panel-title">Live Metadata Summary</div>
+                    <div className="wizard-panel-copy">Tracks active selections across parallel layers.</div>
+                    
                     <div className="wizard-summary-item">
-                      <span className="wizard-summary-label">Scope</span>
+                      <span className="wizard-summary-label">Physical HRM Scope</span>
                       <span className="wizard-summary-value">{scopeSummary || "Not selected"}</span>
                     </div>
                     <div className="wizard-summary-item">
-                      <span className="wizard-summary-label">Employee</span>
-                      <span className="wizard-summary-value">{selectedEmployee?.name || "Not selected"}</span>
+                      <span className="wizard-summary-label">Target Employee</span>
+                      <span className="wizard-summary-value">{selectedEmployee?.name || "Not verified"}</span>
                     </div>
+                    <div className="wizard-summary-item">
+                      <span className="wizard-summary-label">Assigned App Persona</span>
+                      <span className="wizard-summary-value">{selectedRole.replace(/_/g, " ")}</span>
+                    </div>
+                    <div className="wizard-summary-item">
+                      <span className="wizard-summary-label">System Portal Target</span>
+                      <span className="wizard-summary-value">{userPermissionSummary || "None (Full Branch)"}</span>
+                    </div>
+
                     <div className="wizard-note">
                       {selectedRole === "ADMIN"
-                        ? "Admins are assigned at the branch level."
+                        ? "Admins inherit root access parameters across all digital operations inside the selected branch anchor."
                         : selectedRole === "MANAGER"
-                          ? "Managers are assigned at the branch and department level."
-                          : "Team leads and employees are assigned through branch, department, and designation."}
+                          ? "Managers are bounded directly to the targeted digital user department loop."
+                          : "Team leads and standard accounts are tied strictly to structural user designation permission sets."}
                     </div>
                   </div>
                 </div>
@@ -744,7 +906,7 @@ export default function UserAdminCreatePage() {
                 <div className="col-lg-8">
                   <div className="wizard-panel">
                     <div className="wizard-panel-title">Contact and credentials</div>
-                    <div className="wizard-panel-copy">Use the default field UI here; only the wizard chrome is custom.</div>
+                    <div className="wizard-panel-copy">Verify extracted identity details and declare secure entry credentials.</div>
                     <div className="row g-3">
                       <div className="col-md-6">
                         <label className="form-label">First Name</label>
@@ -795,6 +957,7 @@ export default function UserAdminCreatePage() {
                             type="tel"
                             className="employee-phone-number"
                             value={form.phone || ""}
+                            maxLength={phoneDisplayMaxLength || 15}
                             onChange={(e) => handlePhoneInput(e.target.value)}
                             onBlur={handlePhoneBlur}
                             placeholder={`Enter ${phoneDisplayMaxLength} digit number`}
@@ -867,8 +1030,8 @@ export default function UserAdminCreatePage() {
 
                 <div className="col-lg-4">
                   <div className="wizard-summary-card">
-                    <div className="wizard-panel-title">Review</div>
-                    <div className="wizard-panel-copy">Check the account details before you create the user.</div>
+                    <div className="wizard-panel-title">Review Access Parameters</div>
+                    <div className="wizard-panel-copy">Perform absolute visual verification before creating database credentials.</div>
                     <div className="wizard-summary-item">
                       <span className="wizard-summary-label">Username</span>
                       <span className="wizard-summary-value">{form.username || "Not entered"}</span>
@@ -878,7 +1041,7 @@ export default function UserAdminCreatePage() {
                       <span className="wizard-summary-value">{form.email || "Not entered"}</span>
                     </div>
                     <div className="wizard-summary-item">
-                      <span className="wizard-summary-label">Employee</span>
+                      <span className="wizard-summary-label">Employee Target</span>
                       <span className="wizard-summary-value">{selectedEmployee?.name || "Not selected"}</span>
                     </div>
                   </div>

@@ -442,7 +442,7 @@ export default function QuotationListPage() {
                       return (
                         <tr key={quotation.id}>
                           <td>{quotation.quotationNumber || "-"}</td>
-                          <td>{quotation.customerName || "-"}</td>
+                          <td>{quotation.clientName || quotation.customerName || "-"}</td>
                           <td>
                             <span className={statusUi.className}>
                               {status === QUOTATION_STATUS_VERIFICATION_PENDING && quotation.negotiatingAt
@@ -476,8 +476,8 @@ export default function QuotationListPage() {
                               </div>
                             )}
                           </td>
-                          <td>{formatDate(quotation.quotationDate)}</td>
-                          <td>Rs. {Number(quotation.totals?.grandTotal || 0).toFixed(2)}</td>
+                          <td>{formatDate(quotation.quotationDate || quotation.createdAt)}</td>
+                          <td>Rs. {Number(quotation.grandTotal ?? quotation.totals?.grandTotal ?? 0).toFixed(2)}</td>
                           <td>
                             <div className="small">
                               <div>

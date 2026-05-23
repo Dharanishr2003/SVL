@@ -105,6 +105,8 @@ export default function Sidebar() {
       "settings-security-settings",
       "settings-flow",
       "settings-logs",
+      "settings-user-departments",
+      "settings-user-designations",
     );
 
   useEffect(() => {
@@ -998,6 +1000,24 @@ export default function Sidebar() {
                         <a href="/useradmin">
                           <i className="ti ti-users"></i>
                           <span>User Admin</span>
+                        </a>
+                      </li>
+                      )}
+
+                      {canAccess("settings-user-departments") && (
+                      <li>
+                        <a href="/settings/user-departments">
+                          <i className="ti ti-sitemap"></i>
+                          <span>User Departments</span>
+                        </a>
+                      </li>
+                      )}
+
+                      {canAccess("settings-user-designations") && (
+                      <li>
+                        <a href="/settings/user-designations">
+                          <i className="ti ti-briefcase"></i>
+                          <span>User Designations</span>
                         </a>
                       </li>
                       )}

@@ -221,6 +221,8 @@ export const PAGE_ACCESS_OPTIONS = [
       { key: "settings-security-settings", label: "Security Settings" },
       { key: "settings-flow", label: "Flow" },
       { key: "settings-logs", label: "Logs" },
+      { key: "settings-user-departments", label: "User Departments" },
+      { key: "settings-user-designations", label: "User Designations" },
     ],
   },
 ];
@@ -242,6 +244,8 @@ const ROUTE_ACCESS_RULES = [
   { pageKeys: ["settings-security-settings"], prefixes: ["/security-settings"] },
   { pageKeys: ["settings-flow"], prefixes: ["/flow"] },
   { pageKeys: ["settings-logs"], prefixes: ["/logs"] },
+  { pageKeys: ["settings-user-departments"], prefixes: ["/settings/user-departments"] },
+  { pageKeys: ["settings-user-designations"], prefixes: ["/settings/user-designations"] },
   { pageKeys: ["vendor-management", "vendors", "brands", "vendor-types"], prefixes: ["/stocks/vendors", "/stocks/brands", "/stocks/vendor-types"] },
   { pageKeys: ["vendor-management", "vendor-orders"], prefixes: ["/stocks/vendor-orders"] },
   { pageKeys: ["lead-source", "lead-status", "lead-type", "primary-source", "secondary-source", "tertiary-source"], prefixes: ["/lead-status", "/lead-type", "/primary-source", "/secondary-source", "/tertiary-source"] },
@@ -342,6 +346,8 @@ const ADMIN_ONLY_PREFIXES = [
   "/user-settings",
   "/flow",
   "/logs",
+  "/settings/user-departments",
+  "/settings/user-designations",
 ];
 
 function normalizePath(path) {

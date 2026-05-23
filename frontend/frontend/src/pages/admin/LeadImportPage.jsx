@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { bulkCreateLeads, getAssignableLeadGroups, checkDuplicateLeads } from '../../api/leadsApi';
+import { bulkCreateLeads, getAssignableLeadGroups, checkDuplicateLeads, getImportableEmployees } from '../../api/leadsApi';
 import { getGroupMembers, getUserGroups } from '../../api/userGroupApi';
 import { getLeadFlow } from '../../api/flowApi';
+import { getBranches } from '../../api/branchesApi';
 import { CRM_PAGE_OPTIONS } from '../../constants/crmPages';
 import { useAuth } from '../../context/AuthContext';
 import LeadImportEditModal from '../../components/admin/LeadImportEditModal';
@@ -87,9 +88,18 @@ export default function LeadImportPage() {
   const [selectedRowForEdit, setSelectedRowForEdit] = useState(null);
 
   const leadPageKey = CRM_PAGE_OPTIONS.find((item) => item.key === 'leads')?.key || 'leads';
+  const [branchOptions, setBranchOptions] = useState([]);
   const [groupOptions, setGroupOptions] = useState([]);
   const [flowRules, setFlowRules] = useState([]);
+  const [selectedBranchId, setSelectedBranchId] = useState('');
   const [selectedBranchName, setSelectedBranchName] = useState('');
+  const [createBranchFlowGroupId, setCreateBranchFlowGroupId] = useState('');
+
+  const selectedBranch = useMemo(
+    () => branchOptions.find((branch) => String(branch.id) === String(selectedBranchId)),
+    [branchOptions, selectedBranchId],
+  );
+  const selectedBranchNameValue = String(selectedBranch?.name || selectedBranchName || '').trim();
 
   const leadEligibleGroups = useMemo(
     () =>
@@ -103,24 +113,17 @@ export default function LeadImportPage() {
 
   const importBranchOptions = useMemo(
     () =>
-      Array.from(
-        new Set(
-          leadEligibleGroups
-            .map((group) => String(group?.institutionName || '').trim())
-            .filter(Boolean),
-        ),
-      ),
-    [leadEligibleGroups],
+      role === 'SUPER_ADMIN'
+        ? (Array.isArray(branchOptions) ? branchOptions : []).filter((branch) => branch?.id != null)
+        : Array.from(
+            new Set(
+              leadEligibleGroups
+                .map((group) => String(group?.institutionName || '').trim())
+                .filter(Boolean),
+            ),
+          ),
+    [branchOptions, leadEligibleGroups, role],
   );
-
-  const scopedLeadEligibleGroups = useMemo(() => {
-    if (role !== 'SUPER_ADMIN') return leadEligibleGroups;
-    const branchName = String(selectedBranchName || '').trim().toLowerCase();
-    if (!branchName) return [];
-    return leadEligibleGroups.filter(
-      (group) => String(group?.institutionName || '').trim().toLowerCase() === branchName,
-    );
-  }, [leadEligibleGroups, role, selectedBranchName]);
 
   const newLeadFlowGroupId = useMemo(() => {
     const rule = Array.isArray(flowRules)
@@ -131,23 +134,43 @@ export default function LeadImportPage() {
       : '';
   }, [flowRules]);
 
-  const importGroup = useMemo(
-    () =>
-      newLeadFlowGroupId
-        ? scopedLeadEligibleGroups.find((group) => String(group.id) === String(newLeadFlowGroupId)) || null
-        : scopedLeadEligibleGroups[0] || null,
-    [scopedLeadEligibleGroups, newLeadFlowGroupId],
+  const fallbackLeadGroup = useMemo(
+    () => (leadEligibleGroups.length > 0 ? leadEligibleGroups[0] : null),
+    [leadEligibleGroups],
   );
+
+  const importGroup = useMemo(() => {
+    if (role === 'SUPER_ADMIN') {
+      if (!selectedBranchId) return null;
+      const branchFlowGroup = createBranchFlowGroupId
+        ? leadEligibleGroups.find((group) => String(group.id) === String(createBranchFlowGroupId)) || null
+        : null;
+      return branchFlowGroup || fallbackLeadGroup;
+    }
+    return newLeadFlowGroupId
+      ? leadEligibleGroups.find((group) => String(group.id) === String(newLeadFlowGroupId)) || fallbackLeadGroup
+      : fallbackLeadGroup;
+  }, [createBranchFlowGroupId, fallbackLeadGroup, leadEligibleGroups, newLeadFlowGroupId, role, selectedBranchId]);
+
+  const importGroupId = useMemo(() => {
+    if (role === 'SUPER_ADMIN') {
+      if (!selectedBranchId) return '';
+      return createBranchFlowGroupId || (importGroup?.id ? String(importGroup.id) : '');
+    }
+    return importGroup?.id ? String(importGroup.id) : '';
+  }, [createBranchFlowGroupId, importGroup?.id, role, selectedBranchId]);
 
   useEffect(() => {
     let isMounted = true;
-    const flowScope =
-      role === 'SUPER_ADMIN' && String(selectedBranchName || '').trim()
-        ? { institutionName: String(selectedBranchName || '').trim() }
-        : {};
-    Promise.all([getAssignableLeadGroups(), getUserGroups(), getLeadFlow(flowScope)])
-      .then(([assignable, allGroups, flowPayload]) => {
+    const loadOptions = async () => {
+      try {
+        const [branches, assignable, allGroups] = await Promise.all([
+          role === 'SUPER_ADMIN' ? getBranches() : Promise.resolve([]),
+          getAssignableLeadGroups(),
+          getUserGroups(),
+        ]);
         if (!isMounted) return;
+        setBranchOptions(Array.isArray(branches) ? branches : []);
         const byId = new Map((Array.isArray(allGroups) ? allGroups : []).map((g) => [String(g.id), g]));
         const merged = (Array.isArray(assignable) ? assignable : []).map((group) => {
           const full = byId.get(String(group.id));
@@ -158,30 +181,100 @@ export default function LeadImportPage() {
           return { ...group, pageKeys };
         });
         setGroupOptions(merged);
-        setFlowRules(Array.isArray(flowPayload?.rules) ? flowPayload.rules : []);
-      })
-      .catch(() => {
+      } catch {
         if (!isMounted) return;
+        setBranchOptions([]);
         setGroupOptions([]);
-        setFlowRules([]);
-      });
+      }
+    };
+    loadOptions();
     return () => { isMounted = false; };
-  }, [role, selectedBranchName]);
+  }, [role]);
 
   useEffect(() => {
-    setSelectedEmployeeIds([]);
+    if (role !== 'SUPER_ADMIN') return;
+    const branchId = String(selectedBranchId || '').trim();
+    const branchName = String(selectedBranchNameValue || '').trim();
+    if (!branchId && !branchName) {
+      setCreateBranchFlowGroupId('');
+      setFlowRules([]);
+      return;
+    }
+    let isMounted = true;
+    const loadBranchFlow = async () => {
+      try {
+        const flowPayload = await getLeadFlow({
+          branchId: branchId || null,
+          institutionName: branchName,
+        });
+        if (!isMounted) return;
+        const branchRules = Array.isArray(flowPayload?.rules) ? flowPayload.rules : [];
+        const newLeadRule = branchRules.find(
+          (item) => String(item?.status || '').trim().toLowerCase() === 'new lead',
+        );
+        const nextGroupId =
+          newLeadRule?.handledByGroupId != null && String(newLeadRule.handledByGroupId).trim() !== ''
+            ? String(newLeadRule.handledByGroupId)
+            : '';
+        setCreateBranchFlowGroupId(nextGroupId);
+        setFlowRules(branchRules);
+      } catch {
+        if (!isMounted) return;
+        setCreateBranchFlowGroupId('');
+        setFlowRules([]);
+      }
+    };
+    loadBranchFlow();
+    return () => {
+      isMounted = false;
+    };
+  }, [role, selectedBranchId, selectedBranchNameValue]);
+
+  useEffect(() => {
+    if (role === 'EMPLOYEE' && user?.id) {
+      setSelectedEmployeeIds([String(user.id)]);
+      setDupSelectedEmployeeIds([String(user.id)]);
+    } else {
+      setSelectedEmployeeIds([]);
+      setDupSelectedEmployeeIds([]);
+    }
     setEmployeePickerValue('');
-    setDupSelectedEmployeeIds([]);
     setDupEmployeePickerValue('');
-  }, [selectedBranchName, importGroup?.id]);
+  }, [selectedBranchId, importGroupId, role, user]);
 
   useEffect(() => {
     let isMounted = true;
-    if (!importGroup?.id) {
+    if (role === 'EMPLOYEE' && user?.id) {
+      const selfOption = { id: user.id, username: user.username || 'Myself' };
+      setEmployees([selfOption]);
+      setSelectedEmployeeIds([String(user.id)]);
+      setDupSelectedEmployeeIds([String(user.id)]);
+      return () => { isMounted = false; };
+    }
+    if (!importGroupId) {
+      if (role === 'SUPER_ADMIN' && selectedBranchId) {
+        getImportableEmployees()
+          .then((employeesList) => {
+            if (!isMounted) return;
+            setEmployees(
+              (Array.isArray(employeesList) ? employeesList : []).map((employee) => ({
+                id: employee.id,
+                username: employee.username || `User ${employee.id}`,
+              })),
+            );
+          })
+          .catch(() => {
+            if (!isMounted) return;
+            setEmployees([]);
+          });
+        return () => {
+          isMounted = false;
+        };
+      }
       setEmployees([]);
       return () => { isMounted = false; };
     }
-    getGroupMembers(importGroup.id)
+    getGroupMembers(importGroupId)
       .then((members) => {
         if (!isMounted) return;
         const eligibleMembers = (Array.isArray(members) ? members : []).filter((member) => {
@@ -200,10 +293,27 @@ export default function LeadImportPage() {
       })
       .catch(() => {
         if (!isMounted) return;
+        if (role === 'SUPER_ADMIN' && selectedBranchId) {
+          getImportableEmployees()
+            .then((employeesList) => {
+              if (!isMounted) return;
+              setEmployees(
+                (Array.isArray(employeesList) ? employeesList : []).map((employee) => ({
+                  id: employee.id,
+                  username: employee.username || `User ${employee.id}`,
+                })),
+              );
+            })
+            .catch(() => {
+              if (!isMounted) return;
+              setEmployees([]);
+            });
+          return;
+        }
         setEmployees([]);
       });
     return () => { isMounted = false; };
-  }, [importGroup, leadPageKey]);
+  }, [importGroupId, leadPageKey, role, selectedBranchId, user]);
 
   // ── After CSV parse, run duplicate check ────────────────────────────────
   async function runDuplicateCheck(parsedRows) {
@@ -342,15 +452,16 @@ export default function LeadImportPage() {
       variant: row.variant || null,
       quantity: row.quantity ? Number(row.quantity) : null,
       leadCountry: row.leadCountry || null,
-      leadState: row.leadState || null,
-      leadCity: row.leadCity || null,
+      leadState: row.leadState || row.state || null,
+      leadCity: row.leadCity || row.district || null,
+      streetAddress: row.streetAddress || null,
       assignedUserId: selectedEmployeeIds[i % selectedEmployeeIds.length],
       isDuplicate: false,
     }));
 
     setSubmitting(true);
     try {
-      const result = await bulkCreateLeads(leads, selectedBranchName || null);
+      const result = await bulkCreateLeads(leads, selectedBranchNameValue || null);
       setSuccessMsg(result.created + ' leads imported successfully.');
       setRows((prevRows) =>
         prevRows.map((row) =>
@@ -360,7 +471,11 @@ export default function LeadImportPage() {
         )
       );
       setCheckedIndexes(new Set());
-      setSelectedEmployeeIds([]);
+      if (role === 'EMPLOYEE' && user?.id) {
+        setSelectedEmployeeIds([String(user.id)]);
+      } else {
+        setSelectedEmployeeIds([]);
+      }
       setEmployeePickerValue('');
     } catch (err) {
       setSubmitError(err?.response?.data?.message || err?.response?.data?.error || err?.message || 'Import failed.');
@@ -390,8 +505,9 @@ export default function LeadImportPage() {
       variant: row.variant || null,
       quantity: row.quantity ? Number(row.quantity) : null,
       leadCountry: row.leadCountry || null,
-      leadState: row.leadState || null,
-      leadCity: row.leadCity || null,
+      leadState: row.leadState || row.state || null,
+      leadCity: row.leadCity || row.district || null,
+      streetAddress: row.streetAddress || null,
       assignedUserId: dupSelectedEmployeeIds[i % dupSelectedEmployeeIds.length],
       isDuplicate: true,
       duplicateOfLeadId: row._duplicateOf?.id || null,
@@ -401,7 +517,7 @@ export default function LeadImportPage() {
 
     setDupSubmitting(true);
     try {
-      const result = await bulkCreateLeads(leads, selectedBranchName || null);
+      const result = await bulkCreateLeads(leads, selectedBranchNameValue || null);
       setDupSuccessMsg(result.created + ' duplicate lead(s) added to duplicate bucket.');
       setRows((prevRows) =>
         prevRows.map((row) =>
@@ -411,7 +527,11 @@ export default function LeadImportPage() {
         )
       );
       setDupCheckedIndexes(new Set());
-      setDupSelectedEmployeeIds([]);
+      if (role === 'EMPLOYEE' && user?.id) {
+        setDupSelectedEmployeeIds([String(user.id)]);
+      } else {
+        setDupSelectedEmployeeIds([]);
+      }
       setDupEmployeePickerValue('');
     } catch (err) {
       setDupSubmitError(err?.response?.data?.message || err?.response?.data?.error || err?.message || 'Import failed.');
@@ -434,6 +554,14 @@ export default function LeadImportPage() {
     addFromDropdown, toggleEmp, error, successMsgVal, onSubmit,
     submittingVal, checkedCount, isDupSection,
   }) {
+    console.log("RENDER EMPLOYEE SECTION:", {
+      role,
+      userId: user?.id,
+      employeeIds,
+      checkedCount,
+      employees,
+      importGroupId,
+    });
     return (
       <div className="card mb-3">
         <div className="card-body">
@@ -444,42 +572,50 @@ export default function LeadImportPage() {
             <div className="mb-3" style={{ maxWidth: 360 }}>
               <label className="form-label">Branch</label>
               <select
-                className="form-select"
-                value={selectedBranchName}
-                onChange={(e) => setSelectedBranchName(e.target.value)}
-              >
+                              className="form-select"
+                              value={selectedBranchId}
+                              onChange={(e) => {
+                                const nextBranchId = e.target.value;
+                                const nextBranch = branchOptions.find((branch) => String(branch.id) === String(nextBranchId));
+                                setSelectedBranchId(nextBranchId);
+                                setSelectedBranchName(nextBranch?.name || '');
+                                setCreateBranchFlowGroupId('');
+                              }}
+                            >
                 <option value="">Select Branch</option>
-                {importBranchOptions.map((branchName) => (
-                  <option key={branchName} value={branchName}>{branchName}</option>
+                {importBranchOptions.map((branch) => (
+                  <option key={branch.id || branch} value={branch.id || branch}>{branch.name || branch}</option>
                 ))}
               </select>
             </div>
           )}
           {employees.length === 0 ? (
             <p className="text-muted">
-              {role === 'SUPER_ADMIN' && !selectedBranchName
+              {role === 'SUPER_ADMIN' && !selectedBranchId
                 ? 'Select a branch to load New Lead handlers.'
-                : importGroup
+                : importGroupId
                   ? 'No active employees in this group.'
                   : 'No group available.'}
             </p>
           ) : (
             <>
-              <div className="mb-3" style={{ maxWidth: 360 }}>
-                <label className="form-label">Assign Employee</label>
-                <select
-                  className="form-select"
-                  value={pickerValue}
-                  onChange={(e) => { setPickerValue(e.target.value); addFromDropdown(e.target.value); }}
-                >
-                  <option value="">Select employee</option>
-                  {employees
-                    .filter((emp) => !employeeIds.includes(String(emp.id)))
-                    .map((emp) => (
-                      <option key={emp.id} value={String(emp.id)}>{emp.username}</option>
-                    ))}
-                </select>
-              </div>
+              {role !== 'EMPLOYEE' && (
+                <div className="mb-3" style={{ maxWidth: 360 }}>
+                  <label className="form-label">Assign Employee</label>
+                  <select
+                    className="form-select"
+                    value={pickerValue}
+                    onChange={(e) => { setPickerValue(e.target.value); addFromDropdown(e.target.value); }}
+                  >
+                    <option value="">Select employee</option>
+                    {employees
+                      .filter((emp) => !employeeIds.includes(String(emp.id)))
+                      .map((emp) => (
+                        <option key={emp.id} value={String(emp.id)}>{emp.username}</option>
+                      ))}
+                  </select>
+                </div>
+              )}
               <div className="d-flex flex-wrap gap-2 mb-3">
                 {employeeIds.length === 0 ? (
                   <span className="text-muted small">No employee selected yet.</span>
@@ -492,23 +628,20 @@ export default function LeadImportPage() {
                         className="badge rounded-pill text-bg-primary d-inline-flex align-items-center gap-2 px-3 py-2"
                       >
                         <span>{employee?.username || employeeId}</span>
-                        <button
-                          type="button"
-                          className="btn btn-link btn-sm text-white p-0 text-decoration-none"
-                          onClick={() => toggleEmp(employeeId)}
-                          style={{ lineHeight: 1 }}
-                        >x</button>
+                        {role !== 'EMPLOYEE' && (
+                          <button
+                            type="button"
+                            className="btn btn-link btn-sm text-white p-0 text-decoration-none"
+                            onClick={() => toggleEmp(employeeId)}
+                            style={{ lineHeight: 1 }}
+                          >x</button>
+                        )}
                       </span>
                     );
                   })
                 )}
               </div>
             </>
-          )}
-          {employeeIds.length > 1 && checkedCount > 0 && (
-            <p className="text-muted small mb-2">
-              {checkedCount} leads will be distributed round-robin across {employeeIds.length} employees.
-            </p>
           )}
           {error && <div className="alert alert-danger py-2">{error}</div>}
           {successMsgVal && <div className="alert alert-success py-2">{successMsgVal}</div>}

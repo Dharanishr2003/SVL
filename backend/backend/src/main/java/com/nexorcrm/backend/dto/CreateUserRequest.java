@@ -36,13 +36,13 @@ public class CreateUserRequest {
     @Size(min = 8, max = 100)
     private String confirmPassword;
 
-    @Size(max = 160)
+    @Size(max = 255)
     private String institution;
 
-    @Size(max = 160)
+    @Size(max = 255)
     private String departmentName;
 
-    @Size(max = 160)
+    @Size(max = 255)
     private String team;
 
     @Size(max = 40)

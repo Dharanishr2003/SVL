@@ -42,14 +42,17 @@ public class BulkLeadItem {
 
     private Integer quantity;
 
-    @Size(max = 10)
+    @Size(max = 100)
     private String leadCountry;
 
-    @Size(max = 10)
+    @Size(max = 100)
     private String leadState;
 
     @Size(max = 200)
     private String leadCity;
+
+    @Size(max = 500)
+    private String streetAddress;
 
     @NotNull(message = "Assigned user ID is required")
     private Long assignedUserId;
@@ -82,6 +85,8 @@ public class BulkLeadItem {
     public void setLeadState(String leadState) { this.leadState = leadState; }
     public String getLeadCity() { return leadCity; }
     public void setLeadCity(String leadCity) { this.leadCity = leadCity; }
+    public String getStreetAddress() { return streetAddress; }
+    public void setStreetAddress(String streetAddress) { this.streetAddress = streetAddress; }
     public Long getAssignedUserId() { return assignedUserId; }
     public void setAssignedUserId(Long assignedUserId) { this.assignedUserId = assignedUserId; }
 

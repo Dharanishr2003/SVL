@@ -1031,7 +1031,7 @@
   font-size: 12px;
 }
 
-.btn-close {
+.product-field-config-container .btn-close {
   width: 24px;
   height: 24px;
   padding: 0;
@@ -1043,7 +1043,7 @@
   opacity: 1;
 }
 
-.btn-close:hover {
+.product-field-config-container .btn-close:hover {
   color: #333;
 }
 

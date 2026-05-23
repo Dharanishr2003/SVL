@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 import { jsPDF } from "jspdf";
@@ -998,6 +998,10 @@ export default function LeadsPage() {
         projectName: createForm.projectName.trim() || null,
         leadGroupId: createForm.leadGroupId ? Number(createForm.leadGroupId) : null,
         assignedUserId: createForm.assignedUserId ? Number(createForm.assignedUserId) : null,
+        leadCountry: createCountryIso || null,
+        leadState: createForm.state || null,
+        leadCity: createForm.district || null,
+        streetAddress: createForm.streetAddress?.trim() || null,
       };
 
       const created = await createLead(payload);
@@ -1558,13 +1562,15 @@ export default function LeadsPage() {
                 <i className="ti ti-filter me-1" />
                 Filter
               </button>
-              <button
-                className="btn btn-outline-info leads-toolbar-btn"
-                onClick={() => navigate('/leads/import')}
-              >
-                <i className="ti ti-upload me-1" />
-                Import Leads
-              </button>
+              {role !== "EMPLOYEE" && (
+                <button
+                  className="btn btn-outline-info leads-toolbar-btn"
+                  onClick={() => navigate('/leads/import')}
+                >
+                  <i className="ti ti-upload me-1" />
+                  Import Leads
+                </button>
+              )}
               <button
                 className="btn btn-success leads-toolbar-btn leads-primary-action"
                 onClick={openCreateModal}

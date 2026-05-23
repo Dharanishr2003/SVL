@@ -155,6 +155,96 @@ export function clearQuotationDraft() {
   }
 }
 
+function normalizeQuotationResponseLineItem(item) {
+  if (!item) return {};
+  // Parse specs from specsJson if specs object is not directly available
+  let specs = item.specs;
+  if (!specs && item.specsJson) {
+    try { specs = JSON.parse(item.specsJson); } catch { specs = {}; }
+  }
+  return {
+    id: item.id || `quotation-item-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    requirementId: item.requirementId ?? null,
+    categoryId: item.categoryId ?? null,
+    typeId: item.typeId ?? null,
+    subtypeId: item.subtypeId ?? null,
+    typeName: item.typeName || "",
+    subtypeName: item.subtypeName || null,
+    productName: item.productName || "",
+    specsSummary: item.specsSummary || "",
+    specsJson: item.specsJson || "",
+    specs: specs || {},
+    quantity: Number(item.quantity || 0),
+    unitPrice: Number(item.unitPrice || 0),
+    pricePerUnit: Number(item.unitPrice || 0),
+    lineTotal: Number(item.lineTotal || 0),
+    sortOrder: item.sortOrder ?? 0,
+    designStatus: item.designStatus || "",
+    pricingStatus: item.pricingStatus || "",
+    priceListEntryId: item.priceListEntryId ?? null,
+  };
+}
+
+export function quotationResponseToDraft(quotation) {
+  if (!quotation) return null;
+
+  const selectedLead = quotation.selectedLead || (quotation.leadId || quotation.clientName
+    ? {
+        id: quotation.leadId ?? null,
+        leadId: quotation.leadId ?? null,
+        name: quotation.clientName || "",
+        email: quotation.clientEmail || "",
+        mobile: quotation.clientMobile || "",
+        company: quotation.clientCompany || "",
+      }
+    : null);
+
+  const gstRows = Array.isArray(quotation.gstRows)
+    ? quotation.gstRows.map((row, index) => ({
+        id: row.id || `gst-row-restored-${index}`,
+        gstMasterId: row.gstMasterId || "",
+        taxName: row.taxName || "",
+        taxPercent: Number(row.taxPercent || 0),
+      }))
+    : [];
+
+  const lineItems = Array.isArray(quotation.items)
+    ? quotation.items.map(normalizeQuotationResponseLineItem)
+    : Array.isArray(quotation.lineItems)
+      ? quotation.lineItems.map(normalizeQuotationResponseLineItem)
+      : [];
+
+  return {
+    id: quotation.id || null,
+    quotationNumber: quotation.quotationNumber || "",
+    createdAt: quotation.createdAt || "",
+    status: quotation.status || QUOTATION_STATUS_DRAFT,
+    verificationRequestedAt: quotation.verificationRequestedAt || null,
+    verificationRequestedById: quotation.verificationRequestedById || null,
+    verificationRequestedByName: quotation.verificationRequestedByName || null,
+    verificationRequestedByRole: quotation.verificationRequestedByRole || null,
+    verificationRequestNotes: quotation.verificationRequestNotes || "",
+    approvedAt: quotation.approvedAt || null,
+    approvedById: quotation.approvedById || null,
+    approvedByName: quotation.approvedByName || null,
+    approvedByRole: quotation.approvedByRole || null,
+    approvalNotes: quotation.approvalNotes || "",
+    createdById: quotation.createdById || null,
+    createdByName: quotation.createdByName || null,
+    createdByEmail: quotation.createdByEmail || null,
+    createdByRole: quotation.createdByRole || null,
+    createdByTeam: quotation.createdByTeam || null,
+    partyMode: quotation.partyMode || "lead",
+    selectedLead,
+    leadSearch: selectedLead ? `${selectedLead.leadId || selectedLead.id || ""} - ${selectedLead.name || ""}`.trim() : "",
+    lineItems,
+    discountPct: Number(quotation.discountPercent ?? quotation.discountPct ?? 0),
+    includeDesignFee: Boolean(quotation.includeDesignFee),
+    designFeeAmount: Number(quotation.designFeeAmount ?? 0),
+    gstRows,
+  };
+}
+
 export function createQuotationPayload({
   id,
   quotationNumber,
@@ -193,6 +283,20 @@ export function createQuotationPayload({
 }) {
   const now = new Date().toISOString();
   const resolvedId = id || `quotation-${Date.now()}`;
+  const clientName = customerName || selectedLead?.name || "";
+  const clientMobile = selectedLead?.mobile || selectedLead?.phone || "";
+  const clientEmail = selectedLead?.email || "";
+  const clientCompany = selectedLead?.company || selectedLead?.companyName || "";
+  const items = Array.isArray(lineItems)
+    ? lineItems.map((item) => ({
+        requirementId: item.requirementId ?? item.sourceRequirementId ?? null,
+        productName: item.productName || "",
+        specsSummary: item.specsSummary || item.variantSummary || "",
+        specsJson: item.specsJson || JSON.stringify(item.specs || item.variantFields || {}),
+        quantity: Number(item.quantity || 0),
+        unitPrice: Number(item.unitPrice ?? item.pricePerUnit ?? 0),
+      }))
+    : [];
 
   return {
     id: resolvedId,
@@ -200,14 +304,21 @@ export function createQuotationPayload({
     quotationNumber: quotationNumber || "DRAFT",
     quotationDate,
     customerName,
+    clientName,
+    clientMobile,
+    clientEmail,
+    clientCompany,
     partyMode,
     selectedLead,
     lineItems,
+    items,
     discountPct,
+    discountPercent: Number(discountPct || 0),
     includeDesignFee: includeDesignFee || false,
     designFeeAmount: Number(designFeeAmount || 0),
     gstRows: Array.isArray(gstRows) ? gstRows : [],
     gstPct,
+    gstPercent: gstPct,
     gstPctTotal: gstPct,
     cgstPct,
     sgstPct,
@@ -349,10 +460,17 @@ function safeAddImage(doc, dataUrl, x, y, maxW, maxH) {
 
 export async function buildQuotationPdf({
   customerName,
-  selectedLead,
+  clientName,
+  clientMobile,
+  clientEmail,
+  clientCompany,
+  leadId,
+  selectedLead: rawSelectedLead,
   quotationDate,
+  createdAt,
   quotationNumber,
   lineItems = [],
+  items,
   includeDesignFee = false,
   designFeeAmount = 0,
   gstPct,
@@ -361,11 +479,30 @@ export async function buildQuotationPdf({
   igstPct,
   gstRows = [],
   totals = {},
+  subtotal: rootSubtotal,
+  discountPercent,
+  discountPct,
+  grandTotal: rootGrandTotal,
   createdByName,
   createdByRole,
   approvedByName,
   template = {},
 }) {
+  // Build a selectedLead fallback from root-level client* fields (API response from list page)
+  const selectedLead = rawSelectedLead || {
+    leadId: leadId || "",
+    name: clientName || customerName || "",
+    mobile: clientMobile || "",
+    email: clientEmail || "",
+    company: clientCompany || "",
+    address: "",
+    leadState: "",
+    state: "",
+  };
+  const resolvedCustomerName = customerName || clientName || selectedLead?.name || "";
+  const resolvedDate = quotationDate || (createdAt ? new Date(createdAt).toISOString().slice(0, 10) : "") || "";
+  const resolvedLineItems = (lineItems && lineItems.length) ? lineItems : (items || []);
+
   const resolvedTemplate = {
     companyName: "",
     companyTagline: "",
@@ -417,14 +554,17 @@ export async function buildQuotationPdf({
   const appliedSgstPct = isTN ? resolvedGstPct / 2 : 0;
   const appliedIgstPct = isTN ? 0 : resolvedGstPct;
 
-  const subtotal = Number(totals.subtotal || 0);
-  const discountAmt = Number(totals.discountAmt || 0);
-  const taxableAmount = Number((totals.afterDiscount ?? (subtotal - discountAmt)) || 0);
+  const subtotal = Number(totals.subtotal ?? rootSubtotal ?? 0);
+  const discountPercentValue = Number(totals.discountPct ?? discountPercent ?? discountPct ?? 0);
+  const discountAmt = totals.discountAmt !== undefined
+    ? Number(totals.discountAmt)
+    : (subtotal * (discountPercentValue / 100));
+  const taxableAmount = Number(totals.afterDiscount ?? (subtotal - discountAmt));
   const cgstAmt = taxableAmount * (appliedCgstPct / 100);
   const sgstAmt = taxableAmount * (appliedSgstPct / 100);
   const igstAmt = taxableAmount * (appliedIgstPct / 100);
   const totalTax = isTN ? cgstAmt + sgstAmt : igstAmt;
-  const grandTotal = Number((totals.grandTotal ?? (taxableAmount + totalTax)) || 0);
+  const grandTotal = Number(totals.grandTotal ?? rootGrandTotal ?? (taxableAmount + totalTax));
   // ══ SECTION 1 — Header: ONE table, logo inside left cell ══
   autoTable(doc, {
     startY: 10,
@@ -502,7 +642,7 @@ export async function buildQuotationPdf({
 
         [
           ["Quotation No", asText(quotationNumber, "DRAFT")],
-          ["Date",         asText(quotationDate, "-")],
+          ["Date",         asText(resolvedDate, "-")],
           ["Valid For",    `${Number(resolvedTemplate.validityDays) || 30} days`],
         ].forEach(([label, value]) => {
           doc.setFont("helvetica", "bold").setFontSize(8).setTextColor(30, 30, 30);
@@ -553,7 +693,7 @@ export async function buildQuotationPdf({
         doc.setFont("helvetica", "normal").setFontSize(7.5).setTextColor(50, 50, 50);
         [
           `Customer ID: ${selectedLead?.leadId || "-"}`,
-          `Name: ${customerName || "-"}`,
+          `Name: ${resolvedCustomerName || "-"}`,
           `Address: ${selectedLead?.address || ""}`,
           `State: ${expandStateName(leadStateValue) || leadStateDisplay || "-"}`,
           `State Code: ${leadStateCode || "-"}`,
@@ -567,7 +707,7 @@ export async function buildQuotationPdf({
         doc.setFont("helvetica", "normal").setFontSize(7.5).setTextColor(50, 50, 50);
         [
           `Customer ID: ${selectedLead?.leadId || "-"}`,
-          `Name: ${customerName || "-"}`,
+          `Name: ${resolvedCustomerName || "-"}`,
           `Address: ${selectedLead?.address || ""}`,
           `State: ${expandStateName(leadStateValue) || leadStateDisplay || "-"}`,
           `State Code: ${leadStateCode || "-"}`,
@@ -584,13 +724,13 @@ export async function buildQuotationPdf({
   const tableBody = [];
   let rowNum = 1;
 
-  (lineItems.length ? lineItems : [{}]).forEach((item) => {
+  (resolvedLineItems.length ? resolvedLineItems : [{}]).forEach((item) => {
     const isDesignOnly = String(item?.designStatus || "").toLowerCase() === "design_only";
     const isDesignProd = String(item?.designStatus || "").toLowerCase() === "design_production";
     const designCost   = Number(item?.designCost || 0);
     const qty          = Number(item?.quantity || 0);
     const unitPrice    = Number(item?.pricePerUnit || item?.unitPrice || 0);
-    const specsText    = fullSpecsSummary(item?.specs || {});
+    const specsText    = fullSpecsSummary(item?.specs || item?.specsJson || {}) || item?.specsSummary || "";
     const productName  = asText(item?.productName, "-");
     const description  = specsText ? `${productName}\n${specsText}` : productName;
     const gstLabel     = resolvedGstPct > 0 ? `${resolvedGstPct}%` : "—";
@@ -987,9 +1127,12 @@ export async function downloadQuotationPdf(quotation, template = {}) {
     ...quotation,
     template: convertedTemplate,
   });
-  const safeCustomerName = sanitizeFilenamePart(quotation.customerName, "Customer");
+  const safeCustomerName = sanitizeFilenamePart(
+    quotation.customerName || quotation.clientName || quotation.selectedLead?.name,
+    "Customer"
+  );
   const safeDate = sanitizeFilenamePart(
-    quotation.quotationDate,
+    quotation.quotationDate || quotation.createdAt,
     new Date().toISOString().slice(0, 10),
   );
   const fileName = `Quotation_${safeCustomerName}_${safeDate}.pdf`;

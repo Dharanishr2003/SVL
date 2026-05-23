@@ -9,9 +9,16 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nexorcrm.backend.entity.Quotation;
+import com.nexorcrm.backend.entity.Role;
+import com.nexorcrm.backend.entity.User;
 import com.nexorcrm.backend.entity.QuotationItem;
+import com.nexorcrm.backend.entity.Lead;
 import com.nexorcrm.backend.repo.QuotationRepository;
+import com.nexorcrm.backend.repo.LeadRepository;
+import com.nexorcrm.backend.repo.UserRepository;
+import org.springframework.security.access.AccessDeniedException;
 import jakarta.persistence.EntityNotFoundException;
+import org.springframework.util.StringUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,6 +29,8 @@ import java.time.Year;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Service
@@ -29,10 +38,18 @@ import java.util.stream.Collectors;
 public class QuotationService {
 
     private final QuotationRepository quotationRepository;
+    private final LeadRepository leadRepository;
+    private final UserRepository userRepository;
     private final ObjectMapper objectMapper;
 
-    public QuotationService(QuotationRepository quotationRepository, ObjectMapper objectMapper) {
+    public QuotationService(
+            QuotationRepository quotationRepository,
+            LeadRepository leadRepository,
+            UserRepository userRepository,
+            ObjectMapper objectMapper) {
         this.quotationRepository = quotationRepository;
+        this.leadRepository = leadRepository;
+        this.userRepository = userRepository;
         this.objectMapper = objectMapper;
     }
 
@@ -47,6 +64,8 @@ public class QuotationService {
         quotation.setValidityDate(request.getValidityDate());
         String requestedStatus = normalizeStatus(request.getStatus());
         quotation.setStatus(requestedStatus != null ? requestedStatus : "DRAFT");
+        quotation.setIncludeDesignFee(Boolean.TRUE.equals(request.getIncludeDesignFee()));
+        quotation.setDesignFeeAmount(resolveDesignFeeAmount(request));
         if (request.getCreatedById() != null) quotation.setCreatedById(request.getCreatedById());
         if (request.getCreatedByName() != null) quotation.setCreatedByName(request.getCreatedByName());
         if (request.getCreatedByEmail() != null) quotation.setCreatedByEmail(request.getCreatedByEmail());
@@ -66,7 +85,6 @@ public class QuotationService {
         Long seq = quotationRepository.nextQuotationSeq();
         quotation.setQuotationNumber("QT-" + Year.now().getValue() + "-" + seq);
 
-        BigDecimal subtotal = BigDecimal.ZERO;
         List<QuotationItem> items = new ArrayList<>();
         if (request.getItems() != null) {
             for (int i = 0; i < request.getItems().size(); i++) {
@@ -84,19 +102,10 @@ public class QuotationService {
                 item.setLineTotal(lineTotal);
                 item.setSortOrder(i);
                 items.add(item);
-                subtotal = subtotal.add(lineTotal);
             }
         }
         quotation.setItems(items);
-        quotation.setSubtotal(subtotal);
-
-        BigDecimal afterDiscount = subtotal.multiply(
-                BigDecimal.ONE.subtract(discountPercent.divide(new BigDecimal("100"), 10, RoundingMode.HALF_UP))
-        );
-        BigDecimal grandTotal = afterDiscount.multiply(
-                BigDecimal.ONE.add(gstPercent.divide(new BigDecimal("100"), 10, RoundingMode.HALF_UP))
-        ).setScale(2, RoundingMode.HALF_UP);
-        quotation.setGrandTotal(grandTotal);
+        recomputeTotals(quotation, discountPercent, gstPercent);
 
         applyApprovalMetadata(quotation, quotation.getStatus(), request);
 
@@ -135,6 +144,8 @@ public class QuotationService {
         r.setCgstPct(q.getCgstPercent());
         r.setSgstPct(q.getSgstPercent());
         r.setIgstPct(q.getIgstPercent());
+        r.setIncludeDesignFee(q.isIncludeDesignFee());
+        r.setDesignFeeAmount(q.getDesignFeeAmount());
         r.setGrandTotal(q.getGrandTotal());
         r.setNotes(q.getNotes());
         r.setValidityDate(q.getValidityDate());
@@ -176,6 +187,25 @@ public class QuotationService {
     }
 
     @Transactional(readOnly = true)
+    public List<QuotationResponse> getAllQuotations(String actorPrincipal) {
+        User actor = resolveActor(actorPrincipal);
+        List<Quotation> quotations = quotationRepository.findAllByOrderByCreatedAtDesc();
+        if (actor != null) {
+            if (actor.getRole() == Role.EMPLOYEE) {
+                quotations = loadQuotationsForEmployee(actor);
+            } else if (actor.getRole() == Role.TEAM_LEAD || actor.getRole() == Role.MANAGER) {
+                quotations = quotations.stream()
+                        .filter(quotation -> isVisibleToActor(actor, quotation))
+                        .collect(Collectors.toList());
+            }
+        }
+        return quotations
+                .stream()
+                .map(this::toResponse)
+                .collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
     public List<QuotationResponse> getAllQuotations() {
         return quotationRepository.findAllByOrderByCreatedAtDesc()
                 .stream()
@@ -193,6 +223,8 @@ public class QuotationService {
         q.setClientCompany(request.getClientCompany());
         q.setNotes(request.getNotes());
         q.setValidityDate(request.getValidityDate());
+        q.setIncludeDesignFee(Boolean.TRUE.equals(request.getIncludeDesignFee()));
+        q.setDesignFeeAmount(resolveDesignFeeAmount(request));
 
         String requestedStatus = normalizeStatus(request.getStatus());
         if (requestedStatus != null) {
@@ -209,7 +241,6 @@ public class QuotationService {
 
         if (request.getItems() != null) {
             q.getItems().clear();
-            BigDecimal subtotal = BigDecimal.ZERO;
             for (int i = 0; i < request.getItems().size(); i++) {
                 QuotationItemRequest ir = request.getItems().get(i);
                 QuotationItem item = new QuotationItem();
@@ -225,18 +256,10 @@ public class QuotationService {
                 item.setLineTotal(lineTotal);
                 item.setSortOrder(i);
                 q.getItems().add(item);
-                subtotal = subtotal.add(lineTotal);
             }
-            q.setSubtotal(subtotal);
-            BigDecimal afterDiscount = subtotal.multiply(
-                    BigDecimal.ONE.subtract(q.getDiscountPercent()
-                            .divide(new BigDecimal("100"), 10, RoundingMode.HALF_UP)));
-            BigDecimal grandTotal = afterDiscount.multiply(
-                    BigDecimal.ONE.add(q.getGstPercent()
-                            .divide(new BigDecimal("100"), 10, RoundingMode.HALF_UP)))
-                    .setScale(2, RoundingMode.HALF_UP);
-            q.setGrandTotal(grandTotal);
         }
+
+        recomputeTotals(q, q.getDiscountPercent(), q.getGstPercent());
 
         return toResponse(quotationRepository.save(q));
     }
@@ -279,6 +302,185 @@ public class QuotationService {
 
     private BigDecimal scalePercent(BigDecimal value) {
         return value == null ? BigDecimal.ZERO : value.setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private void recomputeTotals(Quotation quotation, BigDecimal discountPercent, BigDecimal gstPercent) {
+        BigDecimal itemsSubtotal = quotation.getItems() == null
+                ? BigDecimal.ZERO
+                : quotation.getItems().stream()
+                .map(item -> item.getLineTotal() == null ? BigDecimal.ZERO : item.getLineTotal())
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal designFee = quotation.isIncludeDesignFee()
+                ? scaleMoney(quotation.getDesignFeeAmount())
+                : BigDecimal.ZERO;
+        BigDecimal subtotal = itemsSubtotal.add(designFee);
+        quotation.setSubtotal(subtotal);
+
+        BigDecimal discount = discountPercent == null ? BigDecimal.ZERO : discountPercent;
+        BigDecimal gst = gstPercent == null ? BigDecimal.ZERO : gstPercent;
+        BigDecimal afterDiscount = subtotal.multiply(
+                BigDecimal.ONE.subtract(discount.divide(new BigDecimal("100"), 10, RoundingMode.HALF_UP))
+        );
+        BigDecimal grandTotal = afterDiscount.multiply(
+                BigDecimal.ONE.add(gst.divide(new BigDecimal("100"), 10, RoundingMode.HALF_UP))
+        ).setScale(2, RoundingMode.HALF_UP);
+        quotation.setGrandTotal(grandTotal);
+    }
+
+    private BigDecimal resolveDesignFeeAmount(QuotationRequest request) {
+        if (!Boolean.TRUE.equals(request.getIncludeDesignFee())) {
+            return BigDecimal.ZERO;
+        }
+        return scaleMoney(request.getDesignFeeAmount());
+    }
+
+    private BigDecimal scaleMoney(BigDecimal value) {
+        return value == null ? BigDecimal.ZERO : value.setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private List<Quotation> loadQuotationsForEmployee(User actor) {
+        // Collect all lead IDs assigned to this employee (via ownerUserId)
+        List<Long> myLeadIds = new ArrayList<>();
+        if (actor.getId() != null) {
+            leadRepository.findByDeletedFalseAndOwnerUserIdOrderByCreatedAtDesc(actor.getId())
+                    .forEach(lead -> myLeadIds.add(lead.getId()));
+        }
+
+        // Quotations the employee created themselves
+        List<Quotation> ownQuotations = quotationRepository.findAllByOrderByCreatedAtDesc()
+                .stream()
+                .filter(quotation -> isOwnedByActor(actor, quotation))
+                .collect(Collectors.toList());
+
+        // Quotations on this employee's leads (created by team lead / manager / admin / super admin)
+        List<Quotation> leadQuotations = myLeadIds.isEmpty()
+                ? new ArrayList<>()
+                : quotationRepository.findByLeadIdInOrderByCreatedAtDesc(myLeadIds);
+
+        // Merge and deduplicate by quotation ID
+        java.util.Map<Long, Quotation> merged = new java.util.LinkedHashMap<>();
+        for (Quotation q : ownQuotations) {
+            if (q.getId() != null) merged.put(q.getId(), q);
+        }
+        for (Quotation q : leadQuotations) {
+            if (q.getId() != null) merged.putIfAbsent(q.getId(), q);
+        }
+
+        List<Quotation> quotations = new ArrayList<>(merged.values());
+        quotations.sort((left, right) -> {
+            LocalDateTime leftCreated = left.getCreatedAt();
+            LocalDateTime rightCreated = right.getCreatedAt();
+            if (leftCreated == null && rightCreated == null) return 0;
+            if (leftCreated == null) return 1;
+            if (rightCreated == null) return -1;
+            return rightCreated.compareTo(leftCreated);
+        });
+        return quotations;
+    }
+
+    private boolean isVisibleToActor(User actor, Quotation quotation) {
+        if (actor == null || quotation == null || actor.getRole() == null) {
+            return false;
+        }
+        if (actor.getRole() == Role.ADMIN || actor.getRole() == Role.SUPER_ADMIN) {
+            return true;
+        }
+        User leadOwner = resolveLeadOwner(quotation);
+        if (leadOwner != null) {
+            if (actor.getRole() == Role.EMPLOYEE) {
+                return Objects.equals(actor.getId(), leadOwner.getId()) || isOwnedByActor(actor, quotation);
+            }
+            if (actor.getRole() == Role.TEAM_LEAD) {
+                return matchesScope(leadOwner.getInstitutionName(), actor.getInstitutionName())
+                        && matchesScope(leadOwner.getDepartmentName(), actor.getDepartmentName())
+                        && matchesScope(leadOwner.getTeamName(), actor.getTeamName());
+            }
+            if (actor.getRole() == Role.MANAGER) {
+                return matchesScope(leadOwner.getInstitutionName(), actor.getInstitutionName())
+                        && matchesScope(leadOwner.getDepartmentName(), actor.getDepartmentName());
+            }
+        }
+
+        User creator = resolveQuotationCreator(quotation);
+        if (creator != null) {
+            if (actor.getRole() == Role.EMPLOYEE) {
+                return isOwnedByActor(actor, quotation);
+            }
+            if (actor.getRole() == Role.TEAM_LEAD) {
+                return matchesScope(creator.getInstitutionName(), actor.getInstitutionName())
+                        && matchesScope(creator.getDepartmentName(), actor.getDepartmentName())
+                        && matchesScope(creator.getTeamName(), actor.getTeamName());
+            }
+            if (actor.getRole() == Role.MANAGER) {
+                return matchesScope(creator.getInstitutionName(), actor.getInstitutionName())
+                        && matchesScope(creator.getDepartmentName(), actor.getDepartmentName());
+            }
+        }
+
+        return isOwnedByActor(actor, quotation);
+    }
+
+    private boolean isOwnedByActor(User actor, Quotation quotation) {
+        if (actor.getId() != null && quotation.getCreatedById() != null) {
+            return actor.getId().equals(quotation.getCreatedById());
+        }
+        if (StringUtils.hasText(actor.getEmail()) && StringUtils.hasText(quotation.getCreatedByEmail())) {
+            return actor.getEmail().trim().equalsIgnoreCase(quotation.getCreatedByEmail().trim());
+        }
+        String actorFullName = String.join(" ",
+                StringUtils.hasText(actor.getFirstName()) ? actor.getFirstName().trim() : "",
+                StringUtils.hasText(actor.getLastName()) ? actor.getLastName().trim() : "").trim();
+        if (StringUtils.hasText(actorFullName) && StringUtils.hasText(quotation.getCreatedByName())) {
+            return actorFullName.equalsIgnoreCase(quotation.getCreatedByName().trim());
+        }
+        if (StringUtils.hasText(actor.getUsername()) && StringUtils.hasText(quotation.getCreatedByName())) {
+            return actor.getUsername().trim().equalsIgnoreCase(quotation.getCreatedByName().trim());
+        }
+        return false;
+    }
+
+    private User resolveQuotationCreator(Quotation quotation) {
+        if (quotation == null) {
+            return null;
+        }
+        if (quotation.getCreatedById() != null) {
+            return userRepository.findByIdAndIsDeletedFalse(quotation.getCreatedById()).orElse(null);
+        }
+        if (StringUtils.hasText(quotation.getCreatedByEmail())) {
+            return userRepository.findByEmailIgnoreCaseAndIsDeletedFalse(quotation.getCreatedByEmail().trim()).orElse(null);
+        }
+        return null;
+    }
+
+    private User resolveLeadOwner(Quotation quotation) {
+        if (quotation == null || quotation.getLeadId() == null) {
+            return null;
+        }
+        Lead lead = leadRepository.findByIdAndDeletedFalse(quotation.getLeadId()).orElse(null);
+        if (lead == null || lead.getOwnerUserId() == null) {
+            return null;
+        }
+        return userRepository.findByIdAndIsDeletedFalse(lead.getOwnerUserId()).orElse(null);
+    }
+
+    private boolean matchesScope(String left, String right) {
+        return StringUtils.hasText(left)
+                && StringUtils.hasText(right)
+                && left.trim().equalsIgnoreCase(right.trim());
+    }
+
+    private User resolveActor(String actorPrincipal) {
+        if (!StringUtils.hasText(actorPrincipal)) {
+            throw new AccessDeniedException("Unauthenticated actor");
+        }
+        String principal = actorPrincipal.trim();
+        Optional<User> user = principal.contains("@")
+                ? userRepository.findByEmailAndIsDeletedFalse(principal.toLowerCase(Locale.ROOT))
+                : userRepository.findByUsernameAndIsDeletedFalse(principal);
+        if (user.isEmpty() && principal.contains("@")) {
+            user = userRepository.findByEmailIgnoreCaseAndIsDeletedFalse(principal);
+        }
+        return user.orElseThrow(() -> new AccessDeniedException("Actor not found"));
     }
 
     private String writeGstRowsJson(List<QuotationRequest.GstRowRequest> gstRows) {

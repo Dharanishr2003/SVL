@@ -3,17 +3,15 @@ package com.nexorcrm.backend.service;
 import com.nexorcrm.backend.dto.DepartmentPermissionResponse;
 import com.nexorcrm.backend.dto.DesignationPermissionResponse;
 import com.nexorcrm.backend.entity.BranchMaster;
-import com.nexorcrm.backend.entity.DepartmentMaster;
-import com.nexorcrm.backend.entity.DesignationMaster;
-import com.nexorcrm.backend.entity.Employee;
 import com.nexorcrm.backend.entity.Role;
 import com.nexorcrm.backend.entity.RoleScopePagePermission;
 import com.nexorcrm.backend.entity.User;
+import com.nexorcrm.backend.entity.UserDepartment;
+import com.nexorcrm.backend.entity.UserDesignation;
 import com.nexorcrm.backend.repo.BranchMasterRepository;
-import com.nexorcrm.backend.repo.DepartmentMasterRepository;
-import com.nexorcrm.backend.repo.DesignationMasterRepository;
-import com.nexorcrm.backend.repo.EmployeeRepository;
 import com.nexorcrm.backend.repo.RoleScopePagePermissionRepository;
+import com.nexorcrm.backend.repo.UserDepartmentRepository;
+import com.nexorcrm.backend.repo.UserDesignationRepository;
 import com.nexorcrm.backend.repo.UserRepository;
 import jakarta.annotation.PostConstruct;
 import jakarta.persistence.EntityNotFoundException;
@@ -43,24 +41,21 @@ public class PageAccessService {
 
     private final RoleScopePagePermissionRepository permissionRepository;
     private final UserRepository userRepository;
-    private final EmployeeRepository employeeRepository;
-    private final DepartmentMasterRepository departmentMasterRepository;
-    private final DesignationMasterRepository designationMasterRepository;
+    private final UserDepartmentRepository userDepartmentRepository;
+    private final UserDesignationRepository userDesignationRepository;
     private final BranchMasterRepository branchMasterRepository;
 
     public PageAccessService(
             RoleScopePagePermissionRepository permissionRepository,
             UserRepository userRepository,
-            EmployeeRepository employeeRepository,
-            DepartmentMasterRepository departmentMasterRepository,
-            DesignationMasterRepository designationMasterRepository,
+            UserDepartmentRepository userDepartmentRepository,
+            UserDesignationRepository userDesignationRepository,
             BranchMasterRepository branchMasterRepository
     ) {
         this.permissionRepository = permissionRepository;
         this.userRepository = userRepository;
-        this.employeeRepository = employeeRepository;
-        this.departmentMasterRepository = departmentMasterRepository;
-        this.designationMasterRepository = designationMasterRepository;
+        this.userDepartmentRepository = userDepartmentRepository;
+        this.userDesignationRepository = userDesignationRepository;
         this.branchMasterRepository = branchMasterRepository;
     }
 
@@ -77,13 +72,8 @@ public class PageAccessService {
             return resolveKeys(role, GLOBAL_SCOPE_TYPE, null);
         }
 
-        Employee employee = resolveEmployeeForUser(user);
-        if (employee == null) {
-            return defaultKeys();
-        }
-
         if (role == Role.MANAGER) {
-            Long departmentId = employee.getDepartmentMasterId();
+            Long departmentId = resolveUserDepartmentScopeId(user);
             if (departmentId == null) {
                 return defaultKeys();
             }
@@ -91,7 +81,7 @@ public class PageAccessService {
         }
 
         if (role == Role.TEAM_LEAD || role == Role.EMPLOYEE) {
-            Long designationId = employee.getDesignationMasterId();
+            Long designationId = resolveUserDesignationScopeId(user);
             if (designationId == null) {
                 return defaultKeys();
             }
@@ -107,14 +97,15 @@ public class PageAccessService {
                 .filter(branch -> branch != null && Boolean.FALSE.equals(branch.getDeleted()))
                 .collect(Collectors.toMap(BranchMaster::getId, BranchMaster::getName, (a, b) -> a, LinkedHashMap::new));
 
-        List<DepartmentMaster> departments = departmentMasterRepository.findByDeletedFalseOrderByIdDesc();
+        List<UserDepartment> departments = userDepartmentRepository.findAllByOrderByIdDesc();
         return departments.stream()
                 .map(department -> {
                     DepartmentPermissionResponse response = new DepartmentPermissionResponse();
                     response.setId(department.getId());
                     response.setName(department.getName());
-                    response.setBranchId(department.getBranchId());
-                    response.setBranchName(branchNames.getOrDefault(department.getBranchId(), ""));
+                    Long branchId = department.getBranch() == null ? null : department.getBranch().getId();
+                    response.setBranchId(branchId);
+                    response.setBranchName(branchNames.getOrDefault(branchId, ""));
                     response.setPageKeys(resolveKeys(Role.MANAGER, DEPARTMENT_SCOPE_TYPE, department.getId()));
                     return response;
                 })
@@ -124,16 +115,17 @@ public class PageAccessService {
     @Transactional(readOnly = true)
     public List<DesignationPermissionResponse> listDesignationPermissions(Role role) {
         Role safeRole = role == null ? Role.EMPLOYEE : role;
-        Map<Long, String> departmentNames = departmentMasterRepository.findByDeletedFalseOrderByIdDesc().stream()
-                .collect(Collectors.toMap(DepartmentMaster::getId, DepartmentMaster::getName, (a, b) -> a, LinkedHashMap::new));
-        List<DesignationMaster> designations = designationMasterRepository.findByDeletedFalseOrderByIdDesc();
+        Map<Long, String> departmentNames = userDepartmentRepository.findAllByOrderByIdDesc().stream()
+                .collect(Collectors.toMap(UserDepartment::getId, UserDepartment::getName, (a, b) -> a, LinkedHashMap::new));
+        List<UserDesignation> designations = userDesignationRepository.findAllByOrderByIdDesc();
         return designations.stream()
                 .map(designation -> {
+                    Long departmentId = designation.getUserDepartment() == null ? null : designation.getUserDepartment().getId();
                     DesignationPermissionResponse response = new DesignationPermissionResponse();
                     response.setId(designation.getId());
                     response.setName(designation.getName());
-                    response.setDepartmentId(designation.getDepartmentMasterId());
-                    response.setDepartmentName(departmentNames.getOrDefault(designation.getDepartmentMasterId(), designation.getDepartment()));
+                    response.setDepartmentId(departmentId);
+                    response.setDepartmentName(departmentNames.getOrDefault(departmentId, ""));
                     response.setPageKeys(resolveKeys(safeRole, DESIGNATION_SCOPE_TYPE, designation.getId()));
                     return response;
                 })
@@ -224,6 +216,37 @@ public class PageAccessService {
                 .orElseGet(this::defaultKeys);
     }
 
+    private Long resolveUserDepartmentScopeId(User user) {
+        if (user == null || !StringUtils.hasText(user.getInstitutionName()) || !StringUtils.hasText(user.getDepartmentName())) {
+            return null;
+        }
+        BranchMaster branch = branchMasterRepository
+                .findFirstByNameIgnoreCaseAndDeletedFalseOrderByIdAsc(user.getInstitutionName().trim())
+                .orElse(null);
+        if (branch == null || branch.getId() == null) {
+            return null;
+        }
+        return userDepartmentRepository.findByBranchId(branch.getId()).stream()
+                .filter(department -> StringUtils.hasText(department.getName()))
+                .filter(department -> department.getName().trim().equalsIgnoreCase(user.getDepartmentName().trim()))
+                .map(UserDepartment::getId)
+                .findFirst()
+                .orElse(null);
+    }
+
+    private Long resolveUserDesignationScopeId(User user) {
+        Long departmentId = resolveUserDepartmentScopeId(user);
+        if (departmentId == null || !StringUtils.hasText(user.getTeamName())) {
+            return null;
+        }
+        return userDesignationRepository.findByUserDepartmentId(departmentId).stream()
+                .filter(designation -> StringUtils.hasText(designation.getName()))
+                .filter(designation -> designation.getName().trim().equalsIgnoreCase(user.getTeamName().trim()))
+                .map(UserDesignation::getId)
+                .findFirst()
+                .orElse(null);
+    }
+
     private List<String> parseKeys(RoleScopePagePermission permission) {
         if (permission == null || !StringUtils.hasText(permission.getPageKeysCsv())) {
             return List.of();
@@ -271,11 +294,4 @@ public class PageAccessService {
                         .orElseThrow(() -> new EntityNotFoundException("User not found"));
     }
 
-    private Employee resolveEmployeeForUser(User user) {
-        if (user == null || !StringUtils.hasText(user.getEmail())) {
-            return null;
-        }
-        return employeeRepository.findFirstByEmailIgnoreCaseAndDeletedFalse(user.getEmail().trim())
-                .orElse(null);
-    }
 }

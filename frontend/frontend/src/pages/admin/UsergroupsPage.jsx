@@ -10,8 +10,7 @@ import {
 } from "../../api/orgHierarchyApi";
 import { getHeadOffices } from "../../api/headOfficesApi";
 import { getBranches } from "../../api/branchesApi";
-import { getDepartmentsMasterByBranch } from "../../api/departmentsApi";
-import { getDesignations } from "../../api/designationsApi";
+import { getUserDepartments, getUserDesignations } from "../../api/userPermissionsApi";
 import { useAuth } from "../../context/AuthContext";
 import UserGroupWizardModal from "../../components/admin/UserGroupWizardModal";
 import { useToast } from "../../components/system/ToastProvider";
@@ -54,8 +53,8 @@ export default function UsergroupsPage() {
   const [orgSelection, setOrgSelection] = useState(null);
   const [headOffices, setHeadOffices] = useState([]);
   const [branches, setBranches] = useState([]);
-  const [createDepartments, setCreateDepartments] = useState([]);
-  const [createDesignations, setCreateDesignations] = useState([]);
+  const [createUserDepartments, setCreateUserDepartments] = useState([]);
+  const [createUserDesignations, setCreateUserDesignations] = useState([]);
   const {
     form,
     createScope,
@@ -147,15 +146,15 @@ export default function UsergroupsPage() {
     let isMounted = true;
     const run = async () => {
       if (!createScope.branchId) {
-        setCreateDepartments([]);
+        setCreateUserDepartments([]);
         return;
       }
       try {
-        const data = await getDepartmentsMasterByBranch(createScope.branchId);
-        if (isMounted) setCreateDepartments(Array.isArray(data) ? data : []);
+        const data = await getUserDepartments(createScope.branchId);
+        if (isMounted) setCreateUserDepartments(Array.isArray(data) ? data : []);
       } catch (e) {
         if (isMounted) {
-          showError(extractApiErrorMessage(e, "Failed to load departments"));
+          showError(extractApiErrorMessage(e, "Failed to load user departments"));
         }
       }
     };
@@ -169,15 +168,15 @@ export default function UsergroupsPage() {
     let isMounted = true;
     const run = async () => {
       if (!createScope.departmentId) {
-        setCreateDesignations([]);
+        setCreateUserDesignations([]);
         return;
       }
       try {
-        const data = await getDesignations(createScope.departmentId);
-        if (isMounted) setCreateDesignations(Array.isArray(data) ? data : []);
+        const data = await getUserDesignations(createScope.departmentId);
+        if (isMounted) setCreateUserDesignations(Array.isArray(data) ? data : []);
       } catch (e) {
         if (isMounted) {
-          showError(extractApiErrorMessage(e, "Failed to load designations"));
+          showError(extractApiErrorMessage(e, "Failed to load user designations"));
         }
       }
     };
@@ -192,21 +191,12 @@ export default function UsergroupsPage() {
     if (isSuperAdmin || !orgSelection) {
       return scope;
     }
-    const nextTeamIds = Array.isArray(scope.teamIds) && scope.teamIds.length
-      ? scope.teamIds
-      : orgSelection.teamId
-        ? [String(orgSelection.teamId)]
-        : [];
     return {
       headOfficeId: String(orgSelection.institutionId || scope.headOfficeId || ""),
       branchId: String(scope.branchId || ""),
-      departmentId: String(orgSelection.departmentId || scope.departmentId || ""),
-      departmentIds: Array.isArray(scope.departmentIds) && scope.departmentIds.length
-        ? scope.departmentIds
-        : orgSelection.departmentId
-          ? [String(orgSelection.departmentId)]
-          : [],
-      teamIds: nextTeamIds,
+      departmentId: String(scope.departmentId || ""),
+      departmentIds: Array.isArray(scope.departmentIds) ? scope.departmentIds : [],
+      teamIds: Array.isArray(scope.teamIds) ? scope.teamIds : [],
     };
   };
 
@@ -223,13 +213,13 @@ export default function UsergroupsPage() {
     const selectedHeadOffice = findById(headOffices, createScope.headOfficeId);
     const selectedBranch = findById(branches, createScope.branchId);
     const selectedDepartments = Array.isArray(createScope.departmentIds) && createScope.departmentIds.length
-      ? createDepartments.filter((department) =>
+      ? createUserDepartments.filter((department) =>
           createScope.departmentIds.some((departmentId) => String(departmentId) === String(department.id)),
         )
       : createScope.departmentId
-        ? [findById(createDepartments, createScope.departmentId)].filter(Boolean)
+        ? [findById(createUserDepartments, createScope.departmentId)].filter(Boolean)
         : [];
-    const selectedDesignations = createDesignations.filter((designation) =>
+    const selectedDesignations = createUserDesignations.filter((designation) =>
       createScope.teamIds.some((designationId) => String(designationId) === String(designation.id)),
     );
     if (!selectedHeadOffice) {
@@ -245,14 +235,14 @@ export default function UsergroupsPage() {
       return;
     }
     if (selectedDepartments.length === 0) {
-      setFormError("Department is required");
+      setFormError("User Department is required");
       return;
     }
     const invalidDepartment = selectedDepartments.find(
-      (department) => String(department.branchId || "") !== String(selectedBranch.id || ""),
+      (department) => String(department.branchId || department.branch?.id || "") !== String(selectedBranch.id || ""),
     );
     if (invalidDepartment) {
-      setFormError("Selected department does not belong to the selected branch");
+      setFormError("Selected user department does not belong to the selected branch");
       return;
     }
     setSaving(true);
@@ -324,7 +314,7 @@ export default function UsergroupsPage() {
         <div className="d-flex justify-content-between align-items-center mb-3">
           <div>
             <h4 className="mb-0">User Groups</h4>
-            <small className="text-muted">Manage group scope by branch, department, and designation.</small>
+            <small className="text-muted">Manage group scope by branch, user department, and user designation.</small>
           </div>
           <div className="d-flex gap-2">
             <button className="btn btn-light" onClick={() => navigate(-1)}>
@@ -346,8 +336,8 @@ export default function UsergroupsPage() {
                   <tr>
                     <th>Name</th>
                     <th>Branch</th>
-                    <th>Department</th>
-                    <th>Designations</th>
+                    <th>User Department</th>
+                    <th>User Designations</th>
                     <th className="text-end">Actions</th>
                   </tr>
                 </thead>
@@ -400,8 +390,8 @@ export default function UsergroupsPage() {
           onScopeChange={updateScope}
           headOffices={headOffices}
           branches={branches}
-          departments={createDepartments}
-          teams={createDesignations}
+          departments={createUserDepartments}
+          teams={createUserDesignations}
           selectedTeamId={selectedTeamId}
           onTeamSelect={handleTeamSelect}
           onTeamRemove={removeTeam}

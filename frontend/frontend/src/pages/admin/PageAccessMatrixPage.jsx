@@ -565,14 +565,14 @@ export default function PageAccessMatrixPage() {
                 </select>
               </div>
               <div className="col-md-6">
-                <label className="form-label">Department</label>
+                <label className="form-label">User Department</label>
                 <select
                   className="form-select"
                   value={managerDepartmentId}
                   onChange={(e) => setManagerDepartmentId(e.target.value)}
                   disabled={!managerBranchId}
                 >
-                  <option value="">{managerBranchId ? "Select department" : "Select branch first"}</option>
+                  <option value="">{managerBranchId ? "Select user department" : "Select branch first"}</option>
                   {managerDepartmentOptions.map((department) => (
                     <option key={department.id} value={department.id}>
                       {department.name}
@@ -621,14 +621,14 @@ export default function PageAccessMatrixPage() {
               </select>
             </div>
             <div className="col-md-3">
-              <label className="form-label">Department</label>
+              <label className="form-label">User Department</label>
               <select
                 className="form-select"
                 value={designationDepartmentId}
                 onChange={(e) => setDesignationDepartmentId(e.target.value)}
                 disabled={!designationBranchId}
               >
-                <option value="">{designationBranchId ? "Select department" : "Select branch first"}</option>
+                <option value="">{designationBranchId ? "Select user department" : "Select branch first"}</option>
                 {designationDepartmentOptions.map((department) => (
                   <option key={department.id} value={department.id}>
                     {department.name}
@@ -637,14 +637,14 @@ export default function PageAccessMatrixPage() {
               </select>
             </div>
             <div className="col-md-3">
-              <label className="form-label">Designation</label>
+              <label className="form-label">User Designation</label>
               <select
                 className="form-select"
                 value={designationId}
                 onChange={(e) => setDesignationId(e.target.value)}
                 disabled={!designationDepartmentId}
               >
-                <option value="">{designationDepartmentId ? "Select designation" : "Select department first"}</option>
+                <option value="">{designationDepartmentId ? "Select user designation" : "Select user department first"}</option>
                 {designationOptions.map((designation) => (
                   <option key={designation.id} value={designation.id}>
                     {designation.name}
@@ -665,14 +665,14 @@ export default function PageAccessMatrixPage() {
     if (activeTab === "MANAGER") {
       const branch = branchOptions.find((item) => String(item.id) === String(managerBranchId));
       const department = managerDepartmentOptions.find((item) => String(item.id) === String(managerDepartmentId));
-      return [branch?.name, department?.name].filter(Boolean).join(" / ") || "Select branch and department";
+      return [branch?.name, department?.name].filter(Boolean).join(" / ") || "Select branch and user department";
     }
     const branch = designationBranchOptions.find((item) => String(item.id) === String(designationBranchId));
     const department = designationDepartmentOptions.find((item) => String(item.id) === String(designationDepartmentId));
     const designation = designationOptions.find((item) => String(item.id) === String(designationId));
     return [designationRole.replace(/_/g, " "), branch?.name, department?.name, designation?.name]
       .filter(Boolean)
-      .join(" / ") || "Select branch, department and designation";
+      .join(" / ") || "Select branch, user department and user designation";
   }, [
     activeTab,
     branchOptions,

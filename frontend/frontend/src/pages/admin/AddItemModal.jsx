@@ -1,4 +1,4 @@
-﻿import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { getFieldsByServiceType } from "../../api/productFieldConfigApi";
 import { getServiceCategories } from "../../api/serviceCategoriesApi";
@@ -197,7 +197,21 @@ export default function AddItemModal({
     setCustomOptionsByFieldKey({});
 
     if (prefill?.typeId) {
-      setCategoryId(prefill.categoryId ? String(prefill.categoryId) : "");
+      // Derive categoryId from the type's parent when not directly available
+      let resolvedCategoryId = prefill.categoryId ? String(prefill.categoryId) : "";
+      if (!resolvedCategoryId && allTypes.length > 0) {
+        const matchedType = allTypes.find(t => String(t.id) === String(prefill.typeId) && !t.parentId);
+        if (matchedType?.categoryId) {
+          resolvedCategoryId = String(matchedType.categoryId);
+        } else {
+          // typeId might be a subtype — find the parent type first
+          const matchedSubtype = allTypes.find(t => String(t.id) === String(prefill.typeId) && t.parentId);
+          if (matchedSubtype?.categoryId) {
+            resolvedCategoryId = String(matchedSubtype.categoryId);
+          }
+        }
+      }
+      setCategoryId(resolvedCategoryId);
       setTypeId(String(prefill.typeId));
       setSubtypeId(prefill.subtypeId ? String(prefill.subtypeId) : "");
       const parsedSpecs = prefill.specs && typeof prefill.specs === "object"
@@ -693,6 +707,7 @@ export default function AddItemModal({
         id: prefill?.id ?? `item-${Date.now()}`,
         requirementId: savedRequirement?.id ?? prefill?.requirementId ?? null,
         productId: null,
+        categoryId: categoryId ? Number(categoryId) : null,
         typeId: Number(typeId),
         subtypeId: subtypeId ? Number(subtypeId) : null,
         typeName: selectedType?.name || "",

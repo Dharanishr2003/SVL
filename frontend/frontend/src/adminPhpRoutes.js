@@ -1289,4 +1289,12 @@ export const adminPhpRoutes = [
     path: "services/product-field-config",
     component: "ProductFieldConfigPage",
   },
+  {
+    path: "settings/user-departments",
+    component: "UserDepartmentsPage",
+  },
+  {
+    path: "settings/user-designations",
+    component: "UserDesignationsPage",
+  },
 ];

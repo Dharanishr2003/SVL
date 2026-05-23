@@ -11,6 +11,12 @@ public interface QuotationRepository extends JpaRepository<Quotation, Long> {
 
     List<Quotation> findAllByOrderByCreatedAtDesc();
 
+    List<Quotation> findByCreatedByIdOrderByCreatedAtDesc(Long createdById);
+
+    List<Quotation> findByCreatedByEmailIgnoreCaseOrderByCreatedAtDesc(String createdByEmail);
+
+    List<Quotation> findByLeadIdInOrderByCreatedAtDesc(List<Long> leadIds);
+
     @Query(value = "SELECT nextval('quotation_number_seq')", nativeQuery = true)
     Long nextQuotationSeq();
 }

@@ -175,7 +175,7 @@ export default function UserGroupEditModal({
           ) : null}
           {showScopeEditor && !isAdmin ? (
             <div className="col-md-6">
-              <label className="form-label">Department</label>
+              <label className="form-label">User Department</label>
               {departmentMultiSelect ? (
                 <>
                   <select
@@ -184,7 +184,7 @@ export default function UserGroupEditModal({
                     onChange={(e) => onDepartmentSelect?.(e.target.value)}
                     disabled={orgLoading || !scope.branchId || saving}
                   >
-                    <option value="">Select Department</option>
+                    <option value="">Select User Department</option>
                     {departments
                       .filter((item) => !Array.isArray(scope.departmentIds) || !scope.departmentIds.includes(String(item.id)))
                       .map((item) => (
@@ -213,7 +213,7 @@ export default function UserGroupEditModal({
                   }
                   disabled={orgLoading || !scope.branchId || (isTeamLead && !showDesignationPicker) || saving}
                 >
-                  <option value="">Select Department</option>
+                  <option value="">Select User Department</option>
                   {departments.map((item) => (
                     <option key={item.id} value={item.id}>
                       {item.name}
@@ -225,7 +225,7 @@ export default function UserGroupEditModal({
           ) : null}
           {showScopeEditor && showDesignationPicker ? (
             <div className="col-12">
-              <label className="form-label">Designations</label>
+              <label className="form-label">User Designations</label>
               <div className="d-flex gap-2">
                 <select
                   className="form-select user-group-edit-input"
@@ -242,7 +242,7 @@ export default function UserGroupEditModal({
                   }}
                   disabled={orgLoading || !scope.departmentId || isManager || isTeamLead || lockTeam || saving}
                 >
-                  <option value="">Select Designation</option>
+                  <option value="">Select User Designation</option>
                   {teams
                     .filter((item) => !scope.teamIds.includes(String(item.id)))
                     .map((item) => (

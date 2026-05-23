@@ -215,7 +215,7 @@ export default function UserGroupWizardModal({
                   </div>
                   {!disableDepartment ? (
                     <div className="mb-3">
-                      <label className="form-label">Department</label>
+                      <label className="form-label">User Department</label>
                       {departmentMultiSelect ? (
                         <>
                           <div className="team-picker-row">
@@ -225,7 +225,7 @@ export default function UserGroupWizardModal({
                               onChange={(e) => onDepartmentSelect?.(e.target.value)}
                               disabled={orgLoading || !scope.branchId}
                             >
-                              <option value="">Select Department</option>
+                              <option value="">Select User Department</option>
                               {departments
                                 .filter((item) => !Array.isArray(scope.departmentIds) || !scope.departmentIds.includes(String(item.id)))
                                 .map((item) => (
@@ -255,7 +255,7 @@ export default function UserGroupWizardModal({
                             }
                             disabled={orgLoading || !scope.branchId || lockTeam}
                           >
-                            <option value="">Select Department</option>
+                            <option value="">Select User Department</option>
                             {departments.map((item) => (
                               <option key={item.id} value={item.id}>
                                 {item.name}
@@ -266,7 +266,7 @@ export default function UserGroupWizardModal({
                       )}
                       {showDesignationPicker ? (
                         <div className="mt-3">
-                          <label className="form-label">Designations</label>
+                          <label className="form-label">User Designations</label>
                           <div className="team-picker-row">
                             <select
                               className="form-select"
@@ -274,7 +274,7 @@ export default function UserGroupWizardModal({
                               onChange={(e) => onTeamSelect(e.target.value)}
                               disabled={orgLoading || !scope.departmentId || lockTeam}
                             >
-                              <option value="">Select Designation</option>
+                              <option value="">Select User Designation</option>
                               {teams
                                 .filter((item) => !scope.teamIds.includes(String(item.id)))
                                 .map((item) => (

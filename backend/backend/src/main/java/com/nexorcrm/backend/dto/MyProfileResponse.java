@@ -28,6 +28,7 @@ public class MyProfileResponse {
     private String countryCode;
     private String designation;
     private LocalDate joinDate;
+    private Long employeeId;
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
@@ -91,4 +92,7 @@ public class MyProfileResponse {
 
     public LocalDate getJoinDate() { return joinDate; }
     public void setJoinDate(LocalDate joinDate) { this.joinDate = joinDate; }
+
+    public Long getEmployeeId() { return employeeId; }
+    public void setEmployeeId(Long employeeId) { this.employeeId = employeeId; }
 }

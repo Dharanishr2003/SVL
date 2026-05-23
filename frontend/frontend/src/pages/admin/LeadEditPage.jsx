@@ -404,10 +404,16 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
             setLeadCountry(matched.isoCode);
           }
         }
+        // If country is still unknown but we have state data, default to India
+        const rawState = pickText(leadData, ["leadState", "state"]) || "";
+        if (!resolvedLeadCountry && rawState) {
+          resolvedLeadCountry = "IN";
+          setLeadCountry("IN");
+        }
         setLeadState(
           normalizeLeadStateValue(
             resolvedLeadCountry,
-            pickText(leadData, ["leadState", "state"]) || "",
+            rawState,
           ),
         );
         setLeadCity(pickText(leadData, ["leadCity", "city"]) || "");
@@ -702,6 +708,7 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
   const canEditAllGeneralInfo =
     role === "SUPER_ADMIN" || role === "ADMIN" || role === "MANAGER" || role === "TEAM_LEAD";
   const isGeneralInfoReadOnly = !canEditAllGeneralInfo && (lockAfterAttempted || isLeadReadOnly);
+  const generalAddressCountry = leadCountry || (isNewLead ? "IN" : "");
   // Only elevated roles can edit these fields: Mobile, Primary Source, Secondary Source
   const isElevatedOnlyField = !["SUPER_ADMIN", "ADMIN", "MANAGER", "TEAM_LEAD"].includes(role);
   const hasAttemptedData = Boolean(
@@ -1051,13 +1058,9 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
     let active = true;
     const loadFlow = async () => {
       try {
-        const canLoadFlowConfig =
-          role === "SUPER_ADMIN" || role === "ADMIN" || role === "MANAGER";
         const groupId = lead?.leadGroupId ?? lead?.assignedGroupId ?? null;
         const institutionName = groupId != null ? flowScopeByGroupId.get(String(groupId)) : "";
-        const flow = canLoadFlowConfig
-          ? await getLeadFlow(institutionName ? { institutionName } : {}).catch(() => ({}))
-          : {};
+        const flow = await getLeadFlow(institutionName ? { institutionName } : {}).catch(() => ({}));
         if (!active) return;
         setFlowRules(Array.isArray(flow?.rules) ? flow.rules : []);
       } catch (e) {
@@ -1069,7 +1072,7 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
     return () => {
       active = false;
     };
-  }, [role, lead?.leadGroupId, lead?.assignedGroupId, flowScopeByGroupId]);
+  }, [lead?.leadGroupId, lead?.assignedGroupId, flowScopeByGroupId]);
 
   useEffect(() => {
     getProjects().then(setProjects).catch(() => {});
@@ -2382,13 +2385,16 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
                                     className="form-select"
                                     value={leadState}
                                     onChange={(e) => {
+                                      if (!leadCountry && generalAddressCountry) {
+                                        setLeadCountry(generalAddressCountry);
+                                      }
                                       setLeadState(e.target.value);
                                       setLeadCity("");
                                     }}
-                                    disabled={isGeneralInfoReadOnly || !leadCountry}
+                                    disabled={isGeneralInfoReadOnly || !generalAddressCountry}
                                   >
                                     <option value="">Select State</option>
-                                    {State.getStatesOfCountry(leadCountry).map((s) => (
+                                    {State.getStatesOfCountry(generalAddressCountry).map((s) => (
                                       <option key={s.isoCode} value={s.isoCode}>{s.name}</option>
                                     ))}
                                   </select>
@@ -2398,11 +2404,16 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
                                   <select
                                     className="form-select"
                                     value={leadCity}
-                                    onChange={(e) => setLeadCity(e.target.value)}
+                                    onChange={(e) => {
+                                      if (!leadCountry && generalAddressCountry) {
+                                        setLeadCountry(generalAddressCountry);
+                                      }
+                                      setLeadCity(e.target.value);
+                                    }}
                                     disabled={isGeneralInfoReadOnly || !leadState}
                                   >
                                     <option value="">Select City</option>
-                                    {City.getCitiesOfState(leadCountry, leadState).map((c) => (
+                                    {City.getCitiesOfState(generalAddressCountry, leadState).map((c) => (
                                       <option key={c.name} value={c.name}>{c.name}</option>
                                     ))}
                                   </select>

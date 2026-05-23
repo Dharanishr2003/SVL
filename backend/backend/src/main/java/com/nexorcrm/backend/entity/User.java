@@ -70,13 +70,13 @@ public class User {
     @Column(name = "created_by", length = 120)
     private String createdBy;
 
-    @Column(name = "institution_name", length = 160)
+    @Column(name = "institution_name", length = 255)
     private String institutionName;
 
-    @Column(name = "department_name", length = 160)
+    @Column(name = "department_name", length = 255)
     private String departmentName;
 
-    @Column(name = "team_name", length = 160)
+    @Column(name = "team_name", length = 255)
     private String teamName;
 
     @Column(name = "profile_photo_path", length = 500)

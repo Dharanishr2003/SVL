@@ -3,7 +3,7 @@ import { useParams } from "react-router-dom";
 import { getPublicEmployeeForm, submitPublicEmployeeForm } from "../../api/employeesApi";
 import { extractApiErrorMessage } from "../../utils/errorMessage";
 import { useToast } from "../../components/system/ToastProvider";
-import { COUNTRY_CODE_OPTIONS, defaultCountryOption } from "../../utils/phoneUtils";
+import { COUNTRY_CODE_OPTIONS, defaultCountryOption, getCountryDisplayMaxLength, sanitizePhoneDigits } from "../../utils/phoneUtils";
 
 function isBlank(value) {
   return value === null || value === undefined || String(value).trim() === "";
@@ -176,6 +176,9 @@ export default function PublicEmployeeFormPage() {
                   {editableFieldList
                     .filter((f) => !hiddenScalarKeys.has(f.fieldKey))
                     .map((f) => {
+                    if (f.fieldKey === "SPOUSE_NAME" && String(form.MARITAL_STATUS || "").toUpperCase() !== "MARRIED") {
+                      return null;
+                    }
                     const rejected = String(f.status || "").toUpperCase() === "REJECTED";
                     const inputType = String(f.inputType || "TEXT").toUpperCase();
                     const editable = f.editable !== false;
@@ -276,13 +279,37 @@ export default function PublicEmployeeFormPage() {
                             disabled={!editable}
                           />
                         ) : inputType === "PHONE" ? (
-                          <input
-                            type="tel"
-                            className="form-control"
-                            value={form[f.fieldKey] || ""}
-                            onChange={(e) => setForm((p) => ({ ...p, [f.fieldKey]: e.target.value }))}
-                            disabled={!editable}
-                          />
+                          <div className="row g-2">
+                            <div className="col-4">
+                              <select
+                                className="form-select"
+                                value={form.COUNTRY_CODE || defaultCountryOption.value}
+                                onChange={(e) => setForm((p) => ({ ...p, COUNTRY_CODE: e.target.value }))}
+                                disabled={!editable}
+                              >
+                                {COUNTRY_CODE_OPTIONS.map((opt) => (
+                                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                ))}
+                              </select>
+                            </div>
+                            <div className="col-8">
+                              <input
+                                type="tel"
+                                className="form-control"
+                                maxLength={getCountryDisplayMaxLength(form.COUNTRY_CODE || defaultCountryOption.value) || 15}
+                                value={form[f.fieldKey] || ""}
+                                onChange={(e) => {
+                                  const sanitized = sanitizePhoneDigits(
+                                    e.target.value,
+                                    getCountryDisplayMaxLength(form.COUNTRY_CODE || defaultCountryOption.value)
+                                  );
+                                  setForm((p) => ({ ...p, [f.fieldKey]: sanitized }));
+                                }}
+                                disabled={!editable}
+                                placeholder={`Enter ${getCountryDisplayMaxLength(form.COUNTRY_CODE || defaultCountryOption.value)} digit number`}
+                              />
+                            </div>
+                          </div>
                         ) : (
                           <input
                             type="text"
@@ -295,35 +322,6 @@ export default function PublicEmployeeFormPage() {
                       </div>
                     );
                   })}
-
-                  {/* Mobile number grouped (country code + phone) */}
-                  <div className="mb-3">
-                    <label className="form-label">Mobile Number</label>
-                    <div className="row g-2">
-                      <div className="col-4">
-                        <select
-                          className="form-select"
-                          value={form.COUNTRY_CODE || defaultCountryOption.value}
-                          onChange={(e) => setForm((p) => ({ ...p, COUNTRY_CODE: e.target.value }))}
-                        >
-                          {COUNTRY_CODE_OPTIONS.map((opt) => (
-                            <option key={opt.value} value={opt.value}>
-                              {opt.label}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <div className="col-8">
-                        <input
-                          type="tel"
-                          className="form-control"
-                          placeholder="Mobile number"
-                          value={form.PHONE || ""}
-                          onChange={(e) => setForm((p) => ({ ...p, PHONE: e.target.value }))}
-                        />
-                      </div>
-                    </div>
-                  </div>
 
                   {editableUploadList
                     .filter((u) => u.docType !== "PHOTO")

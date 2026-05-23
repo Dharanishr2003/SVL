@@ -1,9 +1,9 @@
-﻿import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { createLeave, deleteLeave, getLeaves, updateLeave } from "../../api/leavesApi";
-import { getEmployees } from "../../api/employeesApi";
 import { getLeaveEligibility } from "../../api/leaveSettingsApi";
 import { extractApiErrorMessage } from "../../utils/errorMessage";
+import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../components/system/ToastProvider";
 import "../../../public/assets/css/addModalShared.css";
 
@@ -40,11 +40,10 @@ function formatDate(value) {
 }
 
 export default function LeavesEmployeePage() {
+  const { user: currentUser, loading: authLoading } = useAuth();
   const [rows, setRows] = useState([]);
-  const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [metaLoading, setMetaLoading] = useState(false);
   const { showSuccess, showError } = useToast();
   const [eligibleAdd, setEligibleAdd] = useState(emptyEligibility);
   const [eligibleEdit, setEligibleEdit] = useState(emptyEligibility);
@@ -56,6 +55,11 @@ export default function LeavesEmployeePage() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const currentEmployeeId = currentUser?.employeeId ? String(currentUser.employeeId) : "";
+  const currentEmployeeName = [currentUser?.firstName, currentUser?.lastName].filter(Boolean).join(" ").trim()
+    || currentUser?.username
+    || currentUser?.email
+    || "Current employee";
 
   const load = async () => {
     setLoading(true);
@@ -70,31 +74,31 @@ export default function LeavesEmployeePage() {
     }
   };
 
-  const loadEmployees = async () => {
-    setMetaLoading(true);
-    try {
-      const data = await getEmployees();
-      setEmployees(Array.isArray(data) ? data : []);
-    } catch {
-      setEmployees([]);
-    } finally {
-      setMetaLoading(false);
-    }
-  };
-
   useEffect(() => {
     load();
-    loadEmployees();
   }, []);
 
   useEffect(() => {
+    if (currentEmployeeId) {
+      setForm((prev) => ({
+        ...prev,
+        employeeId: currentEmployeeId,
+      }));
+      setEditForm((prev) => ({
+        ...prev,
+        employeeId: currentEmployeeId,
+      }));
+    }
+  }, [currentEmployeeId]);
+
+  useEffect(() => {
     const loadEligibility = async () => {
-      if (!form.employeeId) {
+      if (!currentEmployeeId) {
         setEligibleAdd(emptyEligibility);
         return;
       }
       try {
-        const data = await getLeaveEligibility(form.employeeId);
+        const data = await getLeaveEligibility(currentEmployeeId);
         setEligibleAdd(Array.isArray(data) ? data : []);
       } catch (e) {
         setEligibleAdd(emptyEligibility);
@@ -102,16 +106,16 @@ export default function LeavesEmployeePage() {
       }
     };
     loadEligibility();
-  }, [form.employeeId]);
+  }, [currentEmployeeId]);
 
   useEffect(() => {
     const loadEligibility = async () => {
-      if (!editForm.employeeId) {
+      if (!currentEmployeeId) {
         setEligibleEdit(emptyEligibility);
         return;
       }
       try {
-        const data = await getLeaveEligibility(editForm.employeeId);
+        const data = await getLeaveEligibility(currentEmployeeId);
         setEligibleEdit(Array.isArray(data) ? data : []);
       } catch (e) {
         setEligibleEdit(emptyEligibility);
@@ -119,43 +123,36 @@ export default function LeavesEmployeePage() {
       }
     };
     loadEligibility();
-  }, [editForm.employeeId]);
-
-  const employeeOptions = useMemo(
-    () =>
-      (employees || [])
-        .map((e) => ({
-          id: e?.id,
-          name: e?.name || e?.employeeName || e?.fullName || "",
-          department: e?.dept || e?.department || "",
-        }))
-        .filter((e) => e.id != null && e.name)
-        .sort((a, b) => a.name.localeCompare(b.name)),
-    [employees],
-  );
+  }, [currentEmployeeId]);
 
   const orderedRows = useMemo(
-    () => [...rows].sort((a, b) => String(b.fromDate || "").localeCompare(String(a.fromDate || ""))),
+    () =>
+      [...rows]
+        .filter((row) => !currentEmployeeId || String(row?.employeeId || "") === currentEmployeeId)
+        .sort((a, b) => String(b.fromDate || "").localeCompare(String(a.fromDate || ""))),
     [rows],
   );
 
   const counts = useMemo(() => {
     const lower = (v) => String(v || "").toLowerCase();
-    const annual = rows.filter((r) => lower(r.policyName || r.leaveType).includes("annual")).length;
-    const medical = rows.filter((r) => lower(r.policyName || r.leaveType).includes("medical")).length;
-    const casual = rows.filter((r) => lower(r.policyName || r.leaveType).includes("casual")).length;
-    const other = Math.max(0, rows.length - annual - medical - casual);
-    return { annual, medical, casual, other, total: rows.length };
-  }, [rows]);
+    const annual = orderedRows.filter((r) => lower(r.policyName || r.leaveType).includes("annual")).length;
+    const medical = orderedRows.filter((r) => lower(r.policyName || r.leaveType).includes("medical")).length;
+    const casual = orderedRows.filter((r) => lower(r.policyName || r.leaveType).includes("casual")).length;
+    const other = Math.max(0, orderedRows.length - annual - medical - casual);
+    return { annual, medical, casual, other, total: orderedRows.length };
+  }, [orderedRows]);
 
   const openAdd = () => {
-    setForm(initialForm);
+    setForm({
+      ...initialForm,
+      employeeId: currentEmployeeId,
+    });
     setShowAddModal(true);
   };
 
   const openEdit = (row) => {
     setEditForm({
-      employeeId: row?.employeeId ? String(row.employeeId) : "",
+      employeeId: currentEmployeeId,
       leaveType: row?.policyName || row?.leaveType || "",
       fromDate: row?.fromDate ? String(row.fromDate).slice(0, 10) : "",
       toDate: row?.toDate ? String(row.toDate).slice(0, 10) : "",
@@ -174,8 +171,8 @@ export default function LeavesEmployeePage() {
 
   const handleAdd = async (e) => {
     e.preventDefault();
-    if (!form.employeeId) {
-      showError("Employee is required");
+    if (!currentEmployeeId) {
+      showError("Your employee profile is not linked");
       return;
     }
     if (!form.leaveType.trim()) {
@@ -189,7 +186,7 @@ export default function LeavesEmployeePage() {
     setSaving(true);
     try {
       await createLeave({
-        employeeId: Number(form.employeeId),
+        employeeId: Number(currentEmployeeId),
         leaveType: form.leaveType.trim(),
         policyName: form.leaveType.trim(),
         fromDate: form.fromDate,
@@ -212,8 +209,8 @@ export default function LeavesEmployeePage() {
   const handleEdit = async (e) => {
     e.preventDefault();
     if (!selectedId) return;
-    if (!editForm.employeeId) {
-      showError("Employee is required");
+    if (!currentEmployeeId) {
+      showError("Your employee profile is not linked");
       return;
     }
     if (!editForm.leaveType.trim()) {
@@ -227,7 +224,7 @@ export default function LeavesEmployeePage() {
     setSaving(true);
     try {
       await updateLeave(selectedId, {
-        employeeId: Number(editForm.employeeId),
+        employeeId: Number(currentEmployeeId),
         leaveType: editForm.leaveType.trim(),
         policyName: editForm.leaveType.trim(),
         fromDate: editForm.fromDate,
@@ -265,10 +262,10 @@ export default function LeavesEmployeePage() {
   };
 
   const resolveEmployee = (row) => {
-    const name = row?.employeeName || "";
-    if (name) return { name, department: row?.department || "" };
-    const match = employeeOptions.find((e) => Number(e.id) === Number(row?.employeeId));
-    return { name: match?.name || "-", department: match?.department || "" };
+    return {
+      name: row?.employeeName || currentEmployeeName,
+      department: row?.department || "",
+    };
   };
 
   const resolvePolicyName = (row) => row?.policyName || row?.leaveType || "";
@@ -325,7 +322,12 @@ export default function LeavesEmployeePage() {
           </div>
           <div className="d-flex my-xl-auto right-content align-items-center flex-wrap ">
             <div className="mb-2">
-              <button type="button" className="btn btn-primary d-flex align-items-center" onClick={openAdd}>
+              <button
+                type="button"
+                className="btn btn-primary d-flex align-items-center"
+                onClick={openAdd}
+                disabled={authLoading}
+              >
                 <i className="ti ti-circle-plus me-2"></i>Add Leave
               </button>
             </div>
@@ -348,7 +350,7 @@ export default function LeavesEmployeePage() {
                   <tr>
                     <th>Leave Type</th>
                     <th>From</th>
-                    <th>Approved By</th>
+                    <th>Employee</th>
                     <th>To</th>
                     <th>No of Days</th>
                     <th>Status</th>
@@ -435,17 +437,7 @@ export default function LeavesEmployeePage() {
                   <div className="col-md-12">
                     <div className="avm-field">
                       <label className="avm-label">Employee</label>
-                      <select
-                        className="avm-select"
-                        value={form.employeeId}
-                        onChange={(e) => setForm((prev) => ({ ...prev, employeeId: e.target.value }))}
-                        disabled={metaLoading}
-                      >
-                        <option value="">Select</option>
-                        {employeeOptions.map((e) => (
-                          <option key={e.id} value={e.id}>{e.name}</option>
-                        ))}
-                      </select>
+                      <input className="avm-input" value={currentEmployeeName} disabled />
                     </div>
                   </div>
                   <div className="col-md-12">
@@ -455,7 +447,7 @@ export default function LeavesEmployeePage() {
                         className="avm-select"
                         value={form.leaveType}
                         onChange={(e) => setForm((prev) => ({ ...prev, leaveType: e.target.value }))}
-                        disabled={!form.employeeId}
+                        disabled={!currentEmployeeId}
                       >
                         <option value="">Select</option>
                         {buildPolicyOptions(form.leaveType, eligibleAdd).map((opt) => (
@@ -507,14 +499,8 @@ export default function LeavesEmployeePage() {
                   <div className="col-md-6">
                     <div className="avm-field">
                       <label className="avm-label">Status</label>
-                      <select
-                        className="avm-select"
-                        value={form.status}
-                        onChange={(e) => setForm((prev) => ({ ...prev, status: e.target.value }))}
-                      >
+                      <select className="avm-select" value={form.status} disabled>
                         <option value="NEW">New</option>
-                        <option value="APPROVED">Approved</option>
-                        <option value="DECLINED">Declined</option>
                       </select>
                     </div>
                   </div>
@@ -562,17 +548,7 @@ export default function LeavesEmployeePage() {
                   <div className="col-md-12">
                     <div className="avm-field">
                       <label className="avm-label">Employee</label>
-                      <select
-                        className="avm-select"
-                        value={editForm.employeeId}
-                        onChange={(e) => setEditForm((prev) => ({ ...prev, employeeId: e.target.value }))}
-                        disabled={metaLoading}
-                      >
-                        <option value="">Select</option>
-                        {employeeOptions.map((e) => (
-                          <option key={e.id} value={e.id}>{e.name}</option>
-                        ))}
-                      </select>
+                      <input className="avm-input" value={currentEmployeeName} disabled />
                     </div>
                   </div>
                   <div className="col-md-12">
@@ -582,7 +558,7 @@ export default function LeavesEmployeePage() {
                         className="avm-select"
                         value={editForm.leaveType}
                         onChange={(e) => setEditForm((prev) => ({ ...prev, leaveType: e.target.value }))}
-                        disabled={!editForm.employeeId}
+                        disabled={!currentEmployeeId}
                       >
                         <option value="">Select</option>
                         {buildPolicyOptions(editForm.leaveType, eligibleEdit).map((opt) => (
@@ -634,11 +610,7 @@ export default function LeavesEmployeePage() {
                   <div className="col-md-6">
                     <div className="avm-field">
                       <label className="avm-label">Status</label>
-                      <select
-                        className="avm-select"
-                        value={editForm.status}
-                        onChange={(e) => setEditForm((prev) => ({ ...prev, status: e.target.value }))}
-                      >
+                      <select className="avm-select" value={editForm.status} disabled>
                         <option value="NEW">New</option>
                         <option value="APPROVED">Approved</option>
                         <option value="DECLINED">Declined</option>
@@ -707,3 +679,6 @@ export default function LeavesEmployeePage() {
     </>
   );
 }
+
+
+
