@@ -45,6 +45,9 @@ public class Shift {
     @Column(name = "min_work_minutes", nullable = false)
     private Integer minWorkMinutes = 480;
 
+    @Column(name = "max_overtime_minutes")
+    private Integer maxOvertimeMinutes = 120;
+
     @Column(nullable = false)
     private Boolean active = true;
 
@@ -106,6 +109,9 @@ public class Shift {
 
     public Integer getMinWorkMinutes() { return minWorkMinutes; }
     public void setMinWorkMinutes(Integer minWorkMinutes) { this.minWorkMinutes = minWorkMinutes; }
+
+    public Integer getMaxOvertimeMinutes() { return maxOvertimeMinutes; }
+    public void setMaxOvertimeMinutes(Integer maxOvertimeMinutes) { this.maxOvertimeMinutes = maxOvertimeMinutes; }
 
     public Boolean getActive() { return active; }
     public void setActive(Boolean active) { this.active = active; }

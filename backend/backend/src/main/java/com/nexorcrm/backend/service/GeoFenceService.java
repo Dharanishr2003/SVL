@@ -3,13 +3,13 @@ package com.nexorcrm.backend.service;
 import com.nexorcrm.backend.entity.CompanyLocation;
 import com.nexorcrm.backend.repo.CompanyLocationRepository;
 import org.springframework.stereotype.Service;
+import java.util.List;
 import java.util.Optional;
 
 @Service
 public class GeoFenceService {
 
     private static final double EARTH_RADIUS_METERS = 6_371_000.0;
-    private static final double MAX_ACCEPTABLE_ACCURACY = 100.0;
 
     private final CompanyLocationRepository locationRepository;
 
@@ -34,6 +34,23 @@ public class GeoFenceService {
     }
 
     /**
+     * Find the first active company location within whose geofence the given coordinates fall.
+     * Accepts a reading when the reported point falls within the location radius
+     * plus the device-reported accuracy envelope.
+     */
+    public Optional<CompanyLocation> findValidLocation(Double lat, Double lng, Double accuracy) {
+        List<CompanyLocation> locations = locationRepository.findByDeletedFalseAndActiveTrueOrderByNameAsc();
+        for (CompanyLocation loc : locations) {
+            double dist = haversine(lat, lng, loc.getLatitude(), loc.getLongitude());
+            double allowedDistance = loc.getRadiusMeters() + Math.max(0.0, accuracy != null ? accuracy : 0.0);
+            if (dist <= allowedDistance) {
+                return Optional.of(loc);
+            }
+        }
+        return Optional.empty();
+    }
+
+    /**
      * Validate that the given coordinates are within the geofence of the specified location.
      * Uses the Haversine formula — no external APIs.
      */
@@ -42,21 +59,17 @@ public class GeoFenceService {
             return; // no location assigned — skip geofence check
         }
 
-        if (accuracy > MAX_ACCEPTABLE_ACCURACY) {
-            throw new IllegalArgumentException(
-                "GPS accuracy too low (" + String.format("%.0f", accuracy) + "m). "
-                + "Please move to an open area and try again. Maximum allowed: " + (int) MAX_ACCEPTABLE_ACCURACY + "m.");
-        }
-
         CompanyLocation location = locationRepository.findById(locationId)
                 .orElseThrow(() -> new IllegalArgumentException("Company location not found"));
 
         double distance = haversine(location.getLatitude(), location.getLongitude(), lat, lng);
+        double allowedDistance = location.getRadiusMeters() + Math.max(0.0, accuracy);
 
-        if (distance > location.getRadiusMeters()) {
+        if (distance > allowedDistance) {
             throw new IllegalArgumentException(
                 "You are " + String.format("%.0f", distance) + "m away from " + location.getName()
-                + ". You must be within " + location.getRadiusMeters() + "m to check in.");
+                + ". Allowed range is " + location.getRadiusMeters() + "m plus "
+                + String.format("%.0f", Math.max(0.0, accuracy)) + "m GPS accuracy.");
         }
     }
 

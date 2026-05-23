@@ -99,7 +99,6 @@ export const PAGE_ACCESS_OPTIONS = [
       { key: "timesheets", label: "Timesheets" },
       { key: "schedule-timing", label: "Shift & Schedule" },
       { key: "shift-assignments", label: "Shift Assignment" },
-      { key: "overtime", label: "Overtime" },
     ],
   },
   {
@@ -302,7 +301,6 @@ const ROUTE_ACCESS_RULES = [
   { pageKeys: ["attendance", "timesheets"], prefixes: ["/timesheets"] },
   { pageKeys: ["attendance", "schedule-timing"], prefixes: ["/schedule-timing"] },
   { pageKeys: ["attendance", "shift-assignments"], prefixes: ["/shift-assignments"] },
-  { pageKeys: ["attendance", "overtime"], prefixes: ["/overtime"] },
   { pageKeys: ["performance", "performance-indicator"], prefixes: ["/performance-indicator"] },
   { pageKeys: ["performance", "performance-appraisal"], prefixes: ["/performance-appraisal"] },
   { pageKeys: ["performance", "goal-tracking"], prefixes: ["/goal-tracking"] },

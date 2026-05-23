@@ -10,6 +10,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.ZoneId;
 import java.time.temporal.TemporalAdjusters;
 import java.time.DayOfWeek;
 import java.util.ArrayList;
@@ -19,6 +21,7 @@ import java.util.stream.Collectors;
 
 @Service
 public class AttendanceService {
+    private static final ZoneId APP_ZONE = ZoneId.of("Asia/Kolkata");
 
     private final AttendanceRepository attendanceRepository;
     private final AttendanceEventRepository eventRepository;
@@ -59,7 +62,7 @@ public class AttendanceService {
 
     @Transactional
     public AttendanceResponse checkIn(Long userId, AttendanceCheckInRequest req) {
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = now();
         LocalDate today = now.toLocalDate();
 
         // Prevent double check-in
@@ -75,8 +78,20 @@ public class AttendanceService {
         // Resolve shift assignment via employee record (bridge: user.email = employee.email)
         EmployeeShift assignment = null;
         User actor = userRepository.findById(userId).orElse(null);
-        if (actor != null && actor.getEmail() != null) {
-            Employee employee = employeeRepository.findFirstByEmailIgnoreCaseAndDeletedFalse(actor.getEmail()).orElse(null);
+        if (actor != null) {
+            Employee employee = null;
+            if (actor.getEmployeeId() != null) {
+                employee = employeeRepository.findById(actor.getEmployeeId())
+                        .filter(found -> !Boolean.TRUE.equals(found.getDeleted()))
+                        .orElse(null);
+            }
+            if (employee == null && actor.getEmail() != null) {
+                employee = employeeRepository
+                        .findAllByAnyEmailIgnoreCaseAndDeletedFalse(actor.getEmail())
+                        .stream()
+                        .findFirst()
+                        .orElse(null);
+            }
             if (employee != null) {
                 assignment = employeeShiftRepository.findActiveForEmployee(employee.getId(), today).orElse(null);
             }
@@ -110,16 +125,24 @@ public class AttendanceService {
             shiftService.validateCheckinWindow(shift, now);
         }
 
-        // If no location assigned, try to find closest location via geofencing
-        if (locationId == null) {
-            locationId = geoFenceService.findClosestLocation(req.getLatitude(), req.getLongitude())
-                    .map(loc -> loc.getId())
-                    .orElse(null);
-        }
-
-        // Validate geofence if location is assigned
+        // Multi-location check-in: try assigned location first, then fallback to any company location
         if (locationId != null) {
-            geoFenceService.validateWithinGeofence(locationId, req.getLatitude(), req.getLongitude(), req.getAccuracy());
+            try {
+                geoFenceService.validateWithinGeofence(locationId, req.getLatitude(), req.getLongitude(), req.getAccuracy());
+            } catch (IllegalArgumentException e) {
+                // Assigned location geofence failed — try fallback
+                final String assignedLocationError = e.getMessage();
+                locationId = geoFenceService.findValidLocation(req.getLatitude(), req.getLongitude(), req.getAccuracy())
+                        .map(loc -> loc.getId())
+                        .orElseThrow(() -> new IllegalArgumentException(assignedLocationError != null && !assignedLocationError.isBlank()
+                                ? assignedLocationError
+                                : "You are not within any registered company location."));
+            }
+        } else {
+            // No assigned location — try to find any matching company location
+            locationId = geoFenceService.findValidLocation(req.getLatitude(), req.getLongitude(), req.getAccuracy())
+                    .map(loc -> loc.getId())
+                    .orElseThrow(() -> new IllegalArgumentException("You are not within any registered company location."));
         }
 
         // Calculate lateness
@@ -154,7 +177,7 @@ public class AttendanceService {
 
     @Transactional
     public AttendanceResponse checkOut(Long userId, AttendanceCheckOutRequest req) {
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = now();
         LocalDate today = now.toLocalDate();
 
         Attendance att = attendanceRepository.findByUserIdAndAttendanceDateAndDeletedFalse(userId, today)
@@ -167,8 +190,18 @@ public class AttendanceService {
         // If on break/lunch, auto-end it first
         endAllOpenBreaks(att, now);
 
-        // Validate geofence for check-out too
-        geoFenceService.validateWithinGeofence(att.getLocationId(), req.getLatitude(), req.getLongitude(), req.getAccuracy());
+        // Multi-location check-out: try check-in location first, then fallback to any company location
+        // Note: locationId on attendance record is NEVER overwritten at checkout
+        try {
+            geoFenceService.validateWithinGeofence(att.getLocationId(), req.getLatitude(), req.getLongitude(), req.getAccuracy());
+        } catch (IllegalArgumentException e) {
+            // Check-in location geofence failed — try any company location
+            final String assignedLocationError = e.getMessage();
+            geoFenceService.findValidLocation(req.getLatitude(), req.getLongitude(), req.getAccuracy())
+                    .orElseThrow(() -> new IllegalArgumentException(assignedLocationError != null && !assignedLocationError.isBlank()
+                            ? assignedLocationError
+                            : "You are not within any registered company location."));
+        }
 
         att.setCheckOutTime(now);
         att.setCheckOutLat(req.getLatitude());
@@ -195,7 +228,7 @@ public class AttendanceService {
 
     @Transactional
     public AttendanceResponse startBreak(Long userId, AttendanceBreakRequest req) {
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = now();
         LocalDate today = now.toLocalDate();
 
         Attendance att = attendanceRepository.findByUserIdAndAttendanceDateAndDeletedFalse(userId, today)
@@ -232,7 +265,7 @@ public class AttendanceService {
 
     @Transactional
     public AttendanceResponse endBreak(Long userId, AttendanceBreakRequest req) {
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = now();
         LocalDate today = now.toLocalDate();
 
         Attendance att = attendanceRepository.findByUserIdAndAttendanceDateAndDeletedFalse(userId, today)
@@ -275,7 +308,7 @@ public class AttendanceService {
     // ══════════════════════════════════════════════════════════════
 
     public AttendanceResponse getToday(Long userId) {
-        LocalDate today = LocalDate.now();
+        LocalDate today = today();
         return attendanceRepository.findByUserIdAndAttendanceDateAndDeletedFalse(userId, today)
                 .map(this::toResponse).orElse(null);
     }
@@ -298,7 +331,7 @@ public class AttendanceService {
     }
 
     public AttendanceSummaryResponse getSummary(Long userId) {
-        LocalDate today = LocalDate.now();
+        LocalDate today = today();
         LocalDate weekStart = today.with(DayOfWeek.MONDAY);
         LocalDate monthStart = today.with(TemporalAdjusters.firstDayOfMonth());
 
@@ -310,7 +343,7 @@ public class AttendanceService {
             int todayMins = todayAtt.getNetWorkMinutes() != null ? todayAtt.getNetWorkMinutes() : 0;
             // If still checked in, calculate live
             if (todayAtt.getStatus() == AttendanceStatus.CHECKED_IN && todayAtt.getCheckInTime() != null) {
-                todayMins = (int) Duration.between(todayAtt.getCheckInTime(), LocalDateTime.now()).toMinutes()
+                todayMins = (int) Duration.between(todayAtt.getCheckInTime(), now()).toMinutes()
                             - safe(todayAtt.getBreakTimeMinutes()) - safe(todayAtt.getLunchTimeMinutes());
                 if (todayMins < 0) todayMins = 0;
             }
@@ -331,17 +364,11 @@ public class AttendanceService {
         summary.setTotalHoursMonth(monthMins / 60);
         summary.setTotalMinutesMonth(monthMins % 60);
 
-        // Overtime (minutes beyond shift min per day, summed)
-        int shiftMinPerDay = 480; // default 8h
-        EmployeeShift assignment = employeeShiftRepository.findActiveForUser(userId, today).orElse(null);
-        if (assignment != null) {
-            Shift shift = shiftRepository.findById(assignment.getShiftId()).orElse(null);
-            if (shift != null) shiftMinPerDay = shift.getMinWorkMinutes();
-        }
-        long daysThisMonth = attendanceRepository.countByUserBetween(userId, monthStart, today);
-        int expectedMins = (int) daysThisMonth * shiftMinPerDay;
-        int overtime = Math.max(0, monthMins - expectedMins);
+        // Overtime — use sum of stored overtimeMinutes from attendance records
+        int overtime = attendanceRepository.sumOvertimeMinutesByUserBetween(userId, monthStart, today);
         summary.setOvertimeMinutesMonth(overtime);
+
+        long daysThisMonth = attendanceRepository.countByUserBetween(userId, monthStart, today);
 
         summary.setDaysPresent((int) daysThisMonth);
 
@@ -366,7 +393,7 @@ public class AttendanceService {
         }
     }
 
-    private void calculateWorkTime(Attendance att) {
+    void calculateWorkTime(Attendance att) {
         if (att.getCheckInTime() == null || att.getCheckOutTime() == null) return;
 
         long totalMinutes = Duration.between(att.getCheckInTime(), att.getCheckOutTime()).toMinutes();
@@ -404,10 +431,7 @@ public class AttendanceService {
         att.setExcessBreakMinutes(excessBreak);
         att.setExcessLunchMinutes(excessLunch);
 
-        // Net work = total - break - lunch - excess deductions already factored
-        // Actually: net = total - breakMins - lunchMins (the raw time is already deducted)
-        // But excess is already WITHIN break/lunch totals, so:
-        // net_work = total_time - break_time - lunch_time
+        // Net work = total - break - lunch
         int netWork = (int) totalMinutes - breakMins - lunchMins;
         if (netWork < 0) netWork = 0;
         att.setNetWorkMinutes(netWork);
@@ -419,6 +443,43 @@ public class AttendanceService {
             att.setWorkStatus(WorkStatus.HALF_DAY);
         } else {
             att.setWorkStatus(WorkStatus.INCOMPLETE);
+        }
+
+        // ── Overtime Calculation ──
+        if (shift != null) {
+            LocalTime shiftEnd = shift.getEndTime();
+            long rawOtMinutes = 0;
+
+            if (Boolean.TRUE.equals(shift.getIsNightShift())) {
+                // Night shift: end time is on the next day relative to check-in date
+                LocalDate checkInDate = att.getCheckInTime().toLocalDate();
+                LocalDateTime shiftEndDateTime;
+                if (shiftEnd.isBefore(shift.getStartTime()) || shiftEnd.equals(shift.getStartTime())) {
+                    // End time crosses midnight (e.g., start 22:00, end 06:00)
+                    shiftEndDateTime = LocalDateTime.of(checkInDate.plusDays(1), shiftEnd);
+                } else {
+                    shiftEndDateTime = LocalDateTime.of(checkInDate, shiftEnd);
+                }
+                rawOtMinutes = Math.max(0, Duration.between(shiftEndDateTime, att.getCheckOutTime()).toMinutes());
+            } else {
+                // Day shift
+                LocalDateTime shiftEndDateTime = LocalDateTime.of(att.getAttendanceDate(), shiftEnd);
+                rawOtMinutes = Math.max(0, Duration.between(shiftEndDateTime, att.getCheckOutTime()).toMinutes());
+            }
+
+            // Apply cap
+            Integer maxOt = shift.getMaxOvertimeMinutes();
+            int cappedOt;
+            if (maxOt == null) {
+                cappedOt = (int) rawOtMinutes; // unlimited
+            } else if (maxOt == 0) {
+                cappedOt = 0; // OT disabled
+            } else {
+                cappedOt = (int) Math.min(rawOtMinutes, maxOt);
+            }
+            att.setOvertimeMinutes(cappedOt);
+        } else {
+            att.setOvertimeMinutes(0);
         }
     }
 
@@ -461,6 +522,9 @@ public class AttendanceService {
         r.setIsLate(att.getIsLate());
         r.setLateMinutes(att.getLateMinutes());
         r.setNotes(att.getNotes());
+        r.setOvertimeMinutes(att.getOvertimeMinutes());
+        r.setIsMissedCheckout(att.getIsMissedCheckout());
+        r.setMissedCheckoutFlaggedAt(att.getMissedCheckoutFlaggedAt());
 
         // Resolve names
         try {
@@ -522,5 +586,13 @@ public class AttendanceService {
         r.setEndTime(b.getEndTime());
         r.setDurationMinutes(b.getDurationMinutes());
         return r;
+    }
+
+    private LocalDateTime now() {
+        return LocalDateTime.now(APP_ZONE);
+    }
+
+    private LocalDate today() {
+        return LocalDate.now(APP_ZONE);
     }
 }

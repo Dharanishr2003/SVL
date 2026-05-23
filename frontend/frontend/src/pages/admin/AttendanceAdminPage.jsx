@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import * as attendanceApi from '../../api/attendanceApi';
 import "../../../public/assets/css/addModalShared.css";
@@ -165,11 +165,13 @@ const AttendanceAdminPage = () => {
                     <th>Work Time</th>
                     <th>Status</th>
                     <th>Late?</th>
+                    <th>Overtime</th>
+                    <th>Checkout Status</th>
                   </tr>
                 </thead>
                 <tbody>
                   {records.length === 0 ? (
-                    <tr><td colSpan="9" className="text-center text-muted py-4">No records found</td></tr>
+                    <tr><td colSpan="11" className="text-center text-muted py-4">No records found</td></tr>
                   ) : (
                     records.map((r) => (
                       <tr key={r.id}>
@@ -202,6 +204,18 @@ const AttendanceAdminPage = () => {
                           ) : (
                             <span className="badge badge-success">No</span>
                           )}
+                        </td>
+                        <td>
+                          {r.overtimeMinutes > 0 ? (
+                            <span className="badge badge-warning">{fmtDuration(r.overtimeMinutes)}</span>
+                          ) : '-'}
+                        </td>
+                        <td>
+                          {r.isMissedCheckout && r.status === 'AUTO_CHECKOUT' ? (
+                            <span className="badge badge-warning">Auto Checkout</span>
+                          ) : r.isMissedCheckout && r.status !== 'CHECKED_OUT' && r.status !== 'AUTO_CHECKOUT' ? (
+                            <span className="badge badge-danger">Missed Checkout</span>
+                          ) : '-'}
                         </td>
                       </tr>
                     ))

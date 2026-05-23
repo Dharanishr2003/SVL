@@ -205,6 +205,7 @@ public class SuperAdminService {
         user.setInstitutionName(institutionName);
         user.setDepartmentName(departmentName);
         user.setTeamName(teamName);
+        user.setEmployeeId(employee.getId());
         user.setActivationStatus(ActivationStatus.PENDING);
         user.setActive(false);
         user.setForcePasswordChange(false);
@@ -912,6 +913,7 @@ public class SuperAdminService {
         response.setInstitution(user.getInstitutionName());
         response.setDepartmentName(user.getDepartmentName());
         response.setTeam(user.getTeamName());
+        response.setEmployeeId(user.getEmployeeId());
         return response;
     }
 

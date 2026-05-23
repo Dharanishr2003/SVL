@@ -204,6 +204,7 @@ public class ShiftService {
         if (r.getLunchGraceMinutes() != null) s.setLunchGraceMinutes(r.getLunchGraceMinutes());
         if (r.getIsNightShift() != null) s.setIsNightShift(r.getIsNightShift());
         if (r.getMinWorkMinutes() != null) s.setMinWorkMinutes(r.getMinWorkMinutes());
+        if (r.getMaxOvertimeMinutes() != null) s.setMaxOvertimeMinutes(r.getMaxOvertimeMinutes());
     }
 
     private ShiftResponse toShiftResponse(Shift s) {
@@ -220,6 +221,7 @@ public class ShiftService {
         r.setLunchGraceMinutes(s.getLunchGraceMinutes());
         r.setIsNightShift(s.getIsNightShift());
         r.setMinWorkMinutes(s.getMinWorkMinutes());
+        r.setMaxOvertimeMinutes(s.getMaxOvertimeMinutes());
         r.setActive(s.getActive());
         return r;
     }

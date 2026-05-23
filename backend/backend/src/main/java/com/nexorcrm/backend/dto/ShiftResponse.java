@@ -16,6 +16,7 @@ public class ShiftResponse {
     private Integer lunchGraceMinutes;
     private Boolean isNightShift;
     private Integer minWorkMinutes;
+    private Integer maxOvertimeMinutes;
     private Boolean active;
 
     public Long getId() { return id; }
@@ -53,6 +54,9 @@ public class ShiftResponse {
 
     public Integer getMinWorkMinutes() { return minWorkMinutes; }
     public void setMinWorkMinutes(Integer minWorkMinutes) { this.minWorkMinutes = minWorkMinutes; }
+
+    public Integer getMaxOvertimeMinutes() { return maxOvertimeMinutes; }
+    public void setMaxOvertimeMinutes(Integer maxOvertimeMinutes) { this.maxOvertimeMinutes = maxOvertimeMinutes; }
 
     public Boolean getActive() { return active; }
     public void setActive(Boolean active) { this.active = active; }

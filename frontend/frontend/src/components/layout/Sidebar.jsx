@@ -590,8 +590,7 @@ export default function Sidebar() {
                     "attendance-employee",
                     "timesheets",
                     "schedule-timing",
-                    "shift-assignments",
-                    "overtime",
+                    "shift-assignments"
                   ) && (
                   <li className="submenu">
                     <a href="javascript:void(0);" className=" ">
@@ -663,13 +662,6 @@ export default function Sidebar() {
                       <li>
                         <a href="/shift-assignments" className="">
                           Shift Assignment
-                        </a>
-                      </li>
-                      )}
-                      {canAccessAny("attendance", "overtime") && (
-                      <li>
-                        <a href="/overtime" className="">
-                          Overtime
                         </a>
                       </li>
                       )}

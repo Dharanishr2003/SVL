@@ -20,7 +20,7 @@ const ScheduleTimingPage = () => {
   const [activeTab, setActiveTab] = useState('shifts'); // shifts | locations
 
   /* shift form state */
-  const [shiftForm, setShiftForm] = useState({ name: '', startTime: '09:00', endTime: '18:00', breakAllowedMinutes: 15, breakGraceMinutes: 5, lunchAllowedMinutes: 60, lunchGraceMinutes: 10, minWorkMinutes: 480, isNightShift: false, earlyCheckinBufferMinutes: 30, lateCheckinBufferMinutes: 15 });
+  const [shiftForm, setShiftForm] = useState({ name: '', startTime: '09:00', endTime: '18:00', breakAllowedMinutes: 15, breakGraceMinutes: 5, lunchAllowedMinutes: 60, lunchGraceMinutes: 10, minWorkMinutes: 480, isNightShift: false, earlyCheckinBufferMinutes: 30, lateCheckinBufferMinutes: 15, maxOvertimeMinutes: 120 });
   const [editingShiftId, setEditingShiftId] = useState(null);
 
   /* location form state */
@@ -58,7 +58,7 @@ const ScheduleTimingPage = () => {
         await attendanceApi.createShift(shiftForm);
       }
       setEditingShiftId(null);
-      setShiftForm({ name: '', startTime: '09:00', endTime: '18:00', breakAllowedMinutes: 15, breakGraceMinutes: 5, lunchAllowedMinutes: 60, lunchGraceMinutes: 10, minWorkMinutes: 480, isNightShift: false, earlyCheckinBufferMinutes: 30, lateCheckinBufferMinutes: 15 });
+      setShiftForm({ name: '', startTime: '09:00', endTime: '18:00', breakAllowedMinutes: 15, breakGraceMinutes: 5, lunchAllowedMinutes: 60, lunchGraceMinutes: 10, minWorkMinutes: 480, isNightShift: false, earlyCheckinBufferMinutes: 30, lateCheckinBufferMinutes: 15, maxOvertimeMinutes: 120 });
       await loadData();
     } catch (e) {
       setError(e?.response?.data?.message || e.message || 'Shift save failed');
@@ -72,7 +72,7 @@ const ScheduleTimingPage = () => {
       breakAllowedMinutes: s.breakAllowedMinutes ?? 15, breakGraceMinutes: s.breakGraceMinutes ?? 5,
       lunchAllowedMinutes: s.lunchAllowedMinutes ?? 60, lunchGraceMinutes: s.lunchGraceMinutes ?? 10,
       minWorkMinutes: s.minWorkMinutes ?? 480, isNightShift: s.isNightShift ?? false,
-      earlyCheckinBufferMinutes: s.earlyCheckinBufferMinutes ?? 30, lateCheckinBufferMinutes: s.lateCheckinBufferMinutes ?? 15
+      earlyCheckinBufferMinutes: s.earlyCheckinBufferMinutes ?? 30, lateCheckinBufferMinutes: s.lateCheckinBufferMinutes ?? 15, maxOvertimeMinutes: s.maxOvertimeMinutes ?? 120
     });
   };
 
@@ -203,6 +203,11 @@ const ScheduleTimingPage = () => {
 							<label className="form-label">Min Work (min)</label>
 							<input type="number" className="form-control" value={shiftForm.minWorkMinutes} onChange={e => setShiftForm(p => ({ ...p, minWorkMinutes: parseInt(e.target.value, 10) || 0 }))} />
 						</div>
+						<div className="mb-3">
+							<label className="form-label">Max Overtime (min)</label>
+							<input type="number" className="form-control" min="0" value={shiftForm.maxOvertimeMinutes} onChange={e => setShiftForm(p => ({ ...p, maxOvertimeMinutes: parseInt(e.target.value, 10) || 0 }))} />
+							<small className="form-text text-muted">Max overtime per day in minutes. 0 = none allowed. 120 = default 2 hours.</small>
+						</div>
 						<div className="row">
 							<div className="col-6 mb-3">
 								<label className="form-label">Early Check-In (min before start)</label>
@@ -220,7 +225,7 @@ const ScheduleTimingPage = () => {
 						<div className="d-flex gap-2">
 							<button type="submit" className="btn btn-primary">{editingShiftId ? 'Update' : 'Create'}</button>
 							{editingShiftId && (
-								<button type="button" className="btn btn-light" onClick={() => { setEditingShiftId(null); setShiftForm({ name: '', startTime: '09:00', endTime: '18:00', breakAllowedMinutes: 15, breakGraceMinutes: 5, lunchAllowedMinutes: 60, lunchGraceMinutes: 10, minWorkMinutes: 480, isNightShift: false, earlyCheckinBufferMinutes: 30, lateCheckinBufferMinutes: 15 }); }}>Cancel</button>
+								<button type="button" className="btn btn-light" onClick={() => { setEditingShiftId(null); setShiftForm({ name: '', startTime: '09:00', endTime: '18:00', breakAllowedMinutes: 15, breakGraceMinutes: 5, lunchAllowedMinutes: 60, lunchGraceMinutes: 10, minWorkMinutes: 480, isNightShift: false, earlyCheckinBufferMinutes: 30, lateCheckinBufferMinutes: 15, maxOvertimeMinutes: 120 }); }}>Cancel</button>
 							)}
 						</div>
 					</form>
@@ -243,6 +248,7 @@ const ScheduleTimingPage = () => {
 									<th>Break</th>
 									<th>Lunch</th>
 									<th>Min Work</th>
+									<th>Max OT</th>
 									<th>Check-In Window</th>
 									<th>Night</th>
 									<th>Actions</th>
@@ -250,7 +256,7 @@ const ScheduleTimingPage = () => {
 							</thead>
 							<tbody>
 								{shifts.length === 0 ? (
-									<tr><td colSpan="9" className="text-center py-3 text-muted">No shifts configured.</td></tr>
+									<tr><td colSpan="10" className="text-center py-3 text-muted">No shifts configured.</td></tr>
 								) : shifts.map(s => (
 									<tr key={s.id}>
 										<td>{s.name}</td>
@@ -259,6 +265,7 @@ const ScheduleTimingPage = () => {
 										<td>{s.breakAllowedMinutes}+{s.breakGraceMinutes}m</td>
 										<td>{s.lunchAllowedMinutes}+{s.lunchGraceMinutes}m</td>
 										<td>{fmtDuration(s.minWorkMinutes)}</td>
+										<td>{s.maxOvertimeMinutes === 0 ? 'None' : fmtDuration(s.maxOvertimeMinutes)}</td>
 										<td><span className="text-muted small">-{s.earlyCheckinBufferMinutes}m to +{s.lateCheckinBufferMinutes}m</span></td>
 										<td>{s.isNightShift ? <span className="badge badge-dark">Yes</span> : 'No'}</td>
 										<td>

@@ -20,6 +20,7 @@ public class UserResponse {
     private String institution;
     private String departmentName;
     private String team;
+    private Long employeeId;
 
     public Long getId() {
         return id;
@@ -155,5 +156,13 @@ public class UserResponse {
 
     public void setTeam(String team) {
         this.team = team;
+    }
+
+    public Long getEmployeeId() {
+        return employeeId;
+    }
+
+    public void setEmployeeId(Long employeeId) {
+        this.employeeId = employeeId;
     }
 }

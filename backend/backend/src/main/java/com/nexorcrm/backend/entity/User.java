@@ -82,6 +82,9 @@ public class User {
     @Column(name = "profile_photo_path", length = 500)
     private String profilePhotoPath;
 
+    @Column(name = "employee_id")
+    private Long employeeId;
+
     @PrePersist
     void onCreate() {
         if (createdAt == null) {
@@ -255,6 +258,14 @@ public class User {
 
     public void setProfilePhotoPath(String profilePhotoPath) {
         this.profilePhotoPath = profilePhotoPath;
+    }
+
+    public Long getEmployeeId() {
+        return employeeId;
+    }
+
+    public void setEmployeeId(Long employeeId) {
+        this.employeeId = employeeId;
     }
 
 }

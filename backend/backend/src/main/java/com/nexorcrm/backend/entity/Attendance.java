@@ -85,6 +85,15 @@ public class Attendance {
     @Column(columnDefinition = "TEXT")
     private String notes;
 
+    @Column(name = "overtime_minutes")
+    private Integer overtimeMinutes = 0;
+
+    @Column(name = "is_missed_checkout")
+    private Boolean isMissedCheckout = false;
+
+    @Column(name = "missed_checkout_flagged_at")
+    private LocalDateTime missedCheckoutFlaggedAt;
+
     @Column(nullable = false)
     private Boolean deleted = false;
 
@@ -179,6 +188,15 @@ public class Attendance {
 
     public String getNotes() { return notes; }
     public void setNotes(String notes) { this.notes = notes; }
+
+    public Integer getOvertimeMinutes() { return overtimeMinutes; }
+    public void setOvertimeMinutes(Integer overtimeMinutes) { this.overtimeMinutes = overtimeMinutes; }
+
+    public Boolean getIsMissedCheckout() { return isMissedCheckout; }
+    public void setIsMissedCheckout(Boolean isMissedCheckout) { this.isMissedCheckout = isMissedCheckout; }
+
+    public LocalDateTime getMissedCheckoutFlaggedAt() { return missedCheckoutFlaggedAt; }
+    public void setMissedCheckoutFlaggedAt(LocalDateTime missedCheckoutFlaggedAt) { this.missedCheckoutFlaggedAt = missedCheckoutFlaggedAt; }
 
     public Boolean getDeleted() { return deleted; }
     public void setDeleted(Boolean deleted) { this.deleted = deleted; }

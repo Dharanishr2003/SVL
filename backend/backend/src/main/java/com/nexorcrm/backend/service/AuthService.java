@@ -214,7 +214,7 @@ public class AuthService {
 
     public MyProfileResponse getMyProfile(String principal) {
         User user = resolveCurrentUser(principal);
-        Employee emp = employeeRepository.findFirstByEmailIgnoreCaseAndDeletedFalse(user.getEmail()).orElse(null);
+        Employee emp = resolveLinkedEmployee(user);
         return toMyProfileResponse(user, emp);
     }
 
@@ -232,7 +232,7 @@ public class AuthService {
         userRepository.save(user);
 
         // Update phone/countryCode on linked employee record if it exists
-        Employee emp = employeeRepository.findFirstByEmailIgnoreCaseAndDeletedFalse(user.getEmail()).orElse(null);
+        Employee emp = resolveLinkedEmployee(user);
         if (emp != null) {
             if (req.getPhone() != null) {
                 emp.setPhone(req.getPhone().trim().isEmpty() ? null : req.getPhone().trim());
@@ -291,7 +291,7 @@ public class AuthService {
             throw new RuntimeException("Profile photo upload failed", ex);
         }
 
-        Employee emp = employeeRepository.findFirstByEmailIgnoreCaseAndDeletedFalse(user.getEmail()).orElse(null);
+        Employee emp = resolveLinkedEmployee(user);
         auditService.log("PROFILE_PHOTO_UPLOADED", "User uploaded profile photo", user.getEmail());
         return toMyProfileResponse(user, emp);
     }
@@ -334,6 +334,22 @@ public class AuthService {
             res.setJoinDate(emp.getJoinDate());
         }
         return res;
+    }
+
+    private Employee resolveLinkedEmployee(User user) {
+        if (user == null) {
+            return null;
+        }
+        if (user.getEmployeeId() != null) {
+            Employee linked = employeeRepository.findById(user.getEmployeeId()).orElse(null);
+            if (linked != null && !Boolean.TRUE.equals(linked.getDeleted())) {
+                return linked;
+            }
+        }
+        return employeeRepository.findAllByAnyEmailIgnoreCaseAndDeletedFalse(user.getEmail())
+                .stream()
+                .findFirst()
+                .orElse(null);
     }
 
     private User resolveCurrentUser(String principal) {

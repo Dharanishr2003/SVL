@@ -34,6 +34,10 @@ public class AttendanceResponse {
 
     private String notes;
 
+    private Integer overtimeMinutes;
+    private Boolean isMissedCheckout;
+    private LocalDateTime missedCheckoutFlaggedAt;
+
     private List<AttendanceEventResponse> events;
     private List<AttendanceBreakResponse> breaks;
 
@@ -104,6 +108,15 @@ public class AttendanceResponse {
 
     public String getNotes() { return notes; }
     public void setNotes(String notes) { this.notes = notes; }
+
+    public Integer getOvertimeMinutes() { return overtimeMinutes; }
+    public void setOvertimeMinutes(Integer overtimeMinutes) { this.overtimeMinutes = overtimeMinutes; }
+
+    public Boolean getIsMissedCheckout() { return isMissedCheckout; }
+    public void setIsMissedCheckout(Boolean isMissedCheckout) { this.isMissedCheckout = isMissedCheckout; }
+
+    public LocalDateTime getMissedCheckoutFlaggedAt() { return missedCheckoutFlaggedAt; }
+    public void setMissedCheckoutFlaggedAt(LocalDateTime missedCheckoutFlaggedAt) { this.missedCheckoutFlaggedAt = missedCheckoutFlaggedAt; }
 
     public List<AttendanceEventResponse> getEvents() { return events; }
     public void setEvents(List<AttendanceEventResponse> events) { this.events = events; }

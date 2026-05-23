@@ -23,6 +23,7 @@ public class ShiftRequest {
     private Integer lunchGraceMinutes = 10;
     private Boolean isNightShift = false;
     private Integer minWorkMinutes = 480;
+    private Integer maxOvertimeMinutes = 120;
 
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
@@ -56,4 +57,7 @@ public class ShiftRequest {
 
     public Integer getMinWorkMinutes() { return minWorkMinutes; }
     public void setMinWorkMinutes(Integer minWorkMinutes) { this.minWorkMinutes = minWorkMinutes; }
+
+    public Integer getMaxOvertimeMinutes() { return maxOvertimeMinutes; }
+    public void setMaxOvertimeMinutes(Integer maxOvertimeMinutes) { this.maxOvertimeMinutes = maxOvertimeMinutes; }
 }

@@ -32,4 +32,17 @@ public interface AttendanceRepository extends JpaRepository<Attendance, Long> {
     @Query("SELECT COALESCE(SUM(a.netWorkMinutes),0) FROM Attendance a WHERE a.userId = :userId " +
            "AND a.attendanceDate BETWEEN :from AND :to AND a.deleted = false")
     int sumNetWorkMinutesByUserBetween(@Param("userId") Long userId, @Param("from") LocalDate from, @Param("to") LocalDate to);
+
+    @Query("SELECT COALESCE(SUM(a.overtimeMinutes),0) FROM Attendance a " +
+           "WHERE a.userId = :userId AND a.attendanceDate BETWEEN :from AND :to " +
+           "AND a.deleted = false")
+    int sumOvertimeMinutesByUserBetween(@Param("userId") Long userId, 
+        @Param("from") LocalDate from, @Param("to") LocalDate to);
+
+    List<Attendance> findByStatusInAndDeletedFalseAndAttendanceDate(
+            List<AttendanceStatus> statuses, LocalDate date);
+
+    List<Attendance> findByIsMissedCheckoutTrueAndStatusNotInAndDeletedFalseAndAttendanceDate(
+            List<AttendanceStatus> statuses, LocalDate date);
 }
+

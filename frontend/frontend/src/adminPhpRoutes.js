@@ -730,10 +730,6 @@ export const adminPhpRoutes = [
     component: "OutgoingCallPage",
   },
   {
-    path: "overtime",
-    component: "OvertimePage",
-  },
-  {
     path: "packages",
     component: "PackagesPage",
   },
