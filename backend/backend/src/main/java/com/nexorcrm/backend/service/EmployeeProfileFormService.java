@@ -49,7 +49,11 @@ public class EmployeeProfileFormService {
             EmployeePublicFieldKey.DEPARTMENT_NAME,
             EmployeePublicFieldKey.TEAM,
             EmployeePublicFieldKey.DESIGNATION,
-            EmployeePublicFieldKey.STATUS
+            EmployeePublicFieldKey.STATUS,
+            EmployeePublicFieldKey.HEAD_OFFICE_ID,
+            EmployeePublicFieldKey.BRANCH_ID,
+            EmployeePublicFieldKey.DEPARTMENT_MASTER_ID,
+            EmployeePublicFieldKey.DESIGNATION_MASTER_ID
     );
 
     private final EmployeeRepository employeeRepository;

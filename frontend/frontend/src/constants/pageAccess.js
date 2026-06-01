@@ -222,6 +222,7 @@ export const PAGE_ACCESS_OPTIONS = [
       { key: "settings-logs", label: "Logs" },
       { key: "settings-user-departments", label: "User Departments" },
       { key: "settings-user-designations", label: "User Designations" },
+      { key: "settings-workflow-teams", label: "Workflow Teams" },
     ],
   },
 ];
@@ -245,6 +246,7 @@ const ROUTE_ACCESS_RULES = [
   { pageKeys: ["settings-logs"], prefixes: ["/logs"] },
   { pageKeys: ["settings-user-departments"], prefixes: ["/settings/user-departments"] },
   { pageKeys: ["settings-user-designations"], prefixes: ["/settings/user-designations"] },
+  { pageKeys: ["settings-workflow-teams"], prefixes: ["/settings/workflow-teams"] },
   { pageKeys: ["vendor-management", "vendors", "brands", "vendor-types"], prefixes: ["/stocks/vendors", "/stocks/brands", "/stocks/vendor-types"] },
   { pageKeys: ["vendor-management", "vendor-orders"], prefixes: ["/stocks/vendor-orders"] },
   { pageKeys: ["lead-source", "lead-status", "lead-type", "primary-source", "secondary-source", "tertiary-source"], prefixes: ["/lead-status", "/lead-type", "/primary-source", "/secondary-source", "/tertiary-source"] },
@@ -346,6 +348,7 @@ const ADMIN_ONLY_PREFIXES = [
   "/logs",
   "/settings/user-departments",
   "/settings/user-designations",
+  "/settings/workflow-teams",
 ];
 
 function normalizePath(path) {

@@ -1293,4 +1293,8 @@ export const adminPhpRoutes = [
     path: "settings/user-designations",
     component: "UserDesignationsPage",
   },
+  {
+    path: "settings/workflow-teams",
+    component: "WorkflowTeamsPage",
+  },
 ];

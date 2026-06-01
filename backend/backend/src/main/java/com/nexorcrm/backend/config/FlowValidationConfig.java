@@ -25,9 +25,14 @@ public class FlowValidationConfig {
     public static List<Map<String, Object>> getDefaultLeadFlowRules() {
         List<Map<String, Object>> rules = new ArrayList<>();
 
-        // New Lead → Attempted
+        // New Lead → Not Attempted
         rules.add(createRule("new lead", 
-            Map.of("attempted", "Attempted"),
+            Map.of("not attempted", "Not Attempted"),
+            null, false, false, null, null));
+
+        // Not Attempted → Attempted/Interested/Rejected
+        rules.add(createRule("not attempted",
+            Map.of("attempted", "Attempted", "interested", "Interested", "rejected", "Rejected"),
             null, false, false, null, null));
 
         // Attempted → Interested/Rejected
@@ -35,9 +40,9 @@ public class FlowValidationConfig {
             Map.of("interested", "Interested", "rejected", "Rejected"),
             null, false, false, null, null));
 
-        // Interested → Requirement/Rejected
+        // Interested → Requirements Collected/Rejected
         rules.add(createRule("interested",
-            Map.of("requirement", "Requirement", "rejected", "Rejected"),
+            Map.of("requirement", "Requirements Collected", "rejected", "Rejected"),
             null, false, false, null, null));
 
         // Requirement → Budget
@@ -90,9 +95,9 @@ public class FlowValidationConfig {
             Map.of("interested", "Interested", "rejected", "Rejected"),
             null, false, false, null, null));
 
-        // Interested → Requirement/Rejected
+        // Interested → Requirements Collected/Rejected
         rules.add(createRule("interested",
-            Map.of("requirement", "Requirement", "rejected", "Rejected"),
+            Map.of("requirement", "Requirements Collected", "rejected", "Rejected"),
             null, false, false, null, null));
 
         // Requirement → Budget/Rejected
@@ -246,6 +251,7 @@ public class FlowValidationConfig {
     public static List<String> getDefaultLeadStatuses() {
         return Arrays.asList(
             "New Lead",
+            "Not Attempted",
             "Attempted",
             "Interested",
             "Requirement",

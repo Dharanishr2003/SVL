@@ -112,6 +112,23 @@ function writeLocalStorageJson(key, value) {
   window.localStorage.setItem(key, JSON.stringify(value));
 }
 
+function clampNonNegativeNumber(value, fallback = 0) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    return fallback;
+  }
+  return parsed;
+}
+
+function formatIndianMobileNumber(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "-";
+  if (raw.startsWith("+")) return raw;
+  const digits = raw.replace(/\D/g, "");
+  if (!digits) return raw;
+  return `+91 ${digits}`;
+}
+
 export function getStoredQuotations() {
   const stored = readLocalStorageJson(QUOTATION_STORAGE_KEY, []);
   return Array.isArray(stored) ? stored : [];
@@ -196,6 +213,10 @@ export function quotationResponseToDraft(quotation) {
         email: quotation.clientEmail || "",
         mobile: quotation.clientMobile || "",
         company: quotation.clientCompany || "",
+        address: quotation.clientAddress || quotation.address || "",
+        streetAddress: quotation.streetAddress || quotation.clientAddress || quotation.address || "",
+        leadState: quotation.clientState || quotation.leadState || "",
+        state: quotation.clientState || quotation.state || quotation.leadState || "",
       }
     : null);
 
@@ -238,7 +259,7 @@ export function quotationResponseToDraft(quotation) {
     selectedLead,
     leadSearch: selectedLead ? `${selectedLead.leadId || selectedLead.id || ""} - ${selectedLead.name || ""}`.trim() : "",
     lineItems,
-    discountPct: Number(quotation.discountPercent ?? quotation.discountPct ?? 0),
+    discountPct: clampNonNegativeNumber(quotation.discountPercent ?? quotation.discountPct ?? 0, 0),
     includeDesignFee: Boolean(quotation.includeDesignFee),
     designFeeAmount: Number(quotation.designFeeAmount ?? 0),
     gstRows,
@@ -313,7 +334,7 @@ export function createQuotationPayload({
     lineItems,
     items,
     discountPct,
-    discountPercent: Number(discountPct || 0),
+    discountPercent: clampNonNegativeNumber(discountPct, 0),
     includeDesignFee: includeDesignFee || false,
     designFeeAmount: Number(designFeeAmount || 0),
     gstRows: Array.isArray(gstRows) ? gstRows : [],
@@ -496,6 +517,7 @@ export async function buildQuotationPdf({
     email: clientEmail || "",
     company: clientCompany || "",
     address: "",
+    streetAddress: "",
     leadState: "",
     state: "",
   };
@@ -545,10 +567,12 @@ export async function buildQuotationPdf({
   const leadStateDisplay = formatLeadState(leadStateValue);
   const leadStateCode = deriveStateCode(leadStateValue);
   const isTN = isTamilNaduState(leadStateValue);
+  const leadAddress = selectedLead?.address || selectedLead?.streetAddress || "";
 
   const resolvedGstPct = Array.isArray(gstRows) && gstRows.length > 0
     ? gstRows.reduce((sum, r) => sum + Number(r.taxPercent || 0), 0)
     : Number(gstPct || 0);
+  const showGstDetails = resolvedGstPct > 0;
 
   const appliedCgstPct = isTN ? resolvedGstPct / 2 : 0;
   const appliedSgstPct = isTN ? resolvedGstPct / 2 : 0;
@@ -694,10 +718,10 @@ export async function buildQuotationPdf({
         [
           `Customer ID: ${selectedLead?.leadId || "-"}`,
           `Name: ${resolvedCustomerName || "-"}`,
-          `Address: ${selectedLead?.address || ""}`,
+          `Address: ${leadAddress || "-"}`,
           `State: ${expandStateName(leadStateValue) || leadStateDisplay || "-"}`,
           `State Code: ${leadStateCode || "-"}`,
-          `Mobile: ${selectedLead?.mobile || "-"}`,
+          `Mobile: ${formatIndianMobileNumber(selectedLead?.mobile)}`,
         ].forEach((line) => { doc.text(line, cx, ly); ly += 4.5; });
       }
 
@@ -708,10 +732,10 @@ export async function buildQuotationPdf({
         [
           `Customer ID: ${selectedLead?.leadId || "-"}`,
           `Name: ${resolvedCustomerName || "-"}`,
-          `Address: ${selectedLead?.address || ""}`,
+          `Address: ${leadAddress || "-"}`,
           `State: ${expandStateName(leadStateValue) || leadStateDisplay || "-"}`,
           `State Code: ${leadStateCode || "-"}`,
-          `Mobile: ${selectedLead?.mobile || "-"}`,
+          `Mobile: ${formatIndianMobileNumber(selectedLead?.mobile)}`,
         ].forEach((line) => { doc.text(line, cx, ly); ly += 4.5; });
       }
     },
@@ -733,26 +757,41 @@ export async function buildQuotationPdf({
     const specsText    = fullSpecsSummary(item?.specs || item?.specsJson || {}) || item?.specsSummary || "";
     const productName  = asText(item?.productName, "-");
     const description  = specsText ? `${productName}\n${specsText}` : productName;
-    const gstLabel     = resolvedGstPct > 0 ? `${resolvedGstPct}%` : "—";
+    const gstLabel     = showGstDetails ? `${resolvedGstPct}%` : null;
 
     if (isDesignOnly) {
-      tableBody.push({ rowType: "product", cells: [
+      tableBody.push({ rowType: "product", cells: showGstDetails ? [
         String(rowNum++), description, gstLabel,
+        "—", "—", "—",
+        Number(item?.lineTotal || designCost || 0).toFixed(2),
+      ] : [
+        String(rowNum++), description,
         "—", "—", "—",
         Number(item?.lineTotal || designCost || 0).toFixed(2),
       ]});
     } else if (isDesignProd) {
       const productionAmt = qty * unitPrice;
-      tableBody.push({ rowType: "product", cells: [
+      tableBody.push({ rowType: "product", cells: showGstDetails ? [
         String(rowNum++), description, gstLabel,
+        qty > 0 ? String(qty) : "—",
+        qty > 0 ? "Nos" : "—",
+        unitPrice > 0 ? unitPrice.toFixed(2) : "—",
+        productionAmt.toFixed(2),
+      ] : [
+        String(rowNum++), description,
         qty > 0 ? String(qty) : "—",
         qty > 0 ? "Nos" : "—",
         unitPrice > 0 ? unitPrice.toFixed(2) : "—",
         productionAmt.toFixed(2),
       ]});
       if (designCost > 0) {
-        tableBody.push({ rowType: "designFee", cells: [
+        tableBody.push({ rowType: "designFee", cells: showGstDetails ? [
           String(rowNum++), "Design Fee", gstLabel,
+          "1", "Job",
+          designCost.toFixed(2),
+          designCost.toFixed(2),
+        ] : [
+          String(rowNum++), "Design Fee",
           "1", "Job",
           designCost.toFixed(2),
           designCost.toFixed(2),
@@ -760,8 +799,14 @@ export async function buildQuotationPdf({
       }
     } else {
       const productionAmt = qty * unitPrice;
-      tableBody.push({ rowType: "product", cells: [
+      tableBody.push({ rowType: "product", cells: showGstDetails ? [
         String(rowNum++), description, gstLabel,
+        qty > 0 ? String(qty) : "—",
+        qty > 0 ? "Nos" : "—",
+        unitPrice > 0 ? unitPrice.toFixed(2) : "—",
+        productionAmt > 0 ? productionAmt.toFixed(2) : Number(item?.lineTotal || 0).toFixed(2),
+      ] : [
+        String(rowNum++), description,
         qty > 0 ? String(qty) : "—",
         qty > 0 ? "Nos" : "—",
         unitPrice > 0 ? unitPrice.toFixed(2) : "—",
@@ -771,9 +816,14 @@ export async function buildQuotationPdf({
   });
 
   if (includeDesignFee && Number(designFeeAmount || 0) > 0) {
-    tableBody.push({ rowType: "designFee", cells: [
+    tableBody.push({ rowType: "designFee", cells: showGstDetails ? [
       String(rowNum++), "Design Fee",
-      resolvedGstPct > 0 ? `${resolvedGstPct}%` : "—",
+      `${resolvedGstPct}%`,
+      "1", "Job",
+      Number(designFeeAmount).toFixed(2),
+      Number(designFeeAmount).toFixed(2),
+    ] : [
+      String(rowNum++), "Design Fee",
       "1", "Job",
       Number(designFeeAmount).toFixed(2),
       Number(designFeeAmount).toFixed(2),
@@ -786,7 +836,9 @@ export async function buildQuotationPdf({
     margin: tableMargin,
     tableWidth,
     theme: "grid",
-    head: [["Sl.No", "Description of Goods", "GST %", "Qty", "UOM", "Rate", "Amount"]],
+    head: [showGstDetails
+      ? ["Sl.No", "Description of Goods", "GST %", "Qty", "UOM", "Rate", "Amount"]
+      : ["Sl.No", "Description of Goods", "Qty", "UOM", "Rate", "Amount"]],
     body: tableBody.map((r) => r.cells),
     headStyles: {
       fillColor: [69, 89, 122], textColor: [255, 255, 255],
@@ -799,7 +851,7 @@ export async function buildQuotationPdf({
       overflow: "linebreak", textColor: [30, 30, 30],
     },
     alternateRowStyles: { fillColor: [248, 250, 252] },
-    columnStyles: {
+    columnStyles: showGstDetails ? {
       0: { cellWidth: 12, halign: "center" },
       1: { cellWidth: 80, halign: "left"   },
       2: { cellWidth: 16, halign: "center" },
@@ -807,6 +859,13 @@ export async function buildQuotationPdf({
       4: { cellWidth: 16, halign: "center" },
       5: { cellWidth: 22, halign: "right"  },
       6: { cellWidth: 22, halign: "right"  },
+    } : {
+      0: { cellWidth: 12, halign: "center" },
+      1: { cellWidth: 96, halign: "left"   },
+      2: { cellWidth: 16, halign: "center" },
+      3: { cellWidth: 18, halign: "center" },
+      4: { cellWidth: 28, halign: "right"  },
+      5: { cellWidth: 32, halign: "right"  },
     },
     didParseCell: (data) => {
       if (data.section !== "body") return;
@@ -850,7 +909,7 @@ export async function buildQuotationPdf({
   const eoeEndY = doc.lastAutoTable.finalY;
 
   // ══ SECTION 5 — Tax table (connected to E&OE) ══
-  if (isTN) {
+  if (showGstDetails && isTN) {
     autoTable(doc, {
       startY: eoeEndY - tableLineWidth,
       margin: { left: 14, right: 14, top: 0 },
@@ -893,7 +952,7 @@ export async function buildQuotationPdf({
         5: { cellWidth: 42, halign: "right"  },
       },
     });
-  } else {
+  } else if (showGstDetails) {
     autoTable(doc, {
       startY: eoeEndY - tableLineWidth,
       margin: { left: 14, right: 14, top: 0 },
@@ -935,9 +994,12 @@ export async function buildQuotationPdf({
 
   // ══ SECTION 6 — Amount in words + round off ══
   const taxEndY = doc.lastAutoTable.finalY;
-  const roundOff = Math.round(grandTotal) - grandTotal;
-  const roundOffDisplay = Object.is(roundOff, -0) ? "0.00" : roundOff.toFixed(2);
-  const amountWordsText = `Amount in Words (INR): ${numberToWords(Math.round(grandTotal))} Rupees Only`;
+  const roundedGrandTotal = Math.round(grandTotal);
+  const roundOff = roundedGrandTotal - grandTotal;
+  const roundOffDisplay = Object.is(roundOff, -0)
+    ? "0.00"
+    : `${roundOff > 0 ? "+" : "-"}${Math.abs(roundOff).toFixed(2)}`;
+  const amountWordsText = `Amount in Words (INR): ${numberToWords(roundedGrandTotal)} Rupees Only`;
 
   autoTable(doc, {
     startY: taxEndY - tableLineWidth,
@@ -953,7 +1015,7 @@ export async function buildQuotationPdf({
       ],
       [
         "Total Amount Value (INR)",
-        grandTotal.toFixed(2),
+        roundedGrandTotal.toFixed(2),
       ],
     ],
     styles: {
@@ -1115,7 +1177,7 @@ async function convertImageToPng(dataUrl, maxPxWidth = 400) {
   });
 }
 
-export async function downloadQuotationPdf(quotation, template = {}) {
+async function prepareQuotationPdfDocument(quotation, template = {}) {
   const convertedTemplate = {
     ...template,
     logoBase64: template?.logoBase64
@@ -1136,6 +1198,48 @@ export async function downloadQuotationPdf(quotation, template = {}) {
     new Date().toISOString().slice(0, 10),
   );
   const fileName = `Quotation_${safeCustomerName}_${safeDate}.pdf`;
+  return { doc, fileName };
+}
+
+async function openPdfBlobInNewTab(doc) {
+  const pdfBlob = doc.output("blob");
+  const downloadUrl = URL.createObjectURL(pdfBlob);
+  const revokeLater = () => {
+    window.setTimeout(() => {
+      URL.revokeObjectURL(downloadUrl);
+    }, 120000);
+  };
+
+  try {
+    const popup = window.open(downloadUrl, "_blank", "noopener,noreferrer");
+    if (popup) {
+      try {
+        popup.opener = null;
+      } catch {
+        // Ignore cross-browser restrictions when clearing opener.
+      }
+      popup.focus?.();
+      revokeLater();
+      return true;
+    }
+
+    const anchor = document.createElement("a");
+    anchor.href = downloadUrl;
+    anchor.target = "_blank";
+    anchor.rel = "noopener noreferrer";
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    revokeLater();
+    return true;
+  } catch (error) {
+    URL.revokeObjectURL(downloadUrl);
+    throw error;
+  }
+}
+
+export async function downloadQuotationPdf(quotation, template = {}) {
+  const { doc, fileName } = await prepareQuotationPdfDocument(quotation, template);
 
   try {
     const pdfBlob = doc.output("blob");
@@ -1156,4 +1260,9 @@ export async function downloadQuotationPdf(quotation, template = {}) {
   } catch {
     doc.save(fileName);
   }
+}
+
+export async function openQuotationPdfPreview(quotation, template = {}) {
+  const { doc } = await prepareQuotationPdfDocument(quotation, template);
+  await openPdfBlobInNewTab(doc);
 }

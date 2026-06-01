@@ -1,5 +1,6 @@
 export const LEAD_FLOW_STATUSES = [
   "New Lead",
+  "Not Attempted",
   "Attempted",
   "Interested",
   "Requirement",
@@ -11,6 +12,29 @@ export const DEAL_FLOW_STATUSES = [
   "Design",
   "Production",
   "Accounts",
+];
+
+export const ATTEMPTED_REASON_OPTIONS = [
+  "Waiting for sample",
+  "Waiting For Design File",
+  "Customer side additional details pending",
+  "Our side additional details pending",
+  "Others",
+];
+
+export const NOT_ATTEMPTED_REASON_OPTIONS = [
+  "Ringing Not Answer",
+  "Number Busy",
+  "Not Reachable",
+  "Switch Off",
+  "Number Not in Use",
+  "Wrong Number",
+  "Call Not Connected",
+];
+
+export const INTERESTED_REASON_OPTIONS = [
+  "Call Back",
+  "Followup",
 ];
 
 /**

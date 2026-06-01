@@ -1,0 +1,1 @@
+import{j as s}from"./index-CThM5sut.js";function i(){return s.jsx("div",{className:"card",children:s.jsxs("div",{className:"card-body",children:[s.jsx("h4",{className:"mb-2",children:"Ui Spinner"}),s.jsx("p",{className:"mb-0",children:"Layout working confirmation."})]})})}export{i as default};

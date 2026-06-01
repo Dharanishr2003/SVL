@@ -31,11 +31,13 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -330,11 +332,31 @@ public class EmployeeService {
         e.setBankAccountNumber(trimToNull(r.getBankAccountNumber()));
         e.setIfscCode(trimToNull(r.getIfscCode()));
         e.setBankAndBranch(trimToNull(r.getBankAndBranch()));
-        e.setEmploymentDetails1(trimToNull(r.getEmploymentDetails1()));
-        e.setEmploymentDetails2(trimToNull(r.getEmploymentDetails2()));
-        e.setGraduationDetails(trimToNull(r.getGraduationDetails()));
-        e.setHscMarkAndYear(trimToNull(r.getHscMarkAndYear()));
-        e.setSslcMarkAndYear(trimToNull(r.getSslcMarkAndYear()));
+        setIfPresent(r.getEmploymentDetails1(), e::setEmploymentDetails1);
+        setIfPresent(r.getEmploymentDetails2(), e::setEmploymentDetails2);
+        setIfPresent(r.getPreviousEmploymentJoiningDate(), e::setPreviousEmploymentJoiningDate);
+        setIfPresent(r.getPreviousEmploymentRelievingDate(), e::setPreviousEmploymentRelievingDate);
+        setIfPresent(r.getPreviousEmploymentSalaryAtJoining(), e::setPreviousEmploymentSalaryAtJoining);
+        setIfPresent(r.getPreviousEmploymentSalaryAtRelieving(), e::setPreviousEmploymentSalaryAtRelieving);
+        setIfPresent(r.getPreviousEmploymentRelievedWithNoticePeriod(), e::setPreviousEmploymentRelievedWithNoticePeriod);
+        setIfPresent(r.getPreviousEmploymentAbsconded(), e::setPreviousEmploymentAbsconded);
+        setIfPresent(r.getPreviousEmploymentDesignationAtJoining(), e::setPreviousEmploymentDesignationAtJoining);
+        setIfPresent(r.getPreviousEmploymentDesignationAtRelieving(), e::setPreviousEmploymentDesignationAtRelieving);
+        setIfPresent(r.getPreviousEmploymentManagerName(), e::setPreviousEmploymentManagerName);
+        setIfPresent(r.getPreviousEmploymentManagerMobileNumber(), e::setPreviousEmploymentManagerMobileNumber);
+        setIfPresent(r.getPreviousEmploymentCompanyAddress(), e::setPreviousEmploymentCompanyAddress);
+        setIfPresent(r.getGraduationDetails(), e::setGraduationDetails);
+        setIfPresent(r.getHscMarkAndYear(), e::setHscMarkAndYear);
+        setIfPresent(r.getSslcMarkAndYear(), e::setSslcMarkAndYear);
+        e.setEducationQualification(trimToNull(r.getEducationQualification()));
+        e.setEducationCourseName(trimToNull(r.getEducationCourseName()));
+        e.setEducationCertificateNumber(trimToNull(r.getEducationCertificateNumber()));
+        e.setEducationRollNumber(trimToNull(r.getEducationRollNumber()));
+        e.setEducationMark(trimToNull(r.getEducationMark()));
+        e.setEducationMaxMark(trimToNull(r.getEducationMaxMark()));
+        e.setEducationMarkPercentage(calculateEducationPercentage(r.getEducationMark(), r.getEducationMaxMark(), r.getEducationMarkPercentage()));
+        e.setEducationFromYear(trimToNull(r.getEducationFromYear()));
+        e.setEducationToYear(trimToNull(r.getEducationToYear()));
         e.setEmergencyContactName1(trimToNull(r.getEmergencyContactName1()));
         e.setEmergencyContactRelation1(trimToNull(r.getEmergencyContactRelation1()));
         e.setEmergencyContactPhone1(trimToNull(r.getEmergencyContactPhone1()));
@@ -392,11 +414,31 @@ public class EmployeeService {
         e.setBankAccountNumber(trimToNull(r.getBankAccountNumber()));
         e.setIfscCode(trimToNull(r.getIfscCode()));
         e.setBankAndBranch(trimToNull(r.getBankAndBranch()));
-        e.setEmploymentDetails1(trimToNull(r.getEmploymentDetails1()));
-        e.setEmploymentDetails2(trimToNull(r.getEmploymentDetails2()));
-        e.setGraduationDetails(trimToNull(r.getGraduationDetails()));
-        e.setHscMarkAndYear(trimToNull(r.getHscMarkAndYear()));
-        e.setSslcMarkAndYear(trimToNull(r.getSslcMarkAndYear()));
+        setIfPresent(r.getEmploymentDetails1(), e::setEmploymentDetails1);
+        setIfPresent(r.getEmploymentDetails2(), e::setEmploymentDetails2);
+        setIfPresent(r.getPreviousEmploymentJoiningDate(), e::setPreviousEmploymentJoiningDate);
+        setIfPresent(r.getPreviousEmploymentRelievingDate(), e::setPreviousEmploymentRelievingDate);
+        setIfPresent(r.getPreviousEmploymentSalaryAtJoining(), e::setPreviousEmploymentSalaryAtJoining);
+        setIfPresent(r.getPreviousEmploymentSalaryAtRelieving(), e::setPreviousEmploymentSalaryAtRelieving);
+        setIfPresent(r.getPreviousEmploymentRelievedWithNoticePeriod(), e::setPreviousEmploymentRelievedWithNoticePeriod);
+        setIfPresent(r.getPreviousEmploymentAbsconded(), e::setPreviousEmploymentAbsconded);
+        setIfPresent(r.getPreviousEmploymentDesignationAtJoining(), e::setPreviousEmploymentDesignationAtJoining);
+        setIfPresent(r.getPreviousEmploymentDesignationAtRelieving(), e::setPreviousEmploymentDesignationAtRelieving);
+        setIfPresent(r.getPreviousEmploymentManagerName(), e::setPreviousEmploymentManagerName);
+        setIfPresent(r.getPreviousEmploymentManagerMobileNumber(), e::setPreviousEmploymentManagerMobileNumber);
+        setIfPresent(r.getPreviousEmploymentCompanyAddress(), e::setPreviousEmploymentCompanyAddress);
+        setIfPresent(r.getGraduationDetails(), e::setGraduationDetails);
+        setIfPresent(r.getHscMarkAndYear(), e::setHscMarkAndYear);
+        setIfPresent(r.getSslcMarkAndYear(), e::setSslcMarkAndYear);
+        e.setEducationQualification(trimToNull(r.getEducationQualification()));
+        e.setEducationCourseName(trimToNull(r.getEducationCourseName()));
+        e.setEducationCertificateNumber(trimToNull(r.getEducationCertificateNumber()));
+        e.setEducationRollNumber(trimToNull(r.getEducationRollNumber()));
+        e.setEducationMark(trimToNull(r.getEducationMark()));
+        e.setEducationMaxMark(trimToNull(r.getEducationMaxMark()));
+        e.setEducationMarkPercentage(calculateEducationPercentage(r.getEducationMark(), r.getEducationMaxMark(), r.getEducationMarkPercentage()));
+        e.setEducationFromYear(trimToNull(r.getEducationFromYear()));
+        e.setEducationToYear(trimToNull(r.getEducationToYear()));
         e.setEmergencyContactName1(trimToNull(r.getEmergencyContactName1()));
         e.setEmergencyContactRelation1(trimToNull(r.getEmergencyContactRelation1()));
         e.setEmergencyContactPhone1(trimToNull(r.getEmergencyContactPhone1()));
@@ -567,9 +609,29 @@ public class EmployeeService {
         r.setBankAndBranch(e.getBankAndBranch());
         r.setEmploymentDetails1(e.getEmploymentDetails1());
         r.setEmploymentDetails2(e.getEmploymentDetails2());
+        r.setPreviousEmploymentJoiningDate(e.getPreviousEmploymentJoiningDate());
+        r.setPreviousEmploymentRelievingDate(e.getPreviousEmploymentRelievingDate());
+        r.setPreviousEmploymentSalaryAtJoining(e.getPreviousEmploymentSalaryAtJoining());
+        r.setPreviousEmploymentSalaryAtRelieving(e.getPreviousEmploymentSalaryAtRelieving());
+        r.setPreviousEmploymentRelievedWithNoticePeriod(e.getPreviousEmploymentRelievedWithNoticePeriod());
+        r.setPreviousEmploymentAbsconded(e.getPreviousEmploymentAbsconded());
+        r.setPreviousEmploymentDesignationAtJoining(e.getPreviousEmploymentDesignationAtJoining());
+        r.setPreviousEmploymentDesignationAtRelieving(e.getPreviousEmploymentDesignationAtRelieving());
+        r.setPreviousEmploymentManagerName(e.getPreviousEmploymentManagerName());
+        r.setPreviousEmploymentManagerMobileNumber(e.getPreviousEmploymentManagerMobileNumber());
+        r.setPreviousEmploymentCompanyAddress(e.getPreviousEmploymentCompanyAddress());
         r.setGraduationDetails(e.getGraduationDetails());
         r.setHscMarkAndYear(e.getHscMarkAndYear());
         r.setSslcMarkAndYear(e.getSslcMarkAndYear());
+        r.setEducationQualification(e.getEducationQualification());
+        r.setEducationCourseName(e.getEducationCourseName());
+        r.setEducationCertificateNumber(e.getEducationCertificateNumber());
+        r.setEducationRollNumber(e.getEducationRollNumber());
+        r.setEducationMark(e.getEducationMark());
+        r.setEducationMaxMark(e.getEducationMaxMark());
+        r.setEducationMarkPercentage(calculateEducationPercentage(e.getEducationMark(), e.getEducationMaxMark(), e.getEducationMarkPercentage()));
+        r.setEducationFromYear(e.getEducationFromYear());
+        r.setEducationToYear(e.getEducationToYear());
         r.setEmergencyContactName1(e.getEmergencyContactName1());
         r.setEmergencyContactRelation1(e.getEmergencyContactRelation1());
         r.setEmergencyContactPhone1(e.getEmergencyContactPhone1());
@@ -609,6 +671,36 @@ public class EmployeeService {
     private String firstNonBlank(String first, String second) {
         String firstValue = trimToNull(first);
         return firstValue != null ? firstValue : trimToNull(second);
+    }
+
+    private String calculateEducationPercentage(String mark, String maxMark, String fallbackPercentage) {
+        String markValue = trimToNull(mark);
+        String maxMarkValue = trimToNull(maxMark);
+        if (markValue == null || maxMarkValue == null) {
+            return trimToNull(fallbackPercentage);
+        }
+        try {
+            double markNumber = Double.parseDouble(markValue);
+            double maxNumber = Double.parseDouble(maxMarkValue);
+            if (maxNumber <= 0d) {
+                return trimToNull(fallbackPercentage);
+            }
+            return String.format(java.util.Locale.ROOT, "%.2f", (markNumber / maxNumber) * 100d);
+        } catch (NumberFormatException ex) {
+            return trimToNull(fallbackPercentage);
+        }
+    }
+
+    private void setIfPresent(String value, Consumer<String> setter) {
+        if (value != null) {
+            setter.accept(trimToNull(value));
+        }
+    }
+
+    private void setIfPresent(LocalDate value, Consumer<LocalDate> setter) {
+        if (value != null) {
+            setter.accept(value);
+        }
     }
 
     private String resolveEmployeeEmail(Employee employee) {

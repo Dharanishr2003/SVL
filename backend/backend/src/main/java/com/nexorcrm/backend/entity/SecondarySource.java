@@ -18,6 +18,9 @@ public class SecondarySource {
     @Column(name = "source_name", nullable = false, unique = true, length = 160)
     private String sourceName;
 
+    @Column(name = "primary_source_id")
+    private Long primarySourceId;
+
     @Column(name = "is_deleted", nullable = false)
     private boolean deleted = false;
 
@@ -42,6 +45,8 @@ public class SecondarySource {
     public void setSecondaryId(String secondaryId) { this.secondaryId = secondaryId; }
     public String getSourceName() { return sourceName; }
     public void setSourceName(String sourceName) { this.sourceName = sourceName; }
+    public Long getPrimarySourceId() { return primarySourceId; }
+    public void setPrimarySourceId(Long primarySourceId) { this.primarySourceId = primarySourceId; }
     public boolean isDeleted() { return deleted; }
     public void setDeleted(boolean deleted) { this.deleted = deleted; }
     public LocalDateTime getCreatedAt() { return createdAt; }

@@ -48,25 +48,30 @@ public enum EmployeePublicFieldKey {
     BANK_IFSC("IFSC Code", EmployeePublicFieldInputType.TEXT, true, Employee::getIfscCode, (e, v) -> e.setIfscCode(trimToNull(v))),
     BANK_NAME_BRANCH("Bank Name & Branch", EmployeePublicFieldInputType.TEXT, true, Employee::getBankAndBranch, (e, v) -> e.setBankAndBranch(trimToNull(v))),
 
-    EMPLOYMENT_DETAILS_1("Employment Details 1", EmployeePublicFieldInputType.TEXTAREA, true, Employee::getEmploymentDetails1, (e, v) -> e.setEmploymentDetails1(trimToNull(v))),
-    EMPLOYMENT_DETAILS_2("Employment Details 2", EmployeePublicFieldInputType.TEXTAREA, true, Employee::getEmploymentDetails2, (e, v) -> e.setEmploymentDetails2(trimToNull(v))),
-    GRADUATION_DETAILS("Graduation Details", EmployeePublicFieldInputType.TEXT, true, Employee::getGraduationDetails, (e, v) -> e.setGraduationDetails(trimToNull(v))),
-    HSC_MARK_AND_YEAR("HSC Mark & Year", EmployeePublicFieldInputType.TEXT, true, Employee::getHscMarkAndYear, (e, v) -> e.setHscMarkAndYear(trimToNull(v))),
-    SSLC_MARK_AND_YEAR("SSLC Mark & Year", EmployeePublicFieldInputType.TEXT, true, Employee::getSslcMarkAndYear, (e, v) -> e.setSslcMarkAndYear(trimToNull(v))),
+    PREVIOUS_EMPLOYMENT_JOINING_DATE("Joining Date", EmployeePublicFieldInputType.DATE, true, e -> toStringOrNull(e.getPreviousEmploymentJoiningDate()), (e, v) -> e.setPreviousEmploymentJoiningDate(parseDateOrNull(v))),
+    PREVIOUS_EMPLOYMENT_RELIEVING_DATE("Relieving Date", EmployeePublicFieldInputType.DATE, true, e -> toStringOrNull(e.getPreviousEmploymentRelievingDate()), (e, v) -> e.setPreviousEmploymentRelievingDate(parseDateOrNull(v))),
+    PREVIOUS_EMPLOYMENT_SALARY_AT_JOINING("Salary at the Time of Joining", EmployeePublicFieldInputType.NUMBER, true, Employee::getPreviousEmploymentSalaryAtJoining, (e, v) -> e.setPreviousEmploymentSalaryAtJoining(trimToNull(v))),
+    PREVIOUS_EMPLOYMENT_SALARY_AT_RELIEVING("Salary at the Time of Relieving", EmployeePublicFieldInputType.NUMBER, true, Employee::getPreviousEmploymentSalaryAtRelieving, (e, v) -> e.setPreviousEmploymentSalaryAtRelieving(trimToNull(v))),
+    PREVIOUS_EMPLOYMENT_RELIEVED_WITH_NOTICE_PERIOD("Whether Relieved with Notice Period", EmployeePublicFieldInputType.TEXT, true, Employee::getPreviousEmploymentRelievedWithNoticePeriod, (e, v) -> e.setPreviousEmploymentRelievedWithNoticePeriod(trimToNull(v))),
+    PREVIOUS_EMPLOYMENT_ABSCONDED("Whether Absconded", EmployeePublicFieldInputType.TEXT, true, Employee::getPreviousEmploymentAbsconded, (e, v) -> e.setPreviousEmploymentAbsconded(trimToNull(v))),
+    PREVIOUS_EMPLOYMENT_DESIGNATION_AT_JOINING("Designation at the Time of Joining", EmployeePublicFieldInputType.TEXT, true, Employee::getPreviousEmploymentDesignationAtJoining, (e, v) -> e.setPreviousEmploymentDesignationAtJoining(trimToNull(v))),
+    PREVIOUS_EMPLOYMENT_DESIGNATION_AT_RELIEVING("Designation at the Time of Relieving", EmployeePublicFieldInputType.TEXT, true, Employee::getPreviousEmploymentDesignationAtRelieving, (e, v) -> e.setPreviousEmploymentDesignationAtRelieving(trimToNull(v))),
+    PREVIOUS_EMPLOYMENT_MANAGER_NAME("Previous Company Manager Name", EmployeePublicFieldInputType.TEXT, true, Employee::getPreviousEmploymentManagerName, (e, v) -> e.setPreviousEmploymentManagerName(trimToNull(v))),
+    PREVIOUS_EMPLOYMENT_MANAGER_MOBILE_NUMBER("Manager Mobile Number", EmployeePublicFieldInputType.PHONE, true, Employee::getPreviousEmploymentManagerMobileNumber, (e, v) -> e.setPreviousEmploymentManagerMobileNumber(trimToNull(v))),
+    PREVIOUS_EMPLOYMENT_COMPANY_ADDRESS("Previous Company Address", EmployeePublicFieldInputType.TEXTAREA, true, Employee::getPreviousEmploymentCompanyAddress, (e, v) -> e.setPreviousEmploymentCompanyAddress(trimToNull(v))),
 
     FRIEND_REF_NAME_1("Friend Ref Name 1", EmployeePublicFieldInputType.TEXT, true, Employee::getFriendRefName1, (e, v) -> e.setFriendRefName1(trimToNull(v))),
     FRIEND_REF_CONTACT_1("Friend Ref Contact 1", EmployeePublicFieldInputType.TEXT, true, Employee::getFriendRefContact1, (e, v) -> e.setFriendRefContact1(trimToNull(v))),
     FRIEND_REF_NAME_2("Friend Ref Name 2", EmployeePublicFieldInputType.TEXT, true, Employee::getFriendRefName2, (e, v) -> e.setFriendRefName2(trimToNull(v))),
     FRIEND_REF_CONTACT_2("Friend Ref Contact 2", EmployeePublicFieldInputType.TEXT, true, Employee::getFriendRefContact2, (e, v) -> e.setFriendRefContact2(trimToNull(v))),
 
-    EMERGENCY_CONTACT_NAME_1("Emergency Contact Name 1", EmployeePublicFieldInputType.TEXT, true, Employee::getEmergencyContactName1, (e, v) -> e.setEmergencyContactName1(trimToNull(v))),
+    EMERGENCY_CONTACT_NAME_1("Emergency Contact Person Name", EmployeePublicFieldInputType.TEXT, true, Employee::getEmergencyContactName1, (e, v) -> e.setEmergencyContactName1(trimToNull(v))),
     EMERGENCY_CONTACT_RELATION_1("Emergency Contact Relation 1", EmployeePublicFieldInputType.TEXT, true, Employee::getEmergencyContactRelation1, (e, v) -> e.setEmergencyContactRelation1(trimToNull(v))),
-    EMERGENCY_CONTACT_PHONE_1("Emergency Contact Phone 1", EmployeePublicFieldInputType.PHONE, true, Employee::getEmergencyContactPhone1, (e, v) -> e.setEmergencyContactPhone1(trimToNull(v))),
-    EMERGENCY_CONTACT_NAME_2("Emergency Contact Name 2", EmployeePublicFieldInputType.TEXT, true, Employee::getEmergencyContactName2, (e, v) -> e.setEmergencyContactName2(trimToNull(v))),
+    EMERGENCY_CONTACT_PHONE_1("Emergency Contact Person Phone Number", EmployeePublicFieldInputType.PHONE, true, Employee::getEmergencyContactPhone1, (e, v) -> e.setEmergencyContactPhone1(trimToNull(v))),
+    EMERGENCY_CONTACT_NAME_2("Emergency Contact Person Name", EmployeePublicFieldInputType.TEXT, true, Employee::getEmergencyContactName2, (e, v) -> e.setEmergencyContactName2(trimToNull(v))),
     EMERGENCY_CONTACT_RELATION_2("Emergency Contact Relation 2", EmployeePublicFieldInputType.TEXT, true, Employee::getEmergencyContactRelation2, (e, v) -> e.setEmergencyContactRelation2(trimToNull(v))),
-    EMERGENCY_CONTACT_PHONE_2("Emergency Contact Phone 2", EmployeePublicFieldInputType.PHONE, true, Employee::getEmergencyContactPhone2, (e, v) -> e.setEmergencyContactPhone2(trimToNull(v))),
+    EMERGENCY_CONTACT_PHONE_2("Emergency Contact Person Phone Number", EmployeePublicFieldInputType.PHONE, true, Employee::getEmergencyContactPhone2, (e, v) -> e.setEmergencyContactPhone2(trimToNull(v))),
 
-    BRANCH_TO_JOIN("Branch To Join", EmployeePublicFieldInputType.TEXT, true, Employee::getBranchToJoin, (e, v) -> e.setBranchToJoin(trimToNull(v))),
     PLATFORM_SOURCE("Platform Source", EmployeePublicFieldInputType.TEXT, true, Employee::getPlatformSource, (e, v) -> e.setPlatformSource(trimToNull(v))),
     PF_UAN("PF UAN", EmployeePublicFieldInputType.TEXT, true, Employee::getPfUan, (e, v) -> e.setPfUan(trimToNull(v))),
     ESI_NO("ESI No", EmployeePublicFieldInputType.TEXT, true, Employee::getEsiNo, (e, v) -> e.setEsiNo(trimToNull(v))),
@@ -74,7 +79,7 @@ public enum EmployeePublicFieldKey {
     DECLARATION_DATE("Declaration Date", EmployeePublicFieldInputType.DATE, true, e -> toStringOrNull(e.getDeclarationDate()), (e, v) -> e.setDeclarationDate(parseDateOrNull(v))),
     DECLARATION_PLACE("Declaration Place", EmployeePublicFieldInputType.TEXT, true, Employee::getDeclarationPlace, (e, v) -> e.setDeclarationPlace(trimToNull(v))),
 
-    JOIN_DATE("Join Date", EmployeePublicFieldInputType.DATE, true, e -> toStringOrNull(e.getJoinDate()), (e, v) -> e.setJoinDate(parseDateOrNull(v))),
+    JOIN_DATE("Joining Date", EmployeePublicFieldInputType.DATE, true, e -> toStringOrNull(e.getJoinDate()), (e, v) -> e.setJoinDate(parseDateOrNull(v))),
     STATUS("Status", EmployeePublicFieldInputType.TEXT, false, Employee::getStatus, (e, v) -> e.setStatus(trimToNull(v)));
 
     private final String label;

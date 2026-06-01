@@ -127,8 +127,17 @@ public class Lead {
     @Column(name = "attempted_call_remarks", length = 1000)
     private String attemptedCallRemarks;
 
+    @Column(name = "not_attempted_call_status", length = 160)
+    private String notAttemptedCallStatus;
+
+    @Column(name = "not_attempted_call_remarks", length = 1000)
+    private String notAttemptedCallRemarks;
+
     @Column(name = "interested_follow_up_date")
     private LocalDateTime interestedFollowUpDate;
+
+    @Column(name = "interested_call_status", length = 160)
+    private String interestedCallStatus;
 
     @Column(name = "interested_call_remarks", length = 1000)
     private String interestedCallRemarks;
@@ -371,8 +380,14 @@ public class Lead {
     public void setAttemptedCallStatus(String attemptedCallStatus) { this.attemptedCallStatus = attemptedCallStatus; }
     public String getAttemptedCallRemarks() { return attemptedCallRemarks; }
     public void setAttemptedCallRemarks(String attemptedCallRemarks) { this.attemptedCallRemarks = attemptedCallRemarks; }
+    public String getNotAttemptedCallStatus() { return notAttemptedCallStatus; }
+    public void setNotAttemptedCallStatus(String notAttemptedCallStatus) { this.notAttemptedCallStatus = notAttemptedCallStatus; }
+    public String getNotAttemptedCallRemarks() { return notAttemptedCallRemarks; }
+    public void setNotAttemptedCallRemarks(String notAttemptedCallRemarks) { this.notAttemptedCallRemarks = notAttemptedCallRemarks; }
     public LocalDateTime getInterestedFollowUpDate() { return interestedFollowUpDate; }
     public void setInterestedFollowUpDate(LocalDateTime interestedFollowUpDate) { this.interestedFollowUpDate = interestedFollowUpDate; }
+    public String getInterestedCallStatus() { return interestedCallStatus; }
+    public void setInterestedCallStatus(String interestedCallStatus) { this.interestedCallStatus = interestedCallStatus; }
     public String getInterestedCallRemarks() { return interestedCallRemarks; }
     public void setInterestedCallRemarks(String interestedCallRemarks) { this.interestedCallRemarks = interestedCallRemarks; }
     public String getRejectedReason() { return rejectedReason; }

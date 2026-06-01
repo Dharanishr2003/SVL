@@ -6,6 +6,7 @@ import {
   deleteLeadStatus,
   DEFAULT_LEAD_STATUSES,
 } from "../../api/leadStatusApi";
+import { formatStatusLabel } from "../../utils/statusLabels";
 import { extractApiErrorMessage } from "../../utils/errorMessage";
 import { useToast } from "../../components/system/ToastProvider";
 
@@ -63,7 +64,7 @@ function LeadStatusPage() {
     () => [...rows].sort((a, b) => (b.id || 0) - (a.id || 0)),
     [rows],
   );
-  const getLabel = (r) => r.leadStatus || r.name || r.status || "-";
+  const getLabel = (r) => formatStatusLabel(r.leadStatus || r.name || r.status || "-");
 
   const handleSave = async () => {
     if (!formValue.trim()) {
@@ -279,7 +280,6 @@ function LeadStatusPage() {
   );
 }
 export default LeadStatusPage;
-
 
 
 

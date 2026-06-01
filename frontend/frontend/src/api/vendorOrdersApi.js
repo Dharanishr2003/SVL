@@ -2,7 +2,7 @@ import api from "../utils/api";
 import vendorApi, { setVendorAccessToken } from "../utils/vendorApi";
 import { getVendorSession } from "../utils/vendorSession";
 
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8081";
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8082";
 
 function buildVendorOrderFormData(order) {
   const formData = new FormData();

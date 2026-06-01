@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { getBranches } from "../../api/branchesApi";
 import { getDepartmentsMasterByBranch } from "../../api/departmentsApi";
@@ -16,6 +16,22 @@ import {
 } from "../../utils/phoneUtils";
 import "../../../public/assets/css/addModalShared.css";
 import "./EmployeesPage.css";
+
+const EDUCATION_LEVEL_OPTIONS = [
+  "Below 8th",
+  "8th Pass",
+  "SSLC",
+  "HSC",
+  "Diploma",
+  "UG",
+  "PG",
+  "ITI",
+];
+
+const YES_NO_OPTIONS = [
+  { value: "YES", label: "Yes" },
+  { value: "NO", label: "No" },
+];
 
 const EMPTY_FORM = {
   nameInCaps: "",
@@ -35,6 +51,15 @@ const EMPTY_FORM = {
   maritalStatus: "",
   spouseName: "",
   bloodGroup: "",
+  educationQualification: "",
+  educationCourseName: "",
+  educationCertificateNumber: "",
+  educationRollNumber: "",
+  educationMark: "",
+  educationMaxMark: "",
+  educationMarkPercentage: "",
+  educationFromYear: "",
+  educationToYear: "",
   graduationDetails: "",
   hscMarkAndYear: "",
   sslcMarkAndYear: "",
@@ -52,8 +77,17 @@ const EMPTY_FORM = {
   bankAccountNumber: "",
   ifscCode: "",
   bankAndBranch: "",
-  employmentDetails1: "",
-  employmentDetails2: "",
+  previousEmploymentJoiningDate: "",
+  previousEmploymentRelievingDate: "",
+  previousEmploymentSalaryAtJoining: "",
+  previousEmploymentSalaryAtRelieving: "",
+  previousEmploymentRelievedWithNoticePeriod: "",
+  previousEmploymentAbsconded: "",
+  previousEmploymentDesignationAtJoining: "",
+  previousEmploymentDesignationAtRelieving: "",
+  previousEmploymentManagerName: "",
+  previousEmploymentManagerMobileNumber: "",
+  previousEmploymentCompanyAddress: "",
   emergencyContactName1: "",
   emergencyContactRelation1: "",
   emergencyContactPhone1: "",
@@ -98,7 +132,6 @@ const EMPTY_SECTIONS = {
   familyDetails: false,
   addressDetails: false,
   educationDetails: false,
-  documentUploads: false,
   bankDetails: false,
   previousEmployment: false,
   emergencyContacts: false,
@@ -128,6 +161,14 @@ function hasAnyText(source, keys) {
   return keys.some((key) => hasText(source?.[key]));
 }
 
+function calculateEducationPercentage(mark, maxMark) {
+  if (!hasText(mark) || !hasText(maxMark)) return "";
+  const markValue = Number(mark);
+  const maxValue = Number(maxMark);
+  if (!Number.isFinite(markValue) || !Number.isFinite(maxValue) || maxValue <= 0) return "";
+  return ((markValue / maxValue) * 100).toFixed(2);
+}
+
 function pickDate(value) {
   return value ? String(value).slice(0, 10) : "";
 }
@@ -152,6 +193,16 @@ function normalizeEmployee(raw = {}) {
     maritalStatus: raw?.maritalStatus || "",
     spouseName: raw?.spouseName || "",
     bloodGroup: raw?.bloodGroup || "",
+    educationQualification: raw?.educationQualification || "",
+    educationCourseName: raw?.educationCourseName || "",
+    educationCertificateNumber: raw?.educationCertificateNumber || "",
+    educationRollNumber: raw?.educationRollNumber || "",
+    educationMark: raw?.educationMark || "",
+    educationMaxMark: raw?.educationMaxMark || "",
+    educationMarkPercentage:
+      raw?.educationMarkPercentage || calculateEducationPercentage(raw?.educationMark, raw?.educationMaxMark) || "",
+    educationFromYear: raw?.educationFromYear || "",
+    educationToYear: raw?.educationToYear || "",
     graduationDetails: raw?.graduationDetails || "",
     hscMarkAndYear: raw?.hscMarkAndYear || "",
     sslcMarkAndYear: raw?.sslcMarkAndYear || "",
@@ -159,8 +210,17 @@ function normalizeEmployee(raw = {}) {
     bankAccountNumber: raw?.bankAccountNumber || "",
     ifscCode: raw?.ifscCode || "",
     bankAndBranch: raw?.bankAndBranch || "",
-    employmentDetails1: raw?.employmentDetails1 || "",
-    employmentDetails2: raw?.employmentDetails2 || "",
+    previousEmploymentJoiningDate: pickDate(raw?.previousEmploymentJoiningDate),
+    previousEmploymentRelievingDate: pickDate(raw?.previousEmploymentRelievingDate),
+    previousEmploymentSalaryAtJoining: raw?.previousEmploymentSalaryAtJoining || "",
+    previousEmploymentSalaryAtRelieving: raw?.previousEmploymentSalaryAtRelieving || "",
+    previousEmploymentRelievedWithNoticePeriod: raw?.previousEmploymentRelievedWithNoticePeriod || "",
+    previousEmploymentAbsconded: raw?.previousEmploymentAbsconded || "",
+    previousEmploymentDesignationAtJoining: raw?.previousEmploymentDesignationAtJoining || "",
+    previousEmploymentDesignationAtRelieving: raw?.previousEmploymentDesignationAtRelieving || "",
+    previousEmploymentManagerName: raw?.previousEmploymentManagerName || "",
+    previousEmploymentManagerMobileNumber: raw?.previousEmploymentManagerMobileNumber || "",
+    previousEmploymentCompanyAddress: raw?.previousEmploymentCompanyAddress || "",
     emergencyContactName1: raw?.emergencyContactName1 || "",
     emergencyContactRelation1: raw?.emergencyContactRelation1 || "",
     emergencyContactPhone1: raw?.emergencyContactPhone1 || "",
@@ -211,23 +271,48 @@ function normalizeEmployee(raw = {}) {
       "bloodGroup",
       "officialEmail",
     ]),
-    addressDetails: hasAnyText(form, ["location", "pinCode", "state", "currentAddress", "permanentAddress"]),
-    educationDetails: hasAnyText(form, ["graduationDetails", "hscMarkAndYear", "sslcMarkAndYear"]),
-    documentUploads: Object.values(existingFiles).some(hasText),
-    bankDetails: hasAnyText(form, ["bankAccountHolderName", "bankAccountNumber", "ifscCode", "bankAndBranch"]),
-    previousEmployment: hasAnyText(form, [
-      "employmentDetails1",
-      "employmentDetails2",
-      "branchToJoin",
-      "platformSource",
-      "institution",
-      "institutionCategory",
-      "institutionType",
-      "userDepartmentName",
-      "team",
-      "designation",
-      "joinDate",
-    ]),
+    addressDetails:
+      hasAnyText(form, ["location", "pinCode", "state", "currentAddress", "permanentAddress"]) ||
+      hasText(existingFiles.aadharCardPath) ||
+      hasText(existingFiles.panCardPath),
+    educationDetails:
+      hasAnyText(form, [
+        "educationQualification",
+        "educationCourseName",
+        "educationCertificateNumber",
+        "educationRollNumber",
+        "educationMark",
+        "educationMaxMark",
+        "educationMarkPercentage",
+        "educationFromYear",
+        "educationToYear",
+      ]) ||
+      hasAnyText(form, ["graduationDetails", "hscMarkAndYear", "sslcMarkAndYear"]) ||
+      hasText(existingFiles.graduationCertificatePath) ||
+      hasText(existingFiles.graduationMarksheetPath) ||
+      hasText(existingFiles.hscMarksheetPath) ||
+      hasText(existingFiles.sslcMarksheetPath),
+    bankDetails:
+      hasAnyText(form, ["bankAccountHolderName", "bankAccountNumber", "ifscCode", "bankAndBranch"]) ||
+      hasText(existingFiles.bankPassbookPath),
+    previousEmployment:
+      hasAnyText(form, [
+        "previousEmploymentJoiningDate",
+        "previousEmploymentRelievingDate",
+        "previousEmploymentSalaryAtJoining",
+        "previousEmploymentSalaryAtRelieving",
+        "previousEmploymentRelievedWithNoticePeriod",
+        "previousEmploymentAbsconded",
+        "previousEmploymentDesignationAtJoining",
+        "previousEmploymentDesignationAtRelieving",
+        "previousEmploymentManagerName",
+        "previousEmploymentManagerMobileNumber",
+        "previousEmploymentCompanyAddress",
+        "platformSource",
+        "joinDate",
+      ]) ||
+      hasText(existingFiles.experienceCertificatePath) ||
+      !!form.uploadExperienceCertificate,
     emergencyContacts: hasAnyText(form, [
       "emergencyContactName1",
       "emergencyContactRelation1",
@@ -307,9 +392,10 @@ export default function EmployeeFormPage() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [existingFiles, setExistingFiles] = useState(EMPTY_FILE_PATHS);
   const [sections, setSections] = useState(EMPTY_SECTIONS);
+  const experienceCertificateInputRef = useRef(null);
 
   const apiBase = useMemo(
-    () => (import.meta.env.VITE_API_URL || "http://localhost:8081").replace(/\/+$/, ""),
+    () => (import.meta.env.VITE_API_URL || "http://localhost:8082").replace(/\/+$/, ""),
     [],
   );
 
@@ -456,6 +542,49 @@ export default function EmployeeFormPage() {
   const handlePhoneChange = (value) => {
     const sanitized = sanitizePhoneDigits(value, getCountryDisplayMaxLength(form.countryCode || defaultCountryOption.value));
     setForm((prev) => ({ ...prev, personalContactNumber: sanitized }));
+  };
+
+  const handleDobChange = (value) => {
+    setForm((prev) => {
+      if (!value) {
+        return { ...prev, dateOfBirth: "" };
+      }
+
+      const [year] = String(value).split("-");
+      if (!year || year.length !== 4 || !/^\d{4}$/.test(year)) {
+        return prev;
+      }
+
+      return { ...prev, dateOfBirth: value };
+    });
+  };
+
+  const handleDeclarationDateChange = (value) => {
+    setForm((prev) => {
+      if (!value) {
+        return { ...prev, declarationDate: "" };
+      }
+
+      const [year] = String(value).split("-");
+      if (!year || year.length !== 4 || !/^\d{4}$/.test(year)) {
+        return prev;
+      }
+
+      return { ...prev, declarationDate: value };
+    });
+  };
+
+  const handleEducationFieldChange = (key, value) => {
+    setForm((prev) => {
+      const next = { ...prev, [key]: value };
+      if (key === "educationMark" || key === "educationMaxMark") {
+        next.educationMarkPercentage = calculateEducationPercentage(
+          key === "educationMark" ? value : next.educationMark,
+          key === "educationMaxMark" ? value : next.educationMaxMark,
+        );
+      }
+      return next;
+    });
   };
 
   const handleFileChange = (key, file) => {
@@ -660,6 +789,7 @@ export default function EmployeeFormPage() {
                       />
                     </div>
                   </div>
+                  
                 </div>
                 <div className="col-md-6">
                   <div className="avm-field">
@@ -673,16 +803,49 @@ export default function EmployeeFormPage() {
                   </div>
                 </div>
                 <div className="col-md-6">
-                  <div className="avm-field">
-                    <label className="avm-label">DOB <span className="text-danger">*</span></label>
-                    <input
-                      type="date"
-                      className="avm-input form-control"
-                      value={form.dateOfBirth}
-                      onChange={(e) => setField("dateOfBirth", e.target.value)}
-                    />
-                  </div>
-                </div>
+                      <div className="avm-field">
+                        <label className="avm-label">DOB <span className="text-danger">*</span></label>
+                        <input
+                          type="date"
+                          className="avm-input form-control"
+                          max="9999-12-31"
+                          value={form.dateOfBirth}
+                          onChange={(e) => handleDobChange(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                    <div className="col-md-6">
+                      <div className="avm-field">
+                        <label className="avm-label">Candidate Photo</label>
+                        <input
+                          type="file"
+                          className="form-control"
+                          onChange={(e) => handleFileChange("candidatePhoto", e.target.files?.[0] || null)}
+                        />
+                        <FileViewLink
+                          label="Candidate Photo"
+                          existingPath={existingFiles.candidatePhotoPath}
+                          fileValue={form.candidatePhoto}
+                          apiBase={apiBase}
+                        />
+                      </div>
+                    </div>
+                <div className="col-md-6">
+                      <div className="avm-field">
+                        <label className="avm-label">Community Certificate</label>
+                        <input
+                          type="file"
+                          className="form-control"
+                          onChange={(e) => handleFileChange("uploadCommunityCertificate", e.target.files?.[0] || null)}
+                        />
+                        <FileViewLink
+                          label="Community Certificate"
+                          existingPath={existingFiles.communityCertificatePath}
+                          fileValue={form.uploadCommunityCertificate}
+                          apiBase={apiBase}
+                        />
+                      </div>
+                    </div>
               </div>
 
               <div className="card mt-4">
@@ -695,7 +858,6 @@ export default function EmployeeFormPage() {
                       ["familyDetails", "Family Details"],
                       ["addressDetails", "Address Details"],
                       ["educationDetails", "Education Details"],
-                      ["documentUploads", "Document Uploads"],
                       ["bankDetails", "Bank Details"],
                       ["previousEmployment", "Previous Employment"],
                       ["emergencyContacts", "Emergency Contacts"],
@@ -809,6 +971,38 @@ export default function EmployeeFormPage() {
                           <input className="avm-input form-control" value={form.branchToJoin} onChange={(e) => setField("branchToJoin", e.target.value)} />
                         </div>
                       </div>
+                      <div className="col-md-6">
+                        <div className="avm-field">
+                          <label className="avm-label">Aadhar Card</label>
+                          <input
+                            type="file"
+                            className="form-control"
+                            onChange={(e) => handleFileChange("uploadCandidateAadharCard", e.target.files?.[0] || null)}
+                          />
+                          <FileViewLink
+                            label="Aadhar Card"
+                            existingPath={existingFiles.aadharCardPath}
+                            fileValue={form.uploadCandidateAadharCard}
+                            apiBase={apiBase}
+                          />
+                        </div>
+                      </div>
+                      <div className="col-md-6">
+                        <div className="avm-field">
+                          <label className="avm-label">PAN Card</label>
+                          <input
+                            type="file"
+                            className="form-control"
+                            onChange={(e) => handleFileChange("uploadCandidatePanCard", e.target.files?.[0] || null)}
+                          />
+                          <FileViewLink
+                            label="PAN Card"
+                            existingPath={existingFiles.panCardPath}
+                            fileValue={form.uploadCandidatePanCard}
+                            apiBase={apiBase}
+                          />
+                        </div>
+                      </div>
                       <div className="col-md-12">
                         <div className="avm-field">
                           <label className="avm-label">Current Address</label>
@@ -831,63 +1025,181 @@ export default function EmployeeFormPage() {
                   <div className="card-body">
                     <p className="avm-section-title">Education Details</p>
                     <div className="row g-3">
-                      <div className="col-md-4">
+                      <div className="col-md-6">
                         <div className="avm-field">
-                          <label className="avm-label">Graduation Details</label>
-                          <input className="avm-input form-control" value={form.graduationDetails} onChange={(e) => setField("graduationDetails", e.target.value)} />
-                        </div>
-                      </div>
-                      <div className="col-md-4">
-                        <div className="avm-field">
-                          <label className="avm-label">HSC Mark & Year</label>
-                          <input className="avm-input form-control" value={form.hscMarkAndYear} onChange={(e) => setField("hscMarkAndYear", e.target.value)} />
-                        </div>
-                      </div>
-                      <div className="col-md-4">
-                        <div className="avm-field">
-                          <label className="avm-label">SSLC Mark & Year</label>
-                          <input className="avm-input form-control" value={form.sslcMarkAndYear} onChange={(e) => setField("sslcMarkAndYear", e.target.value)} />
+                          <label className="avm-label">Qualification</label>
+                          <select
+                            className="avm-input form-select"
+                            value={form.educationQualification}
+                            onChange={(e) => handleEducationFieldChange("educationQualification", e.target.value)}
+                          >
+                            <option value="">Select Qualification</option>
+                            {EDUCATION_LEVEL_OPTIONS.map((option) => (
+                              <option key={option} value={option}>
+                                {option}
+                              </option>
+                            ))}
+                          </select>
                         </div>
                       </div>
                     </div>
-                  </div>
-                </div>
-              )}
 
-              {sections.documentUploads && (
-                <div className="card mt-4">
-                  <div className="card-body">
-                    <p className="avm-section-title">Document Uploads</p>
-                    <div className="row g-3">
-                      {[
-                        ["candidatePhoto", "candidatePhotoPath", "Candidate Photo"],
-                        ["uploadCandidateAadharCard", "aadharCardPath", "Aadhar Card"],
-                        ["uploadCandidatePanCard", "panCardPath", "PAN Card"],
-                        ["uploadBankPassBookCopy", "bankPassbookPath", "Bank Passbook Copy"],
-                        ["uploadExperienceCertificate", "experienceCertificatePath", "Experience Certificate"],
-                        ["uploadGraduationCertificate", "graduationCertificatePath", "Graduation Certificate"],
-                        ["uploadGraduationMarksheet", "graduationMarksheetPath", "Graduation Marksheet"],
-                        ["uploadHscMarkSheet", "hscMarksheetPath", "HSC Mark Sheet"],
-                        ["uploadSslcMarkSheet", "sslcMarksheetPath", "SSLC Mark Sheet"],
-                        ["uploadCommunityCertificate", "communityCertificatePath", "Community Certificate"],
-                      ].map(([fieldKey, pathKey, label]) => (
-                        <div className="col-md-6" key={fieldKey}>
+                    {form.educationQualification && (
+                      <div className="row g-3 mt-1">
+                        <div className="col-md-4">
                           <div className="avm-field">
-                            <label className="avm-label">{label}</label>
+                            <label className="avm-label">Course Name</label>
                             <input
-                              type="file"
-                              className="form-control"
-                              onChange={(e) => handleFileChange(fieldKey, e.target.files?.[0] || null)}
-                            />
-                            <FileViewLink
-                              label={label}
-                              existingPath={existingFiles[pathKey]}
-                              fileValue={form[fieldKey]}
-                              apiBase={apiBase}
+                              className="avm-input form-control"
+                              value={form.educationCourseName}
+                              onChange={(e) => handleEducationFieldChange("educationCourseName", e.target.value)}
                             />
                           </div>
                         </div>
-                      ))}
+                        <div className="col-md-4">
+                          <div className="avm-field">
+                            <label className="avm-label">Roll Number</label>
+                            <input
+                              className="avm-input form-control"
+                              value={form.educationRollNumber}
+                              onChange={(e) => handleEducationFieldChange("educationRollNumber", e.target.value)}
+                            />
+                          </div>
+                        </div>
+                        <div className="col-md-4">
+                          <div className="avm-field">
+                            <label className="avm-label">Certificate Number</label>
+                            <input
+                              className="avm-input form-control"
+                              value={form.educationCertificateNumber}
+                              onChange={(e) => handleEducationFieldChange("educationCertificateNumber", e.target.value)}
+                            />
+                          </div>
+                        </div>
+                        
+                        <div className="col-md-4">
+                          <div className="avm-field">
+                            <label className="avm-label">Mark</label>
+                            <input
+                              type="number"
+                              step="any"
+                              className="avm-input form-control"
+                              value={form.educationMark}
+                              onChange={(e) => handleEducationFieldChange("educationMark", e.target.value)}
+                            />
+                          </div>
+                        </div>
+                        <div className="col-md-4">
+                          <div className="avm-field">
+                            <label className="avm-label">Max Mark</label>
+                            <input
+                              type="number"
+                              step="any"
+                              className="avm-input form-control"
+                              value={form.educationMaxMark}
+                              onChange={(e) => handleEducationFieldChange("educationMaxMark", e.target.value)}
+                            />
+                          </div>
+                        </div>
+                        <div className="col-md-4">
+                          <div className="avm-field">
+                            <label className="avm-label">Mark (%)</label>
+                            <input className="avm-input form-control" value={form.educationMarkPercentage} readOnly />
+                          </div>
+                        </div>
+                        <div className="col-md-4">
+                          <div className="avm-field">
+                            <label className="avm-label">From Year</label>
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              maxLength={4}
+                              className="avm-input form-control"
+                              value={form.educationFromYear}
+                              onChange={(e) => handleEducationFieldChange("educationFromYear", e.target.value)}
+                            />
+                          </div>
+                        </div>
+                        <div className="col-md-4">
+                          <div className="avm-field">
+                            <label className="avm-label">To Year</label>
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              maxLength={4}
+                              className="avm-input form-control"
+                              value={form.educationToYear}
+                              onChange={(e) => handleEducationFieldChange("educationToYear", e.target.value)}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    <div className="row g-3 mt-1">
+                      <div className="col-md-6">
+                        <div className="avm-field">
+                          <label className="avm-label">Graduation Certificate</label>
+                          <input
+                            type="file"
+                            className="form-control"
+                            onChange={(e) => handleFileChange("uploadGraduationCertificate", e.target.files?.[0] || null)}
+                          />
+                          <FileViewLink
+                            label="Graduation Certificate"
+                            existingPath={existingFiles.graduationCertificatePath}
+                            fileValue={form.uploadGraduationCertificate}
+                            apiBase={apiBase}
+                          />
+                        </div>
+                      </div>
+                      <div className="col-md-6">
+                        <div className="avm-field">
+                          <label className="avm-label">Graduation Marksheet</label>
+                          <input
+                            type="file"
+                            className="form-control"
+                            onChange={(e) => handleFileChange("uploadGraduationMarksheet", e.target.files?.[0] || null)}
+                          />
+                          <FileViewLink
+                            label="Graduation Marksheet"
+                            existingPath={existingFiles.graduationMarksheetPath}
+                            fileValue={form.uploadGraduationMarksheet}
+                            apiBase={apiBase}
+                          />
+                        </div>
+                      </div>
+                      <div className="col-md-6">
+                        <div className="avm-field">
+                          <label className="avm-label">HSC Mark Sheet</label>
+                          <input
+                            type="file"
+                            className="form-control"
+                            onChange={(e) => handleFileChange("uploadHscMarkSheet", e.target.files?.[0] || null)}
+                          />
+                          <FileViewLink
+                            label="HSC Mark Sheet"
+                            existingPath={existingFiles.hscMarksheetPath}
+                            fileValue={form.uploadHscMarkSheet}
+                            apiBase={apiBase}
+                          />
+                        </div>
+                      </div>
+                      <div className="col-md-6">
+                        <div className="avm-field">
+                          <label className="avm-label">SSLC Mark Sheet</label>
+                          <input
+                            type="file"
+                            className="form-control"
+                            onChange={(e) => handleFileChange("uploadSslcMarkSheet", e.target.files?.[0] || null)}
+                          />
+                          <FileViewLink
+                            label="SSLC Mark Sheet"
+                            existingPath={existingFiles.sslcMarksheetPath}
+                            fileValue={form.uploadSslcMarkSheet}
+                            apiBase={apiBase}
+                          />
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -922,6 +1234,22 @@ export default function EmployeeFormPage() {
                           <input className="avm-input form-control" value={form.bankAndBranch} onChange={(e) => setField("bankAndBranch", e.target.value)} />
                         </div>
                       </div>
+                      <div className="col-md-12">
+                        <div className="avm-field">
+                          <label className="avm-label">Bank Passbook Copy</label>
+                          <input
+                            type="file"
+                            className="form-control"
+                            onChange={(e) => handleFileChange("uploadBankPassBookCopy", e.target.files?.[0] || null)}
+                          />
+                          <FileViewLink
+                            label="Bank Passbook Copy"
+                            existingPath={existingFiles.bankPassbookPath}
+                            fileValue={form.uploadBankPassBookCopy}
+                            apiBase={apiBase}
+                          />
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -934,26 +1262,171 @@ export default function EmployeeFormPage() {
                     <div className="row g-3">
                       <div className="col-md-6">
                         <div className="avm-field">
-                          <label className="avm-label">Employment Details 1</label>
-                          <textarea rows={2} className="avm-input form-control" value={form.employmentDetails1} onChange={(e) => setField("employmentDetails1", e.target.value)} />
+                          <label className="avm-label">Joining Date</label>
+                          <input
+                            type="date"
+                            className="avm-input form-control"
+                            value={form.previousEmploymentJoiningDate}
+                            onChange={(e) => setField("previousEmploymentJoiningDate", e.target.value)}
+                          />
                         </div>
                       </div>
                       <div className="col-md-6">
                         <div className="avm-field">
-                          <label className="avm-label">Employment Details 2</label>
-                          <textarea rows={2} className="avm-input form-control" value={form.employmentDetails2} onChange={(e) => setField("employmentDetails2", e.target.value)} />
+                          <label className="avm-label">Relieving Date</label>
+                          <input
+                            type="date"
+                            className="avm-input form-control"
+                            value={form.previousEmploymentRelievingDate}
+                            onChange={(e) => setField("previousEmploymentRelievingDate", e.target.value)}
+                          />
+                        </div>
+                      </div>
+                      <div className="col-md-6">
+                        <div className="avm-field">
+                          <label className="avm-label">Salary at the Time of Joining</label>
+                          <input
+                            type="number"
+                            step="any"
+                            className="avm-input form-control"
+                            value={form.previousEmploymentSalaryAtJoining}
+                            onChange={(e) => setField("previousEmploymentSalaryAtJoining", e.target.value)}
+                          />
+                        </div>
+                      </div>
+                      <div className="col-md-6">
+                        <div className="avm-field">
+                          <label className="avm-label">Salary at the Time of Relieving</label>
+                          <input
+                            type="number"
+                            step="any"
+                            className="avm-input form-control"
+                            value={form.previousEmploymentSalaryAtRelieving}
+                            onChange={(e) => setField("previousEmploymentSalaryAtRelieving", e.target.value)}
+                          />
+                        </div>
+                      </div>
+                      <div className="col-md-6">
+                        <div className="avm-field">
+                          <label className="avm-label">Whether Relieved with Notice Period</label>
+                          <select
+                            className="avm-select form-select"
+                            value={form.previousEmploymentRelievedWithNoticePeriod}
+                            onChange={(e) => setField("previousEmploymentRelievedWithNoticePeriod", e.target.value)}
+                          >
+                            <option value="">Select</option>
+                            {YES_NO_OPTIONS.map((option) => (
+                              <option key={option.value} value={option.value}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                      <div className="col-md-6">
+                        <div className="avm-field">
+                          <label className="avm-label">Whether Absconded</label>
+                          <select
+                            className="avm-select form-select"
+                            value={form.previousEmploymentAbsconded}
+                            onChange={(e) => setField("previousEmploymentAbsconded", e.target.value)}
+                          >
+                            <option value="">Select</option>
+                            {YES_NO_OPTIONS.map((option) => (
+                              <option key={option.value} value={option.value}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                      <div className="col-md-6">
+                        <div className="avm-field">
+                          <label className="avm-label">Designation at the Time of Joining</label>
+                          <input
+                            className="avm-input form-control"
+                            value={form.previousEmploymentDesignationAtJoining}
+                            onChange={(e) => setField("previousEmploymentDesignationAtJoining", e.target.value)}
+                          />
+                        </div>
+                      </div>
+                      <div className="col-md-6">
+                        <div className="avm-field">
+                          <label className="avm-label">Designation at the Time of Relieving</label>
+                          <input
+                            className="avm-input form-control"
+                            value={form.previousEmploymentDesignationAtRelieving}
+                            onChange={(e) => setField("previousEmploymentDesignationAtRelieving", e.target.value)}
+                          />
+                        </div>
+                      </div>
+                      <div className="col-md-6">
+                        <div className="avm-field">
+                          <label className="avm-label">Previous Company Manager Name</label>
+                          <input
+                            className="avm-input form-control"
+                            value={form.previousEmploymentManagerName}
+                            onChange={(e) => setField("previousEmploymentManagerName", e.target.value)}
+                          />
+                        </div>
+                      </div>
+                      <div className="col-md-6">
+                        <div className="avm-field">
+                          <label className="avm-label">Manager Mobile Number</label>
+                          <input
+                            type="tel"
+                            className="avm-input form-control"
+                            value={form.previousEmploymentManagerMobileNumber}
+                            onChange={(e) => setField("previousEmploymentManagerMobileNumber", e.target.value)}
+                          />
+                        </div>
+                      </div>
+                      <div className="col-md-12">
+                        <div className="avm-field">
+                          <label className="avm-label">Previous Company Address</label>
+                          <textarea
+                            rows={2}
+                            className="avm-input form-control"
+                            value={form.previousEmploymentCompanyAddress}
+                            onChange={(e) => setField("previousEmploymentCompanyAddress", e.target.value)}
+                          />
+                        </div>
+                      </div>
+                      <div className="col-md-6">
+                        <div className="avm-field">
+                          <label className="avm-label">Experience Certificate</label>
+                          <input
+                            ref={experienceCertificateInputRef}
+                            type="file"
+                            className="d-none"
+                            onChange={(e) => handleFileChange("uploadExperienceCertificate", e.target.files?.[0] || null)}
+                          />
+                          <div className="d-flex flex-wrap align-items-center gap-2">
+                            <button
+                              type="button"
+                              className="btn btn-outline-primary btn-sm"
+                              onClick={() => experienceCertificateInputRef.current?.click()}
+                            >
+                              {hasText(existingFiles.experienceCertificatePath) || form.uploadExperienceCertificate
+                                ? "Update file"
+                                : "Upload file"}
+                            </button>
+                            {form.uploadExperienceCertificate ? (
+                              <span className="small text-muted">{form.uploadExperienceCertificate.name}</span>
+                            ) : null}
+                          </div>
+                          <FileViewLink
+                            label="Experience Certificate"
+                            existingPath={existingFiles.experienceCertificatePath}
+                            fileValue={form.uploadExperienceCertificate}
+                            apiBase={apiBase}
+                          />
                         </div>
                       </div>
                       <div className="col-md-6">
                         <div className="avm-field">
                           <label className="avm-label">From Which Platform You Came to Know</label>
                           <input className="avm-input form-control" value={form.platformSource} onChange={(e) => setField("platformSource", e.target.value)} />
-                        </div>
-                      </div>
-                      <div className="col-md-6">
-                        <div className="avm-field">
-                          <label className="avm-label">Date of Joining</label>
-                          <input type="date" className="avm-input form-control" value={form.joinDate} onChange={(e) => setField("joinDate", e.target.value)} />
                         </div>
                       </div>
                     </div>
@@ -1071,7 +1544,13 @@ export default function EmployeeFormPage() {
                       <div className="col-md-6">
                         <div className="avm-field">
                           <label className="avm-label">Declaration Date</label>
-                          <input type="date" className="avm-input form-control" value={form.declarationDate} onChange={(e) => setField("declarationDate", e.target.value)} />
+                          <input
+                            type="date"
+                            className="avm-input form-control"
+                            value={form.declarationDate}
+                            max="9999-12-31"
+                            onChange={(e) => handleDeclarationDateChange(e.target.value)}
+                          />
                         </div>
                       </div>
                       <div className="col-md-6">

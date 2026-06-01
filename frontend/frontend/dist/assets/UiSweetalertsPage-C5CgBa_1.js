@@ -1,1 +1,0 @@
-import{j as e}from"./index-mzriC4U6.js";function a(){return e.jsx("div",{className:"card",children:e.jsxs("div",{className:"card-body",children:[e.jsx("h4",{className:"mb-2",children:"Ui Sweetalerts"}),e.jsx("p",{className:"mb-0",children:"Layout working confirmation."})]})})}export{a as default};

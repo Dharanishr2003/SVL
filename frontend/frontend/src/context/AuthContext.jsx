@@ -6,7 +6,7 @@ import api, {
 } from "../utils/api";
 
 export const AuthContext = createContext(null);
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8081";
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8082";
 
 function normalizeRole(value) {
   const raw = String(value || "")

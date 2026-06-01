@@ -187,6 +187,13 @@
   text-overflow: ellipsis;
 }
 
+.qp-field-readonly-multiline {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  line-height: 1.35;
+}
+
 /* Lead search suggestion dropdown */
 .qp-lead-search-wrap { position: relative; }
 

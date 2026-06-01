@@ -45,6 +45,7 @@ import { getServiceTypes } from "../../api/serviceTypesApi";
 import { getPrimarySources } from "../../api/primarySourceApi";
 import { getSecondarySources } from "../../api/secondarySourceApi";
 import api from "../../utils/api";
+import { ATTEMPTED_REASON_OPTIONS, NOT_ATTEMPTED_REASON_OPTIONS, INTERESTED_REASON_OPTIONS } from "../../constants/leadFlowStatuses";
 
 const CUSTOMER_CHAT_DISABLED = true;
 
@@ -85,6 +86,17 @@ function pickText(row, keys = []) {
     }
   }
   return "";
+}
+
+function toOptionNames(rows, keys) {
+  const names = (Array.isArray(rows) ? rows : [])
+    .map((row) => pickText(row, keys))
+    .filter(Boolean);
+  return Array.from(new Set(names));
+}
+
+function getLeadSourceName(row, keys) {
+  return pickText(row, keys);
 }
 
 function parseProductionBrief(briefJson) {
@@ -153,8 +165,9 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
   const [quantity, setQuantity] = useState("");
   const [leadEmail, setLeadEmail] = useState("");
   const [leadMobile, setLeadMobile] = useState("");
-  const [primarySourceOptions, setPrimarySourceOptions] = useState([]);
-  const [secondarySourceOptions, setSecondarySourceOptions] = useState([]);
+  const [primarySourceRows, setPrimarySourceRows] = useState([]);
+  const [secondarySourceRows, setSecondarySourceRows] = useState([]);
+  const [sourceOptionsLoaded, setSourceOptionsLoaded] = useState(false);
   const [showAddProjectModal, setShowAddProjectModal] = useState(false);
   const [newProjectName, setNewProjectName] = useState("");
   const [newProjectType, setNewProjectType] = useState("");
@@ -176,7 +189,10 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
   const [attemptedCallStatus, setAttemptedCallStatus] = useState("");
   const [attemptedCallRemarks, setAttemptedCallRemarks] = useState("");
   const [attemptedFollowUpDate, setAttemptedFollowUpDate] = useState("");
+  const [notAttemptedCallStatus, setNotAttemptedCallStatus] = useState("");
+  const [notAttemptedCallRemarks, setNotAttemptedCallRemarks] = useState("");
   const [interestedFollowUpDate, setInterestedFollowUpDate] = useState("");
+  const [interestedCallStatus, setInterestedCallStatus] = useState("");
   const [interestedCallRemarks, setInterestedCallRemarks] = useState("");
   const [rejectedReason, setRejectedReason] = useState("");
   const [rejectedReasonSubtype, setRejectedReasonSubtype] = useState("");
@@ -431,10 +447,19 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
         setAttemptedCallRemarks(
           pickText(leadData, ["attemptedCallRemarks", "attempted_call_remarks"]) || "",
         );
+        setNotAttemptedCallStatus(
+          pickText(leadData, ["notAttemptedCallStatus", "not_attempted_call_status"]) || "",
+        );
+        setNotAttemptedCallRemarks(
+          pickText(leadData, ["notAttemptedCallRemarks", "not_attempted_call_remarks"]) || "",
+        );
         setInterestedFollowUpDate(
           leadData?.interestedFollowUpDate
             ? toInputDateTime(leadData.interestedFollowUpDate)
             : "",
+        );
+        setInterestedCallStatus(
+          pickText(leadData, ["interestedCallStatus", "interested_call_status"]) || "",
         );
         setInterestedCallRemarks(
           pickText(leadData, ["interestedCallRemarks", "interested_call_remarks"]) || "",
@@ -548,14 +573,44 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
           getPrimarySources(),
           getSecondarySources(),
         ]);
-        setPrimarySourceOptions(Array.isArray(primarySources) ? primarySources : []);
-        setSecondarySourceOptions(Array.isArray(secondarySources) ? secondarySources : []);
+        setPrimarySourceRows(Array.isArray(primarySources) ? primarySources : []);
+        setSecondarySourceRows(Array.isArray(secondarySources) ? secondarySources : []);
+        setSourceOptionsLoaded(true);
       } catch (error) {
         console.error("Failed to fetch source options:", error);
       }
     };
     fetchSourceOptions();
   }, []);
+
+  const primarySourceOptions = useMemo(
+    () => toOptionNames(primarySourceRows, ["primarySource", "name", "label"]),
+    [primarySourceRows],
+  );
+
+  const selectedPrimarySourceRow = useMemo(() => {
+    const selected = String(lead?.primarySource || "").trim().toLowerCase();
+    if (!selected) return null;
+    return (Array.isArray(primarySourceRows) ? primarySourceRows : []).find((row) =>
+      String(getLeadSourceName(row, ["primarySource", "name", "label"])).trim().toLowerCase() === selected,
+    ) || null;
+  }, [lead?.primarySource, primarySourceRows]);
+
+  const secondarySourceOptions = useMemo(() => {
+    const selectedPrimaryId = selectedPrimarySourceRow?.id == null ? "" : String(selectedPrimarySourceRow.id);
+    if (!selectedPrimaryId) return [];
+    const filteredRows = (Array.isArray(secondarySourceRows) ? secondarySourceRows : []).filter(
+      (row) => row?.primarySourceId == null || String(row?.primarySourceId ?? "") === selectedPrimaryId,
+    );
+    return toOptionNames(filteredRows, ["secondarySource", "name", "label"]);
+  }, [secondarySourceRows, selectedPrimarySourceRow]);
+
+  useEffect(() => {
+    if (!sourceOptionsLoaded) return;
+    if (!lead?.secondarySource) return;
+    if (secondarySourceOptions.includes(lead.secondarySource)) return;
+    setLead((prev) => ({ ...(prev || {}), secondarySource: "" }));
+  }, [lead?.secondarySource, secondarySourceOptions, sourceOptionsLoaded]);
 
   // Fetch addresses whenverify modal opens
   useEffect(() => {
@@ -679,10 +734,12 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
     if (!lead) return true;
     const key = String(status || "").trim().toLowerCase();
     switch (key) {
+      case "not attempted":
+        return !lead.notAttemptedCallStatus || !lead.notAttemptedCallRemarks;
       case "attempted":
-        return !lead.attemptedOpenReason || !lead.attemptedCallStatus;
+        return !lead.attemptedOpenReason || !lead.attemptedCallRemarks;
       case "interested":
-        return !lead.interestedFollowUpDate;
+        return !lead.interestedCallStatus || !lead.interestedFollowUpDate || !lead.interestedCallRemarks;
       case "rejected":
         return !lead.rejectedReason;
       case "requirement":
@@ -695,6 +752,7 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
 
   // Computed status flags
   const isNewLead = statusLower === "new lead";
+  const isNotAttempted = statusLower === "not attempted";
   const isAttempted = statusLower === "attempted";
   const isInterested = statusLower === "interested";
   const isRejected = statusLower === "rejected";
@@ -712,10 +770,13 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
   // Only elevated roles can edit these fields: Mobile, Primary Source, Secondary Source
   const isElevatedOnlyField = !["SUPER_ADMIN", "ADMIN", "MANAGER", "TEAM_LEAD"].includes(role);
   const hasAttemptedData = Boolean(
-    lead?.attemptedOpenReason || lead?.attemptedCallStatus || lead?.attemptedCallRemarks,
+    lead?.attemptedOpenReason || lead?.attemptedCallRemarks,
+  );
+  const hasNotAttemptedData = Boolean(
+    lead?.notAttemptedCallStatus || lead?.notAttemptedCallRemarks,
   );
   const hasInterestedData = Boolean(
-    lead?.interestedFollowUpDate || lead?.interestedCallRemarks,
+    lead?.interestedCallStatus || lead?.interestedFollowUpDate || lead?.interestedCallRemarks,
   );
   const hasRequirementData = requirements.length > 0;
     const hasDesignData = Boolean(
@@ -738,6 +799,7 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
   const alternatePhoneAllowedLengths = getCountryAllowedLengths(countryCode);
   const alternatePhoneDisplayMaxLength = getCountryDisplayMaxLength(countryCode);
 
+  const showNotAttemptedSummary = hasNotAttemptedData || isNotAttempted;
   const showAttemptedSummary = hasAttemptedData || isAttempted;
   const showInterestedSummary = hasInterestedData || isInterested;
   const showRequirementSummary =
@@ -750,12 +812,13 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
 
   const visibleTabs = useMemo(() => {
     const tabs = ["general"];
+    if (showNotAttemptedSummary) tabs.push("not_attempted");
     if (showAttemptedSummary) tabs.push("attempted");
     if (showInterestedSummary) tabs.push("interested");
     if (showRequirementSummary) tabs.push("requirement");
     if (isRejected) tabs.push("rejected");
     return tabs;
-  }, [showAttemptedSummary, showInterestedSummary, showRequirementSummary, isRejected]);
+  }, [showNotAttemptedSummary, showAttemptedSummary, showInterestedSummary, showRequirementSummary, isRejected]);
 
   const wizardProgress = useMemo(() => {
     const idx = visibleTabs.indexOf(activeTab);
@@ -1181,6 +1244,7 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
   const timelineEntries = (() => {
     const order = [
       "new lead",
+      "not attempted",
       "attempted",
       "interested",
       "requirement",
@@ -1192,9 +1256,10 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
     ];
     const labelMap = {
       "new lead": "New Lead",
+      "not attempted": "Not Attempted",
       attempted: "Attempted",
       interested: "Interested",
-      requirement: "Requirement",
+      requirement: "Requirements Collected",
       budget: "Budget",
       design: "Design",
       payment: "Payment",
@@ -1313,8 +1378,16 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
 
     // Validate Attempted form fields if transitioning to Attempted
     if (normalizedKey === "attempted" && statusNeedsModal(normalizedKey)) {
-      if (!attemptedOpenReason || !attemptedCallStatus) {
-        showError("Please complete Open Reason and Call Status for Attempted status");
+      if (!attemptedOpenReason || !attemptedCallRemarks) {
+        showError("Please complete Attempted Reason and Manual Details for Attempted status");
+        setStatusSaving(false);
+        return;
+      }
+    }
+
+    if (normalizedKey === "not attempted" && statusNeedsModal(normalizedKey)) {
+      if (!notAttemptedCallStatus || !notAttemptedCallRemarks) {
+        showError("Please complete Not Attempted Reason and Manual Details for Not Attempted status");
         setStatusSaving(false);
         return;
       }
@@ -1322,8 +1395,8 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
 
     // Validate Interested form fields if transitioning to Interested
     if (normalizedKey === "interested" && statusNeedsModal(normalizedKey)) {
-      if (!interestedFollowUpDate) {
-        showError("Please select Follow Up Date for Interested status");
+      if (!interestedCallStatus || !interestedFollowUpDate || !interestedCallRemarks) {
+        showError("Please complete Interested Reason, Date, and Manual Details for Interested status");
         setStatusSaving(false);
         return;
       }
@@ -1386,15 +1459,20 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
       if (normalizedKey === "attempted") {
         await updateLeadDetails(lead.id, {
           attemptedOpenReason: attemptedOpenReason || null,
-          attemptedCallStatus: attemptedCallStatus || null,
+          attemptedCallStatus: null,
           attemptedCallRemarks: attemptedCallRemarks || null,
-          attemptedFollowUpDate:
-            attemptedCallStatus?.toLowerCase() === "follow up" && attemptedFollowUpDate
-              ? new Date(attemptedFollowUpDate).toISOString()
-              : null,
+          attemptedFollowUpDate: null,
+          notAttemptedCallStatus: null,
+          notAttemptedCallRemarks: null,
+        });
+      } else if (normalizedKey === "not attempted") {
+        await updateLeadDetails(lead.id, {
+          notAttemptedCallStatus: notAttemptedCallStatus || null,
+          notAttemptedCallRemarks: notAttemptedCallRemarks || null,
         });
       } else if (normalizedKey === "interested") {
         await updateLeadDetails(lead.id, {
+          interestedCallStatus: interestedCallStatus || null,
           interestedFollowUpDate: interestedFollowUpDate
             ? new Date(interestedFollowUpDate).toISOString()
             : null,
@@ -1920,8 +1998,12 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
         leadPincode: leadPincode || null,
         streetAddress: streetAddress || null,
         attemptedOpenReason: isAttempted ? attemptedOpenReason || null : null,
-        attemptedCallStatus: isAttempted ? attemptedCallStatus || null : null,
+        attemptedCallStatus: null,
         attemptedCallRemarks: isAttempted ? attemptedCallRemarks || null : null,
+        attemptedFollowUpDate: null,
+        notAttemptedCallStatus: isNotAttempted ? notAttemptedCallStatus || null : null,
+        notAttemptedCallRemarks: isNotAttempted ? notAttemptedCallRemarks || null : null,
+        interestedCallStatus: isInterested ? interestedCallStatus || null : null,
         interestedFollowUpDate: isInterested
           ? interestedFollowUpDate
             ? new Date(interestedFollowUpDate).toISOString()
@@ -2009,7 +2091,21 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
           {!lead?.isDuplicate && (
             <button
               className="btn btn-outline-primary btn-sm"
-              onClick={() => setShowStatusModal(true)}
+              onClick={() => {
+                setStatusValue("");
+                setAttemptedOpenReason("");
+                setAttemptedCallStatus("");
+                setAttemptedCallRemarks("");
+                setAttemptedFollowUpDate("");
+                setNotAttemptedCallStatus("");
+                setNotAttemptedCallRemarks("");
+                setInterestedFollowUpDate("");
+                setInterestedCallStatus("");
+                setInterestedCallRemarks("");
+                setRejectedReason("");
+                setRejectedReasonSubtype("");
+                setShowStatusModal(true);
+              }}
               title="Update status"
             >
               <i className="ti ti-transfer-out me-1"></i>Update Status
@@ -2073,6 +2169,15 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
                       <div className="lead-edit-wizard-circle-label">General Info</div>
                     </div>
 
+                    {showNotAttemptedSummary && (
+                    <div className="lead-edit-wizard-circle-item" onClick={() => setActiveTab("not_attempted")}>
+                      <motion.div className={`lead-edit-wizard-circle${activeTab === "not_attempted" ? " active" : ""}`}>
+                        <i className="ti ti-phone-off" />
+                      </motion.div>
+                      <div className="lead-edit-wizard-circle-label">Not Attempted</div>
+                    </div>
+                    )}
+
                     {showAttemptedSummary && (
                     <div className="lead-edit-wizard-circle-item" onClick={() => setActiveTab("attempted")}>
                       <motion.div className={`lead-edit-wizard-circle${activeTab === "attempted" ? " active" : ""}`}>
@@ -2096,7 +2201,7 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
                       <motion.div className={`lead-edit-wizard-circle${activeTab === "requirement" ? " active" : ""}`}>
                         <i className="ti ti-list" />
                       </motion.div>
-                      <div className="lead-edit-wizard-circle-label">Requirement</div>
+                      <div className="lead-edit-wizard-circle-label">Requirements Collected</div>
                     </div>
                     )}
 
@@ -2300,13 +2405,19 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
                                   <select
                                     className="form-select"
                                     value={lead?.primarySource || ""}
-                                    onChange={(e) => setLead((prev) => ({ ...(prev || {}), primarySource: e.target.value }))}
+                                    onChange={(e) =>
+                                      setLead((prev) => ({
+                                        ...(prev || {}),
+                                        primarySource: e.target.value,
+                                        secondarySource: "",
+                                      }))
+                                    }
                                     disabled={isGeneralInfoReadOnly || isElevatedOnlyField}
                                   >
                                     <option value="">Select Primary Source</option>
                                     {primarySourceOptions.map((source) => (
-                                      <option key={source.id} value={source.primarySource || source.name || source.id}>
-                                        {source.primarySource || source.name}
+                                      <option key={source} value={source}>
+                                        {source}
                                       </option>
                                     ))}
                                   </select>
@@ -2321,8 +2432,8 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
                                   >
                                     <option value="">Select Secondary Source</option>
                                     {secondarySourceOptions.map((source) => (
-                                      <option key={source.id} value={source.secondarySource || source.name || source.id}>
-                                        {source.secondarySource || source.name}
+                                      <option key={source} value={source}>
+                                        {source}
                                       </option>
                                     ))}
                                   </select>
@@ -2482,7 +2593,59 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
                 </AnimatePresence>
 
                 <>
-                {activeTab === "attempted" && showAttemptedSummary && (
+                  {activeTab === "not_attempted" && showNotAttemptedSummary && (
+                  <motion.div
+                    key="not-attempted-tab"
+                    initial={{ opacity: 0, x: 18, filter: "blur(4px)" }}
+                    animate={{ opacity: 1, x: 0, filter: "blur(0px)" }}
+                    exit={{ opacity: 0, x: -18, filter: "blur(4px)" }}
+                    transition={{ duration: 0.25 }}
+                  >
+                    <h5 className="mb-3">Not Attempted Details</h5>
+                    <div className="row g-3">
+                      <div className="col-md-6">
+                        <label className="form-label">Not Attempted Reason</label>
+                        {isNotAttempted ? (
+                          <select
+                            className="form-select"
+                            value={notAttemptedCallStatus}
+                            onChange={(e) => setNotAttemptedCallStatus(e.target.value)}
+                          >
+                            <option value="">Select Not Attempted Reason</option>
+                            {NOT_ATTEMPTED_REASON_OPTIONS.map((option) => (
+                              <option key={option} value={option}>
+                                {option}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <input className="form-control" value={notAttemptedCallStatus || "-"} readOnly />
+                        )}
+                      </div>
+                      <div className="col-md-12">
+                        <label className="form-label">Manual Details</label>
+                        {isNotAttempted ? (
+                          <textarea
+                            className="form-control"
+                            rows={3}
+                            value={notAttemptedCallRemarks}
+                            onChange={(e) => setNotAttemptedCallRemarks(e.target.value)}
+                            placeholder="Enter manual details"
+                          />
+                        ) : (
+                          <textarea
+                            className="form-control"
+                            rows={3}
+                            value={notAttemptedCallRemarks || "-"}
+                            readOnly
+                          />
+                        )}
+                      </div>
+                    </div>
+                  </motion.div>
+                  )}
+
+                  {activeTab === "attempted" && showAttemptedSummary && (
                 <motion.div
                   key="attempted-tab"
                   initial={{ opacity: 0, x: 18, filter: "blur(4px)" }}
@@ -2493,32 +2656,20 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
                 >
                   <h5 className="mb-3">Attempted Details</h5>
                   <div className="row g-3">
-                    {String(attemptedCallStatus || "")
-                      .trim()
-                      .toLowerCase() === "follow up" && (
-                      <div className="col-md-6">
-                        <label className="form-label">Follow Up Date</label>
-                        <input
-                          className="form-control"
-                          type="datetime-local"
-                          value={followUpDate}
-                          onChange={(e) => setFollowUpDate(e.target.value)}
-                          readOnly={!isAttempted}
-                        />
-                      </div>
-                    )}
                     <div className="col-md-6">
-                      <label className="form-label">Open Reason</label>
+                      <label className="form-label">Attempted Reason</label>
                       {isAttempted ? (
                         <select
                           className="form-select"
                           value={attemptedOpenReason}
                           onChange={(e) => setAttemptedOpenReason(e.target.value)}
                         >
-                          <option value="">Select Open Reason</option>
-                          <option value="Contacted">Contacted</option>
-                          <option value="Shared Details">Shared Details</option>
-                          <option value="Retry">Retry</option>
+                          <option value="">Select Attempted Reason</option>
+                          {ATTEMPTED_REASON_OPTIONS.map((option) => (
+                            <option key={option} value={option}>
+                              {option}
+                            </option>
+                          ))}
                         </select>
                       ) : (
                         <input
@@ -2529,46 +2680,14 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
                       )}
                     </div>
                     <div className="col-md-6">
-                      <label className="form-label">Call Status</label>
-                      {isAttempted ? (
-                        <select
-                          className="form-select"
-                          value={attemptedCallStatus}
-                          onChange={(e) => {
-                            const next = e.target.value;
-                            setAttemptedCallStatus(next);
-                            if (String(next || "").trim().toLowerCase() !== "follow up") {
-                              setAttemptedFollowUpDate("");
-                            }
-                          }}
-                        >
-                          <option value="">Select Call Status</option>
-                          <option value="RNR">RNR</option>
-                          <option value="Call Connected">Call Connected</option>
-                          <option value="Follow Up">Follow Up</option>
-                          <option value="Number Busy">Number Busy</option>
-                          <option value="Not Reachable">Not Reachable</option>
-                          <option value="Switched Off">Switched Off</option>
-                          <option value="Number Not In Use">Number Not In Use</option>
-                          <option value="Wrong Number">Wrong Number</option>
-                        </select>
-                      ) : (
-                        <input
-                          className="form-control"
-                          value={attemptedCallStatus || "-"}
-                          readOnly
-                        />
-                      )}
-                    </div>
-                    <div className="col-md-12">
-                      <label className="form-label">Call Remarks</label>
+                      <label className="form-label">Manual Details</label>
                       {isAttempted ? (
                         <textarea
                           className="form-control"
                           rows={3}
                           value={attemptedCallRemarks}
                           onChange={(e) => setAttemptedCallRemarks(e.target.value)}
-                          placeholder="Call Remarks"
+                          placeholder="Enter manual details"
                         />
                       ) : (
                         <textarea
@@ -2595,6 +2714,25 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
                   <h5 className="mb-3">Interested Details</h5>
                   <div className="row g-3">
                     <div className="col-md-6">
+                      <label className="form-label">Interested Reason</label>
+                      {isInterested ? (
+                        <select
+                          className="form-select"
+                          value={interestedCallStatus}
+                          onChange={(e) => setInterestedCallStatus(e.target.value)}
+                        >
+                          <option value="">Select Interested Reason</option>
+                          {INTERESTED_REASON_OPTIONS.map((option) => (
+                            <option key={option} value={option}>
+                              {option}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <input className="form-control" value={interestedCallStatus || "-"} readOnly />
+                      )}
+                    </div>
+                    <div className="col-md-6">
                       <label className="form-label">Follow Up Date</label>
                       <input
                         className="form-control"
@@ -2605,13 +2743,13 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
                       />
                     </div>
                     <div className="col-md-12">
-                      <label className="form-label">Call Remarks</label>
+                      <label className="form-label">Manual Details</label>
                       <textarea
                         className="form-control"
                         rows={3}
                         value={interestedCallRemarks}
                         onChange={(e) => setInterestedCallRemarks(e.target.value)}
-                        placeholder="Call Remarks"
+                        placeholder="Enter manual details"
                         readOnly={isLeadReadOnly}
                       />
                     </div>
@@ -3570,7 +3708,22 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
                 type="button"
                 className="btn-close"
                 aria-label="Close"
-                onClick={() => setShowStatusModal(false)}
+                onClick={() => {
+                  setShowStatusModal(false);
+                  setStatusLead(null);
+                  setStatusValue("");
+                  setAttemptedOpenReason("");
+                  setAttemptedCallStatus("");
+                  setAttemptedCallRemarks("");
+                  setAttemptedFollowUpDate("");
+                  setNotAttemptedCallStatus("");
+                  setNotAttemptedCallRemarks("");
+                  setInterestedFollowUpDate("");
+                  setInterestedCallStatus("");
+                  setInterestedCallRemarks("");
+                  setRejectedReason("");
+                  setRejectedReasonSubtype("");
+                }}
               />
             </div>
             <div className="card-body">
@@ -3609,74 +3762,88 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
               )}
 
               {/* Attempted Status Form */}
-              {String(statusValue || "").trim().toLowerCase() === "attempted" && (
+              {String(statusValue || "").trim().toLowerCase() === "not attempted" && (
                 <div className="border-top pt-3 mt-3">
-                  <h6 className="mb-3 text-primary">Attempted Details</h6>
+                  <h6 className="mb-3 text-primary">Not Attempted Details</h6>
                   <div className="mb-3">
-                    <label className="form-label">Open Reason</label>
+                    <label className="form-label">Not Attempted Reason</label>
                     <select
                       className="form-select"
-                      value={attemptedOpenReason}
-                      onChange={(e) => setAttemptedOpenReason(e.target.value)}
+                      value={notAttemptedCallStatus}
+                      onChange={(e) => setNotAttemptedCallStatus(e.target.value)}
                     >
-                      <option value="">Select Open Reason</option>
-                      <option value="Contacted">Contacted</option>
-                      <option value="Shared Details">Shared Details</option>
-                      <option value="Retry">Retry</option>
+                      <option value="">Select Not Attempted Reason</option>
+                      {NOT_ATTEMPTED_REASON_OPTIONS.map((option) => (
+                        <option key={option} value={option}>
+                          {option}
+                        </option>
+                      ))}
                     </select>
                   </div>
                   <div className="mb-3">
-                    <label className="form-label">Call Status</label>
-                    <select
-                      className="form-select"
-                      value={attemptedCallStatus}
-                      onChange={(e) => {
-                        const next = e.target.value;
-                        setAttemptedCallStatus(next);
-                        if (String(next || "").trim().toLowerCase() !== "follow up") {
-                          setAttemptedFollowUpDate("");
-                        }
-                      }}
-                    >
-                      <option value="">Select Call Status</option>
-                      <option value="RNR">RNR</option>
-                      <option value="Call Connected">Call Connected</option>
-                      <option value="Follow Up">Follow Up</option>
-                      <option value="Number Busy">Number Busy</option>
-                      <option value="Not Reachable">Not Reachable</option>
-                      <option value="Switched Off">Switched Off</option>
-                      <option value="Number Not In Use">Number Not In Use</option>
-                      <option value="Wrong Number">Wrong Number</option>
-                    </select>
-                  </div>
-                  {String(attemptedCallStatus || "").trim().toLowerCase() === "follow up" && (
-                    <div className="mb-3">
-                      <label className="form-label">Follow Up Date</label>
-                      <input
-                        className="form-control"
-                        type="datetime-local"
-                        value={attemptedFollowUpDate}
-                        onChange={(e) => setAttemptedFollowUpDate(e.target.value)}
-                      />
-                    </div>
-                  )}
-                  <div className="mb-3">
-                    <label className="form-label">Call Remarks</label>
+                    <label className="form-label">Manual Details</label>
                     <textarea
                       className="form-control"
                       rows={3}
-                      value={attemptedCallRemarks}
-                      onChange={(e) => setAttemptedCallRemarks(e.target.value)}
-                      placeholder="Call Remarks"
+                      value={notAttemptedCallRemarks}
+                      onChange={(e) => setNotAttemptedCallRemarks(e.target.value)}
+                      placeholder="Enter manual details"
                     />
                   </div>
                 </div>
+              )}
+
+              {/* Attempted Status Form */}
+              {String(statusValue || "").trim().toLowerCase() === "attempted" && (
+                <div className="border-top pt-3 mt-3">
+                  <h6 className="mb-3 text-primary">Attempted Details</h6>
+                      <div className="mb-3">
+                        <label className="form-label">Attempted Reason</label>
+                        <select
+                          className="form-select"
+                          value={attemptedOpenReason}
+                          onChange={(e) => setAttemptedOpenReason(e.target.value)}
+                        >
+                          <option value="">Select Attempted Reason</option>
+                          {ATTEMPTED_REASON_OPTIONS.map((option) => (
+                            <option key={option} value={option}>
+                              {option}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="mb-3">
+                        <label className="form-label">Manual Details</label>
+                        <textarea
+                          className="form-control"
+                          rows={3}
+                          value={attemptedCallRemarks}
+                          onChange={(e) => setAttemptedCallRemarks(e.target.value)}
+                          placeholder="Enter manual details"
+                        />
+                      </div>
+                    </div>
               )}
 
               {/* Interested Status Form */}
               {String(statusValue || "").trim().toLowerCase() === "interested" && (
                 <div className="border-top pt-3 mt-3">
                   <h6 className="mb-3 text-primary">Interested Details</h6>
+                  <div className="mb-3">
+                    <label className="form-label">Interested Reason</label>
+                    <select
+                      className="form-select"
+                      value={interestedCallStatus}
+                      onChange={(e) => setInterestedCallStatus(e.target.value)}
+                    >
+                      <option value="">Select Interested Reason</option>
+                      {INTERESTED_REASON_OPTIONS.map((option) => (
+                        <option key={option} value={option}>
+                          {option}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                   <div className="mb-3">
                     <label className="form-label">Follow Up Date</label>
                     <input
@@ -3687,13 +3854,13 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
                     />
                   </div>
                   <div className="mb-3">
-                    <label className="form-label">Call Remarks</label>
+                    <label className="form-label">Manual Details</label>
                     <textarea
                       className="form-control"
                       rows={3}
                       value={interestedCallRemarks}
                       onChange={(e) => setInterestedCallRemarks(e.target.value)}
-                      placeholder="Call Remarks"
+                      placeholder="Enter manual details"
                     />
                   </div>
                 </div>
@@ -3742,7 +3909,22 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
               <button
                 type="button"
                 className="btn btn-secondary btn-sm"
-                onClick={() => setShowStatusModal(false)}
+                onClick={() => {
+                  setShowStatusModal(false);
+                  setStatusLead(null);
+                  setStatusValue("");
+                  setAttemptedOpenReason("");
+                  setAttemptedCallStatus("");
+                  setAttemptedCallRemarks("");
+                  setAttemptedFollowUpDate("");
+                  setNotAttemptedCallStatus("");
+                  setNotAttemptedCallRemarks("");
+                  setInterestedFollowUpDate("");
+                  setInterestedCallStatus("");
+                  setInterestedCallRemarks("");
+                  setRejectedReason("");
+                  setRejectedReasonSubtype("");
+                }}
               >
                 Cancel
               </button>

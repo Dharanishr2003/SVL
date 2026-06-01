@@ -9,6 +9,7 @@ import {
 import { useToast } from "../../components/system/ToastProvider";
 import { extractApiErrorMessage } from "../../utils/errorMessage";
 import api from "../../utils/api";
+import { defaultCountryOption } from "../../utils/phoneUtils";
 
 const FIELD_LABELS = {
   PHONE: "Mobile Number",
@@ -65,7 +66,9 @@ export default function EmployeeVerificationPage() {
   }, [employeeId]);
 
   const hasNonApproved = useMemo(() => {
-    const anyFieldNonApproved = (data?.fields || []).some((f) => String(f.status || "").toUpperCase() !== "APPROVED");
+    const anyFieldNonApproved = (data?.fields || [])
+      .filter((f) => f?.fieldKey !== "COUNTRY_CODE") // COUNTRY_CODE is treated as part of PHONE
+      .some((f) => String(f.status || "").toUpperCase() !== "APPROVED");
     const anyDocNonApproved = (data?.documents || []).some((d) => String(d.status || "").toUpperCase() !== "APPROVED");
     return anyFieldNonApproved || anyDocNonApproved;
   }, [data]);
@@ -74,6 +77,8 @@ export default function EmployeeVerificationPage() {
   const canVerifyProfile = !isVerifiedProfile && hasNonApproved;
 
   async function handleSave() {
+    const countryCodeDecision = fieldDecisions.PHONE;
+    const countryCodeRemarks = fieldRemarks.PHONE || "";
     const payload = {
       fieldDecisions: Object.entries(fieldDecisions)
         .filter(([, v]) => v)
@@ -90,6 +95,16 @@ export default function EmployeeVerificationPage() {
           remarks: decision === "REJECT" ? (docRemarks[documentId] || "") : "",
         })),
     };
+
+    // If admin decides on PHONE, apply the same decision to COUNTRY_CODE silently
+    // so it doesn't stay pending in verification data.
+    if (countryCodeDecision && !fieldDecisions.COUNTRY_CODE) {
+      payload.fieldDecisions.push({
+        fieldKey: "COUNTRY_CODE",
+        decision: countryCodeDecision,
+        remarks: countryCodeDecision === "REJECT" ? countryCodeRemarks : "",
+      });
+    }
 
     if (payload.fieldDecisions.length === 0 && payload.documentDecisions.length === 0) {
       showError("No changes selected");
@@ -270,10 +285,20 @@ export default function EmployeeVerificationPage() {
                           </tr>
                         </thead>
                         <tbody>
-                          {(data?.fields || []).map((f) => (
+                          {(() => {
+                            const fields = Array.isArray(data?.fields) ? data.fields : [];
+                            const country = fields.find((x) => x?.fieldKey === "COUNTRY_CODE")?.valuePreview || defaultCountryOption.value;
+                            return fields
+                              .filter((f) => f?.fieldKey !== "COUNTRY_CODE")
+                              .map((f) => {
+                                const isPhone = f.fieldKey === "PHONE";
+                                const combinedValue = isPhone
+                                  ? `${String(country || "").trim()} ${String(f.valuePreview || "").trim()}`.trim()
+                                  : (f.valuePreview || "-");
+                                return (
                             <tr key={f.fieldKey}>
                               <td>{FIELD_LABELS[f.fieldKey] || f.fieldKey}</td>
-                              <td className="text-muted">{f.valuePreview || "-"}</td>
+                              <td className="text-muted">{combinedValue || "-"}</td>
                               <td>
                                 <span className={`badge ${statusBadge(f.status)}`}>{f.status || "N/A"}</span>
                               </td>
@@ -329,8 +354,10 @@ export default function EmployeeVerificationPage() {
                                 />
                               </td>
                             </tr>
-                          ))}
-                          {(data?.fields || []).length === 0 ? (
+                                );
+                              });
+                          })()}
+                          {((data?.fields || []).filter((f) => f?.fieldKey !== "COUNTRY_CODE")).length === 0 ? (
                             <tr>
                               <td colSpan="5" className="text-center py-4 text-muted">
                                 No scalar fields configured

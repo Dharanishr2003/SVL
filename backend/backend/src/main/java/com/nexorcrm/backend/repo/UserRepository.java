@@ -443,4 +443,19 @@ public interface UserRepository extends JpaRepository<User, Long> {
             @Param("teamName") String teamName,
             Pageable pageable
     );
+
+    @Query("""
+            SELECT u
+            FROM User u
+            WHERE u.isDeleted = false
+              AND u.activationStatus = com.nexorcrm.backend.entity.ActivationStatus.ACTIVE
+              AND u.role = com.nexorcrm.backend.entity.Role.TEAM_LEAD
+              AND lower(trim(coalesce(u.institutionName, ''))) = lower(trim(:institutionName))
+              AND lower(trim(coalesce(u.teamName, ''))) = lower(trim(:teamName))
+            ORDER BY u.id ASC
+            """)
+    List<User> findActiveTeamLeadsByBranchAndTeam(
+            @Param("institutionName") String institutionName,
+            @Param("teamName") String teamName
+    );
 }

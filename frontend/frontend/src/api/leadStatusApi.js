@@ -3,6 +3,7 @@ import api from '../utils/api'
 export const DEFAULT_LEAD_STATUSES = [
   'New Lead',
   'Attempted',
+  'Not Attempted',
   'Interested',
   'Requirement',
   'Payment',

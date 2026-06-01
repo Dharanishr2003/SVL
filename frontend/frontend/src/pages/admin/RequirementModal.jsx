@@ -12,6 +12,25 @@ const RequirementModal = React.memo(({
   onSubmit,
 }) => {
   const { showError } = useToast();
+  const normalizeIsoDateWithFourDigitYear = (value) => {
+    const raw = String(value || "").trim();
+    if (!raw) return "";
+    const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!match) return "";
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    const day = Number(match[3]);
+    if (year < 1 || year > 9999) return "";
+    if (month < 1 || month > 12) return "";
+    if (day < 1 || day > 31) return "";
+    return raw;
+  };
+  const isSundayIsoDate = (value) => {
+    const normalized = normalizeIsoDateWithFourDigitYear(value);
+    if (!normalized) return false;
+    const [year, month, day] = normalized.split("-").map(Number);
+    return new Date(year, month - 1, day).getDay() === 0;
+  };
   // ── Form state ────────────────────────────────────────────────────────────
   const [requirementType, setRequirementType] = useState("");
   const [requirementFile, setRequirementFile] = useState(null);
@@ -1031,7 +1050,21 @@ const RequirementModal = React.memo(({
                     </div>
                     <div className="col-md-6">
                       <label className="form-label">Delivery Date</label>
-                      <input className="form-control" type="date" value={productionDeliveryDate} onChange={(e) => setProductionDeliveryDate(e.target.value)} />
+                      <input
+                        className="form-control"
+                        type="date"
+                        max="9999-12-31"
+                        value={productionDeliveryDate}
+                        onChange={(e) => {
+                          const nextValue = normalizeIsoDateWithFourDigitYear(e.target.value);
+                          if (nextValue && isSundayIsoDate(nextValue)) {
+                            setProductionDeliveryDate("");
+                            showError("Sunday delivery dates are not allowed.");
+                            return;
+                          }
+                          setProductionDeliveryDate(nextValue);
+                        }}
+                      />
                     </div>
                     <div className="col-md-6">
                       <label className="form-label">Priority</label>
@@ -1279,7 +1312,21 @@ const RequirementModal = React.memo(({
                     </div>
                     <div className="col-md-6">
                       <label className="form-label">Delivery Date</label>
-                      <input className="form-control" type="date" value={productionDeliveryDate} onChange={(e) => setProductionDeliveryDate(e.target.value)} />
+                      <input
+                        className="form-control"
+                        type="date"
+                        max="9999-12-31"
+                        value={productionDeliveryDate}
+                        onChange={(e) => {
+                          const nextValue = normalizeIsoDateWithFourDigitYear(e.target.value);
+                          if (nextValue && isSundayIsoDate(nextValue)) {
+                            setProductionDeliveryDate("");
+                            showError("Sunday delivery dates are not allowed.");
+                            return;
+                          }
+                          setProductionDeliveryDate(nextValue);
+                        }}
+                      />
                     </div>
                     <div className="col-md-6">
                       <label className="form-label">Priority</label>

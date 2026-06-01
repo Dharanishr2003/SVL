@@ -81,8 +81,17 @@
     bankAccountNumber: "",
     ifscCode: "",
     bankAndBranch: "",
-    employmentDetails1: "",
-    employmentDetails2: "",
+    previousEmploymentJoiningDate: "",
+    previousEmploymentRelievingDate: "",
+    previousEmploymentSalaryAtJoining: "",
+    previousEmploymentSalaryAtRelieving: "",
+    previousEmploymentRelievedWithNoticePeriod: "",
+    previousEmploymentAbsconded: "",
+    previousEmploymentDesignationAtJoining: "",
+    previousEmploymentDesignationAtRelieving: "",
+    previousEmploymentManagerName: "",
+    previousEmploymentManagerMobileNumber: "",
+    previousEmploymentCompanyAddress: "",
     graduationDetails: "",
     hscMarkAndYear: "",
     sslcMarkAndYear: "",
@@ -1230,7 +1239,7 @@
               <table className="table table-striped table-hover mb-0">
                 <thead>
                   <tr>
-                    <th>Employee ID</th>
+                    <th>S.No</th>
                     <th>Employee</th>
                    
                     <th>Phone</th>
@@ -1254,15 +1263,15 @@
                       </td>
                     </tr>
                   ) : (
-                    pagedRows.map((emp) => (
+                    pagedRows.map((emp, idx) => (
                       <tr key={emp.id}>
-                        <td>{emp.employeeCode || "-"}</td>
+                        <td>{pageOffset + idx + 1}</td>
                         <td>
                           <div className="d-flex align-items-center">
                             <img
                               src={
                                 emp._raw?.candidatePhotoPath
-                                  ? `http://localhost:8081/${emp._raw.candidatePhotoPath}`
+                                  ? `http://localhost:8082/${emp._raw.candidatePhotoPath}`
                                   : "assets/img/users/user-32.jpg"
                               }
                               alt={emp.name}

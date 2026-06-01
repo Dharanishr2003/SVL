@@ -9,6 +9,7 @@ import java.util.Optional;
 public interface PrimarySourceRepository extends JpaRepository<PrimarySource, Long> {
     List<PrimarySource> findByDeletedFalseOrderByCreatedAtDesc();
     Optional<PrimarySource> findByIdAndDeletedFalse(Long id);
+    Optional<PrimarySource> findBySourceNameIgnoreCaseAndDeletedFalse(String sourceName);
     boolean existsBySourceNameIgnoreCaseAndDeletedFalse(String sourceName);
     boolean existsBySourceNameIgnoreCaseAndDeletedFalseAndIdNot(String sourceName, Long id);
 }

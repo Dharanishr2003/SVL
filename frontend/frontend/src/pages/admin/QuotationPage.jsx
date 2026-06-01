@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
-import { getLeads } from "../../api/leadsApi";
+import { getLeadById, getLeads } from "../../api/leadsApi";
 import { getRequirementsByLeadId } from "../../api/requirementApi";
 import { approveQuotation, getQuotationById, saveQuotation } from "../../api/quotationApi";
 import { getQuotationTemplate } from "../../api/quotationTemplateApi";
@@ -31,6 +31,23 @@ function safeJsonParse(value, fallback) {
   } catch {
     return fallback;
   }
+}
+
+function parseNonNegativeNumber(value, fallback = 0) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    return fallback;
+  }
+  return parsed;
+}
+
+function formatIndianMobileNumber(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "—";
+  if (raw.startsWith("+")) return raw;
+  const digits = raw.replace(/\D/g, "");
+  if (!digits) return raw;
+  return `+91 ${digits}`;
 }
 
 function toKeyValueSummary(value) {
@@ -260,13 +277,72 @@ function formatLeadState(value) {
   if (!raw) return "";
 
   const normalized = raw.toLowerCase().replace(/[^a-z]/g, "");
-  if (normalized === "tn" || normalized === "tamilnadu" || normalized.startsWith("tamilna")) {
+  const stateNames = {
+    ap: "Andhra Pradesh",
+    ar: "Arunachal Pradesh",
+    as: "Assam",
+    br: "Bihar",
+    cg: "Chhattisgarh",
+    ga: "Goa",
+    gj: "Gujarat",
+    hr: "Haryana",
+    hp: "Himachal Pradesh",
+    jh: "Jharkhand",
+    ka: "Karnataka",
+    kl: "Kerala",
+    mp: "Madhya Pradesh",
+    mh: "Maharashtra",
+    mn: "Manipur",
+    ml: "Meghalaya",
+    mz: "Mizoram",
+    nl: "Nagaland",
+    or: "Odisha",
+    pb: "Punjab",
+    rj: "Rajasthan",
+    sk: "Sikkim",
+    tn: "Tamil Nadu",
+    ts: "Telangana",
+    tr: "Tripura",
+    up: "Uttar Pradesh",
+    uk: "Uttarakhand",
+    wb: "West Bengal",
+    dl: "Delhi",
+    jk: "Jammu & Kashmir",
+    la: "Ladakh",
+    ch: "Chandigarh",
+    dn: "Dadra & Nagar Haveli",
+    dd: "Daman & Diu",
+    ld: "Lakshadweep",
+    py: "Puducherry",
+  };
+
+  if (stateNames[normalized]) {
+    return stateNames[normalized];
+  }
+
+  if (normalized === "tamilnadu" || normalized.startsWith("tamilna")) {
     return "Tamil Nadu";
   }
 
   return raw
     .toLowerCase()
     .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function normalizeQuotationLead(lead) {
+  if (!lead) return null;
+
+  const address = String(lead.address || lead.streetAddress || "").trim();
+  const leadState = String(lead.leadState || lead.state || "").trim();
+
+  return {
+    ...lead,
+    leadId: lead.leadId ?? lead.id ?? "",
+    address,
+    streetAddress: lead.streetAddress ?? address,
+    leadState,
+    state: lead.state ?? leadState,
+  };
 }
 
 function createEmptyGstRow() {
@@ -284,6 +360,7 @@ export default function QuotationPage() {
   const { user } = useAuth();
   const userRole = String(user?.role || "").toUpperCase();
   const isEmployee = userRole === "EMPLOYEE";
+  const [isViewOnly, setIsViewOnly] = useState(Boolean(location.state?.viewOnly));
 
   const [partyMode, setPartyMode] = useState("lead");
   const [activeTab, setActiveTab] = useState("lead");
@@ -342,10 +419,12 @@ export default function QuotationPage() {
   const skipAutoGenerateRef = useRef(false);
   const restoringDraftRef = useRef(false);
   const hydratedQuotationIdRef = useRef(null);
+  const hydratedLeadIdRef = useRef(null);
 
   const customerName = selectedLead?.name || "";
   const leadStateValue = selectedLead?.leadState || selectedLead?.state || "";
   const leadStateDisplay = useMemo(() => formatLeadState(leadStateValue), [leadStateValue]);
+  const leadAddressDisplay = selectedLead?.address || selectedLead?.streetAddress || "";
   const quotationDate = new Date().toISOString().slice(0, 10);
 
   const applyQuotationDraft = (source) => {
@@ -372,7 +451,7 @@ export default function QuotationPage() {
     setCreatedByRole(initial.createdByRole || null);
     setCreatedByTeam(initial.createdByTeam || null);
     setPartyMode(initial.partyMode || "lead");
-    setSelectedLead(initial.selectedLead || null);
+    setSelectedLead(normalizeQuotationLead(initial.selectedLead));
     setLeadSearch(
       initial.leadSearch ||
         (initial.selectedLead
@@ -380,7 +459,7 @@ export default function QuotationPage() {
           : "")
     );
     setLineItems(Array.isArray(initial.lineItems) ? initial.lineItems.map(normalizeLineItem) : []);
-    setDiscountPct(String(initial.discountPct ?? "0"));
+    setDiscountPct(String(parseNonNegativeNumber(initial.discountPct, 0)));
     setIncludeDesignFee(initial.includeDesignFee || false);
     setDesignFeeAmount(String(initial.designFeeAmount || ""));
     setGstRows(
@@ -418,7 +497,14 @@ export default function QuotationPage() {
     }
     return { cgstPct: 0, sgstPct: 0, igstPct: resolvedGstPct };
   }, [isTamilNadu, resolvedGstPct]);
-  const discountAmt = useMemo(() => subtotal * (Number(discountPct || 0) / 100), [subtotal, discountPct]);
+  const normalizedDiscountPct = useMemo(
+    () => parseNonNegativeNumber(discountPct, 0),
+    [discountPct],
+  );
+  const discountAmt = useMemo(
+    () => subtotal * (normalizedDiscountPct / 100),
+    [subtotal, normalizedDiscountPct],
+  );
   const afterDiscount = useMemo(() => subtotal - discountAmt, [subtotal, discountAmt]);
   const cgstAmt = useMemo(() => afterDiscount * (cgstPct / 100), [afterDiscount, cgstPct]);
   const sgstAmt = useMemo(() => afterDiscount * (sgstPct / 100), [afterDiscount, sgstPct]);
@@ -506,13 +592,43 @@ export default function QuotationPage() {
     if (!prefill) return;
     setPartyMode("lead");
     setActiveTab("lead");
-    setSelectedLead(prefill);
+    setSelectedLead(normalizeQuotationLead(prefill));
     setLeadSearch(`${prefill.leadId} - ${prefill.name}`);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
+    setIsViewOnly(Boolean(location.state?.viewOnly));
+  }, [location.state?.viewOnly]);
+
+  useEffect(() => {
+    const leadId = selectedLead?.id;
+    if (!leadId) return;
+
+    const hasAddress = Boolean(String(selectedLead?.address || selectedLead?.streetAddress || "").trim());
+    const hasState = Boolean(String(selectedLead?.leadState || selectedLead?.state || "").trim());
+    if (hasAddress && hasState) return;
+    if (hydratedLeadIdRef.current === leadId) return;
+
+    let ignore = false;
+    getLeadById(leadId)
+      .then((lead) => {
+        if (ignore || !lead) return;
+        hydratedLeadIdRef.current = leadId;
+        setSelectedLead((current) => normalizeQuotationLead({ ...current, ...lead }));
+      })
+      .catch(() => {
+        // Keep the existing selected lead if the lookup fails.
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, [selectedLead?.address, selectedLead?.id, selectedLead?.leadState, selectedLead?.state, selectedLead?.streetAddress]);
+
+  useEffect(() => {
     setPriceListLoading(true);
-    getPriceList()
+    // Load the full price list for quotation building so newly added entries are available immediately.
+    getPriceList({ page: 0, size: 5000 })
       .then((data) => setPriceList(normalizePriceListEntries(data)))
       .catch(() => setPriceList([]))
       .finally(() => setPriceListLoading(false));
@@ -790,7 +906,7 @@ export default function QuotationPage() {
       partyMode,
       selectedLead,
       lineItems: mergePendingPriceEdits(lineItems, editingPrices),
-      discountPct: Number(discountPct),
+      discountPct: normalizedDiscountPct,
       includeDesignFee,
       designFeeAmount: includeDesignFee ? Number(designFeeAmount || 0) : 0,
       gstRows: gstRows.map((row) => ({
@@ -900,13 +1016,14 @@ export default function QuotationPage() {
     navigate("/quotation-list");
   };
 
-  const canEditQuotation = !(isEmployee && quotationStatus !== QUOTATION_STATUS_DRAFT && quotationStatus !== "NEGOTIATING");
+  const canEditQuotation = !isViewOnly && !(isEmployee && quotationStatus !== QUOTATION_STATUS_DRAFT && quotationStatus !== "NEGOTIATING");
   const canApproveAsManager = ["MANAGER", "ADMIN", "SUPER_ADMIN"].includes(userRole);
   const canApproveAsTeamLead =
     userRole === "TEAM_LEAD" &&
     String(createdByRole || "").toUpperCase() === "EMPLOYEE" &&
     String(createdByTeam || "").trim().toLowerCase() === String(user?.team || "").trim().toLowerCase();
   const canApproveCurrentQuotation =
+    !isViewOnly &&
     quotationStatus === QUOTATION_STATUS_VERIFICATION_PENDING &&
     (canApproveAsManager || canApproveAsTeamLead);
 
@@ -959,8 +1076,10 @@ export default function QuotationPage() {
         </div>
 
         <div className="qp-header-center">
-          <div className="qp-title">Create Quotation</div>
-          <div className="qp-subtitle">Build, save and download quotations</div>
+          <div className="qp-title">{isViewOnly ? "View Quotation" : "Create Quotation"}</div>
+          <div className="qp-subtitle">
+            {isViewOnly ? "Review the saved quotation" : "Build, save and download quotations"}
+          </div>
         </div>
 
         <div className="qp-mode-toggle">
@@ -1055,8 +1174,14 @@ export default function QuotationPage() {
                   <div className="qp-field-readonly">{selectedLead?.email || "—"}</div>
                 </div>
                 <div className="qp-field-group">
+                  <div className="qp-field-label">Address</div>
+                  <div className="qp-field-readonly qp-field-readonly-multiline">
+                    {leadAddressDisplay || "—"}
+                  </div>
+                </div>
+                <div className="qp-field-group">
                   <div className="qp-field-label">Phone</div>
-                  <div className="qp-field-readonly">{selectedLead?.mobile || "—"}</div>
+                  <div className="qp-field-readonly">{formatIndianMobileNumber(selectedLead?.mobile)}</div>
                 </div>
                 <div className="qp-field-group">
                   <div className="qp-field-label">State</div>
@@ -1451,10 +1576,22 @@ export default function QuotationPage() {
               <div className="qp-field-label">Discount (%)</div>
               <input
                 type="number"
+                min="0"
+                step="0.01"
                 className="qp-field-input"
                 style={{ fontFamily: "'DM Mono', monospace", textAlign: "right" }}
                 value={discountPct}
-                onChange={(e) => setDiscountPct(e.target.value)}
+                onChange={(e) => {
+                  const nextValue = e.target.value;
+                  if (nextValue === "") {
+                    setDiscountPct("");
+                    return;
+                  }
+                  setDiscountPct(String(parseNonNegativeNumber(nextValue, 0)));
+                }}
+                onBlur={() => {
+                  setDiscountPct(String(parseNonNegativeNumber(discountPct, 0)));
+                }}
               />
             </div>
             <div className="qp-field-group">
@@ -1485,9 +1622,9 @@ export default function QuotationPage() {
               <div className="qp-total-label">Subtotal</div>
               <div className="qp-total-value">₹{subtotal.toFixed(2)}</div>
             </div>
-            {Number(discountPct) > 0 && (
+            {normalizedDiscountPct > 0 && (
               <div className="qp-total-line discount">
-                <div className="qp-total-label">Discount ({discountPct}%)</div>
+                <div className="qp-total-label">Discount ({normalizedDiscountPct}%)</div>
                 <div className="qp-total-value">−₹{discountAmt.toFixed(2)}</div>
               </div>
             )}
@@ -1547,7 +1684,7 @@ export default function QuotationPage() {
               disabled={!canEditQuotation || isSaving}
             >
               <i className="ti ti-device-floppy" style={{ fontSize: 14 }} />
-              {isSaving ? "Saving..." : "Save Quotation"}
+              {isViewOnly ? "View Only" : isSaving ? "Saving..." : "Save Quotation"}
             </button>
           </div>
         </div>

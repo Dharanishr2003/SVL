@@ -41,7 +41,10 @@ public class LeadResponse {
     private String attemptedOpenReason;
     private String attemptedCallStatus;
     private String attemptedCallRemarks;
+    private String notAttemptedCallStatus;
+    private String notAttemptedCallRemarks;
     private LocalDateTime interestedFollowUpDate;
+    private String interestedCallStatus;
     private String interestedCallRemarks;
     private String rejectedReason;
     private String rejectedReasonSubtype;
@@ -390,12 +393,36 @@ public class LeadResponse {
         this.attemptedCallRemarks = attemptedCallRemarks;
     }
 
+    public String getNotAttemptedCallStatus() {
+        return notAttemptedCallStatus;
+    }
+
+    public void setNotAttemptedCallStatus(String notAttemptedCallStatus) {
+        this.notAttemptedCallStatus = notAttemptedCallStatus;
+    }
+
+    public String getNotAttemptedCallRemarks() {
+        return notAttemptedCallRemarks;
+    }
+
+    public void setNotAttemptedCallRemarks(String notAttemptedCallRemarks) {
+        this.notAttemptedCallRemarks = notAttemptedCallRemarks;
+    }
+
     public LocalDateTime getInterestedFollowUpDate() {
         return interestedFollowUpDate;
     }
 
     public void setInterestedFollowUpDate(LocalDateTime interestedFollowUpDate) {
         this.interestedFollowUpDate = interestedFollowUpDate;
+    }
+
+    public String getInterestedCallStatus() {
+        return interestedCallStatus;
+    }
+
+    public void setInterestedCallStatus(String interestedCallStatus) {
+        this.interestedCallStatus = interestedCallStatus;
     }
 
     public String getInterestedCallRemarks() {

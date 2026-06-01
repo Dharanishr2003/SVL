@@ -1,5 +1,5 @@
 <?php
-$ch = curl_init('http://127.0.0.1:8081/api/auth/login');
+$ch = curl_init('http://127.0.0.1:8082/api/auth/login');
 curl_setopt($ch, CURLOPT_POST, true);
 curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
 curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode(['identifier'=>'admin','password'=>'Admin@123']));

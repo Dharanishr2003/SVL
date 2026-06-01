@@ -124,6 +124,28 @@ function renderFieldLabel(field, suffix = "") {
   );
 }
 
+function normalizeIsoDateWithFourDigitYear(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return "";
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  if (year < 1 || year > 9999) return "";
+  if (month < 1 || month > 12) return "";
+  if (day < 1 || day > 31) return "";
+  return raw;
+}
+
+function isSundayIsoDate(value) {
+  const normalized = normalizeIsoDateWithFourDigitYear(value);
+  if (!normalized) return false;
+  const [year, month, day] = normalized.split("-").map(Number);
+  const date = new Date(year, month - 1, day);
+  return date.getDay() === 0;
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function AddItemModal({
@@ -235,7 +257,7 @@ export default function AddItemModal({
     setIsDragActive(false);
 
     // Reset delivery step
-    setDeliveryDate(prefill?.deliveryDate || "");
+    setDeliveryDate(isSundayIsoDate(prefill?.deliveryDate) ? "" : normalizeIsoDateWithFourDigitYear(prefill?.deliveryDate || ""));
     setSpecialInstructions(prefill?.specialInstructions || "");
     setSaving(false);
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -578,7 +600,6 @@ export default function AddItemModal({
     }
     if (s === designStep) {
       if (!designMode) return false;
-      if (designMode === "production_only" && files.length === 0) return false;
       return true;
     }
     if (s === deliveryStep) return true;
@@ -600,7 +621,6 @@ export default function AddItemModal({
         if (missingField) setError(`Please fill compulsory field: ${missingField.label || missingField.key}`);
       } else if (step === designStep) {
         if (!designMode) setError("Please select a design mode.");
-        else setError("Please upload at least one design file.");
       }
       return;
     }
@@ -648,6 +668,12 @@ export default function AddItemModal({
       const missingField = getMissingCompulsoryField(productFields, specs);
       if (missingField) {
         setError(`Please fill compulsory field: ${missingField.label || missingField.key}`);
+        setSaving(false);
+        return;
+      }
+
+      if (deliveryDate && isSundayIsoDate(deliveryDate)) {
+        setError("Sunday delivery dates are not allowed.");
         setSaving(false);
         return;
       }
@@ -835,28 +861,19 @@ export default function AddItemModal({
                             <label className="form-label fw-semibold">
                               Design Mode <span className="text-danger">*</span>
                             </label>
-                            <div className="d-flex gap-4 mt-1">
-                              {[
-                                { value: "design_only", label: "Design Only" },
-                                { value: "production_only", label: "Production Only" },
-                                { value: "design_production", label: "Design + Production" },
-                              ].map((opt) => (
-                                <div key={opt.value} className="form-check">
-                                  <input
-                                    className="form-check-input"
-                                    type="radio"
-                                    name="designMode"
-                                    id={`designMode-${opt.value}`}
-                                    value={opt.value}
-                                    checked={designMode === opt.value}
-                                    onChange={() => { setDesignMode(opt.value); setFiles([]); }}
-                                  />
-                                  <label className="form-check-label" htmlFor={`designMode-${opt.value}`}>
-                                    {opt.label}
-                                  </label>
-                                </div>
-                              ))}
-                            </div>
+                            <select
+                              className="form-select mt-1"
+                              value={designMode}
+                              onChange={(e) => {
+                                setDesignMode(e.target.value);
+                                setFiles([]);
+                              }}
+                            >
+                              <option value="">Select design mode</option>
+                              <option value="design_only">Design Only</option>
+                              <option value="production_only">Production Only</option>
+                              <option value="design_production">Design + Production</option>
+                            </select>
                           </div>
                         </div>
 
@@ -1098,10 +1115,11 @@ export default function AddItemModal({
                           </div>
                         </div>
 
-                        {/* File upload for production_only */}
+                        {/* Optional file upload for production_only */}
                         {designMode === "production_only" && (
                           <div className="col-12">
                             <label className="form-label fw-semibold">Design Folder</label>
+                            <small className="text-muted d-block mb-2">Optional</small>
                             <label
                               className={`w-100 rounded-3 p-4 text-center ${isDragActive ? "border border-primary bg-light" : "border border-secondary-subtle"}`}
                               onDragOver={e => { e.preventDefault(); e.stopPropagation(); setIsDragActive(true); }}
@@ -1174,10 +1192,23 @@ export default function AddItemModal({
                             <label className="form-label">Delivery Date</label>
                             <input
                               type="date"
+                              max="9999-12-31"
                               className="form-control"
                               value={deliveryDate}
-                              onChange={e => setDeliveryDate(e.target.value)}
+                              onChange={e => {
+                                const nextValue = normalizeIsoDateWithFourDigitYear(e.target.value);
+                                if (nextValue && isSundayIsoDate(nextValue)) {
+                                  setDeliveryDate("");
+                                  setError("Sunday delivery dates are not allowed.");
+                                  return;
+                                }
+                                setError("");
+                                setDeliveryDate(nextValue);
+                              }}
                             />
+                            <small className="text-muted d-block mt-1">
+                              Sunday delivery dates are not allowed.
+                            </small>
                           </div>
                         </div>
                         <div className="col-12">

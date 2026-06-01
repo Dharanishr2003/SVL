@@ -30,6 +30,7 @@ import { getBranches } from "../../api/branchesApi";
 import { updateCustomerLeadStatus } from "../../api/customerApi";
 import { extractApiErrorMessage } from "../../utils/errorMessage";
 import { formatStatusLabel, uniqueStatusOptions, normalizeStatusLabelKey } from "../../utils/statusLabels";
+import { ATTEMPTED_REASON_OPTIONS, NOT_ATTEMPTED_REASON_OPTIONS, INTERESTED_REASON_OPTIONS } from "../../constants/leadFlowStatuses";
 import {
   COUNTRY_CODE_OPTIONS,
   defaultCountryOption,
@@ -122,6 +123,14 @@ function toOptionNames(rows, keys) {
     .map((row) => pickText(row, keys))
     .filter(Boolean);
   return Array.from(new Set(names));
+}
+
+function getLeadSourceName(row, keys) {
+  return pickText(row, keys);
+}
+
+function getSourceRowId(row) {
+  return row?.id == null ? "" : String(row.id);
 }
 
 function toProjectNames(rows) {
@@ -299,8 +308,8 @@ export default function LeadsPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const [primaryOptions, setPrimaryOptions] = useState([]);
-  const [secondaryOptions, setSecondaryOptions] = useState([]);
+  const [primarySourceRows, setPrimarySourceRows] = useState([]);
+  const [secondarySourceRows, setSecondarySourceRows] = useState([]);
   const [tertiaryOptions, setTertiaryOptions] = useState([]);
   const [projectOptions, setProjectOptions] = useState([]);
   const [groupOptions, setGroupOptions] = useState([]);
@@ -334,7 +343,9 @@ export default function LeadsPage() {
   const [showAddSecondarySource, setShowAddSecondarySource] = useState(false);
   const [newPrimarySource, setNewPrimarySource] = useState("");
   const [newSecondarySource, setNewSecondarySource] = useState("");
+  const [newSecondarySourcePrimaryId, setNewSecondarySourcePrimaryId] = useState("");
   const [addSourceLoading, setAddSourceLoading] = useState(false);
+  const [sourceOptionsLoaded, setSourceOptionsLoaded] = useState(false);
   const createNameInputRef = useRef(null);
   const createStateInputRef = useRef(null);
 
@@ -348,8 +359,7 @@ export default function LeadsPage() {
     try {
       await createPrimarySource(value);
       const freshRows = await getPrimarySources();
-      const names = toOptionNames(freshRows, ["primarySource", "name", "title"]);
-      setPrimaryOptions(names);
+      setPrimarySourceRows(Array.isArray(freshRows) ? freshRows : []);
       setCreateForm((prev) => ({ ...prev, primarySource: value }));
       setNewPrimarySource("");
       setShowAddPrimarySource(false);
@@ -367,14 +377,22 @@ export default function LeadsPage() {
       showError("Enter a secondary source name");
       return;
     }
+    const primaryId = String(newSecondarySourcePrimaryId || "").trim();
+    if (!primaryId) {
+      showError("Select a primary source");
+      return;
+    }
     setAddSourceLoading(true);
     try {
-      await createSecondarySource(value);
+      await createSecondarySource({
+        secondarySource: value,
+        primarySourceId: Number(primaryId),
+      });
       const freshRows = await getSecondarySources();
-      const names = toOptionNames(freshRows, ["secondarySource", "name", "title"]);
-      setSecondaryOptions(names);
+      setSecondarySourceRows(Array.isArray(freshRows) ? freshRows : []);
       setCreateForm((prev) => ({ ...prev, secondarySource: value }));
       setNewSecondarySource("");
+      setNewSecondarySourcePrimaryId("");
       setShowAddSecondarySource(false);
       showSuccess("Secondary source added");
     } catch (error) {
@@ -417,6 +435,36 @@ export default function LeadsPage() {
         option.callingCode.includes(searchLower)
     );
   }, [createCountrySearch]);
+
+  const primaryOptions = useMemo(
+    () => toOptionNames(primarySourceRows, ["primarySource", "name", "label"]),
+    [primarySourceRows],
+  );
+
+  const createPrimarySourceRow = useMemo(() => {
+    const selected = String(createForm.primarySource || "").trim();
+    if (!selected) return null;
+    return (Array.isArray(primarySourceRows) ? primarySourceRows : []).find((row) =>
+      String(getLeadSourceName(row, ["primarySource", "name", "label"])).trim().toLowerCase() ===
+      selected.toLowerCase(),
+    ) || null;
+  }, [createForm.primarySource, primarySourceRows]);
+
+  const createSecondarySourceOptions = useMemo(() => {
+    const selectedPrimaryId = createPrimarySourceRow?.id == null ? "" : String(createPrimarySourceRow.id);
+    if (!selectedPrimaryId) return [];
+    const filteredRows = (Array.isArray(secondarySourceRows) ? secondarySourceRows : []).filter(
+      (row) => row?.primarySourceId == null || String(row?.primarySourceId ?? "") === selectedPrimaryId,
+    );
+    return toOptionNames(filteredRows, ["secondarySource", "name", "label"]);
+  }, [createPrimarySourceRow, secondarySourceRows]);
+
+  useEffect(() => {
+    if (!sourceOptionsLoaded) return;
+    if (!createForm.secondarySource) return;
+    if (createSecondarySourceOptions.includes(createForm.secondarySource)) return;
+    setCreateForm((prev) => ({ ...prev, secondarySource: "" }));
+  }, [createForm.secondarySource, createSecondarySourceOptions, sourceOptionsLoaded]);
 
   const createCountryIso = useMemo(
     () => getCountryIsoFromPhoneCode(createForm.countryCode),
@@ -470,7 +518,10 @@ export default function LeadsPage() {
   const [attemptedCallStatus, setAttemptedCallStatus] = useState("");
   const [attemptedCallRemarks, setAttemptedCallRemarks] = useState("");
   const [attemptedFollowUpDate, setAttemptedFollowUpDate] = useState("");
+  const [notAttemptedCallStatus, setNotAttemptedCallStatus] = useState("");
+  const [notAttemptedCallRemarks, setNotAttemptedCallRemarks] = useState("");
   const [interestedFollowUpDate, setInterestedFollowUpDate] = useState("");
+  const [interestedCallStatus, setInterestedCallStatus] = useState("");
   const [interestedCallRemarks, setInterestedCallRemarks] = useState("");
   const [rejectedReason, setRejectedReason] = useState("");
   const [rejectedReasonSubtype, setRejectedReasonSubtype] = useState("");
@@ -587,12 +638,8 @@ export default function LeadsPage() {
           canLoadFlowConfig ? safeLoad(() => getLeadFlow(createFlowScope), {}) : Promise.resolve({}),
         ]);
         if (!isMounted) return;
-        setPrimaryOptions(
-          toOptionNames(primaries, ["primarySource", "name", "label"]),
-        );
-        setSecondaryOptions(
-          toOptionNames(secondaries, ["secondarySource", "name", "label"]),
-        );
+        setPrimarySourceRows(Array.isArray(primaries) ? primaries : []);
+        setSecondarySourceRows(Array.isArray(secondaries) ? secondaries : []);
         setTertiaryOptions(
           toOptionNames(tertiaries, ["tertiarySource", "name", "label"]),
         );
@@ -664,6 +711,7 @@ export default function LeadsPage() {
           mergedStatuses.length ? mergedStatuses : DEFAULT_LEAD_STATUSES,
         );
         setFlowRules(Array.isArray(flowPayload?.rules) ? flowPayload.rules : []);
+        setSourceOptionsLoaded(true);
       } catch (e) {
         if (!isMounted) return;
         setError(extractApiErrorMessage(e, "Failed to load lead options"));
@@ -1032,7 +1080,10 @@ export default function LeadsPage() {
     setAttemptedCallStatus("");
     setAttemptedCallRemarks("");
     setAttemptedFollowUpDate("");
+    setNotAttemptedCallStatus("");
+    setNotAttemptedCallRemarks("");
     setInterestedFollowUpDate("");
+    setInterestedCallStatus("");
     setInterestedCallRemarks("");
     setRejectedReason("");
     setRejectedReasonSubtype("");
@@ -1118,16 +1169,23 @@ export default function LeadsPage() {
     }
     // Validate and handle Attempted form
     if (nextKey === "attempted") {
-      if (!attemptedOpenReason || !attemptedCallStatus) {
-        setError("Please complete Open Reason and Call Status for Attempted status");
+      if (!attemptedOpenReason || !attemptedCallRemarks) {
+        setError("Please complete Attempted Reason and Manual Details for Attempted status");
+        return;
+      }
+    }
+
+    if (nextKey === "not attempted") {
+      if (!notAttemptedCallStatus || !notAttemptedCallRemarks) {
+        setError("Please complete Not Attempted Reason and Manual Details for Not Attempted status");
         return;
       }
     }
 
     // Validate and handle Interested form
     if (nextKey === "interested") {
-      if (!interestedFollowUpDate) {
-        setError("Please select Follow Up Date for Interested status");
+      if (!interestedCallStatus || !interestedFollowUpDate || !interestedCallRemarks) {
+        setError("Please complete Interested Reason, Date, and Manual Details for Interested status");
         return;
       }
     }
@@ -1226,15 +1284,20 @@ export default function LeadsPage() {
       if (nextKey === "attempted") {
         await updateLeadDetails(statusLead.id, {
           attemptedOpenReason: attemptedOpenReason || null,
-          attemptedCallStatus: attemptedCallStatus || null,
+          attemptedCallStatus: null,
           attemptedCallRemarks: attemptedCallRemarks || null,
-          attemptedFollowUpDate:
-            attemptedCallStatus?.toLowerCase() === "follow up" && attemptedFollowUpDate
-              ? new Date(attemptedFollowUpDate).toISOString()
-              : null,
+          attemptedFollowUpDate: null,
+          notAttemptedCallStatus: null,
+          notAttemptedCallRemarks: null,
+        });
+      } else if (nextKey === "not attempted") {
+        await updateLeadDetails(statusLead.id, {
+          notAttemptedCallStatus: notAttemptedCallStatus || null,
+          notAttemptedCallRemarks: notAttemptedCallRemarks || null,
         });
       } else if (nextKey === "interested") {
         await updateLeadDetails(statusLead.id, {
+          interestedCallStatus: interestedCallStatus || null,
           interestedFollowUpDate: interestedFollowUpDate
             ? new Date(interestedFollowUpDate).toISOString()
             : null,
@@ -1263,7 +1326,10 @@ export default function LeadsPage() {
       setAttemptedCallStatus("");
       setAttemptedCallRemarks("");
       setAttemptedFollowUpDate("");
+      setNotAttemptedCallStatus("");
+      setNotAttemptedCallRemarks("");
       setInterestedFollowUpDate("");
+      setInterestedCallStatus("");
       setInterestedCallRemarks("");
       setRejectedReason("");
       setRejectedReasonSubtype("");
@@ -2245,6 +2311,7 @@ export default function LeadsPage() {
                                 setCreateForm((prev) => ({
                                   ...prev,
                                   primarySource: e.target.value,
+                                  secondarySource: "",
                                 }))
                               }
                             >
@@ -2266,7 +2333,12 @@ export default function LeadsPage() {
                               <button
                                 type="button"
                                 className="lead-source-add-btn"
-                                onClick={() => setShowAddSecondarySource(true)}
+                                onClick={() => {
+                                  setNewSecondarySourcePrimaryId(
+                                    createPrimarySourceRow?.id != null ? String(createPrimarySourceRow.id) : "",
+                                  );
+                                  setShowAddSecondarySource(true);
+                                }}
                                 aria-label="Add secondary source"
                               >
                                 <PlusGlyph size={14} />
@@ -2281,14 +2353,14 @@ export default function LeadsPage() {
                                   secondarySource: e.target.value,
                                 }))
                               }
-                            >
-                              <option value="">Select Secondary Source</option>
-                              {secondaryOptions.map((item) => (
-                                <option key={item} value={item}>
-                                  {item}
-                                </option>
-                              ))}
-                            </select>
+                              >
+                                <option value="">Select Secondary Source</option>
+                              {createSecondarySourceOptions.map((item) => (
+                                  <option key={item} value={item}>
+                                    {item}
+                                  </option>
+                                ))}
+                              </select>
                           </div>
                           <div className="lead-form-field">
                             <label className="form-label">Company Name</label>
@@ -2504,6 +2576,18 @@ export default function LeadsPage() {
                     onClick={() => {
                       setShowStatusModal(false);
                       setStatusLead(null);
+                      setStatusValue("");
+                      setAttemptedOpenReason("");
+                      setAttemptedCallStatus("");
+                      setAttemptedCallRemarks("");
+                      setAttemptedFollowUpDate("");
+                      setNotAttemptedCallStatus("");
+                      setNotAttemptedCallRemarks("");
+                      setInterestedFollowUpDate("");
+                      setInterestedCallStatus("");
+                      setInterestedCallRemarks("");
+                      setRejectedReason("");
+                      setRejectedReasonSubtype("");
                     }}
                   />
                 </div>
@@ -2542,61 +2626,59 @@ export default function LeadsPage() {
                     <div className="border-top pt-3 mt-3">
                       <h6 className="mb-3 text-primary">Attempted Details</h6>
                       <div className="mb-3">
-                        <label className="form-label">Open Reason</label>
+                        <label className="form-label">Attempted Reason</label>
                         <select
                           className="form-select"
                           value={attemptedOpenReason}
                           onChange={(e) => setAttemptedOpenReason(e.target.value)}
                         >
-                          <option value="">Select Open Reason</option>
-                          <option value="Contacted">Contacted</option>
-                          <option value="Shared Details">Shared Details</option>
-                          <option value="Retry">Retry</option>
+                          <option value="">Select Attempted Reason</option>
+                          {ATTEMPTED_REASON_OPTIONS.map((option) => (
+                            <option key={option} value={option}>
+                              {option}
+                            </option>
+                          ))}
                         </select>
                       </div>
                       <div className="mb-3">
-                        <label className="form-label">Call Status</label>
-                        <select
-                          className="form-select"
-                          value={attemptedCallStatus}
-                          onChange={(e) => {
-                            const next = e.target.value;
-                            setAttemptedCallStatus(next);
-                            if (String(next || "").trim().toLowerCase() !== "follow up") {
-                              setAttemptedFollowUpDate("");
-                            }
-                          }}
-                        >
-                          <option value="">Select Call Status</option>
-                          <option value="RNR">RNR</option>
-                          <option value="Call Connected">Call Connected</option>
-                          <option value="Follow Up">Follow Up</option>
-                          <option value="Number Busy">Number Busy</option>
-                          <option value="Not Reachable">Not Reachable</option>
-                          <option value="Switched Off">Switched Off</option>
-                          <option value="Number Not In Use">Number Not In Use</option>
-                          <option value="Wrong Number">Wrong Number</option>
-                        </select>
-                      </div>
-                      {String(attemptedCallStatus || "").trim().toLowerCase() === "follow up" && (
-                        <div className="mb-3">
-                          <label className="form-label">Follow Up Date</label>
-                          <input
-                            className="form-control"
-                            type="datetime-local"
-                            value={attemptedFollowUpDate}
-                            onChange={(e) => setAttemptedFollowUpDate(e.target.value)}
-                          />
-                        </div>
-                      )}
-                      <div className="mb-3">
-                        <label className="form-label">Call Remarks</label>
+                        <label className="form-label">Manual Details</label>
                         <textarea
                           className="form-control"
                           rows={3}
                           value={attemptedCallRemarks}
                           onChange={(e) => setAttemptedCallRemarks(e.target.value)}
-                          placeholder="Call Remarks"
+                          placeholder="Enter manual details"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {String(statusValue || "").trim().toLowerCase() === "not attempted" && (
+                    <div className="border-top pt-3 mt-3">
+                      <h6 className="mb-3 text-primary">Not Attempted Details</h6>
+                      <div className="mb-3">
+                        <label className="form-label">Not Attempted Reason</label>
+                        <select
+                          className="form-select"
+                          value={notAttemptedCallStatus}
+                          onChange={(e) => setNotAttemptedCallStatus(e.target.value)}
+                        >
+                          <option value="">Select Not Attempted Reason</option>
+                          {NOT_ATTEMPTED_REASON_OPTIONS.map((option) => (
+                            <option key={option} value={option}>
+                              {option}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="mb-3">
+                        <label className="form-label">Manual Details</label>
+                        <textarea
+                          className="form-control"
+                          rows={3}
+                          value={notAttemptedCallRemarks}
+                          onChange={(e) => setNotAttemptedCallRemarks(e.target.value)}
+                          placeholder="Enter manual details"
                         />
                       </div>
                     </div>
@@ -2607,6 +2689,21 @@ export default function LeadsPage() {
                     <div className="border-top pt-3 mt-3">
                       <h6 className="mb-3 text-primary">Interested Details</h6>
                       <div className="mb-3">
+                        <label className="form-label">Interested Reason</label>
+                        <select
+                          className="form-select"
+                          value={interestedCallStatus}
+                          onChange={(e) => setInterestedCallStatus(e.target.value)}
+                        >
+                          <option value="">Select Interested Reason</option>
+                          {INTERESTED_REASON_OPTIONS.map((option) => (
+                            <option key={option} value={option}>
+                              {option}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="mb-3">
                         <label className="form-label">Follow Up Date</label>
                         <input
                           className="form-control"
@@ -2616,13 +2713,13 @@ export default function LeadsPage() {
                         />
                       </div>
                       <div className="mb-3">
-                        <label className="form-label">Call Remarks</label>
+                        <label className="form-label">Manual Details</label>
                         <textarea
                           className="form-control"
                           rows={3}
                           value={interestedCallRemarks}
                           onChange={(e) => setInterestedCallRemarks(e.target.value)}
-                          placeholder="Call Remarks"
+                          placeholder="Enter manual details"
                         />
                       </div>
                     </div>
@@ -2676,9 +2773,12 @@ export default function LeadsPage() {
                       setStatusValue("");
                       setAttemptedOpenReason("");
                       setAttemptedCallStatus("");
-                      setAttemptedCallRemarks("");
-                      setAttemptedFollowUpDate("");
-                      setInterestedFollowUpDate("");
+      setAttemptedCallRemarks("");
+      setAttemptedFollowUpDate("");
+      setNotAttemptedCallStatus("");
+      setNotAttemptedCallRemarks("");
+      setInterestedFollowUpDate("");
+                      setInterestedCallStatus("");
                       setInterestedCallRemarks("");
                       setRejectedReason("");
                       setRejectedReasonSubtype("");
@@ -2869,6 +2969,7 @@ export default function LeadsPage() {
                       if (addSourceLoading) return;
                       setShowAddSecondarySource(false);
                       setNewSecondarySource("");
+                      setNewSecondarySourcePrimaryId("");
                     }}
                   />
                 </div>
@@ -2881,6 +2982,19 @@ export default function LeadsPage() {
                     placeholder="Enter secondary source"
                     autoFocus
                   />
+                  <label className="form-label mt-3">Primary Source</label>
+                  <select
+                    className="form-select"
+                    value={newSecondarySourcePrimaryId}
+                    onChange={(e) => setNewSecondarySourcePrimaryId(e.target.value)}
+                  >
+                    <option value="">Select primary source</option>
+                    {(Array.isArray(primarySourceRows) ? primarySourceRows : []).map((row) => (
+                      <option key={row.id} value={row.id}>
+                        {row.primarySource || row.name || row.label}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div className="modal-footer">
                   <button
@@ -2889,6 +3003,7 @@ export default function LeadsPage() {
                       if (addSourceLoading) return;
                       setShowAddSecondarySource(false);
                       setNewSecondarySource("");
+                      setNewSecondarySourcePrimaryId("");
                     }}
                   >
                     Cancel

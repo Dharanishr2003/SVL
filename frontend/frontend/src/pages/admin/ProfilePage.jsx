@@ -15,7 +15,7 @@ import {
 import { useToast } from "../../components/system/ToastProvider";
 import { useAuth } from "../../context/AuthContext";
 
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8081";
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8082";
 
 export default function ProfilePage() {
   const { showSuccess, showError } = useToast();

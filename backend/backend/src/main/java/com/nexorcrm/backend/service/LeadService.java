@@ -29,6 +29,8 @@ import com.nexorcrm.backend.entity.BranchMaster;
 import com.nexorcrm.backend.entity.DepartmentMaster;
 import com.nexorcrm.backend.entity.DesignationMaster;
 import com.nexorcrm.backend.entity.Employee;
+import com.nexorcrm.backend.entity.PrimarySource;
+import com.nexorcrm.backend.entity.SecondarySource;
 import com.nexorcrm.backend.entity.Role;
 import com.nexorcrm.backend.entity.User;
 import com.nexorcrm.backend.entity.UserGroup;
@@ -43,6 +45,8 @@ import com.nexorcrm.backend.repo.LeadLogRepository;
 import com.nexorcrm.backend.repo.LeadInvoiceItemRepository;
 import com.nexorcrm.backend.repo.LeadStatusRepository;
 import com.nexorcrm.backend.repo.LeadTypeRepository;
+import com.nexorcrm.backend.repo.PrimarySourceRepository;
+import com.nexorcrm.backend.repo.SecondarySourceRepository;
 import com.nexorcrm.backend.repo.UserGroupMemberRepository;
 import com.nexorcrm.backend.repo.UserGroupRepository;
 import com.nexorcrm.backend.repo.UserRepository;
@@ -126,6 +130,8 @@ public class LeadService {
     private final DealService dealService;
     private final DesignRequirementService designRequirementService;
     private final ProductionRequirementService productionRequirementService;
+    private final PrimarySourceRepository primarySourceRepository;
+    private final SecondarySourceRepository secondarySourceRepository;
     private static final String DEFAULT_CUSTOMER_PASSWORD = "Customer@123";
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
     private static final Logger logger = LoggerFactory.getLogger(LeadService.class);
@@ -153,7 +159,9 @@ public class LeadService {
                        LeadInvoiceItemRepository leadInvoiceItemRepository,
                        DealService dealService,
                        DesignRequirementService designRequirementService,
-                       ProductionRequirementService productionRequirementService) {
+                       ProductionRequirementService productionRequirementService,
+                       PrimarySourceRepository primarySourceRepository,
+                       SecondarySourceRepository secondarySourceRepository) {
         this.leadRepository = leadRepository;
         this.leadLogRepository = leadLogRepository;
         this.dealRepository = dealRepository;
@@ -175,6 +183,8 @@ public class LeadService {
         this.dealService = dealService;
         this.designRequirementService = designRequirementService;
         this.productionRequirementService = productionRequirementService;
+        this.primarySourceRepository = primarySourceRepository;
+        this.secondarySourceRepository = secondarySourceRepository;
     }
 
     /**
@@ -401,6 +411,7 @@ public class LeadService {
             row.setMobile(mobile);
             row.setMobileNormalized(mobileNormalized);
             row.setPrimarySource(item.getPrimarySource().trim());
+            validateSecondarySourceForPrimary(row.getPrimarySource(), item.getSecondarySource());
             row.setLeadPincode(normalizeNullable(item.getLeadPincode()));
             row.setEmail(normalizeNullable(item.getEmail()));
             row.setCountryCode(normalizeNullable(item.getCountryCode()));
@@ -513,10 +524,12 @@ public class LeadService {
         String countryCode = normalizeNullable(request.getCountryCode());
         String mobile = request.getMobile().trim();
         String primarySource = request.getPrimarySource().trim();
+        String secondarySource = normalizeNullable(request.getSecondarySource());
         String mobileNormalized = normalizeMobile(mobile);
         if (!StringUtils.hasText(mobileNormalized)) {
             throw new IllegalStateException("Mobile is required");
         }
+        validateSecondarySourceForPrimary(primarySource, secondarySource);
 
         // Duplicate detection: check for an existing non-duplicate lead with same mobile or email
         Optional<Lead> existingMatch = leadRepository
@@ -536,7 +549,7 @@ public class LeadService {
         row.setMobile(mobile);
         row.setMobileNormalized(mobileNormalized);
         row.setPrimarySource(primarySource);
-        row.setSecondarySource(normalizeNullable(request.getSecondarySource()));
+        row.setSecondarySource(secondarySource);
         row.setCompanyName(normalizeNullable(request.getCompanyName()));
         row.setProductType(normalizeNullable(request.getProductType()));
         row.setVariant(normalizeNullable(request.getVariant()));
@@ -958,6 +971,12 @@ public class LeadService {
         if (request.getCountryCode() != null) {
             row.setCountryCode(normalizeNullable(request.getCountryCode()));
         }
+        if (request.getPrimarySource() != null) {
+            row.setPrimarySource(normalizeNullable(request.getPrimarySource()));
+        }
+        if (request.getSecondarySource() != null) {
+            row.setSecondarySource(normalizeNullable(request.getSecondarySource()));
+        }
         if (request.getFollowUpDate() != null) {
             row.setFollowUpDate(request.getFollowUpDate());
         }
@@ -991,6 +1010,7 @@ public class LeadService {
         if (request.getStreetAddress() != null) {
             row.setStreetAddress(normalizeNullable(request.getStreetAddress()));
         }
+        validateSecondarySourceForPrimary(row.getPrimarySource(), row.getSecondarySource());
         if (request.getLeadType() != null) {
             String leadType = normalizeNullable(request.getLeadType());
             if (leadType != null && !leadTypeRepository.existsByTypeNameIgnoreCaseAndDeletedFalse(leadType)) {
@@ -1007,8 +1027,17 @@ public class LeadService {
         if (request.getAttemptedCallRemarks() != null) {
             row.setAttemptedCallRemarks(normalizeNullable(request.getAttemptedCallRemarks()));
         }
+        if (request.getNotAttemptedCallStatus() != null) {
+            row.setNotAttemptedCallStatus(normalizeNullable(request.getNotAttemptedCallStatus()));
+        }
+        if (request.getNotAttemptedCallRemarks() != null) {
+            row.setNotAttemptedCallRemarks(normalizeNullable(request.getNotAttemptedCallRemarks()));
+        }
         if (request.getInterestedFollowUpDate() != null) {
             row.setInterestedFollowUpDate(request.getInterestedFollowUpDate());
+        }
+        if (request.getInterestedCallStatus() != null) {
+            row.setInterestedCallStatus(normalizeNullable(request.getInterestedCallStatus()));
         }
         if (request.getInterestedCallRemarks() != null) {
             row.setInterestedCallRemarks(normalizeNullable(request.getInterestedCallRemarks()));
@@ -3090,7 +3119,10 @@ public class LeadService {
         res.setAttemptedOpenReason(row.getAttemptedOpenReason());
         res.setAttemptedCallStatus(row.getAttemptedCallStatus());
         res.setAttemptedCallRemarks(row.getAttemptedCallRemarks());
+        res.setNotAttemptedCallStatus(row.getNotAttemptedCallStatus());
+        res.setNotAttemptedCallRemarks(row.getNotAttemptedCallRemarks());
         res.setInterestedFollowUpDate(row.getInterestedFollowUpDate());
+        res.setInterestedCallStatus(row.getInterestedCallStatus());
         res.setInterestedCallRemarks(row.getInterestedCallRemarks());
         res.setRejectedReason(row.getRejectedReason());
         res.setRejectedReasonSubtype(row.getRejectedReasonSubtype());
@@ -3393,6 +3425,29 @@ public class LeadService {
     private String normalizeEmail(String email) {
         if (!StringUtils.hasText(email)) return null;
         return email.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private void validateSecondarySourceForPrimary(String primarySource, String secondarySource) {
+        if (!StringUtils.hasText(secondarySource)) {
+            return;
+        }
+        if (!StringUtils.hasText(primarySource)) {
+            throw new IllegalStateException("Primary source is required when secondary source is selected");
+        }
+
+        PrimarySource primary = primarySourceRepository
+                .findBySourceNameIgnoreCaseAndDeletedFalse(primarySource.trim())
+                .orElseThrow(() -> new IllegalStateException("Invalid primary source"));
+        SecondarySource secondary = secondarySourceRepository
+                .findBySourceNameIgnoreCaseAndDeletedFalse(secondarySource.trim())
+                .orElseThrow(() -> new IllegalStateException("Invalid secondary source"));
+
+        if (secondary.getPrimarySourceId() == null) {
+            return;
+        }
+        if (!Objects.equals(secondary.getPrimarySourceId(), primary.getId())) {
+            throw new IllegalStateException("Secondary source does not belong to the selected primary source");
+        }
     }
 
     @Transactional(readOnly = true)

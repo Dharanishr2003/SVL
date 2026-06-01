@@ -126,6 +126,39 @@ public class Employee {
     @Column(name = "employment_details_2", columnDefinition = "TEXT")
     private String employmentDetails2;
 
+    @Column(name = "previous_employment_joining_date")
+    private LocalDate previousEmploymentJoiningDate;
+
+    @Column(name = "previous_employment_relieving_date")
+    private LocalDate previousEmploymentRelievingDate;
+
+    @Column(name = "previous_employment_salary_at_joining", length = 40)
+    private String previousEmploymentSalaryAtJoining;
+
+    @Column(name = "previous_employment_salary_at_relieving", length = 40)
+    private String previousEmploymentSalaryAtRelieving;
+
+    @Column(name = "previous_employment_relieved_with_notice_period", length = 20)
+    private String previousEmploymentRelievedWithNoticePeriod;
+
+    @Column(name = "previous_employment_absconded", length = 20)
+    private String previousEmploymentAbsconded;
+
+    @Column(name = "previous_employment_designation_at_joining", length = 150)
+    private String previousEmploymentDesignationAtJoining;
+
+    @Column(name = "previous_employment_designation_at_relieving", length = 150)
+    private String previousEmploymentDesignationAtRelieving;
+
+    @Column(name = "previous_employment_manager_name", length = 150)
+    private String previousEmploymentManagerName;
+
+    @Column(name = "previous_employment_manager_mobile_number", length = 30)
+    private String previousEmploymentManagerMobileNumber;
+
+    @Column(name = "previous_employment_company_address", columnDefinition = "TEXT")
+    private String previousEmploymentCompanyAddress;
+
     @Column(name = "graduation_details", length = 50)
     private String graduationDetails;
 
@@ -134,6 +167,33 @@ public class Employee {
 
     @Column(name = "sslc_mark_and_year", length = 80)
     private String sslcMarkAndYear;
+
+    @Column(name = "education_qualification", length = 30)
+    private String educationQualification;
+
+    @Column(name = "education_course_name", length = 150)
+    private String educationCourseName;
+
+    @Column(name = "education_certificate_number", length = 80)
+    private String educationCertificateNumber;
+
+    @Column(name = "education_roll_number", length = 80)
+    private String educationRollNumber;
+
+    @Column(name = "education_mark", length = 40)
+    private String educationMark;
+
+    @Column(name = "education_max_mark", length = 40)
+    private String educationMaxMark;
+
+    @Column(name = "education_mark_percentage", length = 20)
+    private String educationMarkPercentage;
+
+    @Column(name = "education_from_year", length = 10)
+    private String educationFromYear;
+
+    @Column(name = "education_to_year", length = 10)
+    private String educationToYear;
 
     @Column(name = "friend_ref_name_1", length = 150)
     private String friendRefName1;
@@ -433,6 +493,39 @@ public class Employee {
     public String getEmploymentDetails2() { return employmentDetails2; }
     public void setEmploymentDetails2(String employmentDetails2) { this.employmentDetails2 = employmentDetails2; }
 
+    public LocalDate getPreviousEmploymentJoiningDate() { return previousEmploymentJoiningDate; }
+    public void setPreviousEmploymentJoiningDate(LocalDate previousEmploymentJoiningDate) { this.previousEmploymentJoiningDate = previousEmploymentJoiningDate; }
+
+    public LocalDate getPreviousEmploymentRelievingDate() { return previousEmploymentRelievingDate; }
+    public void setPreviousEmploymentRelievingDate(LocalDate previousEmploymentRelievingDate) { this.previousEmploymentRelievingDate = previousEmploymentRelievingDate; }
+
+    public String getPreviousEmploymentSalaryAtJoining() { return previousEmploymentSalaryAtJoining; }
+    public void setPreviousEmploymentSalaryAtJoining(String previousEmploymentSalaryAtJoining) { this.previousEmploymentSalaryAtJoining = previousEmploymentSalaryAtJoining; }
+
+    public String getPreviousEmploymentSalaryAtRelieving() { return previousEmploymentSalaryAtRelieving; }
+    public void setPreviousEmploymentSalaryAtRelieving(String previousEmploymentSalaryAtRelieving) { this.previousEmploymentSalaryAtRelieving = previousEmploymentSalaryAtRelieving; }
+
+    public String getPreviousEmploymentRelievedWithNoticePeriod() { return previousEmploymentRelievedWithNoticePeriod; }
+    public void setPreviousEmploymentRelievedWithNoticePeriod(String previousEmploymentRelievedWithNoticePeriod) { this.previousEmploymentRelievedWithNoticePeriod = previousEmploymentRelievedWithNoticePeriod; }
+
+    public String getPreviousEmploymentAbsconded() { return previousEmploymentAbsconded; }
+    public void setPreviousEmploymentAbsconded(String previousEmploymentAbsconded) { this.previousEmploymentAbsconded = previousEmploymentAbsconded; }
+
+    public String getPreviousEmploymentDesignationAtJoining() { return previousEmploymentDesignationAtJoining; }
+    public void setPreviousEmploymentDesignationAtJoining(String previousEmploymentDesignationAtJoining) { this.previousEmploymentDesignationAtJoining = previousEmploymentDesignationAtJoining; }
+
+    public String getPreviousEmploymentDesignationAtRelieving() { return previousEmploymentDesignationAtRelieving; }
+    public void setPreviousEmploymentDesignationAtRelieving(String previousEmploymentDesignationAtRelieving) { this.previousEmploymentDesignationAtRelieving = previousEmploymentDesignationAtRelieving; }
+
+    public String getPreviousEmploymentManagerName() { return previousEmploymentManagerName; }
+    public void setPreviousEmploymentManagerName(String previousEmploymentManagerName) { this.previousEmploymentManagerName = previousEmploymentManagerName; }
+
+    public String getPreviousEmploymentManagerMobileNumber() { return previousEmploymentManagerMobileNumber; }
+    public void setPreviousEmploymentManagerMobileNumber(String previousEmploymentManagerMobileNumber) { this.previousEmploymentManagerMobileNumber = previousEmploymentManagerMobileNumber; }
+
+    public String getPreviousEmploymentCompanyAddress() { return previousEmploymentCompanyAddress; }
+    public void setPreviousEmploymentCompanyAddress(String previousEmploymentCompanyAddress) { this.previousEmploymentCompanyAddress = previousEmploymentCompanyAddress; }
+
     public String getGraduationDetails() { return graduationDetails; }
     public void setGraduationDetails(String graduationDetails) { this.graduationDetails = graduationDetails; }
 
@@ -441,6 +534,33 @@ public class Employee {
 
     public String getSslcMarkAndYear() { return sslcMarkAndYear; }
     public void setSslcMarkAndYear(String sslcMarkAndYear) { this.sslcMarkAndYear = sslcMarkAndYear; }
+
+    public String getEducationQualification() { return educationQualification; }
+    public void setEducationQualification(String educationQualification) { this.educationQualification = educationQualification; }
+
+    public String getEducationCourseName() { return educationCourseName; }
+    public void setEducationCourseName(String educationCourseName) { this.educationCourseName = educationCourseName; }
+
+    public String getEducationCertificateNumber() { return educationCertificateNumber; }
+    public void setEducationCertificateNumber(String educationCertificateNumber) { this.educationCertificateNumber = educationCertificateNumber; }
+
+    public String getEducationRollNumber() { return educationRollNumber; }
+    public void setEducationRollNumber(String educationRollNumber) { this.educationRollNumber = educationRollNumber; }
+
+    public String getEducationMark() { return educationMark; }
+    public void setEducationMark(String educationMark) { this.educationMark = educationMark; }
+
+    public String getEducationMaxMark() { return educationMaxMark; }
+    public void setEducationMaxMark(String educationMaxMark) { this.educationMaxMark = educationMaxMark; }
+
+    public String getEducationMarkPercentage() { return educationMarkPercentage; }
+    public void setEducationMarkPercentage(String educationMarkPercentage) { this.educationMarkPercentage = educationMarkPercentage; }
+
+    public String getEducationFromYear() { return educationFromYear; }
+    public void setEducationFromYear(String educationFromYear) { this.educationFromYear = educationFromYear; }
+
+    public String getEducationToYear() { return educationToYear; }
+    public void setEducationToYear(String educationToYear) { this.educationToYear = educationToYear; }
 
     public String getFriendRefName1() { return friendRefName1; }
     public void setFriendRefName1(String friendRefName1) { this.friendRefName1 = friendRefName1; }

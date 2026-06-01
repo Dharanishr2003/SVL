@@ -107,6 +107,7 @@ export default function Sidebar() {
       "settings-logs",
       "settings-user-departments",
       "settings-user-designations",
+      "settings-workflow-teams",
     );
 
   useEffect(() => {
@@ -1010,6 +1011,15 @@ export default function Sidebar() {
                         <a href="/settings/user-designations">
                           <i className="ti ti-briefcase"></i>
                           <span>User Designations</span>
+                        </a>
+                      </li>
+                      )}
+
+                      {canAccess("settings-workflow-teams") && (
+                      <li>
+                        <a href="/settings/workflow-teams">
+                          <i className="ti ti-git-branch"></i>
+                          <span>Workflow Teams</span>
                         </a>
                       </li>
                       )}

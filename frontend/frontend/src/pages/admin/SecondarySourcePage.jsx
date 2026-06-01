@@ -5,26 +5,35 @@ import {
   updateSecondarySource,
   deleteSecondarySource,
 } from "../../api/secondarySourceApi";
+import { getPrimarySources } from "../../api/primarySourceApi";
 import { extractApiErrorMessage } from "../../utils/errorMessage";
 import { useToast } from "../../components/system/ToastProvider";
 
 function SecondarySourcePage() {
   const { showSuccess, showError } = useToast();
   const [rows, setRows] = useState([]);
+  const [primaryRows, setPrimaryRows] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [editingRow, setEditingRow] = useState(null);
   const [pendingDelete, setPendingDelete] = useState(null);
   const [formName, setFormName] = useState("");
+  const [formPrimarySourceId, setFormPrimarySourceId] = useState("");
   const [saving, setSaving] = useState(false);
 
   const load = async () => {
     setLoading(true);
     try {
-      setRows(await getSecondarySources());
+      const [secondaryList, primaryList] = await Promise.all([
+        getSecondarySources(),
+        getPrimarySources(),
+      ]);
+      setRows(Array.isArray(secondaryList) ? secondaryList : []);
+      setPrimaryRows(Array.isArray(primaryList) ? primaryList : []);
     } catch (e) {
       showError(extractApiErrorMessage(e, "Failed to load"));
       setRows([]);
+      setPrimaryRows([]);
     } finally {
       setLoading(false);
     }
@@ -38,21 +47,45 @@ function SecondarySourcePage() {
     () => [...rows].sort((a, b) => (b.id || 0) - (a.id || 0)),
     [rows],
   );
+  const primaryNameMap = useMemo(() => {
+    const map = new Map();
+    (Array.isArray(primaryRows) ? primaryRows : []).forEach((row) => {
+      map.set(String(row.id), row.primarySource || row.name || row.sourceName || "-");
+    });
+    return map;
+  }, [primaryRows]);
   const getName = (r) => r.name || r.sourceName || r.secondarySource || "-";
+  const getPrimaryName = (r) => {
+    if (!r) return "-";
+    if (r.primarySource) return r.primarySource;
+    if (r.primarySourceId != null && primaryNameMap.has(String(r.primarySourceId))) {
+      return primaryNameMap.get(String(r.primarySourceId));
+    }
+    return "-";
+  };
 
   const handleSave = async () => {
     if (!formName.trim()) {
       showError("Name is required");
       return;
     }
+    if (!String(formPrimarySourceId || "").trim()) {
+      showError("Primary source is required");
+      return;
+    }
     setSaving(true);
     try {
+      const payload = {
+        secondarySource: formName.trim(),
+        primarySourceId: Number(formPrimarySourceId),
+      };
       editingRow?.id
-        ? await updateSecondarySource(editingRow.id, formName.trim())
-        : await createSecondarySource(formName.trim());
+        ? await updateSecondarySource(editingRow.id, payload)
+        : await createSecondarySource(payload);
       showSuccess(editingRow ? "Updated" : "Created");
       setShowModal(false);
       setFormName("");
+      setFormPrimarySourceId("");
       setEditingRow(null);
       await load();
     } catch (e) {
@@ -90,9 +123,9 @@ function SecondarySourcePage() {
                 className="btn btn-primary"
                 onClick={() => {
                   setFormName("");
+                  setFormPrimarySourceId("");
                   setEditingRow(null);
                   setShowModal(true);
-                  setError("");
                 }}
               >
                 + Add
@@ -111,31 +144,33 @@ function SecondarySourcePage() {
                 <tr>
                   <th>#</th>
                   <th>Source Name</th>
+                  <th>Primary Source</th>
                   <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={3}>Loading...</td>
+                    <td colSpan={4}>Loading...</td>
                   </tr>
                 ) : ordered.length === 0 ? (
                   <tr>
-                    <td colSpan={3}>No records found</td>
+                    <td colSpan={4}>No records found</td>
                   </tr>
                 ) : (
                   ordered.map((r, i) => (
                     <tr key={r.id}>
                       <td>{i + 1}</td>
                       <td>{getName(r)}</td>
+                      <td>{getPrimaryName(r)}</td>
                       <td>
                         <button
                           className="btn btn-sm btn-outline-primary me-2"
                           onClick={() => {
                             setEditingRow(r);
                             setFormName(getName(r) === "-" ? "" : getName(r));
+                            setFormPrimarySourceId(r.primarySourceId ? String(r.primarySourceId) : "");
                             setShowModal(true);
-                            setError("");
                           }}
                         >
                           Edit
@@ -171,7 +206,12 @@ function SecondarySourcePage() {
                   </h5>
                   <button
                     className="btn-close"
-                    onClick={() => setShowModal(false)}
+                    onClick={() => {
+                      setShowModal(false);
+                      setFormName("");
+                      setFormPrimarySourceId("");
+                      setEditingRow(null);
+                    }}
                   />
                 </div>
                 <div className="modal-body">
@@ -182,11 +222,29 @@ function SecondarySourcePage() {
                     onChange={(e) => setFormName(e.target.value)}
                     placeholder="Source name"
                   />
+                  <label className="form-label mt-3">Primary Source</label>
+                  <select
+                    className="form-select"
+                    value={formPrimarySourceId}
+                    onChange={(e) => setFormPrimarySourceId(e.target.value)}
+                  >
+                    <option value="">Select primary source</option>
+                    {(Array.isArray(primaryRows) ? primaryRows : []).map((row) => (
+                      <option key={row.id} value={row.id}>
+                        {row.primarySource || row.name || row.sourceName}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div className="modal-footer">
                   <button
                     className="btn btn-light"
-                    onClick={() => setShowModal(false)}
+                    onClick={() => {
+                      setShowModal(false);
+                      setFormName("");
+                      setFormPrimarySourceId("");
+                      setEditingRow(null);
+                    }}
                     disabled={saving}
                   >
                     Cancel

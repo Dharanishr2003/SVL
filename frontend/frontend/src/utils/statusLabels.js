@@ -14,9 +14,15 @@ function formatToken(token) {
   return token.charAt(0).toUpperCase() + token.slice(1).toLowerCase();
 }
 
+const STATUS_LABEL_OVERRIDES = {
+  requirement: "Requirements Collected",
+};
+
 export function formatStatusLabel(status) {
   const raw = String(status || "").trim();
   if (!raw) return "";
+  const override = STATUS_LABEL_OVERRIDES[normalizeStatusKey(raw)];
+  if (override) return override;
   return raw
     .split(/(\s+|\+)/)
     .map((part) => (part === "+" || /^\s+$/.test(part) ? part : formatToken(part)))

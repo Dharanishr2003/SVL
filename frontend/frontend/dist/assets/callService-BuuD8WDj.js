@@ -1,1 +1,0 @@
-import{a as e}from"./apiClient-Bv8069zc.js";const t={getIncomingCall(){return e.get("/calls/incoming")},getOutgoingCall(){return e.get("/calls/outgoing")},getVoiceCall(){return e.get("/calls/voice")}};export{t as c};

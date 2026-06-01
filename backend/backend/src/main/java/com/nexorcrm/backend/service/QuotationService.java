@@ -72,8 +72,7 @@ public class QuotationService {
         if (request.getCreatedByRole() != null) quotation.setCreatedByRole(request.getCreatedByRole());
         if (request.getCreatedByTeam() != null) quotation.setCreatedByTeam(request.getCreatedByTeam());
 
-        BigDecimal discountPercent = request.getDiscountPercent() != null
-                ? request.getDiscountPercent() : BigDecimal.ZERO;
+        BigDecimal discountPercent = clampNonNegativePercent(request.getDiscountPercent());
         BigDecimal gstPercent = resolveGstPercent(request);
         quotation.setDiscountPercent(discountPercent);
         quotation.setGstPercent(gstPercent);
@@ -232,7 +231,7 @@ public class QuotationService {
             applyApprovalMetadata(q, requestedStatus, request);
         }
 
-        if (request.getDiscountPercent() != null) q.setDiscountPercent(request.getDiscountPercent());
+        if (request.getDiscountPercent() != null) q.setDiscountPercent(clampNonNegativePercent(request.getDiscountPercent()));
         q.setGstPercent(resolveGstPercent(request));
         q.setCgstPercent(scalePercent(request.getCgstPct()));
         q.setSgstPercent(scalePercent(request.getSgstPct()));
@@ -316,7 +315,7 @@ public class QuotationService {
         BigDecimal subtotal = itemsSubtotal.add(designFee);
         quotation.setSubtotal(subtotal);
 
-        BigDecimal discount = discountPercent == null ? BigDecimal.ZERO : discountPercent;
+        BigDecimal discount = clampNonNegativePercent(discountPercent);
         BigDecimal gst = gstPercent == null ? BigDecimal.ZERO : gstPercent;
         BigDecimal afterDiscount = subtotal.multiply(
                 BigDecimal.ONE.subtract(discount.divide(new BigDecimal("100"), 10, RoundingMode.HALF_UP))
@@ -332,6 +331,14 @@ public class QuotationService {
             return BigDecimal.ZERO;
         }
         return scaleMoney(request.getDesignFeeAmount());
+    }
+
+    private BigDecimal clampNonNegativePercent(BigDecimal value) {
+        if (value == null) {
+            return BigDecimal.ZERO;
+        }
+        BigDecimal scaled = value.setScale(2, RoundingMode.HALF_UP);
+        return scaled.compareTo(BigDecimal.ZERO) < 0 ? BigDecimal.ZERO : scaled;
     }
 
     private BigDecimal scaleMoney(BigDecimal value) {

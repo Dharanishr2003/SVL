@@ -1,7 +1,7 @@
 import axios from "axios";
 import logger from "./logger";
 
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8081";
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8082";
 
 let vendorAccessToken = null;
 let onVendorAuthFailure = null;
@@ -88,4 +88,3 @@ vendorApi.interceptors.response.use(
 );
 
 export default vendorApi;
-

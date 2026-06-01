@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import "../../../public/assets/css/addModalShared.css";
 import "./UserWizardModal.css";
 import {
@@ -8,6 +8,11 @@ import {
   sanitizePhoneDigits,
   validatePhoneNumber,
 } from "../../utils/phoneUtils";
+
+const YES_NO_OPTIONS = [
+  { value: "YES", label: "Yes" },
+  { value: "NO", label: "No" },
+];
 
 export default function EmployeeWizardModal({
   wizardStep,
@@ -37,9 +42,10 @@ export default function EmployeeWizardModal({
   const [viewer, setViewer] = useState(null); // { title, url }
   const [viewerObjectUrl, setViewerObjectUrl] = useState(null);
   const [phoneError, setPhoneError] = useState("");
+  const experienceCertificateInputRef = useRef(null);
 
   const apiBase = useMemo(
-    () => (import.meta.env.VITE_API_URL || "http://localhost:8081").replace(/\/+$/, ""),
+    () => (import.meta.env.VITE_API_URL || "http://localhost:8082").replace(/\/+$/, ""),
     [],
   );
 
@@ -95,6 +101,21 @@ export default function EmployeeWizardModal({
       const url = fileOrPath instanceof File ? null : toFileUrl(fileOrPath);
       if (url) window.open(url, "_blank", "noreferrer");
     }
+  };
+
+  const handleDeclarationDateChange = (value) => {
+    setForm((prev) => {
+      if (!value) {
+        return { ...prev, declarationDate: "" };
+      }
+
+      const [year] = String(value).split("-");
+      if (!year || year.length !== 4 || !/^\d{4}$/.test(year)) {
+        return prev;
+      }
+
+      return { ...prev, declarationDate: value };
+    });
   };
 
   useEffect(() => {
@@ -336,15 +357,6 @@ export default function EmployeeWizardModal({
                       />
                     </div>
                     <div className="col-md-6">
-                      <label className="form-label">Date of Joining</label>
-                      <input
-                        type="date"
-                        className="form-control user-wizard-input"
-                        value={form.dateOfJoining}
-                        onChange={(e) => setForm((p) => ({ ...p, dateOfJoining: e.target.value }))}
-                      />
-                    </div>
-                    <div className="col-md-6">
                       <label className="form-label">Current Address</label>
                       <textarea
                         rows={2}
@@ -531,23 +543,6 @@ export default function EmployeeWizardModal({
                       )}
                     </div>
                     <div className="col-md-6">
-                      <label className="form-label">Employment Details (Upload Experience Certificate)</label>
-                      <input type="file" className="form-control user-wizard-input" onChange={(e) => setForm((p) => ({ ...p, uploadExperienceCertificate: e.target.files?.[0] || null }))} />
-                      {(form.uploadExperienceCertificate || form.experienceCertificatePath) && (
-                        <div className="mt-1 small">
-                          <a
-                            href="#"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              openViewer("Experience Certificate", form.uploadExperienceCertificate || form.experienceCertificatePath);
-                            }}
-                          >
-                            {form.uploadExperienceCertificate ? form.uploadExperienceCertificate.name : getDisplayName(form.experienceCertificatePath)} (View)
-                          </a>
-                        </div>
-                      )}
-                    </div>
-                    <div className="col-md-6">
                       <label className="form-label">Graduation Certificate</label>
                       <input type="file" className="form-control user-wizard-input" onChange={(e) => setForm((p) => ({ ...p, uploadGraduationCertificate: e.target.files?.[0] || null }))} />
                       {(form.uploadGraduationCertificate || form.graduationCertificatePath) && (
@@ -653,17 +648,164 @@ export default function EmployeeWizardModal({
                       <label className="form-label">Bank & Branch</label>
                       <input type="text" className="form-control user-wizard-input" value={form.bankAndBranch} onChange={(e) => setForm((p) => ({ ...p, bankAndBranch: e.target.value }))} />
                     </div>
-                    <div className="col-md-6">
-                      <label className="form-label">Employment Details (Last Two Organizations) 1</label>
-                      <textarea rows={2} className="form-control user-wizard-input" value={form.employmentDetails1} onChange={(e) => setForm((p) => ({ ...p, employmentDetails1: e.target.value }))} />
+                    <div className="col-12">
+                      <hr className="my-1" />
+                      <h6 className="mb-0">Previous Employment</h6>
                     </div>
                     <div className="col-md-6">
-                      <label className="form-label">Employment Details (Last Two Organizations) 2</label>
-                      <textarea rows={2} className="form-control user-wizard-input" value={form.employmentDetails2} onChange={(e) => setForm((p) => ({ ...p, employmentDetails2: e.target.value }))} />
+                      <label className="form-label">Previous Company Joining Date</label>
+                      <input
+                        type="date"
+                        className="form-control user-wizard-input"
+                        value={form.previousEmploymentJoiningDate}
+                        onChange={(e) => setForm((p) => ({ ...p, previousEmploymentJoiningDate: e.target.value }))}
+                      />
+                    </div>
+                    <div className="col-md-6">
+                      <label className="form-label">Relieving Date</label>
+                      <input
+                        type="date"
+                        className="form-control user-wizard-input"
+                        value={form.previousEmploymentRelievingDate}
+                        onChange={(e) => setForm((p) => ({ ...p, previousEmploymentRelievingDate: e.target.value }))}
+                      />
+                    </div>
+                    <div className="col-md-6">
+                      <label className="form-label">Salary at the Time of Joining</label>
+                      <input
+                        type="number"
+                        step="any"
+                        className="form-control user-wizard-input"
+                        value={form.previousEmploymentSalaryAtJoining}
+                        onChange={(e) => setForm((p) => ({ ...p, previousEmploymentSalaryAtJoining: e.target.value }))}
+                      />
+                    </div>
+                    <div className="col-md-6">
+                      <label className="form-label">Salary at the Time of Relieving</label>
+                      <input
+                        type="number"
+                        step="any"
+                        className="form-control user-wizard-input"
+                        value={form.previousEmploymentSalaryAtRelieving}
+                        onChange={(e) => setForm((p) => ({ ...p, previousEmploymentSalaryAtRelieving: e.target.value }))}
+                      />
+                    </div>
+                    <div className="col-md-6">
+                      <label className="form-label">Whether Relieved with Notice Period</label>
+                      <select
+                        className="form-select user-wizard-input"
+                        value={form.previousEmploymentRelievedWithNoticePeriod}
+                        onChange={(e) => setForm((p) => ({ ...p, previousEmploymentRelievedWithNoticePeriod: e.target.value }))}
+                      >
+                        <option value="">Select</option>
+                        {YES_NO_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="col-md-6">
+                      <label className="form-label">Whether Absconded</label>
+                      <select
+                        className="form-select user-wizard-input"
+                        value={form.previousEmploymentAbsconded}
+                        onChange={(e) => setForm((p) => ({ ...p, previousEmploymentAbsconded: e.target.value }))}
+                      >
+                        <option value="">Select</option>
+                        {YES_NO_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="col-md-6">
+                      <label className="form-label">Designation at the Time of Joining</label>
+                      <input
+                        type="text"
+                        className="form-control user-wizard-input"
+                        value={form.previousEmploymentDesignationAtJoining}
+                        onChange={(e) => setForm((p) => ({ ...p, previousEmploymentDesignationAtJoining: e.target.value }))}
+                      />
+                    </div>
+                    <div className="col-md-6">
+                      <label className="form-label">Designation at the Time of Relieving</label>
+                      <input
+                        type="text"
+                        className="form-control user-wizard-input"
+                        value={form.previousEmploymentDesignationAtRelieving}
+                        onChange={(e) => setForm((p) => ({ ...p, previousEmploymentDesignationAtRelieving: e.target.value }))}
+                      />
+                    </div>
+                    <div className="col-md-6">
+                      <label className="form-label">Previous Company Manager Name</label>
+                      <input
+                        type="text"
+                        className="form-control user-wizard-input"
+                        value={form.previousEmploymentManagerName}
+                        onChange={(e) => setForm((p) => ({ ...p, previousEmploymentManagerName: e.target.value }))}
+                      />
+                    </div>
+                    <div className="col-md-6">
+                      <label className="form-label">Manager Mobile Number</label>
+                      <input
+                        type="tel"
+                        className="form-control user-wizard-input"
+                        value={form.previousEmploymentManagerMobileNumber}
+                        onChange={(e) => setForm((p) => ({ ...p, previousEmploymentManagerMobileNumber: e.target.value }))}
+                      />
+                    </div>
+                    <div className="col-md-12">
+                      <label className="form-label">Previous Company Address</label>
+                      <textarea
+                        rows={2}
+                        className="form-control user-wizard-input"
+                        value={form.previousEmploymentCompanyAddress}
+                        onChange={(e) => setForm((p) => ({ ...p, previousEmploymentCompanyAddress: e.target.value }))}
+                      />
+                    </div>
+                    <div className="col-md-6">
+                      <label className="form-label">Experience Certificate</label>
+                      <input
+                        ref={experienceCertificateInputRef}
+                        type="file"
+                        className="d-none"
+                        onChange={(e) => setForm((p) => ({ ...p, uploadExperienceCertificate: e.target.files?.[0] || null }))}
+                      />
+                      <div className="d-flex flex-wrap align-items-center gap-2">
+                        <button
+                          type="button"
+                          className="btn btn-outline-primary btn-sm"
+                          onClick={() => experienceCertificateInputRef.current?.click()}
+                        >
+                          {form.uploadExperienceCertificate || form.experienceCertificatePath ? "Update file" : "Upload file"}
+                        </button>
+                        {form.uploadExperienceCertificate ? (
+                          <span className="small text-muted">{form.uploadExperienceCertificate.name}</span>
+                        ) : null}
+                      </div>
+                      {(form.uploadExperienceCertificate || form.experienceCertificatePath) && (
+                        <div className="mt-1 small">
+                          <a
+                            href="#"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              openViewer("Experience Certificate", form.uploadExperienceCertificate || form.experienceCertificatePath);
+                            }}
+                          >
+                            {form.uploadExperienceCertificate ? form.uploadExperienceCertificate.name : getDisplayName(form.experienceCertificatePath)} (View)
+                          </a>
+                        </div>
+                      )}
                     </div>
                     <div className="col-md-4">
                       <label className="form-label">Graduation Details *</label>
-                      <select className="form-select user-wizard-input" value={form.graduationDetails} onChange={(e) => setForm((p) => ({ ...p, graduationDetails: e.target.value }))}>
+                      <select
+                        className="form-select user-wizard-input"
+                        value={form.graduationDetails}
+                        onChange={(e) => setForm((p) => ({ ...p, graduationDetails: e.target.value }))}
+                      >
                         <option value="">Select</option>
                         <option value="UG">UG</option>
                         <option value="PG">PG</option>
@@ -673,12 +815,21 @@ export default function EmployeeWizardModal({
                     </div>
                     <div className="col-md-4">
                       <label className="form-label">HSC Mark & Year *</label>
-                      <input type="text" className="form-control user-wizard-input" value={form.hscMarkAndYear} onChange={(e) => setForm((p) => ({ ...p, hscMarkAndYear: e.target.value }))} />
+                      <input
+                        type="text"
+                        className="form-control user-wizard-input"
+                        value={form.hscMarkAndYear}
+                        onChange={(e) => setForm((p) => ({ ...p, hscMarkAndYear: e.target.value }))}
+                      />
                     </div>
-                    
                     <div className="col-md-4">
                       <label className="form-label">SSLC Mark & Year *</label>
-                      <input type="text" className="form-control user-wizard-input" value={form.sslcMarkAndYear} onChange={(e) => setForm((p) => ({ ...p, sslcMarkAndYear: e.target.value }))} />
+                      <input
+                        type="text"
+                        className="form-control user-wizard-input"
+                        value={form.sslcMarkAndYear}
+                        onChange={(e) => setForm((p) => ({ ...p, sslcMarkAndYear: e.target.value }))}
+                      />
                     </div>
 
                     <div className="col-12">
@@ -861,7 +1012,13 @@ export default function EmployeeWizardModal({
                     </div>
                     <div className="col-md-6">
                       <label className="form-label">Declaration (Date)</label>
-                      <input type="date" className="form-control user-wizard-input" value={form.declarationDate} onChange={(e) => setForm((p) => ({ ...p, declarationDate: e.target.value }))} />
+                      <input
+                        type="date"
+                        className="form-control user-wizard-input"
+                        value={form.declarationDate}
+                        max="9999-12-31"
+                        onChange={(e) => handleDeclarationDateChange(e.target.value)}
+                      />
                     </div>
                     <div className="col-md-6">
                       <label className="form-label">Declaration (Place)</label>

@@ -20,6 +20,7 @@ import {
   QUOTATION_STATUS_SENT,
   QUOTATION_STATUS_VERIFICATION_PENDING,
   downloadQuotationPdf,
+  openQuotationPdfPreview,
   setQuotationDraft,
 } from "../../utils/quotationUtils";
 import { getQuotationTemplate } from "../../api/quotationTemplateApi";
@@ -175,6 +176,15 @@ export default function QuotationListPage() {
   const handleEdit = (quotation) => {
     setQuotationDraft(quotation);
     navigate("/quotation");
+  };
+
+  const handleView = (quotation) => {
+    setActionError("");
+    openQuotationPdfPreview(quotation, quotationTemplate || {})
+      .catch((error) => {
+        console.error("Failed to open quotation PDF preview", error);
+        setActionError("Failed to open quotation PDF preview.");
+      });
   };
 
   const handleDownload = async (quotation) => {
@@ -437,6 +447,7 @@ export default function QuotationListPage() {
                       const statusUi = getStatusUi(status);
                       const canEditForEmployee = status === QUOTATION_STATUS_DRAFT || status === QUOTATION_STATUS_NEGOTIATING;
                       const canDownloadForEmployee = status === QUOTATION_STATUS_APPROVED || status === QUOTATION_STATUS_ACCEPTED;
+                      const canViewQuotation = status !== QUOTATION_STATUS_DRAFT;
                       const canApprove = canApproveQuotation(quotation, userRole, user);
 
                       return (
@@ -481,10 +492,10 @@ export default function QuotationListPage() {
                           <td>
                             <div className="small">
                               <div>
-                                <strong>Emp:</strong> {quotation.verificationRequestNotes || "-"}
+                                <strong>Employee:</strong> {quotation.verificationRequestNotes || "-"}
                               </div>
                               <div>
-                                <strong>Auth:</strong> {quotation.approvalNotes || "-"}
+                                <strong>Branch Head:</strong> {quotation.approvalNotes || "-"}
                               </div>
                             </div>
                           </td>
@@ -499,6 +510,17 @@ export default function QuotationListPage() {
                                 <i className="ti ti-edit me-1"></i>
                                 Edit
                               </button>
+
+                              {canViewQuotation && (
+                                <button
+                                  type="button"
+                                  className="btn btn-outline-primary btn-sm"
+                                  onClick={() => handleView(quotation)}
+                                >
+                                  <i className="ti ti-eye me-1"></i>
+                                  View
+                                </button>
+                              )}
 
                               <button
                                 type="button"
