@@ -53,6 +53,9 @@ public class QuotationTemplate {
     @Column(name = "signature_base64", columnDefinition = "TEXT")
     private String signatureBase64;
 
+    @Column(name = "watermark_base64", columnDefinition = "TEXT")
+    private String watermarkBase64;
+
     @Column(name = "bank_name", length = 200)
     private String bankName;
 
@@ -139,6 +142,9 @@ public class QuotationTemplate {
 
     public String getSignatureBase64() { return signatureBase64; }
     public void setSignatureBase64(String signatureBase64) { this.signatureBase64 = signatureBase64; }
+
+    public String getWatermarkBase64() { return watermarkBase64; }
+    public void setWatermarkBase64(String watermarkBase64) { this.watermarkBase64 = watermarkBase64; }
 
     public String getBankName() { return bankName; }
     public void setBankName(String bankName) { this.bankName = bankName; }

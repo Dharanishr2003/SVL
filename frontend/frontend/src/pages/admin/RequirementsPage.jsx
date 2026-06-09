@@ -8,6 +8,7 @@ import { getServiceCategories } from "../../api/serviceCategoriesApi";
 import { getServiceTypes } from "../../api/serviceTypesApi";
 import { getLeads } from "../../api/leadsApi";
 import { getRequirementsByLeadId, deleteRequirement } from "../../api/requirementApi";
+import "./RequirementsPage.css";
 
 export default function RequirementsPage() {
   const navigate = useNavigate();
@@ -137,11 +138,12 @@ export default function RequirementsPage() {
 
         <div className="card table-list-card">
           <div className="card-body">
-            <div className="filter-set">
-              <div className="filter-search">
-                <i className="ti ti-search"></i>
+            <div className="leads-search-row">
+              <div className="leads-search-box">
+                <label className="mb-0 leads-search-label">Search</label>
                 <input
                   type="text"
+                  className="form-control leads-search-input"
                   placeholder="Search by name, mobile, or owner"
                   value={searchText}
                   onChange={(e) => setSearchText(e.target.value)}

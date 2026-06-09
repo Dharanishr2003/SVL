@@ -19,6 +19,7 @@ const EMPTY_FORM = {
   udyamNumber: "",
   logoBase64: null,
   signatureBase64: null,
+  watermarkBase64: null,
   bankName: "",
   accountNumber: "",
   ifscCode: "",
@@ -273,6 +274,20 @@ export default function QuotationTemplatePage() {
             value={form.signatureBase64}
             onChange={(e) => handleImageChange("signatureBase64", e)}
             onClear={() => handleChange("signatureBase64", null)}
+          />
+        </div>
+      </div>
+
+      <div className="qp-card">
+        <div className="qp-card-label">Watermark</div>
+        <div className="qt-upload-sections qt-upload-sections-single">
+          <ImageUploadBlock
+            label="Quotation Watermark"
+            helperLabel="Faint background image repeated on every PDF page. Use a transparent PNG for best results."
+            maxPreviewHeight={180}
+            value={form.watermarkBase64}
+            onChange={(e) => handleImageChange("watermarkBase64", e)}
+            onClear={() => handleChange("watermarkBase64", null)}
           />
         </div>
       </div>

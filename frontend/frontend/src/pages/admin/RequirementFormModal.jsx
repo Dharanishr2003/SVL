@@ -130,6 +130,45 @@ function isSundayIsoDate(value) {
   return new Date(year, month - 1, day).getDay() === 0;
 }
 
+function createEmptyCustomSpecDialog() {
+  return {
+    open: false,
+    field: null,
+    value: "",
+    isFlexCustomSize: false,
+    dimensionValues: {},
+    customSizeUnitLabel: "ft",
+    sizeUnit: "mm",
+  };
+}
+
+function getRequirementFormSeed(requirement = null) {
+  let parsedSpecs = {};
+  try {
+    parsedSpecs = requirement?.specs ? JSON.parse(requirement.specs) : {};
+  } catch {
+    parsedSpecs = {};
+  }
+
+  return {
+    categoryId: requirement?.categoryId ? String(requirement.categoryId) : "",
+    typeId: requirement?.typeId ? String(requirement.typeId) : "",
+    subtypeId: requirement?.subtypeId ? String(requirement.subtypeId) : "",
+    quantity: requirement?.quantity != null ? String(requirement.quantity) : "",
+    specs: parsedSpecs,
+    designNotes: requirement?.designNotes || "",
+    stylePreference: requirement?.stylePreference || "",
+    colourPreference: requirement?.colourPreference || "",
+    referenceNotes: requirement?.referenceNotes || "",
+    brandColours: requirement?.brandColours || "",
+    designMode: requirement?.designStatus || "",
+    deliveryDate: isSundayIsoDate(requirement?.deliveryDate)
+      ? ""
+      : normalizeIsoDateWithFourDigitYear(requirement?.deliveryDate || ""),
+    specialInstructions: requirement?.specialInstructions || "",
+  };
+}
+
 async function collectDroppedFiles(items) {
   const collected = [];
 
@@ -192,14 +231,7 @@ export default function RequirementFormModal({
   const [subtypeId, setSubtypeId] = useState("");
   const [quantity, setQuantity] = useState("");
   const [specs, setSpecs] = useState({});
-  const [customSpecDialog, setCustomSpecDialog] = useState({
-    open: false,
-    field: null,
-    value: "",
-    isFlexCustomSize: false,
-    dimensionValues: {},
-    sizeUnit: "mm",
-  });
+  const [customSpecDialog, setCustomSpecDialog] = useState(() => createEmptyCustomSpecDialog());
   // Map of fieldKey → string[] of saved custom options for current type/subtype
   const [customOptionsByFieldKey, setCustomOptionsByFieldKey] = useState({});
 
@@ -220,6 +252,32 @@ export default function RequirementFormModal({
   const [files, setFiles] = useState([]);
   const isEditing = Boolean(initialRequirement?.id);
 
+  const applyRequirementSeed = useCallback((requirement = null) => {
+    const seed = getRequirementFormSeed(requirement);
+
+    setStep(0);
+    setError("");
+    setCategoryId(seed.categoryId);
+    setTypeId(seed.typeId);
+    setSubtypeId(seed.subtypeId);
+    setQuantity(seed.quantity);
+    setSpecs(seed.specs);
+    setDesignNotes(seed.designNotes);
+    setStylePreference(seed.stylePreference);
+    setColourPreference(seed.colourPreference);
+    setReferenceNotes(seed.referenceNotes);
+    setBrandColours(seed.brandColours);
+    setDesignMode(seed.designMode);
+    setIsDragActive(false);
+    setDeliveryDate(seed.deliveryDate);
+    setSpecialInstructions(seed.specialInstructions);
+    setFiles([]);
+    setCustomSpecDialog(createEmptyCustomSpecDialog());
+    setCustomOptionsByFieldKey({});
+    setProductFields([]);
+    setFieldsLoading(false);
+  }, []);
+
   const handleModalClose = useCallback(() => {
     if (saving) return;
     setError("");
@@ -230,43 +288,9 @@ export default function RequirementFormModal({
   // Reset form when modal opens
   useEffect(() => {
     if (show) {
-      setStep(0);
-      setError("");
-      let parsedSpecs = {};
-      try {
-        parsedSpecs = initialRequirement?.specs
-          ? JSON.parse(initialRequirement.specs)
-          : {};
-      } catch {
-        parsedSpecs = {};
-      }
-      setCategoryId(initialRequirement?.categoryId ? String(initialRequirement.categoryId) : "");
-      setTypeId(initialRequirement?.typeId ? String(initialRequirement.typeId) : "");
-      setSubtypeId(initialRequirement?.subtypeId ? String(initialRequirement.subtypeId) : "");
-      setQuantity(
-        initialRequirement?.quantity != null ? String(initialRequirement.quantity) : "",
-      );
-      setSpecs(parsedSpecs);
-      setDesignNotes(initialRequirement?.designNotes || "");
-      setStylePreference(initialRequirement?.stylePreference || "");
-      setColourPreference(initialRequirement?.colourPreference || "");
-      setReferenceNotes(initialRequirement?.referenceNotes || "");
-      setBrandColours(initialRequirement?.brandColours || "");
-      setDesignMode(initialRequirement?.designStatus || "");
-      setIsDragActive(false);
-      setDeliveryDate(isSundayIsoDate(initialRequirement?.deliveryDate) ? "" : normalizeIsoDateWithFourDigitYear(initialRequirement?.deliveryDate || ""));
-      setSpecialInstructions(initialRequirement?.specialInstructions || "");
-      setFiles([]);
-      setCustomSpecDialog({
-        open: false,
-        field: null,
-        value: "",
-        isFlexCustomSize: false,
-        dimensionValues: {},
-        sizeUnit: "mm",
-      });
+      applyRequirementSeed(initialRequirement);
     }
-  }, [show, initialRequirement]);
+  }, [applyRequirementSeed, show, initialRequirement]);
 
   // Derived lists
   const typeOptions = useMemo(() => {
@@ -602,13 +626,15 @@ export default function RequirementFormModal({
 
   const handleFileChange = (e) => {
     const selected = Array.from(e.target.files || []);
-    setFiles((prev) => [...prev, ...selected]);
+    if (selected.length > 0) {
+      setFiles((prev) => [...prev, ...selected]);
+    }
+    e.target.value = "";
   };
 
   const handleDragOver = (e) => {
     e.preventDefault();
     e.stopPropagation();
-    if (designMode !== "production_only") return;
     setIsDragActive(true);
   };
 
@@ -622,7 +648,6 @@ export default function RequirementFormModal({
     e.preventDefault();
     e.stopPropagation();
     setIsDragActive(false);
-    if (designMode !== "production_only") return;
     try {
       const droppedFiles = await collectDroppedFiles(e.dataTransfer?.items);
       if (droppedFiles.length > 0) {
@@ -678,8 +703,6 @@ export default function RequirementFormModal({
       return true;
     }
     if (s === designStep) {
-      // designMode is already required in step 0, so just check file upload for production_only
-      if (designMode === "production_only") return files.length > 0;
       return true;
     }
     return true;
@@ -715,8 +738,6 @@ export default function RequirementFormModal({
       } else {
         setError("Please complete the specifications");
       }
-      } else if (step === designStep) {
-        if (designMode === "production_only" && files.length === 0) setError("Please upload at least one design file before proceeding");
       }
       return;
     }
@@ -836,8 +857,7 @@ export default function RequirementFormModal({
                       type="button"
                       className="btn btn-link btn-sm p-0"
                       onClick={() => {
-                        setStep(0);
-                        setError("");
+                        applyRequirementSeed(isEditing ? initialRequirement : null);
                       }}
                     >
                       Reset
@@ -1236,59 +1256,55 @@ export default function RequirementFormModal({
                           </div>
                         </div>
 
-                        {/* Production Only: folder upload */}
-                        {designMode === "production_only" && (
-                          <div className="col-12">
-                            <label className="form-label fw-semibold">Design Folder</label>
-                            <label
-                              className={`w-100 rounded-3 p-4 text-center ${isDragActive ? "border border-primary bg-light" : "border border-secondary-subtle"}`}
-                              onDragOver={handleDragOver}
-                              onDragLeave={handleDragLeave}
-                              onDrop={handleDrop}
-                              style={{ cursor: "pointer", borderStyle: "dashed" }}
-                            >
-                              <input
-                                type="file"
-                                className="d-none"
-                                multiple
-                                webkitdirectory=""
-                                directory=""
-                                onChange={handleFileChange}
-                              />
-                              <div className="fw-semibold mb-1">
-                                Drag and drop the design folder here
-                              </div>
-                              <small className="text-muted">
-                                or click this area to choose the folder
-                              </small>
-                            </label>
-                            {files.length > 0 && (
-                              <div className="mt-2">
-                                {files.map((f, i) => (
-                                  <div
-                                    key={`${f.name}-${i}`}
-                                    className="d-flex align-items-center gap-2 py-1"
+                        {/* Optional design upload for all modes */}
+                        <div className="col-12">
+                          <label className="form-label fw-semibold">Design Files</label>
+                          <label
+                            className={`w-100 rounded-3 p-4 text-center ${isDragActive ? "border border-primary bg-light" : "border border-secondary-subtle"}`}
+                            onDragOver={handleDragOver}
+                            onDragLeave={handleDragLeave}
+                            onDrop={handleDrop}
+                            style={{ cursor: "pointer", borderStyle: "dashed" }}
+                          >
+                            <input
+                              type="file"
+                              className="d-none"
+                              multiple
+                              onChange={handleFileChange}
+                            />
+                            <div className="fw-semibold mb-1">
+                              Drag and drop design files here
+                            </div>
+                            <small className="text-muted">
+                              or click this area to choose files
+                            </small>
+                          </label>
+                          {files.length > 0 && (
+                            <div className="mt-2">
+                              {files.map((f, i) => (
+                                <div
+                                  key={`${f.name}-${i}`}
+                                  className="d-flex align-items-center gap-2 py-1"
+                                >
+                                  <i className="ti ti-folder text-muted" />
+                                  <span className="text-truncate" style={{ maxWidth: 320 }}>
+                                    {f.name}
+                                  </span>
+                                  <small className="text-muted">
+                                    ({(f.size / 1024).toFixed(1)} KB)
+                                  </small>
+                                  <button
+                                    type="button"
+                                    className="btn btn-sm btn-outline-danger ms-auto"
+                                    onClick={() => removeFile(i)}
                                   >
-                                    <i className="ti ti-folder text-muted" />
-                                    <span className="text-truncate" style={{ maxWidth: 320 }}>
-                                      {f.name}
-                                    </span>
-                                    <small className="text-muted">
-                                      ({(f.size / 1024).toFixed(1)} KB)
-                                    </small>
-                                    <button
-                                      type="button"
-                                      className="btn btn-sm btn-outline-danger ms-auto"
-                                      onClick={() => removeFile(i)}
-                                    >
-                                      <i className="ti ti-x" />
-                                    </button>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        )}
+                                    <i className="ti ti-x" />
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
 
                         {/* Notes field for all modes */}
                         {designMode && (

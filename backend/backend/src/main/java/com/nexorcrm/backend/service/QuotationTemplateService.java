@@ -46,6 +46,7 @@ public class QuotationTemplateService {
         if (p.containsKey("udyamNumber"))       tpl.setUdyamNumber(str(p.get("udyamNumber")));
         if (p.containsKey("logoBase64"))        tpl.setLogoBase64(str(p.get("logoBase64")));
         if (p.containsKey("signatureBase64"))   tpl.setSignatureBase64(str(p.get("signatureBase64")));
+        if (p.containsKey("watermarkBase64"))   tpl.setWatermarkBase64(str(p.get("watermarkBase64")));
         if (p.containsKey("bankName"))          tpl.setBankName(str(p.get("bankName")));
         if (p.containsKey("accountNumber"))     tpl.setAccountNumber(str(p.get("accountNumber")));
         if (p.containsKey("ifscCode"))          tpl.setIfscCode(str(p.get("ifscCode")));
@@ -72,6 +73,7 @@ public class QuotationTemplateService {
         m.put("udyamNumber",        t.getUdyamNumber());
         m.put("logoBase64",         t.getLogoBase64());
         m.put("signatureBase64",    t.getSignatureBase64());
+        m.put("watermarkBase64",    t.getWatermarkBase64());
         m.put("bankName",           t.getBankName());
         m.put("accountNumber",      t.getAccountNumber());
         m.put("ifscCode",           t.getIfscCode());

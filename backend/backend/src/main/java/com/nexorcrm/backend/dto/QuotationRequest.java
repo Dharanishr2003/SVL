@@ -23,6 +23,10 @@ public class QuotationRequest {
     private String clientMobile;
     private String clientEmail;
     private String clientCompany;
+    private String clientAddress;
+    private String streetAddress;
+    private String clientState;
+    private String leadState;
     private BigDecimal discountPercent;
     private BigDecimal gstPercent;
     private BigDecimal gstPctTotal;
@@ -31,6 +35,8 @@ public class QuotationRequest {
     private BigDecimal igstPct;
     private Boolean includeDesignFee;
     private BigDecimal designFeeAmount;
+    private BigDecimal designFeeDiscountPct;
+    private BigDecimal designFeeGstPct;
     private String notes;
     private LocalDate validityDate;
     private String status;
@@ -47,6 +53,14 @@ public class QuotationRequest {
     public void setClientEmail(String clientEmail) { this.clientEmail = clientEmail; }
     public String getClientCompany() { return clientCompany; }
     public void setClientCompany(String clientCompany) { this.clientCompany = clientCompany; }
+    public String getClientAddress() { return clientAddress; }
+    public void setClientAddress(String clientAddress) { this.clientAddress = clientAddress; }
+    public String getStreetAddress() { return streetAddress; }
+    public void setStreetAddress(String streetAddress) { this.streetAddress = streetAddress; }
+    public String getClientState() { return clientState; }
+    public void setClientState(String clientState) { this.clientState = clientState; }
+    public String getLeadState() { return leadState; }
+    public void setLeadState(String leadState) { this.leadState = leadState; }
     public BigDecimal getDiscountPercent() { return discountPercent; }
     public void setDiscountPercent(BigDecimal discountPercent) { this.discountPercent = discountPercent; }
     public BigDecimal getGstPercent() { return gstPercent; }
@@ -63,6 +77,10 @@ public class QuotationRequest {
     public void setIncludeDesignFee(Boolean includeDesignFee) { this.includeDesignFee = includeDesignFee; }
     public BigDecimal getDesignFeeAmount() { return designFeeAmount; }
     public void setDesignFeeAmount(BigDecimal designFeeAmount) { this.designFeeAmount = designFeeAmount; }
+    public BigDecimal getDesignFeeDiscountPct() { return designFeeDiscountPct; }
+    public void setDesignFeeDiscountPct(BigDecimal designFeeDiscountPct) { this.designFeeDiscountPct = designFeeDiscountPct; }
+    public BigDecimal getDesignFeeGstPct() { return designFeeGstPct; }
+    public void setDesignFeeGstPct(BigDecimal designFeeGstPct) { this.designFeeGstPct = designFeeGstPct; }
     public String getNotes() { return notes; }
     public void setNotes(String notes) { this.notes = notes; }
     public LocalDate getValidityDate() { return validityDate; }

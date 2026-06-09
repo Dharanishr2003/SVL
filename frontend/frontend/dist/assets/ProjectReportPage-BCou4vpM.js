@@ -1,0 +1,1 @@
+import{j as r}from"./index-CXELLqsm.js";function s(){return r.jsx("div",{className:"card",children:r.jsxs("div",{className:"card-body",children:[r.jsx("h4",{className:"mb-2",children:"Project Report"}),r.jsx("p",{className:"mb-0",children:"Layout working confirmation."})]})})}export{s as default};

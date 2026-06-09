@@ -16,8 +16,13 @@ import com.nexorcrm.backend.entity.BranchMaster;
 import com.nexorcrm.backend.entity.DepartmentMaster;
 import com.nexorcrm.backend.entity.DesignationMaster;
 import jakarta.persistence.EntityNotFoundException;
+import org.springframework.core.io.FileSystemResource;
+import org.springframework.core.io.Resource;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.MediaType;
+import org.springframework.http.MediaTypeFactory;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -29,6 +34,9 @@ import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.security.SecureRandom;
 import java.time.format.DateTimeFormatter;
 import java.time.LocalDateTime;
@@ -85,6 +93,9 @@ public class EmployeeProfileFormService {
 
     @Value("${app.employee-form.required-docs:PHOTO,RESUME,CERTIFICATE}")
     private String requiredDocsConfig;
+
+    @Value("${app.upload-dir:uploads}")
+    private String uploadDir;
 
     public EmployeeProfileFormService(
             EmployeeRepository employeeRepository,
@@ -438,7 +449,7 @@ public class EmployeeProfileFormService {
                 res.getFields().add(toPublicFieldDto(employee, fk, verifications.get(fk.getKey())));
             }
             for (EmployeeDocumentType dt : rejectedUploadTypes(docsByType)) {
-                res.getUploads().add(toPublicUploadDto(dt, docsByType.getOrDefault(dt, List.of())));
+                res.getUploads().add(toPublicUploadDto(employee, dt, docsByType.getOrDefault(dt, List.of())));
             }
         } else {
             for (EmployeePublicFieldKey fk : EmployeePublicFieldKey.values()) {
@@ -446,7 +457,7 @@ public class EmployeeProfileFormService {
                 res.getFields().add(toPublicFieldDto(employee, fk, verifications.get(fk.getKey())));
             }
             for (EmployeeDocumentType dt : EmployeeDocumentType.values()) {
-                res.getUploads().add(toPublicUploadDto(dt, docsByType.getOrDefault(dt, List.of())));
+                res.getUploads().add(toPublicUploadDto(employee, dt, docsByType.getOrDefault(dt, List.of())));
             }
         }
 
@@ -546,7 +557,7 @@ public class EmployeeProfileFormService {
             EmployeeVerificationDocumentDto dto = new EmployeeVerificationDocumentDto();
             dto.setId(d.getId());
             dto.setDocType(d.getDocType());
-            dto.setFileUrl("/" + normalizeUploadPath(d.getFilePath()));
+            dto.setFileUrl("/api/employees/" + employeeId + "/documents/" + d.getId() + "/file");
             dto.setOriginalFilename(d.getOriginalFilename());
             dto.setStatus(d.getStatus());
             dto.setRemarks(d.getRemarks());
@@ -555,6 +566,33 @@ public class EmployeeProfileFormService {
         }
 
         return res;
+    }
+
+    @Transactional(readOnly = true)
+    public ResponseEntity<Resource> getDocumentFile(Long employeeId, Long documentId) {
+        EmployeeDocument doc = documentRepository.findById(documentId)
+                .filter(d -> Objects.equals(d.getEmployeeId(), employeeId))
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Document not found"));
+
+        Path resolvedPath = resolveEmployeeDocumentPath(doc.getFilePath());
+        Resource resource = new FileSystemResource(resolvedPath.toFile());
+        if (!resource.exists() || !resource.isReadable()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Document file not found");
+        }
+
+        String filename = StringUtils.hasText(doc.getOriginalFilename())
+                ? doc.getOriginalFilename().replace("\"", "")
+                : resolvedPath.getFileName().toString().replace("\"", "");
+
+        MediaType mediaType = parseMediaType(doc.getContentType())
+                .or(() -> MediaTypeFactory.getMediaType(filename))
+                .or(() -> MediaTypeFactory.getMediaType(resolvedPath.getFileName().toString()))
+                .orElse(MediaType.APPLICATION_OCTET_STREAM);
+
+        return ResponseEntity.ok()
+                .contentType(mediaType)
+                .header("Content-Disposition", "inline; filename=\"" + filename + "\"")
+                .body(resource);
     }
 
     @Transactional
@@ -725,6 +763,7 @@ public class EmployeeProfileFormService {
             case PAN_CARD -> employee.setPanCardPath(relativePath);
             case BANK_PASSBOOK -> employee.setBankPassbookPath(relativePath);
             case EXPERIENCE_CERTIFICATE -> employee.setExperienceCertificatePath(relativePath);
+            case CERTIFICATE -> employee.setCertificatePath(relativePath);
             case GRADUATION_CERTIFICATE -> employee.setGraduationCertificatePath(relativePath);
             case GRADUATION_MARKSHEET -> employee.setGraduationMarksheetPath(relativePath);
             case HSC_MARKSHEET -> employee.setHscMarksheetPath(relativePath);
@@ -789,6 +828,7 @@ public class EmployeeProfileFormService {
     private boolean hasLegacyCertificatePath(Employee employee) {
         return employee != null && (
                 StringUtils.hasText(employee.getExperienceCertificatePath())
+                        || StringUtils.hasText(employee.getCertificatePath())
                         || StringUtils.hasText(employee.getGraduationCertificatePath())
                         || StringUtils.hasText(employee.getGraduationMarksheetPath())
                         || StringUtils.hasText(employee.getHscMarksheetPath())
@@ -838,11 +878,14 @@ public class EmployeeProfileFormService {
         return dto;
     }
 
-    private PublicEmployeeFormUploadDto toPublicUploadDto(EmployeeDocumentType dt, List<EmployeeDocument> docs) {
+    private PublicEmployeeFormUploadDto toPublicUploadDto(Employee employee, EmployeeDocumentType dt, List<EmployeeDocument> docs) {
         PublicEmployeeFormUploadDto dto = new PublicEmployeeFormUploadDto();
         dto.setDocType(dt);
         dto.setLabel(prettyDocLabel(dt));
         UploadStatus status = currentUploadStatus(docs, dt);
+        if (status.status() == null && dt == EmployeeDocumentType.CERTIFICATE && hasLegacyCertificatePath(employee)) {
+            status = new UploadStatus(VerificationStatus.APPROVED, null);
+        }
         dto.setStatus(status.status());
         dto.setRemarks(status.remarks());
         return dto;
@@ -987,6 +1030,45 @@ public class EmployeeProfileFormService {
     private static String normalizeUploadPath(String filePath) {
         String p = String.valueOf(filePath == null ? "" : filePath).replace("\\", "/");
         return p.replaceFirst("^/+", "");
+    }
+
+    private Path resolveEmployeeDocumentPath(String filePath) {
+        if (!StringUtils.hasText(filePath)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Document file not found");
+        }
+
+        Path uploadRoot = Paths.get(uploadDir).toAbsolutePath().normalize();
+        String raw = filePath.trim().replace("\\", "/");
+        String normalized = raw;
+        if (normalized.contains("/uploads/")) {
+            normalized = normalized.substring(normalized.indexOf("/uploads/") + "/uploads/".length());
+        }
+        normalized = normalized.replaceFirst("^uploads/", "").replaceFirst("^/+", "");
+
+        Path resolvedPath;
+        Path rawPath = Paths.get(raw);
+        if (rawPath.isAbsolute()) {
+            resolvedPath = rawPath.toAbsolutePath().normalize();
+        } else {
+            resolvedPath = uploadRoot.resolve(normalized).normalize();
+        }
+
+        if (!resolvedPath.startsWith(uploadRoot) || !Files.isRegularFile(resolvedPath) || !Files.isReadable(resolvedPath)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Document file not found");
+        }
+
+        return resolvedPath;
+    }
+
+    private static Optional<MediaType> parseMediaType(String contentType) {
+        if (!StringUtils.hasText(contentType)) {
+            return Optional.empty();
+        }
+        try {
+            return Optional.of(MediaType.parseMediaType(contentType));
+        } catch (Exception ignored) {
+            return Optional.empty();
+        }
     }
 
     private static String maskEmail(String email) {

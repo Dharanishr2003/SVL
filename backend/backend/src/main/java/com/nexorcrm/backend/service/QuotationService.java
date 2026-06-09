@@ -12,8 +12,10 @@ import com.nexorcrm.backend.entity.Quotation;
 import com.nexorcrm.backend.entity.Role;
 import com.nexorcrm.backend.entity.User;
 import com.nexorcrm.backend.entity.QuotationItem;
+import com.nexorcrm.backend.entity.GstMaster;
 import com.nexorcrm.backend.entity.Lead;
 import com.nexorcrm.backend.repo.QuotationRepository;
+import com.nexorcrm.backend.repo.GstMasterRepository;
 import com.nexorcrm.backend.repo.LeadRepository;
 import com.nexorcrm.backend.repo.UserRepository;
 import org.springframework.security.access.AccessDeniedException;
@@ -40,16 +42,19 @@ public class QuotationService {
     private final QuotationRepository quotationRepository;
     private final LeadRepository leadRepository;
     private final UserRepository userRepository;
+    private final GstMasterRepository gstMasterRepository;
     private final ObjectMapper objectMapper;
 
     public QuotationService(
             QuotationRepository quotationRepository,
             LeadRepository leadRepository,
             UserRepository userRepository,
+            GstMasterRepository gstMasterRepository,
             ObjectMapper objectMapper) {
         this.quotationRepository = quotationRepository;
         this.leadRepository = leadRepository;
         this.userRepository = userRepository;
+        this.gstMasterRepository = gstMasterRepository;
         this.objectMapper = objectMapper;
     }
 
@@ -60,12 +65,15 @@ public class QuotationService {
         quotation.setClientMobile(request.getClientMobile());
         quotation.setClientEmail(request.getClientEmail());
         quotation.setClientCompany(request.getClientCompany());
+        applyLeadSnapshot(quotation, request);
         quotation.setNotes(request.getNotes());
         quotation.setValidityDate(request.getValidityDate());
         String requestedStatus = normalizeStatus(request.getStatus());
         quotation.setStatus(requestedStatus != null ? requestedStatus : "DRAFT");
         quotation.setIncludeDesignFee(Boolean.TRUE.equals(request.getIncludeDesignFee()));
         quotation.setDesignFeeAmount(resolveDesignFeeAmount(request));
+        quotation.setDesignFeeDiscountPercent(resolveDesignFeeDiscountPercent(request, null));
+        quotation.setDesignFeeGstPercent(resolveDesignFeeGstPercent(request, null));
         if (request.getCreatedById() != null) quotation.setCreatedById(request.getCreatedById());
         if (request.getCreatedByName() != null) quotation.setCreatedByName(request.getCreatedByName());
         if (request.getCreatedByEmail() != null) quotation.setCreatedByEmail(request.getCreatedByEmail());
@@ -91,20 +99,21 @@ public class QuotationService {
                 QuotationItem item = new QuotationItem();
                 item.setQuotation(quotation);
                 item.setRequirementId(ir.getRequirementId());
+                item.setGstMasterId(resolveItemGstMasterId(ir.getGstMasterId()));
                 item.setProductName(ir.getProductName());
                 item.setSpecsSummary(ir.getSpecsSummary());
                 item.setSpecsJson(ir.getSpecsJson());
                 item.setQuantity(ir.getQuantity() != null ? ir.getQuantity() : 1);
                 item.setUnitPrice(ir.getUnitPrice() != null ? ir.getUnitPrice() : BigDecimal.ZERO);
-                BigDecimal lineTotal = item.getUnitPrice()
-                        .multiply(BigDecimal.valueOf(item.getQuantity()));
-                item.setLineTotal(lineTotal);
+                item.setDiscountPercent(resolveItemPercent(ir.getDiscountPct(), discountPercent));
+                item.setGstPercent(resolveItemGstPercent(ir.getGstMasterId(), ir.getGstPct(), gstPercent));
+                applyItemTotals(item);
                 item.setSortOrder(i);
                 items.add(item);
             }
         }
         quotation.setItems(items);
-        recomputeTotals(quotation, discountPercent, gstPercent);
+        recomputeTotals(quotation, request);
 
         applyApprovalMetadata(quotation, quotation.getStatus(), request);
 
@@ -136,6 +145,13 @@ public class QuotationService {
         r.setClientMobile(q.getClientMobile());
         r.setClientEmail(q.getClientEmail());
         r.setClientCompany(q.getClientCompany());
+        Lead leadSnapshot = resolveLeadSnapshot(q.getLeadId());
+        String clientAddress = firstNonBlank(q.getClientAddress(), leadSnapshot != null ? leadSnapshot.getStreetAddress() : null);
+        String clientState = firstNonBlank(q.getClientState(), leadSnapshot != null ? leadSnapshot.getLeadState() : null);
+        r.setClientAddress(clientAddress);
+        r.setStreetAddress(clientAddress);
+        r.setClientState(clientState);
+        r.setLeadState(clientState);
         r.setSubtotal(q.getSubtotal());
         r.setDiscountPercent(q.getDiscountPercent());
         r.setGstPercent(q.getGstPercent());
@@ -145,6 +161,8 @@ public class QuotationService {
         r.setIgstPct(q.getIgstPercent());
         r.setIncludeDesignFee(q.isIncludeDesignFee());
         r.setDesignFeeAmount(q.getDesignFeeAmount());
+        r.setDesignFeeDiscountPct(q.getDesignFeeDiscountPercent());
+        r.setDesignFeeGstPct(q.getDesignFeeGstPercent());
         r.setGrandTotal(q.getGrandTotal());
         r.setNotes(q.getNotes());
         r.setValidityDate(q.getValidityDate());
@@ -175,11 +193,27 @@ public class QuotationService {
         QuotationItemResponse r = new QuotationItemResponse();
         r.setId(item.getId());
         r.setRequirementId(item.getRequirementId());
+        r.setGstMasterId(item.getGstMasterId());
         r.setProductName(item.getProductName());
         r.setSpecsSummary(item.getSpecsSummary());
         r.setSpecsJson(item.getSpecsJson());
         r.setQuantity(item.getQuantity());
         r.setUnitPrice(item.getUnitPrice());
+        r.setDiscountPct(item.getDiscountPercent());
+        r.setGstPct(item.getGstPercent());
+        BigDecimal quantity = BigDecimal.valueOf(item.getQuantity() != null ? item.getQuantity() : 0);
+        BigDecimal unitPrice = scaleMoney(item.getUnitPrice());
+        BigDecimal baseAmount = unitPrice.multiply(quantity).setScale(2, RoundingMode.HALF_UP);
+        BigDecimal discountAmount = baseAmount.multiply(
+                clampNonNegativePercent(item.getDiscountPercent()).divide(new BigDecimal("100"), 10, RoundingMode.HALF_UP)
+        ).setScale(2, RoundingMode.HALF_UP);
+        BigDecimal taxableAmount = baseAmount.subtract(discountAmount);
+        BigDecimal gstAmount = taxableAmount.multiply(
+                clampNonNegativePercent(item.getGstPercent()).divide(new BigDecimal("100"), 10, RoundingMode.HALF_UP)
+        ).setScale(2, RoundingMode.HALF_UP);
+        r.setBaseAmount(baseAmount);
+        r.setDiscountAmount(discountAmount);
+        r.setGstAmount(gstAmount);
         r.setLineTotal(item.getLineTotal());
         r.setSortOrder(item.getSortOrder());
         return r;
@@ -220,10 +254,13 @@ public class QuotationService {
         q.setClientMobile(request.getClientMobile());
         q.setClientEmail(request.getClientEmail());
         q.setClientCompany(request.getClientCompany());
+        applyLeadSnapshot(q, request);
         q.setNotes(request.getNotes());
         q.setValidityDate(request.getValidityDate());
         q.setIncludeDesignFee(Boolean.TRUE.equals(request.getIncludeDesignFee()));
         q.setDesignFeeAmount(resolveDesignFeeAmount(request));
+        q.setDesignFeeDiscountPercent(resolveDesignFeeDiscountPercent(request, q));
+        q.setDesignFeeGstPercent(resolveDesignFeeGstPercent(request, q));
 
         String requestedStatus = normalizeStatus(request.getStatus());
         if (requestedStatus != null) {
@@ -245,20 +282,21 @@ public class QuotationService {
                 QuotationItem item = new QuotationItem();
                 item.setQuotation(q);
                 item.setRequirementId(ir.getRequirementId());
+                item.setGstMasterId(resolveItemGstMasterId(ir.getGstMasterId()));
                 item.setProductName(ir.getProductName());
                 item.setSpecsSummary(ir.getSpecsSummary());
                 item.setSpecsJson(ir.getSpecsJson());
                 item.setQuantity(ir.getQuantity() != null ? ir.getQuantity() : 1);
                 item.setUnitPrice(ir.getUnitPrice() != null ? ir.getUnitPrice() : BigDecimal.ZERO);
-                BigDecimal lineTotal = item.getUnitPrice()
-                        .multiply(BigDecimal.valueOf(item.getQuantity()));
-                item.setLineTotal(lineTotal);
+                item.setDiscountPercent(resolveItemPercent(ir.getDiscountPct(), q.getDiscountPercent()));
+                item.setGstPercent(resolveItemGstPercent(ir.getGstMasterId(), ir.getGstPct(), q.getGstPercent()));
+                applyItemTotals(item);
                 item.setSortOrder(i);
                 q.getItems().add(item);
             }
         }
 
-        recomputeTotals(q, q.getDiscountPercent(), q.getGstPercent());
+        recomputeTotals(q, request);
 
         return toResponse(quotationRepository.save(q));
     }
@@ -303,27 +341,98 @@ public class QuotationService {
         return value == null ? BigDecimal.ZERO : value.setScale(2, RoundingMode.HALF_UP);
     }
 
-    private void recomputeTotals(Quotation quotation, BigDecimal discountPercent, BigDecimal gstPercent) {
-        BigDecimal itemsSubtotal = quotation.getItems() == null
-                ? BigDecimal.ZERO
-                : quotation.getItems().stream()
-                .map(item -> item.getLineTotal() == null ? BigDecimal.ZERO : item.getLineTotal())
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    private void recomputeTotals(Quotation quotation, QuotationRequest request) {
+        BigDecimal itemsSubtotal = BigDecimal.ZERO;
+        BigDecimal itemsDiscount = BigDecimal.ZERO;
+        BigDecimal itemsTax = BigDecimal.ZERO;
+
+        if (quotation.getItems() != null) {
+            for (QuotationItem item : quotation.getItems()) {
+                BigDecimal quantity = BigDecimal.valueOf(item.getQuantity() != null ? item.getQuantity() : 0);
+                BigDecimal unitPrice = scaleMoney(item.getUnitPrice());
+                BigDecimal baseAmount = unitPrice.multiply(quantity).setScale(2, RoundingMode.HALF_UP);
+                BigDecimal discountPercent = clampNonNegativePercent(item.getDiscountPercent());
+                BigDecimal discountAmount = baseAmount.multiply(
+                        discountPercent.divide(new BigDecimal("100"), 10, RoundingMode.HALF_UP)
+                ).setScale(2, RoundingMode.HALF_UP);
+                BigDecimal taxableAmount = baseAmount.subtract(discountAmount);
+                BigDecimal gstAmount = taxableAmount.multiply(
+                        clampNonNegativePercent(item.getGstPercent()).divide(new BigDecimal("100"), 10, RoundingMode.HALF_UP)
+                ).setScale(2, RoundingMode.HALF_UP);
+                itemsSubtotal = itemsSubtotal.add(baseAmount);
+                itemsDiscount = itemsDiscount.add(discountAmount);
+                itemsTax = itemsTax.add(gstAmount);
+            }
+        }
+
         BigDecimal designFee = quotation.isIncludeDesignFee()
                 ? scaleMoney(quotation.getDesignFeeAmount())
                 : BigDecimal.ZERO;
-        BigDecimal subtotal = itemsSubtotal.add(designFee);
-        quotation.setSubtotal(subtotal);
-
-        BigDecimal discount = clampNonNegativePercent(discountPercent);
-        BigDecimal gst = gstPercent == null ? BigDecimal.ZERO : gstPercent;
-        BigDecimal afterDiscount = subtotal.multiply(
-                BigDecimal.ONE.subtract(discount.divide(new BigDecimal("100"), 10, RoundingMode.HALF_UP))
-        );
-        BigDecimal grandTotal = afterDiscount.multiply(
-                BigDecimal.ONE.add(gst.divide(new BigDecimal("100"), 10, RoundingMode.HALF_UP))
+        BigDecimal designFeeDiscountPercent = quotation.isIncludeDesignFee()
+                ? clampNonNegativePercent(quotation.getDesignFeeDiscountPercent())
+                : BigDecimal.ZERO;
+        BigDecimal designFeeDiscount = designFee.multiply(
+                designFeeDiscountPercent.divide(new BigDecimal("100"), 10, RoundingMode.HALF_UP)
         ).setScale(2, RoundingMode.HALF_UP);
+        BigDecimal designFeeTaxable = designFee.subtract(designFeeDiscount);
+        BigDecimal designFeeTaxPercent = quotation.isIncludeDesignFee()
+                ? clampNonNegativePercent(quotation.getDesignFeeGstPercent())
+                : BigDecimal.ZERO;
+        BigDecimal designFeeTax = designFeeTaxable.multiply(
+                designFeeTaxPercent.divide(new BigDecimal("100"), 10, RoundingMode.HALF_UP)
+        ).setScale(2, RoundingMode.HALF_UP);
+
+        BigDecimal subtotal = itemsSubtotal.add(designFee);
+        BigDecimal afterDiscount = subtotal.subtract(itemsDiscount.add(designFeeDiscount));
+        BigDecimal grandTotal = afterDiscount.add(itemsTax).add(designFeeTax).setScale(2, RoundingMode.HALF_UP);
+
+        quotation.setSubtotal(subtotal.setScale(2, RoundingMode.HALF_UP));
         quotation.setGrandTotal(grandTotal);
+    }
+
+    private BigDecimal resolveItemPercent(BigDecimal value, BigDecimal fallback) {
+        if (value != null) {
+            return clampNonNegativePercent(value);
+        }
+        return clampNonNegativePercent(fallback);
+    }
+
+    private Long resolveItemGstMasterId(Long gstMasterId) {
+        if (gstMasterId == null) {
+            return null;
+        }
+        return gstMasterRepository.findById(gstMasterId)
+                .map(GstMaster::getId)
+                .orElse(null);
+    }
+
+    private BigDecimal resolveItemGstPercent(Long gstMasterId, BigDecimal fallbackValue, BigDecimal fallbackPercent) {
+        if (gstMasterId != null) {
+            Optional<GstMaster> master = gstMasterRepository.findById(gstMasterId);
+            if (master.isPresent()) {
+                return clampNonNegativePercent(master.get().getTaxPercent());
+            }
+        }
+        return resolveItemPercent(fallbackValue, fallbackPercent);
+    }
+
+    private void applyItemTotals(QuotationItem item) {
+        BigDecimal quantity = BigDecimal.valueOf(item.getQuantity() != null ? item.getQuantity() : 0);
+        BigDecimal unitPrice = scaleMoney(item.getUnitPrice());
+        BigDecimal baseAmount = unitPrice.multiply(quantity).setScale(2, RoundingMode.HALF_UP);
+        BigDecimal discountPercent = clampNonNegativePercent(item.getDiscountPercent());
+        BigDecimal discountAmount = baseAmount.multiply(
+                discountPercent.divide(new BigDecimal("100"), 10, RoundingMode.HALF_UP)
+        ).setScale(2, RoundingMode.HALF_UP);
+        BigDecimal taxableAmount = baseAmount.subtract(discountAmount);
+        BigDecimal gstAmount = taxableAmount.multiply(
+                clampNonNegativePercent(item.getGstPercent()).divide(new BigDecimal("100"), 10, RoundingMode.HALF_UP)
+        ).setScale(2, RoundingMode.HALF_UP);
+
+        item.setUnitPrice(unitPrice);
+        item.setDiscountPercent(discountPercent);
+        item.setGstPercent(clampNonNegativePercent(item.getGstPercent()));
+        item.setLineTotal(taxableAmount.add(gstAmount).setScale(2, RoundingMode.HALF_UP));
     }
 
     private BigDecimal resolveDesignFeeAmount(QuotationRequest request) {
@@ -331,6 +440,69 @@ public class QuotationService {
             return BigDecimal.ZERO;
         }
         return scaleMoney(request.getDesignFeeAmount());
+    }
+
+    private BigDecimal resolveDesignFeeDiscountPercent(QuotationRequest request, Quotation existing) {
+        if (!Boolean.TRUE.equals(request.getIncludeDesignFee())) {
+            return BigDecimal.ZERO;
+        }
+        if (request.getDesignFeeDiscountPct() != null) {
+            return clampNonNegativePercent(request.getDesignFeeDiscountPct());
+        }
+        if (existing != null && existing.getDesignFeeDiscountPercent() != null) {
+            return clampNonNegativePercent(existing.getDesignFeeDiscountPercent());
+        }
+        return BigDecimal.ZERO;
+    }
+
+    private BigDecimal resolveDesignFeeGstPercent(QuotationRequest request, Quotation existing) {
+        if (!Boolean.TRUE.equals(request.getIncludeDesignFee())) {
+            return BigDecimal.ZERO;
+        }
+        if (request.getDesignFeeGstPct() != null) {
+            return clampNonNegativePercent(request.getDesignFeeGstPct());
+        }
+        if (existing != null && existing.getDesignFeeGstPercent() != null) {
+            BigDecimal stored = clampNonNegativePercent(existing.getDesignFeeGstPercent());
+            if (stored.compareTo(BigDecimal.ZERO) > 0) {
+                return stored;
+            }
+        }
+        return resolveGstPercent(request);
+    }
+
+    private void applyLeadSnapshot(Quotation quotation, QuotationRequest request) {
+        if (quotation == null) {
+            return;
+        }
+
+        Lead leadSnapshot = resolveLeadSnapshot(request != null ? request.getLeadId() : quotation.getLeadId());
+        String requestAddress = request == null ? null : firstNonBlank(request.getClientAddress(), request.getStreetAddress());
+        String requestState = request == null ? null : firstNonBlank(request.getClientState(), request.getLeadState());
+        String resolvedAddress = firstNonBlank(requestAddress, quotation.getClientAddress(), leadSnapshot != null ? leadSnapshot.getStreetAddress() : null);
+        String resolvedState = firstNonBlank(requestState, quotation.getClientState(), leadSnapshot != null ? leadSnapshot.getLeadState() : null);
+
+        quotation.setClientAddress(resolvedAddress);
+        quotation.setClientState(resolvedState);
+    }
+
+    private Lead resolveLeadSnapshot(Long leadId) {
+        if (leadId == null) {
+            return null;
+        }
+        return leadRepository.findById(leadId).orElse(null);
+    }
+
+    private String firstNonBlank(String... values) {
+        if (values == null) {
+            return "";
+        }
+        for (String value : values) {
+            if (StringUtils.hasText(value)) {
+                return value.trim();
+            }
+        }
+        return "";
     }
 
     private BigDecimal clampNonNegativePercent(BigDecimal value) {

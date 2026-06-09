@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { getBranches } from "../../api/branchesApi";
 import { getDepartmentsMasterByBranch } from "../../api/departmentsApi";
@@ -14,19 +14,15 @@ import {
   sanitizePhoneDigits,
   validatePhoneNumber,
 } from "../../utils/phoneUtils";
+import {
+  EDUCATION_QUALIFICATION_OPTIONS,
+  calculateEducationPercentage,
+  getAdminEducationUploadDescriptors,
+  getEducationVisibilityRules,
+  normalizePositiveNumericInput,
+} from "../../utils/educationUploads";
 import "../../../public/assets/css/addModalShared.css";
 import "./EmployeesPage.css";
-
-const EDUCATION_LEVEL_OPTIONS = [
-  "Below 8th",
-  "8th Pass",
-  "SSLC",
-  "HSC",
-  "Diploma",
-  "UG",
-  "PG",
-  "ITI",
-];
 
 const YES_NO_OPTIONS = [
   { value: "YES", label: "Yes" },
@@ -63,6 +59,7 @@ const EMPTY_FORM = {
   graduationDetails: "",
   hscMarkAndYear: "",
   sslcMarkAndYear: "",
+  uploadCertificate: null,
   candidatePhoto: null,
   uploadCandidateAadharCard: null,
   uploadCandidatePanCard: null,
@@ -73,6 +70,7 @@ const EMPTY_FORM = {
   uploadHscMarkSheet: null,
   uploadSslcMarkSheet: null,
   uploadCommunityCertificate: null,
+  experienceCertificateAvailable: "NO",
   bankAccountHolderName: "",
   bankAccountNumber: "",
   ifscCode: "",
@@ -121,6 +119,7 @@ const EMPTY_FILE_PATHS = {
   panCardPath: "",
   bankPassbookPath: "",
   experienceCertificatePath: "",
+  certificatePath: "",
   graduationCertificatePath: "",
   graduationMarksheetPath: "",
   hscMarksheetPath: "",
@@ -139,6 +138,25 @@ const EMPTY_SECTIONS = {
   pfEsiDetails: false,
   declarationDetails: false,
 };
+
+const EDUCATION_FIELDS_TO_CLEAR = [
+  "educationCourseName",
+  "educationCertificateNumber",
+  "educationRollNumber",
+  "educationMark",
+  "educationMaxMark",
+  "educationMarkPercentage",
+  "educationFromYear",
+  "educationToYear",
+];
+
+const EDUCATION_UPLOAD_KEYS = [
+  "uploadCertificate",
+  "uploadGraduationCertificate",
+  "uploadGraduationMarksheet",
+  "uploadHscMarkSheet",
+  "uploadSslcMarkSheet",
+];
 
 function isActiveMaster(item) {
   return String(item?.status || "ACTIVE").toUpperCase() !== "INACTIVE";
@@ -161,13 +179,6 @@ function hasAnyText(source, keys) {
   return keys.some((key) => hasText(source?.[key]));
 }
 
-function calculateEducationPercentage(mark, maxMark) {
-  if (!hasText(mark) || !hasText(maxMark)) return "";
-  const markValue = Number(mark);
-  const maxValue = Number(maxMark);
-  if (!Number.isFinite(markValue) || !Number.isFinite(maxValue) || maxValue <= 0) return "";
-  return ((markValue / maxValue) * 100).toFixed(2);
-}
 
 function pickDate(value) {
   return value ? String(value).slice(0, 10) : "";
@@ -197,15 +208,18 @@ function normalizeEmployee(raw = {}) {
     educationCourseName: raw?.educationCourseName || "",
     educationCertificateNumber: raw?.educationCertificateNumber || "",
     educationRollNumber: raw?.educationRollNumber || "",
-    educationMark: raw?.educationMark || "",
-    educationMaxMark: raw?.educationMaxMark || "",
+    educationMark: normalizePositiveNumericInput(raw?.educationMark),
+    educationMaxMark: normalizePositiveNumericInput(raw?.educationMaxMark),
     educationMarkPercentage:
-      raw?.educationMarkPercentage || calculateEducationPercentage(raw?.educationMark, raw?.educationMaxMark) || "",
+      calculateEducationPercentage(raw?.educationMark, raw?.educationMaxMark) ||
+      normalizePositiveNumericInput(raw?.educationMarkPercentage) ||
+      "",
     educationFromYear: raw?.educationFromYear || "",
     educationToYear: raw?.educationToYear || "",
     graduationDetails: raw?.graduationDetails || "",
     hscMarkAndYear: raw?.hscMarkAndYear || "",
     sslcMarkAndYear: raw?.sslcMarkAndYear || "",
+    uploadCertificate: null,
     bankAccountHolderName: raw?.bankAccountHolderName || "",
     bankAccountNumber: raw?.bankAccountNumber || "",
     ifscCode: raw?.ifscCode || "",
@@ -221,6 +235,7 @@ function normalizeEmployee(raw = {}) {
     previousEmploymentManagerName: raw?.previousEmploymentManagerName || "",
     previousEmploymentManagerMobileNumber: raw?.previousEmploymentManagerMobileNumber || "",
     previousEmploymentCompanyAddress: raw?.previousEmploymentCompanyAddress || "",
+    experienceCertificateAvailable: raw?.experienceCertificatePath ? "YES" : "NO",
     emergencyContactName1: raw?.emergencyContactName1 || "",
     emergencyContactRelation1: raw?.emergencyContactRelation1 || "",
     emergencyContactPhone1: raw?.emergencyContactPhone1 || "",
@@ -254,6 +269,7 @@ function normalizeEmployee(raw = {}) {
     panCardPath: raw?.panCardPath || "",
     bankPassbookPath: raw?.bankPassbookPath || "",
     experienceCertificatePath: raw?.experienceCertificatePath || "",
+    certificatePath: raw?.certificatePath || "",
     graduationCertificatePath: raw?.graduationCertificatePath || "",
     graduationMarksheetPath: raw?.graduationMarksheetPath || "",
     hscMarksheetPath: raw?.hscMarksheetPath || "",
@@ -288,10 +304,12 @@ function normalizeEmployee(raw = {}) {
         "educationToYear",
       ]) ||
       hasAnyText(form, ["graduationDetails", "hscMarkAndYear", "sslcMarkAndYear"]) ||
+      hasText(existingFiles.certificatePath) ||
       hasText(existingFiles.graduationCertificatePath) ||
       hasText(existingFiles.graduationMarksheetPath) ||
       hasText(existingFiles.hscMarksheetPath) ||
-      hasText(existingFiles.sslcMarksheetPath),
+      hasText(existingFiles.sslcMarksheetPath) ||
+      !!form.uploadCertificate,
     bankDetails:
       hasAnyText(form, ["bankAccountHolderName", "bankAccountNumber", "ifscCode", "bankAndBranch"]) ||
       hasText(existingFiles.bankPassbookPath),
@@ -312,6 +330,7 @@ function normalizeEmployee(raw = {}) {
         "joinDate",
       ]) ||
       hasText(existingFiles.experienceCertificatePath) ||
+      form.experienceCertificateAvailable === "YES" ||
       !!form.uploadExperienceCertificate,
     emergencyContacts: hasAnyText(form, [
       "emergencyContactName1",
@@ -347,12 +366,20 @@ function FileViewLink({ label, existingPath, fileValue, apiBase }) {
     return undefined;
   }, [fileValue]);
 
-  const isAbsolute = typeof existingPath === "string" && /^https?:\/\//i.test(existingPath);
-  const existingUrl = existingPath
-    ? isAbsolute
-      ? existingPath
-      : `${apiBase}${String(existingPath).startsWith("/") ? "" : "/"}${existingPath}`
-    : "";
+  const buildPreviewUrl = (path) => {
+    const raw = String(path || "").trim();
+    if (!raw) return "";
+    if (/^https?:\/\//i.test(raw)) return raw;
+    const employeeFileMatch = raw.match(/uploads\/employees\/(\d+)\/([^/]+)/i);
+    if (employeeFileMatch) {
+      const employeeId = employeeFileMatch[1];
+      const fileKey = employeeFileMatch[2];
+      return `${apiBase}/api/employees/${employeeId}/files/${encodeURIComponent(fileKey)}`;
+    }
+    return `${apiBase}${raw.startsWith("/") ? "" : "/"}${raw}`;
+  };
+
+  const existingUrl = buildPreviewUrl(existingPath);
   const viewUrl = objectUrl || existingUrl;
 
   if (!viewUrl) return null;
@@ -392,10 +419,9 @@ export default function EmployeeFormPage() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [existingFiles, setExistingFiles] = useState(EMPTY_FILE_PATHS);
   const [sections, setSections] = useState(EMPTY_SECTIONS);
-  const experienceCertificateInputRef = useRef(null);
 
   const apiBase = useMemo(
-    () => (import.meta.env.VITE_API_URL || "http://localhost:8082").replace(/\/+$/, ""),
+    () => (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || "http://localhost:8082").replace(/\/+$/, ""),
     [],
   );
 
@@ -405,6 +431,10 @@ export default function EmployeeFormPage() {
   const sortedDesignations = [...designations].sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
 
   const selectedDesignation = sortedDesignations.find((item) => String(item.id) === String(designationId));
+  const educationVisibility = useMemo(
+    () => getEducationVisibilityRules(form.educationQualification),
+    [form.educationQualification],
+  );
 
   const loadBranches = async (headOfficeValue, selectedBranchValue = "") => {
     if (!headOfficeValue) {
@@ -575,13 +605,28 @@ export default function EmployeeFormPage() {
   };
 
   const handleEducationFieldChange = (key, value) => {
+    const normalizedValue =
+      key === "educationMark" || key === "educationMaxMark" ? normalizePositiveNumericInput(value) : value;
     setForm((prev) => {
-      const next = { ...prev, [key]: value };
+      const next = { ...prev, [key]: normalizedValue };
       if (key === "educationMark" || key === "educationMaxMark") {
         next.educationMarkPercentage = calculateEducationPercentage(
-          key === "educationMark" ? value : next.educationMark,
-          key === "educationMaxMark" ? value : next.educationMaxMark,
+          key === "educationMark" ? normalizedValue : next.educationMark,
+          key === "educationMaxMark" ? normalizedValue : next.educationMaxMark,
         );
+      }
+      if (key === "educationQualification") {
+        const visibility = getEducationVisibilityRules(value);
+        if (!value || visibility.isBasicQualification) {
+          EDUCATION_FIELDS_TO_CLEAR.forEach((fieldKey) => {
+            next[fieldKey] = "";
+          });
+          EDUCATION_UPLOAD_KEYS.forEach((fieldKey) => {
+            next[fieldKey] = null;
+          });
+        } else if (!visibility.showCourseName) {
+          next.educationCourseName = "";
+        }
       }
       return next;
     });
@@ -589,6 +634,14 @@ export default function EmployeeFormPage() {
 
   const handleFileChange = (key, file) => {
     setForm((prev) => ({ ...prev, [key]: file || null }));
+  };
+
+  const handleExperienceCertificateAvailableChange = (value) => {
+    setForm((prev) => ({
+      ...prev,
+      experienceCertificateAvailable: value,
+      uploadExperienceCertificate: value === "YES" ? prev.uploadExperienceCertificate : null,
+    }));
   };
 
   const toggleSection = (key) => {
@@ -626,8 +679,35 @@ export default function EmployeeFormPage() {
       fd.append("designation", selectedDesignation.name);
     }
 
-    Object.entries(form).forEach(([key, value]) => {
+    const allowedEducationUploadStateKeys = new Set(
+      getAdminEducationUploadDescriptors(form.educationQualification).map((item) => item.stateKey),
+    );
+
+    const normalizedForm = {
+      ...form,
+      educationMark: normalizePositiveNumericInput(form.educationMark),
+      educationMaxMark: normalizePositiveNumericInput(form.educationMaxMark),
+      educationMarkPercentage:
+        calculateEducationPercentage(form.educationMark, form.educationMaxMark) ||
+        normalizePositiveNumericInput(form.educationMarkPercentage) ||
+        "",
+    };
+
+    Object.entries(normalizedForm).forEach(([key, value]) => {
       if (key.endsWith("Path")) return;
+      if (
+        key.startsWith("upload") &&
+        ["uploadCertificate", "uploadGraduationCertificate", "uploadGraduationMarksheet", "uploadHscMarkSheet", "uploadSslcMarkSheet"].includes(key) &&
+        !allowedEducationUploadStateKeys.has(key)
+      ) {
+        return;
+      }
+      if (key === "uploadExperienceCertificate" && form.experienceCertificateAvailable !== "YES") {
+        return;
+      }
+      if (key === "experienceCertificateAvailable") {
+        return;
+      }
       if (value instanceof File) {
         fd.append(key, value);
         return;
@@ -1034,7 +1114,7 @@ export default function EmployeeFormPage() {
                             onChange={(e) => handleEducationFieldChange("educationQualification", e.target.value)}
                           >
                             <option value="">Select Qualification</option>
-                            {EDUCATION_LEVEL_OPTIONS.map((option) => (
+                            {EDUCATION_QUALIFICATION_OPTIONS.map((option) => (
                               <option key={option} value={option}>
                                 {option}
                               </option>
@@ -1044,163 +1124,123 @@ export default function EmployeeFormPage() {
                       </div>
                     </div>
 
-                    {form.educationQualification && (
-                      <div className="row g-3 mt-1">
-                        <div className="col-md-4">
-                          <div className="avm-field">
-                            <label className="avm-label">Course Name</label>
-                            <input
-                              className="avm-input form-control"
-                              value={form.educationCourseName}
-                              onChange={(e) => handleEducationFieldChange("educationCourseName", e.target.value)}
-                            />
+                    {educationVisibility.showAdditionalFields ? (
+                      <>
+                        <div className="row g-3 mt-1">
+                          {educationVisibility.showCourseName ? (
+                            <div className="col-md-4">
+                              <div className="avm-field">
+                                <label className="avm-label">Course Name</label>
+                                <input
+                                  className="avm-input form-control"
+                                  value={form.educationCourseName}
+                                  onChange={(e) => handleEducationFieldChange("educationCourseName", e.target.value)}
+                                />
+                              </div>
+                            </div>
+                          ) : null}
+                          <div className="col-md-4">
+                            <div className="avm-field">
+                              <label className="avm-label">Roll Number</label>
+                              <input
+                                className="avm-input form-control"
+                                value={form.educationRollNumber}
+                                onChange={(e) => handleEducationFieldChange("educationRollNumber", e.target.value)}
+                              />
+                            </div>
+                          </div>
+                          <div className="col-md-4">
+                            <div className="avm-field">
+                              <label className="avm-label">Certificate Number</label>
+                              <input
+                                className="avm-input form-control"
+                                value={form.educationCertificateNumber}
+                                onChange={(e) => handleEducationFieldChange("educationCertificateNumber", e.target.value)}
+                              />
+                            </div>
+                          </div>
+
+                          <div className="col-md-4">
+                            <div className="avm-field">
+                              <label className="avm-label">Mark</label>
+                              <input
+                                type="number"
+                                step="any"
+                                min={0}
+                                className="avm-input form-control"
+                                value={form.educationMark}
+                                onChange={(e) => handleEducationFieldChange("educationMark", e.target.value)}
+                              />
+                            </div>
+                          </div>
+                          <div className="col-md-4">
+                            <div className="avm-field">
+                              <label className="avm-label">Max Mark</label>
+                              <input
+                                type="number"
+                                step="any"
+                                min={0}
+                                className="avm-input form-control"
+                                value={form.educationMaxMark}
+                                onChange={(e) => handleEducationFieldChange("educationMaxMark", e.target.value)}
+                              />
+                            </div>
+                          </div>
+                          <div className="col-md-4">
+                            <div className="avm-field">
+                              <label className="avm-label">Mark (%)</label>
+                              <input className="avm-input form-control" value={form.educationMarkPercentage} readOnly />
+                            </div>
+                          </div>
+                          <div className="col-md-4">
+                            <div className="avm-field">
+                              <label className="avm-label">From Year</label>
+                              <input
+                                type="text"
+                                inputMode="numeric"
+                                maxLength={4}
+                                className="avm-input form-control"
+                                value={form.educationFromYear}
+                                onChange={(e) => handleEducationFieldChange("educationFromYear", e.target.value)}
+                              />
+                            </div>
+                          </div>
+                          <div className="col-md-4">
+                            <div className="avm-field">
+                              <label className="avm-label">To Year</label>
+                              <input
+                                type="text"
+                                inputMode="numeric"
+                                maxLength={4}
+                                className="avm-input form-control"
+                                value={form.educationToYear}
+                                onChange={(e) => handleEducationFieldChange("educationToYear", e.target.value)}
+                              />
+                            </div>
                           </div>
                         </div>
-                        <div className="col-md-4">
-                          <div className="avm-field">
-                            <label className="avm-label">Roll Number</label>
-                            <input
-                              className="avm-input form-control"
-                              value={form.educationRollNumber}
-                              onChange={(e) => handleEducationFieldChange("educationRollNumber", e.target.value)}
-                            />
-                          </div>
+                        <div className="row g-3 mt-1">
+                          {getAdminEducationUploadDescriptors(form.educationQualification).map((upload) => (
+                            <div className="col-md-6" key={upload.stateKey}>
+                              <div className="avm-field">
+                                <label className="avm-label">{upload.label}</label>
+                                <input
+                                  type="file"
+                                  className="form-control"
+                                  onChange={(e) => handleFileChange(upload.stateKey, e.target.files?.[0] || null)}
+                                />
+                                <FileViewLink
+                                  label={upload.label}
+                                  existingPath={existingFiles[upload.pathKey]}
+                                  fileValue={form[upload.stateKey]}
+                                  apiBase={apiBase}
+                                />
+                              </div>
+                            </div>
+                          ))}
                         </div>
-                        <div className="col-md-4">
-                          <div className="avm-field">
-                            <label className="avm-label">Certificate Number</label>
-                            <input
-                              className="avm-input form-control"
-                              value={form.educationCertificateNumber}
-                              onChange={(e) => handleEducationFieldChange("educationCertificateNumber", e.target.value)}
-                            />
-                          </div>
-                        </div>
-                        
-                        <div className="col-md-4">
-                          <div className="avm-field">
-                            <label className="avm-label">Mark</label>
-                            <input
-                              type="number"
-                              step="any"
-                              className="avm-input form-control"
-                              value={form.educationMark}
-                              onChange={(e) => handleEducationFieldChange("educationMark", e.target.value)}
-                            />
-                          </div>
-                        </div>
-                        <div className="col-md-4">
-                          <div className="avm-field">
-                            <label className="avm-label">Max Mark</label>
-                            <input
-                              type="number"
-                              step="any"
-                              className="avm-input form-control"
-                              value={form.educationMaxMark}
-                              onChange={(e) => handleEducationFieldChange("educationMaxMark", e.target.value)}
-                            />
-                          </div>
-                        </div>
-                        <div className="col-md-4">
-                          <div className="avm-field">
-                            <label className="avm-label">Mark (%)</label>
-                            <input className="avm-input form-control" value={form.educationMarkPercentage} readOnly />
-                          </div>
-                        </div>
-                        <div className="col-md-4">
-                          <div className="avm-field">
-                            <label className="avm-label">From Year</label>
-                            <input
-                              type="text"
-                              inputMode="numeric"
-                              maxLength={4}
-                              className="avm-input form-control"
-                              value={form.educationFromYear}
-                              onChange={(e) => handleEducationFieldChange("educationFromYear", e.target.value)}
-                            />
-                          </div>
-                        </div>
-                        <div className="col-md-4">
-                          <div className="avm-field">
-                            <label className="avm-label">To Year</label>
-                            <input
-                              type="text"
-                              inputMode="numeric"
-                              maxLength={4}
-                              className="avm-input form-control"
-                              value={form.educationToYear}
-                              onChange={(e) => handleEducationFieldChange("educationToYear", e.target.value)}
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                    <div className="row g-3 mt-1">
-                      <div className="col-md-6">
-                        <div className="avm-field">
-                          <label className="avm-label">Graduation Certificate</label>
-                          <input
-                            type="file"
-                            className="form-control"
-                            onChange={(e) => handleFileChange("uploadGraduationCertificate", e.target.files?.[0] || null)}
-                          />
-                          <FileViewLink
-                            label="Graduation Certificate"
-                            existingPath={existingFiles.graduationCertificatePath}
-                            fileValue={form.uploadGraduationCertificate}
-                            apiBase={apiBase}
-                          />
-                        </div>
-                      </div>
-                      <div className="col-md-6">
-                        <div className="avm-field">
-                          <label className="avm-label">Graduation Marksheet</label>
-                          <input
-                            type="file"
-                            className="form-control"
-                            onChange={(e) => handleFileChange("uploadGraduationMarksheet", e.target.files?.[0] || null)}
-                          />
-                          <FileViewLink
-                            label="Graduation Marksheet"
-                            existingPath={existingFiles.graduationMarksheetPath}
-                            fileValue={form.uploadGraduationMarksheet}
-                            apiBase={apiBase}
-                          />
-                        </div>
-                      </div>
-                      <div className="col-md-6">
-                        <div className="avm-field">
-                          <label className="avm-label">HSC Mark Sheet</label>
-                          <input
-                            type="file"
-                            className="form-control"
-                            onChange={(e) => handleFileChange("uploadHscMarkSheet", e.target.files?.[0] || null)}
-                          />
-                          <FileViewLink
-                            label="HSC Mark Sheet"
-                            existingPath={existingFiles.hscMarksheetPath}
-                            fileValue={form.uploadHscMarkSheet}
-                            apiBase={apiBase}
-                          />
-                        </div>
-                      </div>
-                      <div className="col-md-6">
-                        <div className="avm-field">
-                          <label className="avm-label">SSLC Mark Sheet</label>
-                          <input
-                            type="file"
-                            className="form-control"
-                            onChange={(e) => handleFileChange("uploadSslcMarkSheet", e.target.files?.[0] || null)}
-                          />
-                          <FileViewLink
-                            label="SSLC Mark Sheet"
-                            existingPath={existingFiles.sslcMarksheetPath}
-                            fileValue={form.uploadSslcMarkSheet}
-                            apiBase={apiBase}
-                          />
-                        </div>
-                      </div>
-                    </div>
+                      </>
+                    ) : null}
                   </div>
                 </div>
               )}
@@ -1394,35 +1434,35 @@ export default function EmployeeFormPage() {
                       </div>
                       <div className="col-md-6">
                         <div className="avm-field">
-                          <label className="avm-label">Experience Certificate</label>
-                          <input
-                            ref={experienceCertificateInputRef}
-                            type="file"
-                            className="d-none"
-                            onChange={(e) => handleFileChange("uploadExperienceCertificate", e.target.files?.[0] || null)}
-                          />
-                          <div className="d-flex flex-wrap align-items-center gap-2">
-                            <button
-                              type="button"
-                              className="btn btn-outline-primary btn-sm"
-                              onClick={() => experienceCertificateInputRef.current?.click()}
-                            >
-                              {hasText(existingFiles.experienceCertificatePath) || form.uploadExperienceCertificate
-                                ? "Update file"
-                                : "Upload file"}
-                            </button>
-                            {form.uploadExperienceCertificate ? (
-                              <span className="small text-muted">{form.uploadExperienceCertificate.name}</span>
-                            ) : null}
-                          </div>
-                          <FileViewLink
-                            label="Experience Certificate"
-                            existingPath={existingFiles.experienceCertificatePath}
-                            fileValue={form.uploadExperienceCertificate}
-                            apiBase={apiBase}
-                          />
+                          <label className="form-check d-flex gap-2 align-items-center mb-0">
+                            <input
+                              type="checkbox"
+                              className="form-check-input"
+                              checked={form.experienceCertificateAvailable === "YES"}
+                              onChange={(e) => handleExperienceCertificateAvailableChange(e.target.checked ? "YES" : "NO")}
+                            />
+                            <span className="form-check-label">Experience Certificate available?</span>
+                          </label>
                         </div>
                       </div>
+                      {form.experienceCertificateAvailable === "YES" && (
+                        <div className="col-md-6">
+                          <div className="avm-field">
+                            <label className="avm-label">Experience Certificate</label>
+                            <input
+                              type="file"
+                              className="form-control"
+                              onChange={(e) => handleFileChange("uploadExperienceCertificate", e.target.files?.[0] || null)}
+                            />
+                            <FileViewLink
+                              label="Experience Certificate"
+                              existingPath={existingFiles.experienceCertificatePath}
+                              fileValue={form.uploadExperienceCertificate}
+                              apiBase={apiBase}
+                            />
+                          </div>
+                        </div>
+                      )}
                       <div className="col-md-6">
                         <div className="avm-field">
                           <label className="avm-label">From Which Platform You Came to Know</label>

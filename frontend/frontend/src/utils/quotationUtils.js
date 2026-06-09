@@ -94,6 +94,23 @@ function numberToWords(num) {
   return convert(num) || "Zero";
 }
 
+function amountToWords(amount, { includePaise = false } = {}) {
+  const numericAmount = Number(amount || 0);
+  const absoluteAmount = Math.abs(numericAmount);
+  const rupees = Math.floor(absoluteAmount);
+  const paise = Math.round((absoluteAmount - rupees) * 100);
+  const rupeeWords = numberToWords(rupees);
+  const rupeeLabel = rupees === 1 ? "Rupee" : "Rupees";
+  const paiseWords = paise > 0 ? `${numberToWords(paise)} Paise` : "";
+  const signPrefix = numericAmount < 0 ? "Minus " : "";
+
+  if (includePaise) {
+    return `${signPrefix}${rupeeWords} ${rupeeLabel}${paiseWords ? ` and ${paiseWords}` : ""} Only`;
+  }
+
+  return `${signPrefix}${rupeeWords} ${rupeeLabel} Only`;
+}
+
 function readLocalStorageJson(key, fallback) {
   if (typeof window === "undefined") return fallback;
 
@@ -118,6 +135,336 @@ function clampNonNegativeNumber(value, fallback = 0) {
     return fallback;
   }
   return parsed;
+}
+
+function scalePercent(value, fallback = 0) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    return fallback;
+  }
+  return parsed;
+}
+
+export function normalizeQuotationLineItem(item, options = {}) {
+  if (!item) return {};
+  const {
+    isTamilNadu = false,
+    defaultDiscountPct = 0,
+    defaultGstPct = 0,
+    defaultGstMasterId = null,
+    preferFallbackWhenZero = false,
+  } = options;
+
+  const designStatus = String(item.designStatus || "").toLowerCase();
+  const isDesignOnly = designStatus === "design_only";
+  const quantity = isDesignOnly ? 0 : clampNonNegativeNumber(item.quantity, 0);
+  const unitPrice = isDesignOnly ? 0 : clampNonNegativeNumber(item.unitPrice ?? item.pricePerUnit, 0);
+  const rawDiscountPct = item.discountPct ?? item.discountPercent;
+  const rawGstPct = item.gstPct ?? item.gstPercent ?? item.gstPctTotal;
+  const gstMasterId = item.gstMasterId ?? item.gstMaster?.id ?? defaultGstMasterId ?? null;
+  const discountPct = isDesignOnly
+    ? 0
+    : scalePercent(
+        rawDiscountPct == null || (preferFallbackWhenZero && Number(rawDiscountPct) === 0 && Number(defaultDiscountPct) > 0)
+          ? defaultDiscountPct
+          : rawDiscountPct,
+        0,
+      );
+  const gstPct = isDesignOnly
+    ? 0
+    : scalePercent(
+        rawGstPct == null || (preferFallbackWhenZero && Number(rawGstPct) === 0 && Number(defaultGstPct) > 0)
+          ? defaultGstPct
+          : rawGstPct,
+        0,
+      );
+  const baseAmount = quantity * unitPrice;
+  const discountAmount = baseAmount * (discountPct / 100);
+  const taxableAmount = Math.max(0, baseAmount - discountAmount);
+  const gstAmount = taxableAmount * (gstPct / 100);
+  const cgstAmount = isTamilNadu ? gstAmount / 2 : 0;
+  const sgstAmount = isTamilNadu ? gstAmount / 2 : 0;
+  const igstAmount = isTamilNadu ? 0 : gstAmount;
+  const lineTotal = taxableAmount + gstAmount;
+
+  return {
+    ...item,
+    quantity,
+    unitPrice,
+    pricePerUnit: unitPrice,
+    gstMasterId,
+    discountPct,
+    discountPercent: discountPct,
+    gstPct,
+    gstPercent: gstPct,
+    baseAmount,
+    discountAmount,
+    taxableAmount,
+    gstAmount,
+    cgstAmount,
+    sgstAmount,
+    igstAmount,
+    lineTotal,
+    pricingStatus: lineTotal > 0 ? "PRICED" : "UNPRICED",
+  };
+}
+
+function roundMoney(value) {
+  return Number(Number(value || 0).toFixed(2));
+}
+
+function resolveLegacyCompatibleDesignFeeGstPct(value, fallback = 0) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return Number(fallback || 0);
+  }
+  return parsed;
+}
+
+export function buildDesignFeePricing(options = {}) {
+  const {
+    includeDesignFee = false,
+    designFeeAmount = 0,
+    designFeeDiscountPct = 0,
+    designFeeGstPct = 0,
+    isTamilNadu = false,
+  } = options;
+
+  if (!includeDesignFee) {
+    return {
+      includeDesignFee: false,
+      baseAmount: 0,
+      discountPct: 0,
+      discountAmount: 0,
+      taxableAmount: 0,
+      gstPct: 0,
+      gstAmount: 0,
+      cgstAmount: 0,
+      sgstAmount: 0,
+      igstAmount: 0,
+      lineTotal: 0,
+    };
+  }
+
+  const baseAmount = roundMoney(Number(designFeeAmount || 0));
+  const discountPct = roundMoney(Number(designFeeDiscountPct || 0));
+  const discountAmount = roundMoney(baseAmount * (discountPct / 100));
+  const taxableAmount = roundMoney(Math.max(0, baseAmount - discountAmount));
+  const gstPct = roundMoney(Number(designFeeGstPct || 0));
+  const gstAmount = roundMoney(taxableAmount * (gstPct / 100));
+  const cgstAmount = isTamilNadu ? roundMoney(gstAmount / 2) : 0;
+  const sgstAmount = isTamilNadu ? roundMoney(gstAmount / 2) : 0;
+  const igstAmount = isTamilNadu ? 0 : gstAmount;
+  const lineTotal = roundMoney(taxableAmount + gstAmount);
+
+  return {
+    includeDesignFee: true,
+    baseAmount,
+    discountPct,
+    discountAmount,
+    taxableAmount,
+    gstPct,
+    gstAmount,
+    cgstAmount,
+    sgstAmount,
+    igstAmount,
+    lineTotal,
+  };
+}
+
+export function extractTaxGroupCode(item) {
+  const candidates = [
+    item?.hsnSac,
+    item?.hsnSacCode,
+    item?.hsnCode,
+    item?.hsn,
+    item?.sacCode,
+    item?.sac,
+    item?.productHsn,
+    item?.productSac,
+    item?.hsnSacNumber,
+  ];
+
+  const match = candidates.find((value) => String(value || "").trim() !== "");
+  return match == null ? "" : String(match).trim();
+}
+
+function summarizeTaxGroupItem(item) {
+  const productName = String(item?.productName || "").trim();
+  const variantSummary = String(item?.variantSummary || item?.specsSummary || "").trim();
+  const specSummary = String(item?.specsSummary || "").trim();
+  const tail = variantSummary || specSummary;
+
+  if (productName && tail) {
+    return `${productName} - ${tail}`;
+  }
+  return productName || tail || "";
+}
+
+export function buildQuotationTaxSummary(lineItems = [], options = {}) {
+  const {
+    isTamilNadu = false,
+    designFeeAmount = 0,
+    designFeeDiscountPct = 0,
+    designFeeGstPct = 0,
+    includeDesignFee = false,
+  } = options;
+
+  const groupsByRate = new Map();
+  let productSerial = 0;
+  const addGroupEntry = ({
+    key,
+    gstPct,
+    taxableAmount,
+    gstAmount,
+    cgstAmount,
+    sgstAmount,
+    igstAmount,
+    code = "",
+    label = "",
+    displayPart = "",
+  }) => {
+    const existing = groupsByRate.get(key) || {
+      gstPct,
+      taxableAmount: 0,
+      gstAmount: 0,
+      cgstAmount: 0,
+      sgstAmount: 0,
+      igstAmount: 0,
+      codes: new Set(),
+      items: [],
+      displayParts: [],
+    };
+
+    existing.taxableAmount = roundMoney(existing.taxableAmount + taxableAmount);
+    existing.gstAmount = roundMoney(existing.gstAmount + gstAmount);
+    existing.cgstAmount = roundMoney(existing.cgstAmount + cgstAmount);
+    existing.sgstAmount = roundMoney(existing.sgstAmount + sgstAmount);
+    existing.igstAmount = roundMoney(existing.igstAmount + igstAmount);
+    if (code) existing.codes.add(code);
+    if (label) existing.items.push(label);
+    if (displayPart) existing.displayParts.push(displayPart);
+    groupsByRate.set(key, existing);
+  };
+
+  (Array.isArray(lineItems) ? lineItems : []).forEach((item) => {
+    if (!item || String(item.designStatus || "").toLowerCase() === "design_only") {
+      return;
+    }
+    productSerial += 1;
+
+    const gstPct = roundMoney(item.gstPct ?? item.gstPercent ?? 0);
+    const key = gstPct.toFixed(2);
+    const taxableAmount = roundMoney(
+      item.taxableAmount ??
+      (Number(item.baseAmount || 0) - Number(item.discountAmount || 0))
+    );
+    const gstAmount = roundMoney(item.gstAmount ?? taxableAmount * (gstPct / 100));
+    const cgstAmount = isTamilNadu ? roundMoney(item.cgstAmount ?? gstAmount / 2) : 0;
+    const sgstAmount = isTamilNadu ? roundMoney(item.sgstAmount ?? gstAmount / 2) : 0;
+    const igstAmount = isTamilNadu ? 0 : roundMoney(item.igstAmount ?? gstAmount);
+    const code = extractTaxGroupCode(item);
+    const label = summarizeTaxGroupItem(item);
+    addGroupEntry({
+      key,
+      gstPct,
+      taxableAmount,
+      gstAmount,
+      cgstAmount,
+      sgstAmount,
+      igstAmount,
+      code,
+      label,
+      displayPart: String(productSerial),
+    });
+  });
+
+  const designFeePricing = buildDesignFeePricing({
+    includeDesignFee,
+    designFeeAmount,
+    designFeeDiscountPct,
+    designFeeGstPct,
+    isTamilNadu,
+  });
+
+  if (designFeePricing.includeDesignFee && designFeePricing.taxableAmount > 0) {
+    productSerial += 1;
+    const key = designFeePricing.gstPct.toFixed(2);
+    addGroupEntry({
+      key,
+      gstPct: designFeePricing.gstPct,
+      taxableAmount: designFeePricing.taxableAmount,
+      gstAmount: designFeePricing.gstAmount,
+      cgstAmount: designFeePricing.cgstAmount,
+      sgstAmount: designFeePricing.sgstAmount,
+      igstAmount: designFeePricing.igstAmount,
+      label: "Design Fee",
+      displayPart: String(productSerial),
+    });
+  }
+
+  const rows = Array.from(groupsByRate.values())
+    .sort((a, b) => a.gstPct - b.gstPct)
+    .map((group) => {
+      const codes = Array.from(group.codes);
+      const itemLabels = Array.from(new Set(group.items.filter(Boolean)));
+      const codeText = codes.length ? codes.join(", ") : `GST ${group.gstPct.toFixed(2)}%`;
+      const displayParts = Array.from(new Set(group.displayParts.filter(Boolean)));
+      const serialText = displayParts.join(", ");
+      const displayText = codes.length ? codes.join(", ") : serialText;
+      return {
+        gstPct: roundMoney(group.gstPct),
+        taxableAmount: roundMoney(group.taxableAmount),
+        gstAmount: roundMoney(group.gstAmount),
+        cgstRate: isTamilNadu ? roundMoney(group.gstPct / 2) : 0,
+        cgstAmount: roundMoney(group.cgstAmount),
+        sgstRate: isTamilNadu ? roundMoney(group.gstPct / 2) : 0,
+        sgstAmount: roundMoney(group.sgstAmount),
+        igstRate: isTamilNadu ? 0 : roundMoney(group.gstPct),
+        igstAmount: roundMoney(group.igstAmount),
+        taxTotalAmount: roundMoney(group.gstAmount),
+        primaryText: codeText,
+        secondaryText: codes.length ? "" : itemLabels.join("\n"),
+        itemLabels,
+        codes,
+        serialText,
+        displayText,
+      };
+    });
+
+  const productTaxableAmount = rows.reduce((sum, row) => sum + Number(row.taxableAmount || 0), 0);
+  const productTaxAmount = rows.reduce((sum, row) => sum + Number(row.gstAmount || 0), 0);
+  const productCgstAmount = rows.reduce((sum, row) => sum + Number(row.cgstAmount || 0), 0);
+  const productSgstAmount = rows.reduce((sum, row) => sum + Number(row.sgstAmount || 0), 0);
+  const productIgstAmount = rows.reduce((sum, row) => sum + Number(row.igstAmount || 0), 0);
+
+  const designFeeTaxAmount = designFeePricing.gstAmount;
+  const designFeeCgstAmount = designFeePricing.cgstAmount;
+  const designFeeSgstAmount = designFeePricing.sgstAmount;
+  const designFeeIgstAmount = designFeePricing.igstAmount;
+
+  const totalTaxAmount = roundMoney(productTaxAmount);
+  const totalCgstAmount = roundMoney(productCgstAmount);
+  const totalSgstAmount = roundMoney(productSgstAmount);
+  const totalIgstAmount = roundMoney(productIgstAmount);
+
+  return {
+    rows,
+    productTaxableAmount,
+    productTaxAmount,
+    productCgstAmount,
+    productSgstAmount,
+    productIgstAmount,
+    designFeeTaxAmount,
+    designFeeCgstAmount,
+    designFeeSgstAmount,
+    designFeeIgstAmount,
+    designFeePricing,
+    totalTaxAmount,
+    totalCgstAmount,
+    totalSgstAmount,
+    totalIgstAmount,
+  };
 }
 
 function formatIndianMobileNumber(value) {
@@ -172,14 +519,15 @@ export function clearQuotationDraft() {
   }
 }
 
-function normalizeQuotationResponseLineItem(item) {
+function normalizeQuotationResponseLineItem(item, options = {}) {
   if (!item) return {};
   // Parse specs from specsJson if specs object is not directly available
   let specs = item.specs;
   if (!specs && item.specsJson) {
     try { specs = JSON.parse(item.specsJson); } catch { specs = {}; }
   }
-  return {
+  return normalizeQuotationLineItem({
+    ...item,
     id: item.id || `quotation-item-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     requirementId: item.requirementId ?? null,
     categoryId: item.categoryId ?? null,
@@ -191,15 +539,11 @@ function normalizeQuotationResponseLineItem(item) {
     specsSummary: item.specsSummary || "",
     specsJson: item.specsJson || "",
     specs: specs || {},
-    quantity: Number(item.quantity || 0),
-    unitPrice: Number(item.unitPrice || 0),
-    pricePerUnit: Number(item.unitPrice || 0),
-    lineTotal: Number(item.lineTotal || 0),
     sortOrder: item.sortOrder ?? 0,
     designStatus: item.designStatus || "",
     pricingStatus: item.pricingStatus || "",
     priceListEntryId: item.priceListEntryId ?? null,
-  };
+  }, options);
 }
 
 export function quotationResponseToDraft(quotation) {
@@ -229,11 +573,32 @@ export function quotationResponseToDraft(quotation) {
       }))
     : [];
 
-  const lineItems = Array.isArray(quotation.items)
-    ? quotation.items.map(normalizeQuotationResponseLineItem)
-    : Array.isArray(quotation.lineItems)
-      ? quotation.lineItems.map(normalizeQuotationResponseLineItem)
-      : [];
+  const legacyDiscountPct = clampNonNegativeNumber(quotation.discountPercent ?? quotation.discountPct ?? 0, 0);
+  const legacyGstPct = clampNonNegativeNumber(
+    quotation.gstPct ?? quotation.gstPercent ?? quotation.gstPctTotal ?? (
+      Array.isArray(gstRows) && gstRows.length > 0
+        ? gstRows.reduce((sum, row) => sum + Number(row.taxPercent || 0), 0)
+        : 0
+    ),
+    0,
+  );
+  const isTN = isTamilNaduState(selectedLead?.leadState || selectedLead?.state || quotation.clientState || quotation.leadState || "");
+  const rawLineItems = Array.isArray(quotation.items)
+    ? quotation.items
+    : (Array.isArray(quotation.lineItems) ? quotation.lineItems : []);
+  const shouldSeedLegacyItemTaxes =
+    rawLineItems.length > 0 &&
+    (legacyDiscountPct > 0 || legacyGstPct > 0) &&
+    rawLineItems.every((item) =>
+      Number(item?.discountPct ?? item?.discountPercent ?? 0) === 0 &&
+      Number(item?.gstPct ?? item?.gstPercent ?? item?.gstPctTotal ?? 0) === 0
+    );
+  const lineItems = rawLineItems.map((item) => normalizeQuotationResponseLineItem(item, {
+    isTamilNadu: isTN,
+    defaultDiscountPct: legacyDiscountPct,
+    defaultGstPct: legacyGstPct,
+    preferFallbackWhenZero: shouldSeedLegacyItemTaxes,
+  }));
 
   return {
     id: quotation.id || null,
@@ -259,9 +624,12 @@ export function quotationResponseToDraft(quotation) {
     selectedLead,
     leadSearch: selectedLead ? `${selectedLead.leadId || selectedLead.id || ""} - ${selectedLead.name || ""}`.trim() : "",
     lineItems,
-    discountPct: clampNonNegativeNumber(quotation.discountPercent ?? quotation.discountPct ?? 0, 0),
+    discountPct: legacyDiscountPct,
     includeDesignFee: Boolean(quotation.includeDesignFee),
     designFeeAmount: Number(quotation.designFeeAmount ?? 0),
+    designFeeDiscountPct: Number(quotation.designFeeDiscountPct ?? 0),
+    designFeeGstPct: resolveLegacyCompatibleDesignFeeGstPct(quotation.designFeeGstPct, legacyGstPct),
+    gstPct: legacyGstPct,
     gstRows,
   };
 }
@@ -277,6 +645,8 @@ export function createQuotationPayload({
   discountPct,
   includeDesignFee,
   designFeeAmount,
+  designFeeDiscountPct,
+  designFeeGstPct,
   gstRows,
   gstPct,
   cgstPct,
@@ -308,6 +678,8 @@ export function createQuotationPayload({
   const clientMobile = selectedLead?.mobile || selectedLead?.phone || "";
   const clientEmail = selectedLead?.email || "";
   const clientCompany = selectedLead?.company || selectedLead?.companyName || "";
+  const clientAddress = String(selectedLead?.address || selectedLead?.streetAddress || "").trim();
+  const clientState = String(selectedLead?.leadState || selectedLead?.state || "").trim();
   const items = Array.isArray(lineItems)
     ? lineItems.map((item) => ({
         requirementId: item.requirementId ?? item.sourceRequirementId ?? null,
@@ -316,6 +688,9 @@ export function createQuotationPayload({
         specsJson: item.specsJson || JSON.stringify(item.specs || item.variantFields || {}),
         quantity: Number(item.quantity || 0),
         unitPrice: Number(item.unitPrice ?? item.pricePerUnit ?? 0),
+        discountPct: Number(item.discountPct ?? item.discountPercent ?? 0),
+        gstPct: Number(item.gstPct ?? item.gstPercent ?? 0),
+        gstMasterId: item.gstMasterId ?? null,
       }))
     : [];
 
@@ -329,6 +704,10 @@ export function createQuotationPayload({
     clientMobile,
     clientEmail,
     clientCompany,
+    clientAddress,
+    streetAddress: clientAddress,
+    clientState,
+    leadState: clientState,
     partyMode,
     selectedLead,
     lineItems,
@@ -337,6 +716,8 @@ export function createQuotationPayload({
     discountPercent: clampNonNegativeNumber(discountPct, 0),
     includeDesignFee: includeDesignFee || false,
     designFeeAmount: Number(designFeeAmount || 0),
+    designFeeDiscountPct: Number(designFeeDiscountPct || 0),
+    designFeeGstPct: Number(designFeeGstPct || 0),
     gstRows: Array.isArray(gstRows) ? gstRows : [],
     gstPct,
     gstPercent: gstPct,
@@ -449,6 +830,45 @@ function asText(value, fallback = "") {
   return String(value ?? fallback).trim();
 }
 
+function normalizeQuotationLeadForPdf(quotation = {}) {
+  const rawLead = quotation.selectedLead && typeof quotation.selectedLead === "object"
+    ? quotation.selectedLead
+    : {};
+  const address = String(
+    rawLead.address ||
+    rawLead.streetAddress ||
+    quotation.clientAddress ||
+    quotation.streetAddress ||
+    quotation.address ||
+    ""
+  ).trim();
+  const leadState = String(
+    rawLead.leadState ||
+    rawLead.state ||
+    quotation.clientState ||
+    quotation.leadState ||
+    quotation.state ||
+    ""
+  ).trim();
+
+  return {
+    ...quotation,
+    selectedLead: {
+      ...rawLead,
+      id: rawLead.id ?? quotation.leadId ?? null,
+      leadId: rawLead.leadId ?? quotation.leadId ?? "",
+      name: rawLead.name || quotation.customerName || quotation.clientName || "",
+      mobile: rawLead.mobile || quotation.clientMobile || "",
+      email: rawLead.email || quotation.clientEmail || "",
+      company: rawLead.company || rawLead.companyName || quotation.clientCompany || "",
+      address,
+      streetAddress: rawLead.streetAddress || address,
+      leadState,
+      state: rawLead.state || leadState,
+    },
+  };
+}
+
 function money(value) {
   return Number(value || 0).toFixed(2);
 }
@@ -479,6 +899,24 @@ function safeAddImage(doc, dataUrl, x, y, maxW, maxH) {
   }
 }
 
+function safeAddImageFill(doc, dataUrl, x, y, width, height) {
+  if (!dataUrl || typeof dataUrl !== "string") return false;
+  const comma = dataUrl.indexOf(",");
+  if (comma === -1) return false;
+  const b64 = dataUrl.slice(comma + 1).trim();
+  if (!b64 || b64.length < 100) return false;
+  try {
+    const prefix = dataUrl.slice(0, comma).toLowerCase();
+    let fmt = "PNG";
+    if (prefix.includes("jpeg") || prefix.includes("jpg")) fmt = "JPEG";
+    else if (b64.startsWith("/9j/")) fmt = "JPEG";
+    doc.addImage(b64, fmt, x, y, width, height);
+    return true;
+  } catch (_e) {
+    return false;
+  }
+}
+
 export async function buildQuotationPdf({
   customerName,
   clientName,
@@ -494,7 +932,11 @@ export async function buildQuotationPdf({
   items,
   includeDesignFee = false,
   designFeeAmount = 0,
+  designFeeDiscountPct = 0,
+  designFeeGstPct = 0,
   gstPct,
+  gstPercent,
+  gstPctTotal,
   cgstPct,
   sgstPct,
   igstPct,
@@ -540,6 +982,7 @@ export async function buildQuotationPdf({
     udyamNumber: "",
     logoBase64: null,
     signatureBase64: null,
+    watermarkBase64: null,
     bankName: "",
     accountNumber: "",
     ifscCode: "",
@@ -561,6 +1004,22 @@ export async function buildQuotationPdf({
   const tableLineColor = [180, 180, 180];
   const tableLineWidth = 0.3;
   const companyNameText = String(resolvedTemplate.companyName || "");
+  const drawnWatermarkPages = new Set();
+  const drawPageWatermark = () => {
+    if (!resolvedTemplate.watermarkBase64) return;
+    const pageInfo = doc.internal.getCurrentPageInfo?.();
+    const pageNumber = pageInfo?.pageNumber || doc.getNumberOfPages();
+    if (drawnWatermarkPages.has(pageNumber)) return;
+    drawnWatermarkPages.add(pageNumber);
+    safeAddImageFill(doc, resolvedTemplate.watermarkBase64, 0, 0, pageWidth, pageHeight);
+  };
+  const addWatermarkedPage = () => {
+    doc.addPage();
+    drawPageWatermark();
+  };
+  const tableHookOptions = {
+    willDrawPage: () => drawPageWatermark(),
+  };
 
   // ── GST LOGIC ──
   const leadStateValue = selectedLead?.leadState || selectedLead?.state || "";
@@ -568,29 +1027,67 @@ export async function buildQuotationPdf({
   const leadStateCode = deriveStateCode(leadStateValue);
   const isTN = isTamilNaduState(leadStateValue);
   const leadAddress = selectedLead?.address || selectedLead?.streetAddress || "";
-
-  const resolvedGstPct = Array.isArray(gstRows) && gstRows.length > 0
-    ? gstRows.reduce((sum, r) => sum + Number(r.taxPercent || 0), 0)
-    : Number(gstPct || 0);
-  const showGstDetails = resolvedGstPct > 0;
-
-  const appliedCgstPct = isTN ? resolvedGstPct / 2 : 0;
-  const appliedSgstPct = isTN ? resolvedGstPct / 2 : 0;
-  const appliedIgstPct = isTN ? 0 : resolvedGstPct;
-
-  const subtotal = Number(totals.subtotal ?? rootSubtotal ?? 0);
-  const discountPercentValue = Number(totals.discountPct ?? discountPercent ?? discountPct ?? 0);
-  const discountAmt = totals.discountAmt !== undefined
-    ? Number(totals.discountAmt)
-    : (subtotal * (discountPercentValue / 100));
+  const legacyDiscountPct = clampNonNegativeNumber(discountPercent ?? discountPct ?? 0, 0);
+  const legacyGstPct = clampNonNegativeNumber(
+    gstPct ?? gstPercent ?? gstPctTotal ?? (
+      Array.isArray(gstRows) && gstRows.length > 0
+        ? gstRows.reduce((sum, r) => sum + Number(r.taxPercent || 0), 0)
+        : 0
+    ),
+    0,
+  );
+  const shouldSeedLegacyItemTaxes =
+    resolvedLineItems.length > 0 &&
+    (legacyDiscountPct > 0 || legacyGstPct > 0) &&
+    resolvedLineItems.every((item) =>
+      Number(item?.discountPct ?? item?.discountPercent ?? 0) === 0 &&
+      Number(item?.gstPct ?? item?.gstPercent ?? item?.gstPctTotal ?? 0) === 0
+    );
+  const normalizedLineItems = resolvedLineItems.map((item) =>
+    normalizeQuotationLineItem(item, {
+      isTamilNadu: isTN,
+      defaultDiscountPct: legacyDiscountPct,
+      defaultGstPct: legacyGstPct,
+      preferFallbackWhenZero: shouldSeedLegacyItemTaxes,
+    })
+  );
+  const designFeeBase = includeDesignFee ? Number(designFeeAmount || 0) : 0;
+  const designFeePricing = buildDesignFeePricing({
+    includeDesignFee,
+    designFeeAmount: designFeeBase,
+    designFeeDiscountPct: clampNonNegativeNumber(designFeeDiscountPct ?? 0, 0),
+    designFeeGstPct: clampNonNegativeNumber(resolveLegacyCompatibleDesignFeeGstPct(designFeeGstPct, legacyGstPct), 0),
+    isTamilNadu: isTN,
+  });
+  const productSubtotal = normalizedLineItems.reduce((sum, item) => sum + Number(item.baseAmount || 0), 0);
+  const productDiscount = normalizedLineItems.reduce((sum, item) => sum + Number(item.discountAmount || 0), 0);
+  const taxSummary = buildQuotationTaxSummary(normalizedLineItems, {
+    isTamilNadu: isTN,
+    includeDesignFee,
+    designFeeAmount: designFeeBase,
+    designFeeDiscountPct: designFeePricing.discountPct,
+    designFeeGstPct: designFeePricing.gstPct,
+  });
+  const cgstAmt = taxSummary.totalCgstAmount;
+  const sgstAmt = taxSummary.totalSgstAmount;
+  const igstAmt = taxSummary.totalIgstAmount;
+  const designFeeTaxAmount = taxSummary.designFeeTaxAmount;
+  const subtotal = Number(totals.subtotal ?? rootSubtotal ?? (productSubtotal + Number(designFeePricing.baseAmount || 0)));
+  const discountAmt = Number(totals.discountAmt ?? (productDiscount + designFeePricing.discountAmount));
   const taxableAmount = Number(totals.afterDiscount ?? (subtotal - discountAmt));
-  const cgstAmt = taxableAmount * (appliedCgstPct / 100);
-  const sgstAmt = taxableAmount * (appliedSgstPct / 100);
-  const igstAmt = taxableAmount * (appliedIgstPct / 100);
-  const totalTax = isTN ? cgstAmt + sgstAmt : igstAmt;
-  const grandTotal = Number(totals.grandTotal ?? rootGrandTotal ?? (taxableAmount + totalTax));
+  const taxAmount = Number(totals.taxAmt ?? taxSummary.totalTaxAmount);
+  const grandTotal = Number(totals.grandTotal ?? rootGrandTotal ?? (taxableAmount + taxAmount));
+  const taxAmountWordsText = `Tax Amount (in words): ${amountToWords(taxAmount, { includePaise: true })}`;
+  const declarationText = (() => {
+    const rawDeclaration = String(resolvedTemplate.policyText || "").trim();
+    if (rawDeclaration) {
+      return rawDeclaration;
+    }
+    return "We declare that this invoice shows the actual price of the goods described and that all particulars are true and correct.";
+  })();
   // ══ SECTION 1 — Header: ONE table, logo inside left cell ══
   autoTable(doc, {
+    ...tableHookOptions,
     startY: 10,
     margin: { left: 14, right: 14 },
     tableWidth: 182,
@@ -686,6 +1183,7 @@ export async function buildQuotationPdf({
 
   // ══ SECTION 2 — Buyer Card ══
   autoTable(doc, {
+    ...tableHookOptions,
     startY: headerEndY + 6,
     margin: { left: 14, right: 14 },
     tableWidth: 182,
@@ -697,7 +1195,7 @@ export async function buildQuotationPdf({
       lineWidth: 0.3,
       overflow: "linebreak",
       cellPadding: 0,
-      fillColor: [245, 246, 248],
+      fillColor: false,
     },
     columnStyles: {
       0: { cellWidth: 91 },
@@ -745,100 +1243,66 @@ export async function buildQuotationPdf({
   const buyerEndY = doc.lastAutoTable.finalY;
 
   // ══ SECTION 9 — Line items table body ══
+  const showHsnSacColumn = normalizedLineItems.some((item) => Boolean(extractTaxGroupCode(item)));
   const tableBody = [];
   let rowNum = 1;
 
-  (resolvedLineItems.length ? resolvedLineItems : [{}]).forEach((item) => {
+  normalizedLineItems.forEach((item) => {
     const isDesignOnly = String(item?.designStatus || "").toLowerCase() === "design_only";
-    const isDesignProd = String(item?.designStatus || "").toLowerCase() === "design_production";
-    const designCost   = Number(item?.designCost || 0);
-    const qty          = Number(item?.quantity || 0);
-    const unitPrice    = Number(item?.pricePerUnit || item?.unitPrice || 0);
-    const specsText    = fullSpecsSummary(item?.specs || item?.specsJson || {}) || item?.specsSummary || "";
-    const productName  = asText(item?.productName, "-");
-    const description  = specsText ? `${productName}\n${specsText}` : productName;
-    const gstLabel     = showGstDetails ? `${resolvedGstPct}%` : null;
+    const specsText = fullSpecsSummary(item?.specs || item?.specsJson || {}) || item?.specsSummary || "";
+    const productName = asText(item?.productName, "-");
+    const discountAmount = Number(item?.discountAmount || 0);
+    const discountText = !isDesignOnly && discountAmount > 0 ? `Discounted Amount: ${money(discountAmount)}` : "";
+    const description = [productName, specsText, discountText].filter(Boolean).join("\n");
+    const hsnSac = extractTaxGroupCode(item);
 
-    if (isDesignOnly) {
-      tableBody.push({ rowType: "product", cells: showGstDetails ? [
-        String(rowNum++), description, gstLabel,
-        "—", "—", "—",
-        Number(item?.lineTotal || designCost || 0).toFixed(2),
-      ] : [
-        String(rowNum++), description,
-        "—", "—", "—",
-        Number(item?.lineTotal || designCost || 0).toFixed(2),
-      ]});
-    } else if (isDesignProd) {
-      const productionAmt = qty * unitPrice;
-      tableBody.push({ rowType: "product", cells: showGstDetails ? [
-        String(rowNum++), description, gstLabel,
-        qty > 0 ? String(qty) : "—",
-        qty > 0 ? "Nos" : "—",
-        unitPrice > 0 ? unitPrice.toFixed(2) : "—",
-        productionAmt.toFixed(2),
-      ] : [
-        String(rowNum++), description,
-        qty > 0 ? String(qty) : "—",
-        qty > 0 ? "Nos" : "—",
-        unitPrice > 0 ? unitPrice.toFixed(2) : "—",
-        productionAmt.toFixed(2),
-      ]});
-      if (designCost > 0) {
-        tableBody.push({ rowType: "designFee", cells: showGstDetails ? [
-          String(rowNum++), "Design Fee", gstLabel,
-          "1", "Job",
-          designCost.toFixed(2),
-          designCost.toFixed(2),
-        ] : [
-          String(rowNum++), "Design Fee",
-          "1", "Job",
-          designCost.toFixed(2),
-          designCost.toFixed(2),
-        ]});
-      }
-    } else {
-      const productionAmt = qty * unitPrice;
-      tableBody.push({ rowType: "product", cells: showGstDetails ? [
-        String(rowNum++), description, gstLabel,
-        qty > 0 ? String(qty) : "—",
-        qty > 0 ? "Nos" : "—",
-        unitPrice > 0 ? unitPrice.toFixed(2) : "—",
-        productionAmt > 0 ? productionAmt.toFixed(2) : Number(item?.lineTotal || 0).toFixed(2),
-      ] : [
-        String(rowNum++), description,
-        qty > 0 ? String(qty) : "—",
-        qty > 0 ? "Nos" : "—",
-        unitPrice > 0 ? unitPrice.toFixed(2) : "—",
-        productionAmt > 0 ? productionAmt.toFixed(2) : Number(item?.lineTotal || 0).toFixed(2),
-      ]});
-    }
+    tableBody.push({
+      rowType: "product",
+      cells: [
+        String(rowNum++),
+        description,
+        ...(showHsnSacColumn ? [isDesignOnly ? "—" : (hsnSac || "—")] : []),
+        isDesignOnly ? "—" : `${Number(item.discountPct || 0).toFixed(2)}%`,
+        isDesignOnly ? "—" : `${Number(item.gstPct || 0).toFixed(2)}%`,
+        isDesignOnly ? "—" : (Number(item.quantity || 0) > 0 ? String(Number(item.quantity || 0)) : "—"),
+        isDesignOnly ? "—" : (Number(item.quantity || 0) > 0 ? "Nos" : "—"),
+        isDesignOnly ? "—" : (Number(item.unitPrice || 0) > 0 ? Number(item.unitPrice || 0).toFixed(2) : "—"),
+        Number(item.lineTotal || 0).toFixed(2),
+      ],
+    });
   });
 
   if (includeDesignFee && Number(designFeeAmount || 0) > 0) {
-    tableBody.push({ rowType: "designFee", cells: showGstDetails ? [
-      String(rowNum++), "Design Fee",
-      `${resolvedGstPct}%`,
-      "1", "Job",
-      Number(designFeeAmount).toFixed(2),
-      Number(designFeeAmount).toFixed(2),
-    ] : [
-      String(rowNum++), "Design Fee",
-      "1", "Job",
-      Number(designFeeAmount).toFixed(2),
-      Number(designFeeAmount).toFixed(2),
-    ]});
+    const designFeeDiscountText = Number(designFeePricing.discountAmount || 0) > 0
+      ? `Discounted Amount: ${money(designFeePricing.discountAmount)}`
+      : "";
+    tableBody.push({
+      rowType: "designFee",
+      cells: [
+        String(rowNum++),
+        ["Design Fee", designFeeDiscountText].filter(Boolean).join("\n"),
+        ...(showHsnSacColumn ? ["—"] : []),
+        `${designFeePricing.discountPct.toFixed(2)}%`,
+        `${designFeePricing.gstPct.toFixed(2)}%`,
+        "1",
+        "Job",
+        Number(designFeePricing.baseAmount).toFixed(2),
+        designFeePricing.lineTotal.toFixed(2),
+      ],
+    });
   }
 
   // ══ SECTION 3 — Line items table ══
   autoTable(doc, {
+    ...tableHookOptions,
     startY: buyerEndY + 6,
     margin: tableMargin,
     tableWidth,
     theme: "grid",
-    head: [showGstDetails
-      ? ["Sl.No", "Description of Goods", "GST %", "Qty", "UOM", "Rate", "Amount"]
-      : ["Sl.No", "Description of Goods", "Qty", "UOM", "Rate", "Amount"]],
+    head: [showHsnSacColumn
+      ? ["Sl.No", "Description of Goods", "HSN/SAC", "Disc %", "GST %", "Qty", "UOM", "Rate", "Amount"]
+      : ["Sl.No", "Description of Goods", "Disc %", "GST %", "Qty", "UOM", "Rate", "Amount"]
+    ],
     body: tableBody.map((r) => r.cells),
     headStyles: {
       fillColor: [69, 89, 122], textColor: [255, 255, 255],
@@ -850,23 +1314,29 @@ export async function buildQuotationPdf({
       fontSize: 8, lineColor: tableLineColor, lineWidth: tableLineWidth,
       overflow: "linebreak", textColor: [30, 30, 30],
     },
-    alternateRowStyles: { fillColor: [248, 250, 252] },
-    columnStyles: showGstDetails ? {
-      0: { cellWidth: 12, halign: "center" },
-      1: { cellWidth: 80, halign: "left"   },
-      2: { cellWidth: 16, halign: "center" },
-      3: { cellWidth: 14, halign: "center" },
-      4: { cellWidth: 16, halign: "center" },
-      5: { cellWidth: 22, halign: "right"  },
-      6: { cellWidth: 22, halign: "right"  },
-    } : {
-      0: { cellWidth: 12, halign: "center" },
-      1: { cellWidth: 96, halign: "left"   },
-      2: { cellWidth: 16, halign: "center" },
-      3: { cellWidth: 18, halign: "center" },
-      4: { cellWidth: 28, halign: "right"  },
-      5: { cellWidth: 32, halign: "right"  },
-    },
+    alternateRowStyles: { fillColor: false },
+    columnStyles: showHsnSacColumn
+      ? {
+          0: { cellWidth: 11, halign: "center" },
+          1: { cellWidth: 56, halign: "left"   },
+          2: { cellWidth: 18, halign: "center" },
+          3: { cellWidth: 15, halign: "center" },
+          4: { cellWidth: 15, halign: "center" },
+          5: { cellWidth: 13, halign: "center" },
+          6: { cellWidth: 14, halign: "center" },
+          7: { cellWidth: 20, halign: "right"  },
+          8: { cellWidth: 28, halign: "right"  },
+        }
+      : {
+          0: { cellWidth: 11, halign: "center" },
+          1: { cellWidth: 66, halign: "left"   },
+          2: { cellWidth: 15, halign: "center" },
+          3: { cellWidth: 15, halign: "center" },
+          4: { cellWidth: 13, halign: "center" },
+          5: { cellWidth: 14, halign: "center" },
+          6: { cellWidth: 20, halign: "right"  },
+          7: { cellWidth: 28, halign: "right"  },
+        },
     didParseCell: (data) => {
       if (data.section !== "body") return;
       // Design fee rows — use default body styles, no override needed
@@ -876,15 +1346,16 @@ export async function buildQuotationPdf({
 
   // ══ SECTION 4 — E&OE row (connected to line items) ══
   autoTable(doc, {
+    ...tableHookOptions,
     startY: lineItemsEndY - tableLineWidth,
     margin: { left: 14, right: 14, top: 0 },
     tableWidth,
     head: [],
     body: [[
       "E&OE",
+      `GST Amount: Rs. ${taxAmount.toFixed(2)}`,
       `Discount Amount: Rs. ${discountAmt.toFixed(2)}`,
-      "Total Weight: 0.0000/KG",
-      `Total (INR): Rs. ${subtotal.toFixed(2)}`,
+      `Total (INR): Rs. ${grandTotal.toFixed(2)}`,
     ]],
     theme: "grid",
     styles: {
@@ -899,125 +1370,27 @@ export async function buildQuotationPdf({
       fontStyle: "bold",
     },
     columnStyles: {
-      0: { cellWidth: 20, halign: "center" },
-      1: { cellWidth: 54, halign: "center" },
-      2: { cellWidth: 54, halign: "center" },
-      3: { cellWidth: 54, halign: "right"  },
+      0: { cellWidth: 18, halign: "center" },
+      1: { cellWidth: 64, halign: "center" },
+      2: { cellWidth: 50, halign: "center" },
+      3: { cellWidth: 50, halign: "right"  },
     },
   });
 
   const eoeEndY = doc.lastAutoTable.finalY;
 
-  // ══ SECTION 5 — Tax table (connected to E&OE) ══
-  if (showGstDetails && isTN) {
-    autoTable(doc, {
-      startY: eoeEndY - tableLineWidth,
-      margin: { left: 14, right: 14, top: 0 },
-      tableWidth,
-      theme: "grid",
-      head: [[
-        "Total Taxable Value",
-        "State Tax Rate",
-        "State Tax Amount",
-        "Central Tax Rate",
-        "Central Tax Amount",
-        "Total Tax",
-      ]],
-      body: [[
-        taxableAmount.toFixed(2),
-        `${appliedCgstPct.toFixed(1)}%`,
-        cgstAmt.toFixed(2),
-        `${appliedSgstPct.toFixed(1)}%`,
-        sgstAmt.toFixed(2),
-        (cgstAmt + sgstAmt).toFixed(2),
-      ]],
-      headStyles: {
-        fillColor: [220, 228, 240],
-        textColor: [30, 30, 30],
-        fontStyle: "bold",
-        fontSize: 7,
-        halign: "center",
-      },
-      styles: {
-        fontSize: 8,
-        lineColor: tableLineColor,
-        lineWidth: tableLineWidth,
-      },
-      columnStyles: {
-        0: { cellWidth: 36, halign: "right"  },
-        1: { cellWidth: 24, halign: "center" },
-        2: { cellWidth: 28, halign: "right"  },
-        3: { cellWidth: 24, halign: "center" },
-        4: { cellWidth: 28, halign: "right"  },
-        5: { cellWidth: 42, halign: "right"  },
-      },
-    });
-  } else if (showGstDetails) {
-    autoTable(doc, {
-      startY: eoeEndY - tableLineWidth,
-      margin: { left: 14, right: 14, top: 0 },
-      tableWidth,
-      head: [[
-        "Total Taxable Value",
-        "IGST Rate",
-        "IGST Amount",
-        "Total Tax",
-      ]],
-      body: [[
-        taxableAmount.toFixed(2),
-        `${resolvedGstPct.toFixed(1)}%`,
-        igstAmt.toFixed(2),
-        igstAmt.toFixed(2),
-      ]],
-      theme: "grid",
-      styles: {
-        fontSize: 8,
-        cellPadding: 3,
-        lineColor: tableLineColor,
-        lineWidth: tableLineWidth,
-        textColor: [30, 30, 30],
-      },
-      headStyles: {
-        fillColor: [220, 228, 240],
-        textColor: [30, 30, 30],
-        fontStyle: "bold",
-        halign: "center",
-      },
-      columnStyles: {
-        0: { cellWidth: 60, halign: "right" },
-        1: { cellWidth: 40, halign: "center" },
-        2: { cellWidth: 42, halign: "right" },
-        3: { cellWidth: 40, halign: "right" },
-      },
-    });
-  }
-
-  // ══ SECTION 6 — Amount in words + round off ══
-  const taxEndY = doc.lastAutoTable.finalY;
+  // ══ SECTION 5 — Amount chargeable above tax summary ══
+  const amountChargeableY = doc.lastAutoTable.finalY;
   const roundedGrandTotal = Math.round(grandTotal);
-  const roundOff = roundedGrandTotal - grandTotal;
-  const roundOffDisplay = Object.is(roundOff, -0)
-    ? "0.00"
-    : `${roundOff > 0 ? "+" : "-"}${Math.abs(roundOff).toFixed(2)}`;
-  const amountWordsText = `Amount in Words (INR): ${numberToWords(roundedGrandTotal)} Rupees Only`;
-
+  const amountChargeableText = `Amount Chargeable (in words): INR ${amountToWords(roundedGrandTotal)}`;
   autoTable(doc, {
-    startY: taxEndY - tableLineWidth,
+    ...tableHookOptions,
+    startY: amountChargeableY - tableLineWidth,
     margin: { left: 14, right: 14, top: 0 },
     tableWidth,
-    theme: "grid",
     head: [],
-    body: [
-      [
-        { content: amountWordsText, rowSpan: 2 },
-        "Round Off",
-        roundOffDisplay,
-      ],
-      [
-        "Total Amount Value (INR)",
-        roundedGrandTotal.toFixed(2),
-      ],
-    ],
+    body: [[amountChargeableText, "E. & O. E"]],
+    theme: "grid",
     styles: {
       fontSize: 8,
       lineColor: tableLineColor,
@@ -1025,62 +1398,154 @@ export async function buildQuotationPdf({
       cellPadding: 4,
       textColor: [30, 30, 30],
     },
-    columnStyles: {
-      0: {
-        cellWidth: 97,
-        fontStyle: "italic",
-        halign: "left",
-        valign: "middle",
-        textColor: [30, 30, 30],
-      },
-      1: {
-        cellWidth: 55,
-        fontStyle: "bold",
-        halign: "right",
-        textColor: [30, 30, 30],
-      },
-      2: {
-        cellWidth: 30,
-        fontStyle: "bold",
-        halign: "right",
-        textColor: [30, 30, 30],
-      },
+    bodyStyles: {
+      fillColor: false,
+      textColor: [30, 30, 30],
     },
-    didParseCell: (data) => {
-      if (data.section === "body" && data.row.index === 1) {
-        if (data.column.index === 1 || data.column.index === 2) {
-          data.cell.styles.fontStyle = "bold";
-          data.cell.styles.fontSize = 9;
+    columnStyles: {
+      0: { cellWidth: 150, halign: "left", fontStyle: "normal" },
+      1: { cellWidth: 32, halign: "right", fontStyle: "bold" },
+    },
+  });
+
+  // ══ SECTION 6 — Tax summary grouped by GST rate ══
+  autoTable(doc, {
+    ...tableHookOptions,
+    startY: doc.lastAutoTable.finalY + 4,
+    margin: { left: 14, right: 14, top: 0 },
+    tableWidth,
+    theme: "grid",
+    head: [isTN
+      ? [
+          "Products",
+          "Taxable Value",
+          "CGST %",
+          "CGST Amount",
+          "SGST/UTGST %",
+          "SGST/UTGST Amount",
+          "Tax Amount",
+        ]
+      : [
+          "Products",
+          "Taxable Value",
+          "IGST %",
+          "IGST Amount",
+          "Tax Amount",
+        ]
+    ],
+    body: [
+      ...taxSummary.rows.map((row, index) => (
+        isTN
+          ? [
+              row.displayText || row.serialText || String(index + 1),
+              money(row.taxableAmount),
+              `${money(row.cgstRate)}%`,
+              money(row.cgstAmount),
+              `${money(row.sgstRate)}%`,
+              money(row.sgstAmount),
+              money(row.taxTotalAmount),
+            ]
+          : [
+              row.displayText || row.serialText || String(index + 1),
+              money(row.taxableAmount),
+              `${money(row.igstRate)}%`,
+              money(row.igstAmount),
+              money(row.taxTotalAmount),
+            ]
+      )),
+      isTN
+        ? [
+            "Total",
+            money(taxSummary.productTaxableAmount),
+            "",
+            money(taxSummary.totalCgstAmount),
+            "",
+            money(taxSummary.totalSgstAmount),
+            money(taxSummary.productTaxAmount),
+          ]
+        : [
+            "Total",
+            money(taxSummary.productTaxableAmount),
+            "",
+            money(taxSummary.totalIgstAmount),
+            money(taxSummary.productTaxAmount),
+          ],
+    ],
+    headStyles: {
+      fillColor: [220, 228, 240],
+      textColor: [30, 30, 30],
+      fontStyle: "bold",
+      fontSize: 7,
+      halign: "center",
+    },
+    styles: {
+      fontSize: 8,
+      lineColor: tableLineColor,
+      lineWidth: tableLineWidth,
+      overflow: "linebreak",
+    },
+    columnStyles: isTN
+      ? {
+          0: { cellWidth: 24, halign: "center" },
+          1: { cellWidth: 30, halign: "right" },
+          2: { cellWidth: 20, halign: "center" },
+          3: { cellWidth: 26, halign: "right" },
+          4: { cellWidth: 22, halign: "center" },
+          5: { cellWidth: 30, halign: "right" },
+          6: { cellWidth: 30, halign: "right" },
         }
+      : {
+          0: { cellWidth: 24, halign: "center" },
+          1: { cellWidth: 62, halign: "right" },
+          2: { cellWidth: 24, halign: "center" },
+          3: { cellWidth: 36, halign: "right" },
+          4: { cellWidth: 36, halign: "right" },
+        },
+    didParseCell: (data) => {
+      if (data.section !== "body") return;
+      const isTotalRow = data.row.index === taxSummary.rows.length;
+      if (isTotalRow) {
+        data.cell.styles.fontStyle = "bold";
+        data.cell.styles.fillColor = false;
+      }
+      if (data.column.index === 0) {
+        data.cell.styles.halign = "left";
       }
     },
   });
 
+  // ══ SECTION 7 — Tax words + Declaration + Bank + Signature ══
   const totalsEndY = doc.lastAutoTable.finalY;
-
-  // ══ SECTION 7 — Bank + Policy + Signature ══
   const footerReserve = 20;
   let y = totalsEndY + 6;
   if (y + 40 > pageHeight - footerReserve) {
-    doc.addPage();
+    addWatermarkedPage();
     y = 14;
   }
 
-  const bankContent = [
+  const bankDetailsContent = [
+    "Bank Details:",
     `Bank: ${asText(resolvedTemplate.bankName, "-")}`,
     `A/c No: ${asText(resolvedTemplate.accountNumber, "-")}`,
     `IFSC Code: ${asText(resolvedTemplate.ifscCode, "-")}`,
     `Branch: ${asText(resolvedTemplate.branch, "-")}`,
   ].join("\n");
 
-  const policyContent = (resolvedTemplate.policyText || "")
-    .split("\n").map((l) => l.trim()).filter(Boolean)
-    .map((l) => `- ${l}`).join("\n");
+  const footerLeftContent = [
+    taxAmountWordsText,
+    `Declaration: ${declarationText}`,
+    "",
+    bankDetailsContent,
+  ].join("\n");
 
   autoTable(doc, {
+    ...tableHookOptions,
     startY: y,
-    head: [["Bank Details", "Policy & Guidelines :", `For ${companyNameText}`]],
-    body: [[bankContent, policyContent || "", ""]],
+    head: [[
+      "Tax / Declaration / Bank Details",
+      `For ${companyNameText}`,
+    ]],
+    body: [[footerLeftContent, ""]],
     styles: {
       fontSize: 7,
       cellPadding: 4,
@@ -1091,7 +1556,7 @@ export async function buildQuotationPdf({
       textColor: [30, 30, 30],
     },
     headStyles: {
-      fillColor: [255, 255, 255],
+      fillColor: false,
       textColor: [30, 30, 30],
       fontStyle: "bold",
       fontSize: 8,
@@ -1099,14 +1564,13 @@ export async function buildQuotationPdf({
       lineWidth: 0.3,
     },
     columnStyles: {
-      0: { cellWidth: 45 },
-      1: { cellWidth: 95 },
-      2: { cellWidth: 42 },
+      0: { cellWidth: 140 },
+      1: { cellWidth: 42 },
     },
     theme: "grid",
     margin: { left: 14, right: 14 },
     didDrawCell: (data) => {
-      if (data.section === "body" && data.column.index === 2) {
+      if (data.section === "body" && data.column.index === 1) {
         if (resolvedTemplate.signatureBase64) {
           safeAddImage(
             doc,
@@ -1146,7 +1610,7 @@ export async function buildQuotationPdf({
   return doc;
 }
 
-async function convertImageToPng(dataUrl, maxPxWidth = 400) {
+async function convertImageToPng(dataUrl, maxPxWidth = 400, opacity = 1) {
   return new Promise((resolve) => {
     if (!dataUrl || !dataUrl.includes(",")) { resolve(dataUrl); return; }
     const img = new Image();
@@ -1163,12 +1627,16 @@ async function convertImageToPng(dataUrl, maxPxWidth = 400) {
         canvas.width  = outW;
         canvas.height = outH;
         const ctx = canvas.getContext("2d");
+        if (!ctx) { resolve(dataUrl); return; }
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = "high";
+        ctx.clearRect(0, 0, outW, outH);
+        ctx.globalAlpha = Math.max(0, Math.min(1, opacity));
+        ctx.filter = opacity < 1 ? "brightness(1.45)" : "none";
         ctx.drawImage(img, 0, 0, outW, outH);
-        // PNG for transparency, JPEG for everything else
-        const isTransparent = dataUrl.startsWith("data:image/png");
-        const output = isTransparent
-          ? canvas.toDataURL("image/png")
-          : canvas.toDataURL("image/jpeg", 0.75);
+        ctx.filter = "none";
+        // Keep watermark output as PNG so transparent regions stay transparent.
+        const output = canvas.toDataURL("image/png");
         resolve(output);
       } catch (_e) { resolve(dataUrl); }
     };
@@ -1184,17 +1652,20 @@ async function prepareQuotationPdfDocument(quotation, template = {}) {
       ? await convertImageToPng(template.logoBase64, 400) : null,
     signatureBase64: template?.signatureBase64
       ? await convertImageToPng(template.signatureBase64, 300) : null,
+    watermarkBase64: template?.watermarkBase64
+      ? await convertImageToPng(template.watermarkBase64, 1800) : null,
   };
+  const quotationForPdf = normalizeQuotationLeadForPdf(quotation || {});
   const doc = await buildQuotationPdf({
-    ...quotation,
+    ...quotationForPdf,
     template: convertedTemplate,
   });
   const safeCustomerName = sanitizeFilenamePart(
-    quotation.customerName || quotation.clientName || quotation.selectedLead?.name,
+    quotationForPdf.customerName || quotationForPdf.clientName || quotationForPdf.selectedLead?.name,
     "Customer"
   );
   const safeDate = sanitizeFilenamePart(
-    quotation.quotationDate || quotation.createdAt,
+    quotationForPdf.quotationDate || quotationForPdf.createdAt,
     new Date().toISOString().slice(0, 10),
   );
   const fileName = `Quotation_${safeCustomerName}_${safeDate}.pdf`;

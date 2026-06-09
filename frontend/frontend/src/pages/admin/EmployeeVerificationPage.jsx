@@ -7,8 +7,8 @@ import {
   verifyEmployeeFields,
 } from "../../api/employeesApi";
 import { useToast } from "../../components/system/ToastProvider";
-import { extractApiErrorMessage } from "../../utils/errorMessage";
 import api from "../../utils/api";
+import { extractApiErrorMessage } from "../../utils/errorMessage";
 import { defaultCountryOption } from "../../utils/phoneUtils";
 
 const FIELD_LABELS = {
@@ -46,6 +46,10 @@ export default function EmployeeVerificationPage() {
   const [lastLink, setLastLink] = useState(null);
   const [docPreviewOpen, setDocPreviewOpen] = useState(false);
   const [previewDoc, setPreviewDoc] = useState(null);
+  const [previewBlobUrl, setPreviewBlobUrl] = useState("");
+  const [previewMimeType, setPreviewMimeType] = useState("");
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState("");
 
   async function load() {
     setLoading(true);
@@ -166,10 +170,70 @@ export default function EmployeeVerificationPage() {
   const closeDocPreview = () => {
     setDocPreviewOpen(false);
     setPreviewDoc(null);
+    setPreviewBlobUrl("");
+    setPreviewMimeType("");
+    setPreviewLoading(false);
+    setPreviewError("");
   };
 
+  const previewUrl = useMemo(() => {
+    const raw = String(previewDoc?.fileUrl || "").trim();
+    if (!raw) return "";
+    if (/^https?:\/\//i.test(raw)) return raw;
+    return raw.startsWith("/") ? raw : `/${raw}`;
+  }, [previewDoc]);
+
+  useEffect(() => {
+    let active = true;
+    let objectUrl = "";
+
+    async function loadPreview() {
+      if (!docPreviewOpen || !previewUrl) return;
+
+      setPreviewLoading(true);
+      setPreviewError("");
+      setPreviewBlobUrl("");
+      setPreviewMimeType("");
+
+      try {
+        const response = await api.get(previewUrl, { responseType: "blob" });
+        const blob = response?.data;
+        const contentType = String(response?.headers?.["content-type"] || blob?.type || "").toLowerCase();
+
+        if (!blob || !(blob instanceof Blob)) {
+          throw new Error("Failed to load preview file");
+        }
+        if (contentType.includes("text/html") || contentType.includes("application/json")) {
+          throw new Error("Server returned a page instead of the document file");
+        }
+
+        if (!active) return;
+
+        objectUrl = window.URL.createObjectURL(blob);
+        setPreviewBlobUrl(objectUrl);
+        setPreviewMimeType(contentType || blob.type || "");
+      } catch (error) {
+        if (!active) return;
+        const message = extractApiErrorMessage(error, "Failed to load preview");
+        setPreviewError(message);
+        showError(message);
+      } finally {
+        if (active) setPreviewLoading(false);
+      }
+    }
+
+    loadPreview();
+
+    return () => {
+      active = false;
+      if (objectUrl) {
+        window.URL.revokeObjectURL(objectUrl);
+      }
+    };
+  }, [docPreviewOpen, previewUrl, showError]);
+
   const previewKind = useMemo(() => {
-    const url = String(previewDoc?.fileUrl || "");
+    const url = String(previewBlobUrl || previewUrl || "");
     const name = String(previewDoc?.originalFilename || "");
     const pickExt = (value) => {
       const raw = String(value || "");
@@ -180,27 +244,16 @@ export default function EmployeeVerificationPage() {
       return withoutQuery.slice(lastDot + 1).toLowerCase();
     };
 
+    const mime = String(previewMimeType || "").toLowerCase();
+    if (mime.startsWith("image/")) return "image";
+    if (mime.includes("pdf")) return "pdf";
+
     const ext = pickExt(name) || pickExt(url);
     if (!url) return "none";
     if (ext === "pdf") return "pdf";
     if (["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg"].includes(ext)) return "image";
     return "other";
-  }, [previewDoc]);
-
-  const previewUrl = useMemo(() => {
-    const raw = String(previewDoc?.fileUrl || "").trim();
-    if (!raw) return "";
-    if (/^https?:\/\//i.test(raw)) return raw;
-    const base = String(api?.defaults?.baseURL || "").trim();
-    if (base) {
-      try {
-        return new URL(raw, base.endsWith("/") ? base : `${base}/`).toString();
-      } catch {
-        // fall through
-      }
-    }
-    return raw;
-  }, [previewDoc]);
+  }, [previewBlobUrl, previewMimeType, previewDoc, previewUrl]);
 
   return (
     <div className="container-fluid">
@@ -500,30 +553,41 @@ export default function EmployeeVerificationPage() {
                     <button type="button" className="btn-close custom-btn-close" onClick={closeDocPreview} />
                   </div>
                   <div className="modal-body">
-                    {previewKind === "pdf" ? (
+                    {previewLoading ? (
+                      <div className="d-flex align-items-center justify-content-center py-5">
+                        <div className="spinner-border text-primary" role="status" aria-label="Loading preview" />
+                      </div>
+                    ) : previewError ? (
+                      <div className="alert alert-danger mb-0">{previewError}</div>
+                    ) : previewKind === "pdf" ? (
                       <iframe
                         title="Document preview"
-                        src={`${previewUrl}#toolbar=0&navpanes=0`}
+                        src={`${previewBlobUrl || previewUrl}#toolbar=0&navpanes=0`}
                         style={{ width: "100%", height: "70vh", border: "1px solid #eee", borderRadius: 6 }}
                       />
                     ) : previewKind === "image" ? (
                       <div className="text-center">
                         <img
                           alt={previewDoc.originalFilename || "document"}
-                          src={previewUrl}
+                          src={previewBlobUrl || previewUrl}
                           style={{ maxWidth: "100%", maxHeight: "70vh", borderRadius: 6 }}
                         />
                       </div>
                     ) : (
-                      <iframe
-                        title="Document preview"
-                        src={previewUrl}
-                        style={{ width: "100%", height: "70vh", border: "1px solid #eee", borderRadius: 6 }}
-                      />
+                      <div className="alert alert-info mb-0">
+                        Inline preview is available for PDF and image files. Use Open in new tab to view or download this file.
+                      </div>
                     )}
                   </div>
                   <div className="modal-footer">
-                    <a className="btn btn-light" href={previewUrl} target="_blank" rel="noreferrer">
+                    <a
+                      className={`btn btn-light${previewBlobUrl ? "" : " disabled"}`}
+                      href={previewBlobUrl || undefined}
+                      target="_blank"
+                      rel="noreferrer"
+                      aria-disabled={!previewBlobUrl}
+                      tabIndex={previewBlobUrl ? undefined : -1}
+                    >
                       Open in new tab
                     </a>
                     <button type="button" className="btn btn-primary" onClick={closeDocPreview}>

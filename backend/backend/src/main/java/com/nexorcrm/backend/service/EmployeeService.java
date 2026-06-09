@@ -19,7 +19,15 @@ import com.nexorcrm.backend.repo.UserRepository;
 import com.nexorcrm.backend.util.PhoneValidationUtil;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.FileSystemResource;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.MediaTypeFactory;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -28,8 +36,12 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.net.URLDecoder;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -37,6 +49,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -378,6 +391,7 @@ public class EmployeeService {
         e.setPanCardPath(trimToNull(r.getPanCardPath()));
         e.setBankPassbookPath(trimToNull(r.getBankPassbookPath()));
         e.setExperienceCertificatePath(trimToNull(r.getExperienceCertificatePath()));
+        e.setCertificatePath(trimToNull(r.getCertificatePath()));
         e.setGraduationCertificatePath(trimToNull(r.getGraduationCertificatePath()));
         e.setGraduationMarksheetPath(trimToNull(r.getGraduationMarksheetPath()));
         e.setHscMarksheetPath(trimToNull(r.getHscMarksheetPath()));
@@ -493,6 +507,7 @@ public class EmployeeService {
         e.setPanCardPath(saveEmployeeFile(employeeId, "pan-card", r.getUploadCandidatePanCard()));
         e.setBankPassbookPath(saveEmployeeFile(employeeId, "bank-passbook", r.getUploadBankPassBookCopy()));
         e.setExperienceCertificatePath(saveEmployeeFile(employeeId, "experience-certificate", r.getUploadExperienceCertificate()));
+        e.setCertificatePath(saveEmployeeFile(employeeId, "certificate", r.getUploadCertificate()));
         e.setGraduationCertificatePath(saveEmployeeFile(employeeId, "graduation-certificate", r.getUploadGraduationCertificate()));
         e.setGraduationMarksheetPath(saveEmployeeFile(employeeId, "graduation-marksheet", r.getUploadGraduationMarksheet()));
         e.setHscMarksheetPath(saveEmployeeFile(employeeId, "hsc-marksheet", r.getUploadHscMarkSheet()));
@@ -519,6 +534,9 @@ public class EmployeeService {
 
         String expCertPath = saveEmployeeFile(employeeId, "experience-certificate", r.getUploadExperienceCertificate());
         if (expCertPath != null) e.setExperienceCertificatePath(expCertPath);
+
+        String certPath = saveEmployeeFile(employeeId, "certificate", r.getUploadCertificate());
+        if (certPath != null) e.setCertificatePath(certPath);
 
         String gradCertPath = saveEmployeeFile(employeeId, "graduation-certificate", r.getUploadGraduationCertificate());
         if (gradCertPath != null) e.setGraduationCertificatePath(gradCertPath);
@@ -558,6 +576,121 @@ public class EmployeeService {
             throw new RuntimeException("Failed to upload employee document", ex);
         }
     }
+
+    public ResponseEntity<Resource> getFile(Long employeeId, String fileKey) {
+        Employee employee = employeeRepository.findById(employeeId)
+                .filter(e -> !Boolean.TRUE.equals(e.getDeleted()))
+                .orElseThrow(() -> new EntityNotFoundException("Employee not found: " + employeeId));
+
+        FileRef ref = resolveFileRef(employee, fileKey);
+        Path resolvedPath = resolveStoredFilePath(ref.path(), ref.fileName());
+        Resource resource = new FileSystemResource(resolvedPath.toFile());
+        if (!resource.exists() || !resource.isReadable()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "File not found");
+        }
+
+        String filename = StringUtils.hasText(ref.fileName())
+                ? ref.fileName().replace("\"", "")
+                : resolvedPath.getFileName().toString().replace("\"", "");
+        MediaType mediaType = MediaTypeFactory.getMediaType(filename)
+                .or(() -> MediaTypeFactory.getMediaType(resolvedPath.getFileName().toString()))
+                .orElse(MediaType.APPLICATION_OCTET_STREAM);
+
+        return ResponseEntity.ok()
+                .contentType(mediaType)
+                .header("Content-Disposition", "inline; filename=\"" + filename + "\"")
+                .body(resource);
+    }
+
+    private FileRef resolveFileRef(Employee employee, String fileKey) {
+        String key = String.valueOf(fileKey == null ? "" : fileKey).trim().toLowerCase();
+        return switch (key) {
+            case "candidate-photo" -> new FileRef(employee.getCandidatePhotoPath(), deriveFileName(employee.getCandidatePhotoPath()));
+            case "aadhar-card" -> new FileRef(employee.getAadharCardPath(), deriveFileName(employee.getAadharCardPath()));
+            case "pan-card" -> new FileRef(employee.getPanCardPath(), deriveFileName(employee.getPanCardPath()));
+            case "bank-passbook" -> new FileRef(employee.getBankPassbookPath(), deriveFileName(employee.getBankPassbookPath()));
+            case "experience-certificate" -> new FileRef(employee.getExperienceCertificatePath(), deriveFileName(employee.getExperienceCertificatePath()));
+            case "certificate" -> new FileRef(employee.getCertificatePath(), deriveFileName(employee.getCertificatePath()));
+            case "graduation-certificate" -> new FileRef(employee.getGraduationCertificatePath(), deriveFileName(employee.getGraduationCertificatePath()));
+            case "graduation-marksheet" -> new FileRef(employee.getGraduationMarksheetPath(), deriveFileName(employee.getGraduationMarksheetPath()));
+            case "hsc-marksheet" -> new FileRef(employee.getHscMarksheetPath(), deriveFileName(employee.getHscMarksheetPath()));
+            case "sslc-marksheet" -> new FileRef(employee.getSslcMarksheetPath(), deriveFileName(employee.getSslcMarksheetPath()));
+            case "community-certificate" -> new FileRef(employee.getCommunityCertificatePath(), deriveFileName(employee.getCommunityCertificatePath()));
+            default -> throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Unknown file key");
+        };
+    }
+
+    private String deriveFileName(String path) {
+        if (!StringUtils.hasText(path)) {
+            return "";
+        }
+        String normalized = path.replace('\\', '/').trim();
+        int slash = normalized.lastIndexOf('/');
+        return slash >= 0 && slash < normalized.length() - 1
+                ? normalized.substring(slash + 1)
+                : normalized;
+    }
+
+    private Path resolveStoredFilePath(String storedPath, String storedFileName) {
+        if (!StringUtils.hasText(storedPath) && !StringUtils.hasText(storedFileName)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "File not found");
+        }
+
+        if (StringUtils.hasText(storedPath)) {
+            String raw = storedPath.replace('\\', '/').trim();
+            String normalized = raw;
+            if (normalized.contains("/uploads/")) {
+                normalized = normalized.substring(normalized.indexOf("/uploads/") + "/uploads/".length());
+            }
+            normalized = normalized.replaceFirst("^uploads/", "").replaceFirst("^/+", "");
+
+            Optional<Path> direct = tryResolveExistingPath(raw);
+            if (direct.isPresent()) {
+                return direct.get();
+            }
+
+            Optional<Path> uploadsRelative = tryResolveExistingPath(Paths.get("uploads", normalized).toString());
+            if (uploadsRelative.isPresent()) {
+                return uploadsRelative.get();
+            }
+
+            int slash = normalized.lastIndexOf('/');
+            if (slash >= 0 && slash < normalized.length() - 1) {
+                Optional<Path> byFileNameOnly = tryResolveExistingPath(
+                        Paths.get("uploads", normalized.substring(slash + 1)).toString()
+                );
+                if (byFileNameOnly.isPresent()) {
+                    return byFileNameOnly.get();
+                }
+            }
+        }
+
+        if (StringUtils.hasText(storedFileName)) {
+            Optional<Path> byName = tryResolveExistingPath(Paths.get("uploads", storedFileName).toString());
+            if (byName.isPresent()) {
+                return byName.get();
+            }
+        }
+
+        throw new ResponseStatusException(HttpStatus.NOT_FOUND, "File not found");
+    }
+
+    private Optional<Path> tryResolveExistingPath(String rawPath) {
+        if (!StringUtils.hasText(rawPath)) {
+            return Optional.empty();
+        }
+        try {
+            Path path = Paths.get(rawPath).normalize();
+            if (path.toFile().exists()) {
+                return Optional.of(path);
+            }
+            return Optional.empty();
+        } catch (InvalidPathException ignored) {
+            return Optional.empty();
+        }
+    }
+
+    private record FileRef(String path, String fileName) {}
 
     private String normalizeStatus(String status) {
         String s = String.valueOf(status == null ? "ACTIVE" : status).trim().toUpperCase();
@@ -653,6 +786,7 @@ public class EmployeeService {
         r.setPanCardPath(e.getPanCardPath());
         r.setBankPassbookPath(e.getBankPassbookPath());
         r.setExperienceCertificatePath(e.getExperienceCertificatePath());
+        r.setCertificatePath(e.getCertificatePath());
         r.setGraduationCertificatePath(e.getGraduationCertificatePath());
         r.setGraduationMarksheetPath(e.getGraduationMarksheetPath());
         r.setHscMarksheetPath(e.getHscMarksheetPath());

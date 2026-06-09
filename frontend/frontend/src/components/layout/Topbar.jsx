@@ -106,17 +106,13 @@ export default function Topbar({
         currentSection = null;
         currentItems = [];
 
-        if (["CRM", "HRM", "SETTINGS"].includes(sectionTitle.toUpperCase())) {
-          const sectionLi = document.createElement("li");
-          sectionLi.className = "submenu";
-          sectionLi.innerHTML = `<a href="#"><i class="ti ti-layout-grid"></i><span>${sectionTitle}</span><span class="menu-arrow"></span></a>`;
-          const sectionUl = document.createElement("ul");
-          itemsToAppend.forEach((item) => sectionUl.appendChild(item));
-          sectionLi.appendChild(sectionUl);
-          navMenu.appendChild(sectionLi);
-        } else {
-          itemsToAppend.forEach((item) => navMenu.appendChild(item));
-        }
+        const sectionLi = document.createElement("li");
+        sectionLi.className = "submenu";
+        sectionLi.innerHTML = `<a href="#"><i class="ti ti-layout-grid"></i><span>${sectionTitle}</span><span class="menu-arrow"></span></a>`;
+        const sectionUl = document.createElement("ul");
+        itemsToAppend.forEach((item) => sectionUl.appendChild(item));
+        sectionLi.appendChild(sectionUl);
+        navMenu.appendChild(sectionLi);
       };
 
       Array.from(sourceList.children).forEach((child) => {

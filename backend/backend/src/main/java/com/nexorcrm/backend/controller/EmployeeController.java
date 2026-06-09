@@ -5,8 +5,11 @@ import com.nexorcrm.backend.dto.EmployeeResponse;
 import com.nexorcrm.backend.dto.EmployeeOnboardRequest;
 import com.nexorcrm.backend.service.EmployeeService;
 import jakarta.validation.Valid;
+import org.springframework.http.ResponseEntity;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
+
+import org.springframework.core.io.Resource;
 
 import java.util.List;
 
@@ -73,6 +76,11 @@ public class EmployeeController {
     @GetMapping("/{id}")
     public EmployeeResponse getById(@PathVariable Long id) {
         return employeeService.getById(id);
+    }
+
+    @GetMapping("/{id}/files/{fileKey}")
+    public ResponseEntity<Resource> viewFile(@PathVariable Long id, @PathVariable String fileKey) {
+        return employeeService.getFile(id, fileKey);
     }
 
     @PutMapping(value = "/{id}/onboard", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

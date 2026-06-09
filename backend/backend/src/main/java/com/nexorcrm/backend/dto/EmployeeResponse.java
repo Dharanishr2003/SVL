@@ -88,6 +88,7 @@ public class EmployeeResponse {
     private String panCardPath;
     private String bankPassbookPath;
     private String experienceCertificatePath;
+    private String certificatePath;
     private String graduationCertificatePath;
     private String graduationMarksheetPath;
     private String hscMarksheetPath;
@@ -351,6 +352,8 @@ public class EmployeeResponse {
     public void setBankPassbookPath(String bankPassbookPath) { this.bankPassbookPath = bankPassbookPath; }
     public String getExperienceCertificatePath() { return experienceCertificatePath; }
     public void setExperienceCertificatePath(String experienceCertificatePath) { this.experienceCertificatePath = experienceCertificatePath; }
+    public String getCertificatePath() { return certificatePath; }
+    public void setCertificatePath(String certificatePath) { this.certificatePath = certificatePath; }
     public String getGraduationCertificatePath() { return graduationCertificatePath; }
     public void setGraduationCertificatePath(String graduationCertificatePath) { this.graduationCertificatePath = graduationCertificatePath; }
     public String getGraduationMarksheetPath() { return graduationMarksheetPath; }

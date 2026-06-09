@@ -1,118 +1,93 @@
-import { useEffect, useRef } from "react";
-import { useLocation, useNavigate, Link } from "react-router-dom";
+import { Fragment, useEffect, useMemo, useRef } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { attachAdminNavigationHandlers } from "../../utils/adminNavigation";
 import { useAuth } from "../../context/AuthContext";
 import { usePageAccess } from "../../context/PageAccessContext";
+import { adminSidebarSections } from "./adminSidebarConfig";
+
+function hasMatchingRole(role, allowedRoles) {
+  if (!Array.isArray(allowedRoles) || allowedRoles.length === 0) {
+    return true;
+  }
+  return allowedRoles.includes(role);
+}
+
+function hasExcludedRole(role, excludedRoles) {
+  if (!Array.isArray(excludedRoles) || excludedRoles.length === 0) {
+    return false;
+  }
+  return excludedRoles.includes(role);
+}
 
 export default function Sidebar() {
   const containerRef = useRef(null);
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
-  const role = String(user?.role || "").toUpperCase();
   const { canAccess } = usePageAccess();
-  const isEmployee = role === "EMPLOYEE";
-  const isAdminEquivalent =
-    role === "ADMIN" || role === "SUPER_ADMIN" || role === "MANAGER" || role === "TEAM_LEAD" || role === "EMPLOYEE";
+  const role = String(user?.role || "").toUpperCase();
+
   const canAccessAny = (...keys) =>
     keys.flat().some((key) => key && canAccess(key));
 
-  // Section heading visibility — hide heading when no items underneath are accessible
-  const hasHrmItems =
-    canAccessAny("employees", "employees-list", "email-settings", "email-template") ||
-    canAccessAny("organization", "head-offices", "branches", "departments", "designations") ||
-    canAccess("holidays") ||
-    canAccessAny(
-      "attendance",
-      "leaves",
-      "leaves-employee",
-      "leave-settings",
-      "attendance-admin",
-      "attendance-employee",
-      "timesheets",
-      "schedule-timing",
-      "shift-assignments",
-      "overtime",
-    ) ||
-    canAccessAny(
-      "performance",
-      "performance-indicator",
-      "performance-appraisal",
-      "goal-tracking",
-      "goal-type",
-    ) ||
-    canAccessAny("training", "training-list", "trainers", "training-type") ||
-    canAccess("promotion") ||
-    canAccess("resignation") ||
-    canAccess("termination");
+  const isVisibleItem = (item) => {
+    if (!item) return false;
+    if (!hasMatchingRole(role, item.rolesAny)) return false;
+    if (hasExcludedRole(role, item.excludeRoles)) return false;
+    const children = Array.isArray(item.children)
+      ? item.children.filter(isVisibleItem)
+      : [];
+    if (children.length > 0) return true;
+    if (Array.isArray(item.accessAny) && item.accessAny.length > 0) {
+      return canAccessAny(item.accessAny);
+    }
+    return Boolean(item.href);
+  };
 
-  const hasFinanceItems =
-    canAccessAny(
-      "sales",
-      "estimates",
-      "sales-invoices",
-      "payments",
-      "expenses",
-      "provident-fund",
-      "taxes",
-      "invoices",
-    ) ||
-    canAccessAny("accounting", "categories", "budgets", "budget-expenses", "budget-revenues") ||
-    canAccessAny("payroll", "employee-salary", "payslip", "payroll-items") ||
-    canAccessAny(
-      "accounts",
-      "payment-verifications",
-      "payment-verifications-page",
-      "budget-verifications",
-      "budget-verifications-page",
-      "stock-requests",
-    ) ||
-    canAccessAny("vendor-management", "vendors", "brands", "vendor-types");
-
-  const hasReportsItems = canAccessAny(
-    "reports",
-    "expenses-report",
-    "invoice-report",
-    "payment-report",
-    "employee-report",
-    "task-report",
-    "user-report",
-    "daily-report",
-    "leave-report",
-    "project-report",
+  const visibleSections = useMemo(
+    () =>
+      adminSidebarSections
+        .filter((section) => hasMatchingRole(role, section.rolesAny))
+        .map((section) => ({
+          ...section,
+          items: (section.items || []).filter(isVisibleItem),
+        }))
+        .filter((section) => section.items.length > 0),
+    [role, canAccess],
   );
-
-  const hasServicesItems = canAccessAny("services", "service-categories", "service-types", "price-list");
-
-  const canOpenEmployeeDashboard = canAccess("employee-dashboard");
-  const canOpenAdminDashboard = canAccess("admin-dashboard");
-  const canOpenSalesDashboard = canAccess("sales-dashboard");
-  const hasDashboardItems = isEmployee
-    ? canOpenEmployeeDashboard
-    : canOpenAdminDashboard || canOpenEmployeeDashboard || canOpenSalesDashboard;
-
-  const hasSettingsItems =
-    isAdminEquivalent &&
-    canAccessAny(
-      "settings-useradmin",
-      "settings-page-access",
-      "settings-group-access",
-      "settings-usergroups",
-      "settings-registration",
-      "settings-session",
-      "settings-user",
-      "settings-security",
-      "settings-security-settings",
-      "settings-flow",
-      "settings-logs",
-      "settings-user-departments",
-      "settings-user-designations",
-      "settings-workflow-teams",
-    );
 
   useEffect(() => {
     return attachAdminNavigationHandlers(containerRef.current, navigate);
   }, [navigate, location.pathname]);
+
+  const renderItems = (items) =>
+    items.map((item) => {
+      const visibleChildren = Array.isArray(item.children)
+        ? item.children.filter(isVisibleItem)
+        : [];
+
+      if (visibleChildren.length > 0) {
+        return (
+          <li key={item.label} className="submenu">
+            <a href="javascript:void(0);">
+              {item.icon ? <i className={item.icon}></i> : null}
+              <span>{item.label}</span>
+              <span className="menu-arrow"></span>
+            </a>
+            <ul>{renderItems(visibleChildren)}</ul>
+          </li>
+        );
+      }
+
+      return (
+        <li key={item.label}>
+          <a href={item.href}>
+            {item.icon ? <i className={item.icon}></i> : null}
+            <span>{item.label}</span>
+          </a>
+        </li>
+      );
+    });
 
   return (
     <div ref={containerRef}>
@@ -180,7 +155,7 @@ export default function Sidebar() {
             <input
               type="text"
               className="form-control"
-              placeholder="Search in HRMS"
+              placeholder="Search in ERP"
             />
             <span className="input-group-text">
               <kbd>CTRL + / </kbd>
@@ -202,915 +177,18 @@ export default function Sidebar() {
         <div className="sidebar-inner slimscroll">
           <div id="sidebar-menu" className="sidebar-menu">
             <ul>
-              <li className="menu-title">
-                <span>MAIN MENU</span>
-              </li>
-              <li>
-                <ul>
-                  {isEmployee ? (
-                    hasDashboardItems ? (
-                    <li className="">
-                      <a href="/employee-dashboard" className="">
-                        <i className="ti ti-smart-home"></i>
-                        <span>Dashboard</span>
-                      </a>
-                    </li>
-                    ) : null
-                  ) : (
-                  hasDashboardItems ? (
-                  <li className="submenu">
-                    <a href="javascript:void(0);" className=" ">
-                      <i className="ti ti-smart-home"></i>
-                      <span>Dashboard</span>
-                      <span className="badge badge-danger fs-10 fw-medium text-white p-1">
-                        Hot
-                      </span>
-                      <span className="menu-arrow"></span>
-                    </a>
-                    <ul>
-                      {canOpenAdminDashboard && (
-                      <li>
-                        <a href="/admin-dashboard" className="">
-                          Admin Dashboard
-                        </a>
-                      </li>
-                      )}
-                      {canOpenEmployeeDashboard && (
-                      <li>
-                        <a href="/employee-dashboard" className="">
-                          Employee Dashboard
-                        </a>
-                      </li>
-                      )}
-                      {canOpenSalesDashboard && (
-                      <li>
-                        <a href="/dashboard" className="">
-                          Sales Dashboard
-                        </a>
-                      </li>
-                      )}
-                    </ul>
+              {visibleSections.map((section) => (
+                <Fragment key={section.key}>
+                  <li key={`${section.key}-title`} className="menu-title">
+                    <span>{section.title}</span>
                   </li>
-                  ) : null
-                  )}
-              {role === "SUPER_ADMIN" && (
-                <li className="submenu">
-                  <a href="#" className=" ">
-                    <i className="ti ti-user-star"></i>
-                    <span>Super Admin</span>
-                    <span className="menu-arrow"></span>
-                  </a>
-                  <ul>
-                    <li>
-                      <a href="/admin-dashboard" className="">
-                        Admin Dashboard
-                      </a>
-                    </li>
-                    <li>
-                      <a href="/companies" className="">
-                        Companies
-                      </a>
-                    </li>
-                    <li>
-                      <a href="/subscription" className="">
-                        Subscriptions
-                      </a>
-                    </li>
-                    <li>
-                      <a href="/packages" className="">
-                        Packages
-                      </a>
-                    </li>
-                    <li>
-                      <a href="/domain" className="">
-                        Domain
-                      </a>
-                    </li>
-                    <li>
-                      <a href="/purchase-transaction" className="">
-                        Purchase Transaction
-                      </a>
-                    </li>
-                  </ul>
-                </li>
-              )}
-                </ul>
-              </li>
-
-              <li className="menu-title">
-                <span>CRM</span>
-              </li>
-              <li>
-                <ul>
-                  {canAccess("design") && (
-                  <li className="">
-                    <a href="/design">
-                      <i className="ti ti-pencil-star"></i>
-                      <span>Design</span>
-                    </a>
+                  <li key={`${section.key}-items`}>
+                    <ul>{renderItems(section.items)}</ul>
                   </li>
-                  )}
-                  {canAccess("production") && (
-                  <li className="">
-                    <a href="/production">
-                      <i className="ti ti-building-factory-2"></i>
-                      <span>Production</span>
-                    </a>
-                  </li>
-                  )}
-                  {canAccess("leads") && (
-                  <li className="">
-                    <a href="/leads">
-                      <i className="ti ti-user-check"></i>
-                      <span>Leads</span>
-                    </a>
-                  </li>
-                  )}
-                  {canAccess("requirements") && (
-                  <li className="">
-                    <a href="/requirements">
-                      <i className="ti ti-clipboard-list"></i>
-                      <span>Requirements</span>
-                    </a>
-                  </li>
-                  )}
-
-                  {role !== "EMPLOYEE" && canAccess("rejected-leads") && (
-                    <li className="">
-                      <a href="/rejected-leads">
-                        <i className="ti ti-circle-x"></i>
-                        <span>Rejected Leads</span>
-                      </a>
-                    </li>
-                  )}
-                  {canAccess("customer") && (
-                    <li className="">
-                      <a href="/customer">
-                        <i className="ti ti-users-group"></i>
-                        <span>Customers</span>
-                      </a>
-                    </li>
-                  )}
-                  {canAccess("quotation") && (
-                  <li className="submenu">
-                    <a href="javascript:void(0);" className=" ">
-                      <i className="ti ti-file-invoice"></i>
-                      <span>Quotation</span>
-                      <span className="menu-arrow"></span>
-                    </a>
-                    <ul>
-                      <li>
-                        <Link to="/quotation">Create Quotation</Link>
-                      </li>
-                      <li>
-                        <Link to="/quotation-list">Quotation List</Link>
-                      </li>
-                    </ul>
-                  </li>
-                  )}
-                  {/* Stocks section */}
-                  {canAccessAny("stocks", "stocks-dashboard", "stocks-item", "stocks-categories") && (
-                  <li className="submenu">
-                    <a href="javascript:void(0);" className=" ">
-                      <i className="ti ti-stack"></i>
-                      <span>Stocks</span>
-                      <span className="menu-arrow"></span>
-                    </a>
-                    <ul>
-                      {canAccessAny("stocks", "stocks-dashboard") && (
-                      <li>
-                        <a href="/stocks">Dashboard</a>
-                      </li>
-                      )}
-                      {canAccessAny("stocks", "stocks-item") && (
-                      <li>
-                        <a href="/stocks/item">Add Item</a>
-                      </li>
-                      )}
-                      {canAccessAny("stocks", "stocks-categories") && (
-                      <li>
-                        <a href="/stocks/categories">Categories</a>
-                      </li>
-                      )}
-                    </ul>
-                  </li>
-                  )}
-                  {canAccessAny("rrq", "rrq-overview", "rrq-type") && (
-                  <li className="submenu">
-                    <a href="javascript:void(0);" className=" ">
-                      <i className="ti ti-box"></i>
-                      <span>RRQ</span>
-                      <span className="menu-arrow"></span>
-                    </a>
-                    <ul>
-                      {canAccessAny("rrq", "rrq-overview") && (
-                      <li>
-                        <Link to="/rrq">RRQ</Link>
-                      </li>
-                      )}
-                      {canAccessAny("rrq", "rrq-type") && (
-                      <li>
-                        <Link to="/rrq-type">RRQ Type</Link>
-                      </li>
-                      )}
-                    </ul>
-                  </li>
-                  )}
-                  {canAccessAny("projects", "projects-list", "project-status", "project-type", "tasks", "task-board") && (
-                  <li className="submenu">
-                    <a href="javascript:void(0);" className=" ">
-                      <i className="ti ti-box"></i>
-                      <span>Projects</span>
-                      <span className="menu-arrow"></span>
-                    </a>
-                    <ul>
-                      {canAccessAny("projects", "projects-list") && (
-                      <li>
-                        <a href="/projects-grid" className="">
-                          Projects
-                        </a>
-                      </li>
-                      )}
-                      {canAccessAny("projects", "project-status") && (
-                      <li>
-                        <Link to="/project-status">Project Status</Link>
-                      </li>
-                      )}
-                      {canAccessAny("projects", "project-type") && (
-                      <li>
-                        <Link to="/project-type">Project Type</Link>
-                      </li>
-                      )}
-                      {canAccessAny("projects", "tasks") && (
-                      <li>
-                        <a href="/tasks" className="">
-                          Tasks
-                        </a>
-                      </li>
-                      )}
-                      {canAccessAny("projects", "task-board") && (
-                      <li>
-                        <a href="/task-board" className="">
-                          Task Board
-                        </a>
-                      </li>
-                      )}
-                    </ul>
-                  </li>
-                  )}
-                  {canAccessAny("lead-source", "lead-status", "primary-source", "secondary-source", "tertiary-source", "lead-type") && (
-                  <li className="submenu">
-                    <a href="javascript:void(0);" className=" ">
-                      <i className="ti ti-user-check"></i>
-                      <span>Lead Source</span>
-                      <span className="menu-arrow"></span>
-                    </a>
-                    <ul>
-                      {canAccessAny("lead-source", "lead-status") && (
-                      <li>
-                        <Link to="/lead-status">Lead Status</Link>
-                      </li>
-                      )}
-                      {canAccessAny("lead-source", "primary-source") && (
-                      <li>
-                        <Link to="/primary-source">Primary Source</Link>
-                      </li>
-                      )}
-                      {canAccessAny("lead-source", "secondary-source") && (
-                      <li>
-                        <Link to="/secondary-source">Secondary Source</Link>
-                      </li>
-                      )}
-                      {canAccessAny("lead-source", "tertiary-source") && (
-                      <li>
-                        <Link to="/tertiary-source">Tertiary Source</Link>
-                      </li>
-                      )}
-                      {canAccessAny("lead-source", "lead-type") && (
-                      <li>
-                        <Link to="/lead-type">Lead Type</Link>
-                      </li>
-                      )}
-                    </ul>
-                  </li>
-                  )}
-                </ul>
-              </li>
-              {hasHrmItems && (
-              <li className="menu-title">
-                <span>HRM</span>
-              </li>
-              )}
-              <li>
-                <ul>
-                  {canAccessAny("employees", "employees-list", "email-settings", "email-template") && (
-                  <li className="submenu">
-                    <a href="javascript:void(0);" className=" ">
-                      <i className="ti ti-users"></i>
-                      <span>Employees</span>
-                      <span className="menu-arrow"></span>
-                    </a>
-                    <ul>
-                      {canAccessAny("employees", "employees-list") && (
-                      <li>
-                        <a href="/employees" className="">
-                          Employees
-                        </a>
-                      </li>
-                      )}
-                      {canAccessAny("employees", "email-settings") && (
-                      <li>
-                        <a href="/email-settings" className="">
-                          Mail Settings
-                        </a>
-                      </li>
-                      )}
-                      {canAccessAny("employees", "email-template") && (
-                      <li>
-                        <a href="/email-template" className="">
-                          Email Templates
-                        </a>
-                      </li>
-                      )}
-                    </ul>
-                  </li>
-                  )}
-                  {canAccessAny("organization", "head-offices", "branches", "departments", "designations") && (
-                  <li className="submenu">
-                    <a href="javascript:void(0);" className=" ">
-                      <i className="ti ti-building-community"></i>
-                      <span>Organization</span>
-                      <span className="menu-arrow"></span>
-                    </a>
-                    <ul>
-                      {canAccessAny("organization", "head-offices") && (
-                      <li>
-                        <a href="/head-offices" className="">
-                          Head Offices
-                        </a>
-                      </li>
-                      )}
-                      {canAccessAny("organization", "branches") && (
-                      <li>
-                        <a href="/branches" className="">
-                          Branches
-                        </a>
-                      </li>
-                      )}
-                      {canAccessAny("organization", "departments") && (
-                      <li>
-                        <a href="/departments" className="">
-                          Departments
-                        </a>
-                      </li>
-                      )}
-                      {canAccessAny("organization", "designations") && (
-                      <li>
-                        <a href="/designations" className="">
-                          Designations
-                        </a>
-                      </li>
-                      )}
-                    </ul>
-                  </li>
-                  )}
-                  {canAccess("holidays") && (
-                  <li className="">
-                    <a href="/holidays">
-                      <i className="ti ti-calendar-event"></i>
-                      <span>Holidays</span>
-                    </a>
-                  </li>
-                  )}
-                  {canAccessAny(
-                    "attendance",
-                    "leaves",
-                    "leaves-employee",
-                    "leave-settings",
-                    "attendance-admin",
-                    "attendance-employee",
-                    "timesheets",
-                    "schedule-timing",
-                    "shift-assignments"
-                  ) && (
-                  <li className="submenu">
-                    <a href="javascript:void(0);" className=" ">
-                      <i className="ti ti-file-time"></i>
-                      <span>Attendance</span>
-                      <span className="menu-arrow"></span>
-                    </a>
-                    <ul>
-                      {canAccessAny("attendance", "leaves", "leaves-employee", "leave-settings") && (
-                      <li className="submenu submenu-two">
-                        <a href="javascript:void(0);" className=" ">
-                          Leaves
-                          <span className="menu-arrow inside-submenu"></span>
-                        </a>
-                        <ul>
-                          {canAccessAny("attendance", "leaves") && (
-                          <li>
-                            <a href="/leaves" className="">
-                              Leaves (Admin)
-                            </a>
-                          </li>
-                          )}
-                          {canAccessAny("attendance", "leaves-employee") && (
-                          <li>
-                            <a href="/leaves-employee" className="">
-                              Leave (Employee)
-                            </a>
-                          </li>
-                          )}
-                          {canAccessAny("attendance", "leave-settings") && (
-                          <li>
-                            <a href="/leave-settings" className="">
-                              Leave Policy
-                            </a>
-                          </li>
-                          )}
-                        </ul>
-                      </li>
-                      )}
-                      {canAccessAny("attendance", "attendance-admin") && (
-                      <li>
-                        <a href="/attendance-admin" className="">
-                          Attendance (Admin)
-                        </a>
-                      </li>
-                      )}
-                      {canAccessAny("attendance", "attendance-employee") && (
-                      <li>
-                        <a href="/attendance-employee" className="">
-                          Attendance (Employee)
-                        </a>
-                      </li>
-                      )}
-                      {canAccessAny("attendance", "timesheets") && (
-                      <li>
-                        <a href="/timesheets" className="">
-                          Timesheets
-                        </a>
-                      </li>
-                      )}
-                      {canAccessAny("attendance", "schedule-timing") && (
-                      <li>
-                        <a href="/schedule-timing" className="">
-                          Shift & Schedule
-                        </a>
-                      </li>
-                      )}
-                      {canAccessAny("attendance", "shift-assignments") && (
-                      <li>
-                        <a href="/shift-assignments" className="">
-                          Shift Assignment
-                        </a>
-                      </li>
-                      )}
-                    </ul>
-                  </li>
-                  )}
-                  {canAccessAny("performance", "performance-indicator", "performance-appraisal", "goal-tracking", "goal-type") && (
-                  <li className="submenu">
-                    <a href="javascript:void(0);" className=" ">
-                      <i className="ti ti-school"></i>
-                      <span>Performance</span>
-                      <span className="menu-arrow"></span>
-                    </a>
-                    <ul>
-                      {canAccessAny("performance", "performance-indicator") && (
-                      <li>
-                        <a href="/performance-indicator" className="">
-                          Performance Indicator
-                        </a>
-                      </li>
-                      )}
-                      {canAccessAny("performance", "performance-appraisal") && (
-                      <li>
-                        <a href="/performance-appraisal" className="">
-                          Performance Appraisal
-                        </a>
-                      </li>
-                      )}
-                      {canAccessAny("performance", "goal-tracking") && (
-                      <li>
-                        <a href="/goal-tracking" className="">
-                          Goal List
-                        </a>
-                      </li>
-                      )}
-                      {canAccessAny("performance", "goal-type") && (
-                      <li>
-                        <a href="/goal-type" className="">
-                          Goal Type
-                        </a>
-                      </li>
-                      )}
-                    </ul>
-                  </li>
-                  )}
-                  {canAccess("promotion") && (
-                  <li className="">
-                    <a href="/promotion">
-                      <i className="ti ti-speakerphone"></i>
-                      <span>Promotion</span>
-                    </a>
-                  </li>
-                  )}
-                  {canAccess("resignation") && (
-                  <li className="">
-                    <a href="/resignation">
-                      <i className="ti ti-external-link"></i>
-                      <span>Resignation</span>
-                    </a>
-                  </li>
-                  )}
-                  {canAccess("termination") && (
-                  <li className="">
-                    <a href="/termination">
-                      <i className="ti ti-circle-x"></i>
-                      <span>Termination</span>
-                    </a>
-                  </li>
-                  )}
-                </ul>
-              </li>
-              {hasServicesItems && (
-              <li className="menu-title">
-                <span>SERVICES</span>
-              </li>
-              )}
-              {hasServicesItems && (
-              <li>
-                <ul>
-                  {canAccessAny("services", "service-categories", "service-types") && (
-                  <li className="submenu">
-                    <a href="javascript:void(0);" className="">
-                      <i className="ti ti-shopping-bag"></i>
-                      <span>Services</span>
-                      <span className="menu-arrow"></span>
-                    </a>
-                    <ul>
-                      {canAccessAny("services", "service-categories") && (
-                      <li>
-                        <a href="/services/service-categories">Service Categories</a>
-                      </li>
-                      )}
-                      {canAccessAny("services", "service-types") && (
-                      <li>
-                        <a href="/services/service-types">Service Types</a>
-                      </li>
-                      )}
-                      {canAccessAny("services", "price-list") && (
-                      <li>
-                        <a href="/services/price-list">Price List</a>
-                      </li>
-                      )}
-                      {canAccessAny("services", "product-field-config") && (
-                      <li>
-                        <a href="/services/product-field-config">Product Field Config</a>
-                      </li>
-                      )}
-                    </ul>
-                  </li>
-                  )}
-                </ul>
-              </li>
-              )}
-              {hasFinanceItems && (
-              <li className="menu-title">
-                <span>FINANCE & ACCOUNTS</span>
-              </li>
-              )}
-              <li>
-                <ul>
-                  {canAccessAny("sales", "estimates", "sales-invoices", "payments", "expenses", "provident-fund", "taxes", "invoices") && (
-                  <li className="submenu">
-                    <a href="javascript:void(0);" className=" ">
-                      <i className="ti ti-shopping-cart-dollar"></i>
-                      <span>Sales</span>
-                      <span className="menu-arrow"></span>
-                    </a>
-                    <ul>
-                      {canAccessAny("sales", "estimates") && (
-                      <li>
-                        <Link to="/estimates">Estimates</Link>
-                      </li>
-                      )}
-                      {canAccessAny("sales", "sales-invoices", "invoices") && (
-                      <li>
-                        <Link to="/invoices">Invoices</Link>
-                      </li>
-                      )}
-                      {canAccessAny("sales", "payments") && (
-                      <li>
-                        <Link to="/payments">Payments</Link>
-                      </li>
-                      )}
-                      {canAccessAny("sales", "expenses") && (
-                      <li>
-                        <Link to="/expenses">Expenses</Link>
-                      </li>
-                      )}
-                      {canAccessAny("sales", "provident-fund") && (
-                      <li>
-                        <Link to="/provident-fund">Provident Fund</Link>
-                      </li>
-                      )}
-                      {canAccessAny("sales", "taxes") && (
-                      <li>
-                        <Link to="/taxes">Taxes</Link>
-                      </li>
-                      )}
-                    </ul>
-                  </li>
-                  )}
-                  {canAccessAny("accounting", "categories", "budgets", "budget-expenses", "budget-revenues") && (
-                  <li className="submenu">
-                    <a href="javascript:void(0);" className=" ">
-                      <i className="ti ti-file-dollar"></i>
-                      <span>Accounting</span>
-                      <span className="menu-arrow"></span>
-                    </a>
-                    <ul>
-                      {canAccessAny("accounting", "categories") && (
-                      <li>
-                        <Link to="/categories">Categories</Link>
-                      </li>
-                      )}
-                      {canAccessAny("accounting", "budgets") && (
-                      <li>
-                        <Link to="/budgets">Budgets</Link>
-                      </li>
-                      )}
-                      {canAccessAny("accounting", "budget-expenses") && (
-                      <li>
-                        <Link to="/budget-expenses">Budget Expenses</Link>
-                      </li>
-                      )}
-                      {canAccessAny("accounting", "budget-revenues") && (
-                      <li>
-                        <Link to="/budget-revenues">Budget Revenues</Link>
-                      </li>
-                      )}
-                    </ul>
-                  </li>
-                  )}
-                  {canAccessAny("payroll", "employee-salary", "payslip", "payroll-items") && (
-                  <li className="submenu">
-                    <a href="javascript:void(0);" className="">
-                      <i className="ti ti-cash"></i>
-                      <span>Payroll</span>
-                      <span className="menu-arrow"></span>
-                    </a>
-                    <ul>
-                      {canAccessAny("payroll", "employee-salary") && (
-                      <li>
-                        <Link to="/employee-salary">Employee Salary</Link>
-                      </li>
-                      )}
-                      {canAccessAny("payroll", "payslip") && (
-                      <li>
-                        <Link to="/payslip">Payslip</Link>
-                      </li>
-                      )}
-                      {canAccessAny("payroll", "payroll-items") && (
-                      <li>
-                        <Link to="/payroll">Payroll Items</Link>
-                      </li>
-                      )}
-                    </ul>
-                  </li>
-                  )}
-                  {canAccessAny(
-                    "accounts",
-                    "payment-verifications",
-                    "payment-verifications-page",
-                    "budget-verifications",
-                    "budget-verifications-page",
-                    "stock-requests",
-                  ) && (
-                  <li className="submenu">
-                    <a href="javascript:void(0);" className="">
-                      <i className="ti ti-wallet"></i>
-                      <span>Accounts</span>
-                      <span className="menu-arrow"></span>
-                    </a>
-                    <ul>
-                      {canAccessAny("accounts", "payment-verifications", "payment-verifications-page") && (
-                      <li>
-                        <Link to="/payment-verifications">Payment Verifications</Link>
-                      </li>
-                      )}
-                      {canAccessAny("budget-verifications", "budget-verifications-page") && (
-                      <li>
-                        <Link to="/budget-verifications">Budget Verifications</Link>
-                      </li>
-                      )}
-                      {canAccessAny("accounts", "stock-requests") && (
-                      <li>
-                        <Link to="/stock-requests">Stock Requests</Link>
-                      </li>
-                      )}
-                    </ul>
-                  </li>
-                  )}
-                  {canAccessAny("vendor-management", "vendors", "vendor-orders", "brands", "vendor-types") && (
-                  <li className="submenu">
-                    <a href="javascript:void(0);" className=" ">
-                      <i className="ti ti-building"></i>
-                      <span>Vendor Management</span>
-                      <span className="menu-arrow"></span>
-                    </a>
-                    <ul>
-                      {canAccessAny("vendor-management", "vendors") && (
-                      <li>
-                        <a href="/stocks/vendors">Vendors</a>
-                      </li>
-                      )}
-                      {canAccessAny("vendor-management", "vendor-orders") && (
-                      <li>
-                        <a href="/stocks/vendor-orders">Vendor Orders</a>
-                      </li>
-                      )}
-                      {canAccessAny("vendor-management", "brands") && (
-                      <li>
-                        <a href="/stocks/brands">Brands</a>
-                      </li>
-                      )}
-                      {canAccessAny("vendor-management", "vendor-types") && (
-                      <li>
-                        <a href="/stocks/vendor-types">Vendor / Company Type</a>
-                      </li>
-                      )}
-                    </ul>
-                  </li>
-                  )}
-                </ul>
-              </li>
-              {hasReportsItems && (
-              <li className="menu-title">
-                <span>REPORTS</span>
-              </li>
-              )}
-              <li>
-                <ul>
-                  {canAccessAny("reports", "expenses-report", "invoice-report") && (
-                  <li className="submenu">
-                    <a href="javascript:void(0);" className=" ">
-                      <i className="ti ti-chart-bar"></i>
-                      <span>Reports</span>
-                      <span className="menu-arrow"></span>
-                    </a>
-                    <ul>
-                      {canAccessAny("reports", "expenses-report") && (
-                      <li>
-                        <Link to="/expenses-report">Expense Report</Link>
-                      </li>
-                      )}
-                      {canAccessAny("reports", "invoice-report") && (
-                      <li>
-                        <Link to="/invoice-report">Invoice Report</Link>
-                      </li>
-                      )}
-                    </ul>
-                  </li>
-                  )}
-                </ul>
-              </li>
-
-              {hasSettingsItems && (
-              <li className="menu-title">
-                <span>Settings</span>
-              </li>
-              )}
-              {hasSettingsItems && (
-              <li>
-                <ul>
-                  {isAdminEquivalent && (
-                    <>
-                      {canAccess("settings-useradmin") && (
-                      <li>
-                        <a href="/useradmin">
-                          <i className="ti ti-users"></i>
-                          <span>User Admin</span>
-                        </a>
-                      </li>
-                      )}
-
-                      {canAccess("settings-user-departments") && (
-                      <li>
-                        <a href="/settings/user-departments">
-                          <i className="ti ti-sitemap"></i>
-                          <span>User Departments</span>
-                        </a>
-                      </li>
-                      )}
-
-                      {canAccess("settings-user-designations") && (
-                      <li>
-                        <a href="/settings/user-designations">
-                          <i className="ti ti-briefcase"></i>
-                          <span>User Designations</span>
-                        </a>
-                      </li>
-                      )}
-
-                      {canAccess("settings-workflow-teams") && (
-                      <li>
-                        <a href="/settings/workflow-teams">
-                          <i className="ti ti-git-branch"></i>
-                          <span>Workflow Teams</span>
-                        </a>
-                      </li>
-                      )}
-
-                      {canAccess("settings-page-access") && (
-                      <li>
-                        <a href="/page-access">
-                          <i className="ti ti-lock"></i>
-                          <span>Page Access</span>
-                        </a>
-                      </li>
-                      )}
-
-                      {canAccessAny("settings-group-access", "settings-usergroups") && (
-                      <li>
-                        <a href="/usergroups">
-                          <i className="ti ti-users-group"></i>
-                          <span>User Groups</span>
-                        </a>
-                      </li>
-                      )}
-
-                      {canAccess("settings-registration") && (
-                      <li>
-                        <a href="/registration">
-                          <i className="ti ti-user-plus"></i>
-                          <span>Registration</span>
-                        </a>
-                      </li>
-                      )}
-
-                      {canAccess("settings-session") && (
-                      <li>
-                        <a href="/session-settings">
-                          <i className="ti ti-clock"></i>
-                          <span>Session</span>
-                        </a>
-                      </li>
-                      )}
-
-                      {canAccess("settings-user") && (
-                      <li>
-                        <a href="/user-settings">
-                          <i className="ti ti-settings"></i>
-                          <span>User Settings</span>
-                        </a>
-                      </li>
-                      )}
-
-                      {canAccess("settings-security") && (
-                      <li>
-                        <a href="/security">
-                          <i className="ti ti-shield-lock"></i>
-                          <span>Security</span>
-                        </a>
-                      </li>
-                      )}
-
-                      {canAccess("settings-security-settings") && (
-                      <li>
-                        <a href="/security-settings">
-                          <i className="ti ti-shield-check"></i>
-                          <span>Security Settings</span>
-                        </a>
-                      </li>
-                      )}
-
-                      {canAccess("settings-flow") && (
-                      <li>
-                        <a href="/flow">
-                          <i className="ti ti-share"></i>
-                          <span>Flow</span>
-                        </a>
-                      </li>
-                      )}
-
-                      {canAccess("settings-logs") && (
-                      <li>
-                        <a href="/logs">
-                          <i className="ti ti-file-text"></i>
-                          <span>Logs</span>
-                        </a>
-                      </li>
-                      )}
-                    </>
-                  )}
-                </ul>
-              </li>
-              )}
+                </Fragment>
+              ))}
             </ul>
-          </div>    
+          </div>
         </div>
       </div>
     </div>

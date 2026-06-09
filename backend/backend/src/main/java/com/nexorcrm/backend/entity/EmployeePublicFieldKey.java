@@ -43,6 +43,16 @@ public enum EmployeePublicFieldKey {
     PAN_NUMBER("PAN Number", EmployeePublicFieldInputType.TEXT, true, Employee::getPanCardNo, (e, v) -> e.setPanCardNo(trimToNull(v))),
     AADHAAR_NUMBER("Aadhaar Number", EmployeePublicFieldInputType.TEXT, true, Employee::getAadharCardNo, (e, v) -> e.setAadharCardNo(trimToNull(v))),
 
+    EDUCATION_QUALIFICATION("Qualification", EmployeePublicFieldInputType.TEXT, true, Employee::getEducationQualification, (e, v) -> e.setEducationQualification(trimToNull(v))),
+    EDUCATION_COURSE_NAME("Course Name", EmployeePublicFieldInputType.TEXT, true, Employee::getEducationCourseName, (e, v) -> e.setEducationCourseName(trimToNull(v))),
+    EDUCATION_CERTIFICATE_NUMBER("Certificate Number", EmployeePublicFieldInputType.TEXT, true, Employee::getEducationCertificateNumber, (e, v) -> e.setEducationCertificateNumber(trimToNull(v))),
+    EDUCATION_ROLL_NUMBER("Roll Number", EmployeePublicFieldInputType.TEXT, true, Employee::getEducationRollNumber, (e, v) -> e.setEducationRollNumber(trimToNull(v))),
+    EDUCATION_MARK("Mark", EmployeePublicFieldInputType.NUMBER, true, Employee::getEducationMark, (e, v) -> e.setEducationMark(trimToNull(v))),
+    EDUCATION_MAX_MARK("Max Mark", EmployeePublicFieldInputType.NUMBER, true, Employee::getEducationMaxMark, (e, v) -> e.setEducationMaxMark(trimToNull(v))),
+    EDUCATION_MARK_PERCENTAGE("Mark Percentage", EmployeePublicFieldInputType.TEXT, true, Employee::getEducationMarkPercentage, (e, v) -> e.setEducationMarkPercentage(trimToNull(v))),
+    EDUCATION_FROM_YEAR("From Year", EmployeePublicFieldInputType.TEXT, true, Employee::getEducationFromYear, (e, v) -> e.setEducationFromYear(trimToNull(v))),
+    EDUCATION_TO_YEAR("To Year", EmployeePublicFieldInputType.TEXT, true, Employee::getEducationToYear, (e, v) -> e.setEducationToYear(trimToNull(v))),
+
     BANK_ACCOUNT_HOLDER_NAME("Bank A/C Holder Name", EmployeePublicFieldInputType.TEXT, true, Employee::getBankAccountHolderName, (e, v) -> e.setBankAccountHolderName(trimToNull(v))),
     BANK_ACCOUNT_NUMBER("Bank A/C Number", EmployeePublicFieldInputType.TEXT, true, Employee::getBankAccountNumber, (e, v) -> e.setBankAccountNumber(trimToNull(v))),
     BANK_IFSC("IFSC Code", EmployeePublicFieldInputType.TEXT, true, Employee::getIfscCode, (e, v) -> e.setIfscCode(trimToNull(v))),

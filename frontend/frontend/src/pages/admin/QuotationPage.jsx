@@ -13,10 +13,14 @@ import {
   QUOTATION_STATUS_APPROVED,
   QUOTATION_STATUS_DRAFT,
   QUOTATION_STATUS_VERIFICATION_PENDING,
+  buildDesignFeePricing,
   clearQuotationDraft,
   createQuotationPayload,
   downloadQuotationPdf,
+  buildQuotationTaxSummary,
+  extractTaxGroupCode,
   getQuotationDraft,
+  normalizeQuotationLineItem,
   quotationResponseToDraft,
 } from "../../utils/quotationUtils";
 import { getCustomSizeSummary } from "../../utils/customSizeUtils";
@@ -152,54 +156,31 @@ function getEditVal(editingPrices, itemId, field, item) {
     const v = Number(item.pricePerUnit || item.unitPrice || 0);
     return v > 0 ? String(v) : "";
   }
-  if (field === "lineTotal") {
-    const v = Number(item.lineTotal || 0);
-    return v > 0 ? String(v) : "";
-  }
+  if (field === "discountPct") return String(Number(item.discountPct ?? item.discountPercent ?? 0));
+  if (field === "gstPct") return String(Number(item.gstPct ?? item.gstPercent ?? 0));
   if (field === "quantity")  return String(item.quantity || 1);
   return "";
 }
 
-function normalizeLineItem(item) {
-  const designStatus = String(item?.designStatus || "").toLowerCase();
-  const isDesignOnly = designStatus === "design_only";
-  const quantity = isDesignOnly ? 0 : Number(item?.quantity || 0);
-  const unitPrice = isDesignOnly ? 0 : Number(item?.pricePerUnit || item?.unitPrice || 0);
-  const lineTotal = isDesignOnly ? 0 : quantity * unitPrice;
-
-  return {
-    ...item,
-    quantity,
-    unitPrice,
-    pricePerUnit: unitPrice,
-    designCost: 0,
-    lineTotal,
-    pricingStatus: lineTotal > 0 ? "PRICED" : "UNPRICED",
-  };
+function normalizeLineItem(item, options = {}) {
+  return normalizeQuotationLineItem(item, options);
 }
 
-function applyEdit(itemId, field, rawValue, setLineItems, setEditingPrices) {
+function applyEdit(itemId, field, rawValue, setLineItems, setEditingPrices, options = {}) {
   const num = parseFloat(rawValue);
   const safe = Number.isFinite(num) && num >= 0 ? num : 0;
-  setLineItems(prev => prev.map(item => {
+  setLineItems((prev) => prev.map((item) => {
     if (item.id !== itemId) return item;
-    const isDesignOnly = item.designStatus === "design_only";
-    if (isDesignOnly) return normalizeLineItem(item);
-    if (!isDesignOnly && field === "unitPrice") {
-      const qty = Number(item.quantity) || 1;
-      return { ...item, unitPrice: safe, pricePerUnit: safe,
-        lineTotal: qty * safe,
-        pricingStatus: safe > 0 ? "PRICED" : "UNPRICED" };
-    }
-    if (!isDesignOnly && field === "quantity") {
-      const price = Number(item.pricePerUnit || item.unitPrice || 0);
-      return { ...item, quantity: safe, lineTotal: safe * price };
-    }
-    return item;
+    const next = { ...item };
+    if (field === "quantity") next.quantity = safe;
+    if (field === "unitPrice") next.unitPrice = safe;
+    if (field === "discountPct") next.discountPct = safe;
+    if (field === "gstPct") next.gstPct = safe;
+    return normalizeLineItem(next, options);
   }));
 }
 
-function mergePendingPriceEdits(lineItems, editingPrices) {
+function mergePendingPriceEdits(lineItems, editingPrices, options = {}) {
   const toSafeNumber = (value) => {
     const parsed = parseFloat(value);
     return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
@@ -207,23 +188,29 @@ function mergePendingPriceEdits(lineItems, editingPrices) {
 
   return lineItems.map((item) => {
     const pending = editingPrices[item.id];
-    if (!pending) return normalizeLineItem(item);
+    if (!pending) return normalizeLineItem(item, options);
 
-    const isDesignOnly = item.designStatus === "design_only";
     const quantity = pending.quantity !== undefined
       ? toSafeNumber(pending.quantity)
       : Number(item.quantity || 0);
     const unitPrice = pending.unitPrice !== undefined
       ? toSafeNumber(pending.unitPrice)
       : Number(item.pricePerUnit || item.unitPrice || 0);
-    if (isDesignOnly) return normalizeLineItem(item);
+    const discountPct = pending.discountPct !== undefined
+      ? toSafeNumber(pending.discountPct)
+      : Number(item.discountPct ?? item.discountPercent ?? 0);
+    const gstPct = pending.gstPct !== undefined
+      ? toSafeNumber(pending.gstPct)
+      : Number(item.gstPct ?? item.gstPercent ?? 0);
 
     return normalizeLineItem({
       ...item,
       quantity,
       unitPrice,
       pricePerUnit: unitPrice,
-    });
+      discountPct,
+      gstPct,
+    }, options);
   });
 }
 
@@ -254,6 +241,9 @@ function createEmptyDraft() {
     discountPct: 0,
     includeDesignFee: false,
     designFeeAmount: 0,
+    designFeeDiscountPct: 0,
+    designFeeGstPct: 0,
+    gstPct: 0,
     gstRows: [],
   };
 }
@@ -406,11 +396,15 @@ export default function QuotationPage() {
   const [discountPct, setDiscountPct] = useState("0");
   const [includeDesignFee, setIncludeDesignFee] = useState(false);
   const [designFeeAmount, setDesignFeeAmount] = useState("");
+  const [designFeeDiscountPct, setDesignFeeDiscountPct] = useState("0");
+  const [designFeeGstPct, setDesignFeeGstPct] = useState("0");
+  const [gstPct, setGstPct] = useState("0");
   const [gstRows, setGstRows] = useState([]);
   const [gstAddPopupOpen, setGstAddPopupOpen] = useState(false);
   const [gstAddPercent, setGstAddPercent] = useState("");
   const [gstAddSaving, setGstAddSaving] = useState(false);
   const [gstAddError, setGstAddError] = useState("");
+  const [gstAddContext, setGstAddContext] = useState({ mode: "summary", itemId: null });
   const [saveMessage, setSaveMessage] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [quotationTemplate, setQuotationTemplate] = useState(null);
@@ -431,6 +425,26 @@ export default function QuotationPage() {
     if (!source) return;
 
     const initial = { ...createEmptyDraft(), ...source };
+    const draftLead = normalizeQuotationLead(initial.selectedLead);
+    const draftLeadState = draftLead?.leadState || draftLead?.state || initial.clientState || initial.leadState || "";
+    const draftIsTamilNadu = isTamilNaduState(draftLeadState);
+    const legacyDiscountPct = parseNonNegativeNumber(initial.discountPct, 0);
+    const legacyGstPct = parseNonNegativeNumber(
+      initial.gstPct ?? initial.gstPercent ?? initial.gstPctTotal ?? (
+        Array.isArray(initial.gstRows) && initial.gstRows.length
+          ? initial.gstRows.reduce((sum, row) => sum + Number(row?.taxPercent || 0), 0)
+          : 0
+      ),
+      0,
+    );
+    const legacyItemTaxSeed =
+      Array.isArray(initial.lineItems) &&
+      initial.lineItems.length > 0 &&
+      (legacyDiscountPct > 0 || legacyGstPct > 0) &&
+      initial.lineItems.every((item) =>
+        Number(item?.discountPct ?? item?.discountPercent ?? 0) === 0 &&
+        Number(item?.gstPct ?? item?.gstPercent ?? item?.gstPctTotal ?? 0) === 0
+      );
     setQuotationId(initial.id);
     setQuotationNumber(initial.quotationNumber || "");
     setQuotationCreatedAt(initial.createdAt || "");
@@ -451,17 +465,30 @@ export default function QuotationPage() {
     setCreatedByRole(initial.createdByRole || null);
     setCreatedByTeam(initial.createdByTeam || null);
     setPartyMode(initial.partyMode || "lead");
-    setSelectedLead(normalizeQuotationLead(initial.selectedLead));
+    setSelectedLead(draftLead);
     setLeadSearch(
       initial.leadSearch ||
         (initial.selectedLead
           ? `${initial.selectedLead.leadId} - ${initial.selectedLead.name}`
           : "")
     );
-    setLineItems(Array.isArray(initial.lineItems) ? initial.lineItems.map(normalizeLineItem) : []);
-    setDiscountPct(String(parseNonNegativeNumber(initial.discountPct, 0)));
+    setLineItems(
+        Array.isArray(initial.lineItems)
+          ? initial.lineItems.map((item) => normalizeLineItem(item, {
+            isTamilNadu: draftIsTamilNadu,
+            defaultDiscountPct: legacyDiscountPct,
+            defaultGstPct: legacyGstPct,
+            preferFallbackWhenZero: legacyItemTaxSeed,
+            defaultGstMasterId,
+          }))
+        : []
+    );
+    setDiscountPct(String(legacyDiscountPct));
     setIncludeDesignFee(initial.includeDesignFee || false);
     setDesignFeeAmount(String(initial.designFeeAmount || ""));
+    setDesignFeeDiscountPct(String(initial.designFeeDiscountPct || 0));
+    setDesignFeeGstPct(String(Number(initial.designFeeGstPct || 0) > 0 ? initial.designFeeGstPct : legacyGstPct));
+    setGstPct(String(legacyGstPct));
     setGstRows(
       Array.isArray(initial.gstRows) && initial.gstRows.length
         ? initial.gstRows.map((row, index) => ({
@@ -477,47 +504,69 @@ export default function QuotationPage() {
     }
   };
 
-  const subtotal = useMemo(() => {
-    const itemsTotal = lineItems.reduce((sum, item) => sum + Number(item.lineTotal || 0), 0);
-    const globalDesignFee = includeDesignFee ? Number(designFeeAmount || 0) : 0;
-    return itemsTotal + globalDesignFee;
-  }, [lineItems, includeDesignFee, designFeeAmount]);
   const isTamilNadu = useMemo(
     () => isTamilNaduState(leadStateValue),
     [leadStateValue],
   );
-  const resolvedGstPct = useMemo(
-    () => gstRows.reduce((sum, row) => sum + Number(row?.taxPercent || 0), 0),
-    [gstRows],
+  const designFeePricing = useMemo(
+    () => buildDesignFeePricing({
+      includeDesignFee,
+      designFeeAmount: Number(designFeeAmount || 0),
+      designFeeDiscountPct: parseNonNegativeNumber(designFeeDiscountPct, 0),
+      designFeeGstPct: parseNonNegativeNumber(designFeeGstPct, 0),
+      isTamilNadu,
+    }),
+    [includeDesignFee, designFeeAmount, designFeeDiscountPct, designFeeGstPct, isTamilNadu],
   );
-  const { cgstPct, sgstPct, igstPct } = useMemo(() => {
-    if (isTamilNadu) {
-      const splitTax = resolvedGstPct / 2;
-      return { cgstPct: splitTax, sgstPct: splitTax, igstPct: 0 };
-    }
-    return { cgstPct: 0, sgstPct: 0, igstPct: resolvedGstPct };
-  }, [isTamilNadu, resolvedGstPct]);
-  const normalizedDiscountPct = useMemo(
-    () => parseNonNegativeNumber(discountPct, 0),
-    [discountPct],
+  const subtotal = useMemo(
+    () => lineItems.reduce((sum, item) => sum + Number(item.baseAmount ?? (Number(item.quantity || 0) * Number(item.unitPrice || item.pricePerUnit || 0))), 0) + designFeePricing.baseAmount,
+    [lineItems, designFeePricing.baseAmount],
   );
   const discountAmt = useMemo(
-    () => subtotal * (normalizedDiscountPct / 100),
-    [subtotal, normalizedDiscountPct],
+    () => lineItems.reduce((sum, item) => sum + Number(item.discountAmount || 0), 0) + designFeePricing.discountAmount,
+    [lineItems, designFeePricing.discountAmount],
   );
   const afterDiscount = useMemo(() => subtotal - discountAmt, [subtotal, discountAmt]);
-  const cgstAmt = useMemo(() => afterDiscount * (cgstPct / 100), [afterDiscount, cgstPct]);
-  const sgstAmt = useMemo(() => afterDiscount * (sgstPct / 100), [afterDiscount, sgstPct]);
-  const igstAmt = useMemo(() => afterDiscount * (igstPct / 100), [afterDiscount, igstPct]);
-  const grandTotal = useMemo(
-    () => afterDiscount + cgstAmt + sgstAmt + igstAmt,
-    [afterDiscount, cgstAmt, sgstAmt, igstAmt],
+  const taxSummary = useMemo(
+    () => buildQuotationTaxSummary(lineItems, {
+      isTamilNadu,
+      includeDesignFee,
+      designFeeAmount: designFeePricing.baseAmount,
+      designFeeDiscountPct: designFeePricing.discountPct,
+      designFeeGstPct: designFeePricing.gstPct,
+    }),
+    [lineItems, isTamilNadu, includeDesignFee, designFeePricing],
   );
+  const taxAmt = useMemo(() => taxSummary.totalTaxAmount, [taxSummary]);
+  const cgstAmt = useMemo(() => taxSummary.totalCgstAmount, [taxSummary]);
+  const sgstAmt = useMemo(() => taxSummary.totalSgstAmount, [taxSummary]);
+  const igstAmt = useMemo(() => taxSummary.totalIgstAmount, [taxSummary]);
+  const showHsnSacColumn = useMemo(
+    () => lineItems.some((item) => Boolean(extractTaxGroupCode(item))),
+    [lineItems],
+  );
+  const grandTotal = useMemo(
+    () => afterDiscount + taxAmt,
+    [afterDiscount, taxAmt],
+  );
+  const gstMasterMap = useMemo(
+    () => new Map(gstMasters.map((item) => [String(item.id), item])),
+    [gstMasters],
+  );
+  const defaultGstMaster = useMemo(() => {
+    const helperPercent = parseNonNegativeNumber(gstPct, 0);
+    const matchedMaster = gstMasters.find(
+      (item) => parseNonNegativeNumber(item.taxPercent, 0) === helperPercent,
+    );
+    return matchedMaster || gstMasters[0] || null;
+  }, [gstMasters, gstPct]);
+  const defaultGstMasterId = defaultGstMaster?.id ?? null;
 
   const totals = {
     subtotal,
     discountAmt,
     afterDiscount,
+    taxAmt,
     cgstAmt,
     sgstAmt,
     igstAmt,
@@ -529,6 +578,23 @@ export default function QuotationPage() {
     borderBottom: "1px solid #f3f4f6",
     borderRight: "1px solid #f0f1f3",
     verticalAlign: "middle",
+  };
+  const taxHeadCell = {
+    padding: "8px 8px 10px",
+    fontSize: 10,
+    fontWeight: 700,
+    letterSpacing: "0.7px",
+    textTransform: "uppercase",
+    color: "#9ca3af",
+    whiteSpace: "nowrap",
+  };
+  const taxCellBase = {
+    padding: "10px 8px",
+    borderBottom: "1px solid #f3f4f6",
+    verticalAlign: "middle",
+    fontFamily: "'DM Mono', monospace",
+    fontSize: 13,
+    color: "#0f172a",
   };
 
   useEffect(() => {
@@ -641,6 +707,44 @@ export default function QuotationPage() {
       .catch(() => setGstMasters([]))
       .finally(() => setGstMastersLoading(false));
   }, []);
+
+  useEffect(() => {
+    if (!gstMasters.length || !lineItems.length) {
+      return;
+    }
+
+    setLineItems((previous) => {
+      let changed = false;
+      const updated = previous.map((item) => {
+        if (!item || item.designStatus === "design_only" || item.gstMasterId) {
+          return item;
+        }
+
+        const currentPercent = parseNonNegativeNumber(item.gstPct ?? item.gstPercent ?? 0, 0);
+        const matchedMaster = gstMasters.find(
+          (master) => parseNonNegativeNumber(master.taxPercent, 0) === currentPercent,
+        ) || gstMasters.find((master) => String(master.id) === String(defaultGstMasterId));
+        if (!matchedMaster) {
+          return item;
+        }
+
+        changed = true;
+        return normalizeLineItem({
+          ...item,
+          gstMasterId: matchedMaster.id,
+          gstPct: Number(matchedMaster.taxPercent || 0),
+          gstPercent: Number(matchedMaster.taxPercent || 0),
+        }, {
+          isTamilNadu,
+          defaultDiscountPct: 0,
+          defaultGstPct: parseNonNegativeNumber(gstPct, 0),
+          defaultGstMasterId,
+        });
+      });
+
+      return changed ? updated : previous;
+    });
+  }, [gstMasters, isTamilNadu, gstPct, lineItems.length, defaultGstMasterId]);
 
   useEffect(() => {
     if (!leadSearch.trim()) {
@@ -780,7 +884,12 @@ export default function QuotationPage() {
           };
         });
 
-        setLineItems(autoItems.map(normalizeLineItem));
+        setLineItems(autoItems.map((item) => normalizeLineItem(item, {
+          isTamilNadu,
+          defaultDiscountPct: 0,
+          defaultGstPct: parseNonNegativeNumber(gstPct, 0),
+          defaultGstMasterId,
+        })));
         setEditingPrices({});
       })
       .catch(() => {
@@ -849,9 +958,10 @@ export default function QuotationPage() {
     setSaveMessage("");
   };
 
-  const handleOpenGstAddPopup = () => {
-    setGstAddPercent("");
+  const handleOpenGstAddPopup = ({ mode = "summary", itemId = null, prefillPercent = "" } = {}) => {
+    setGstAddPercent(String(prefillPercent ?? ""));
     setGstAddError("");
+    setGstAddContext({ mode, itemId });
     setGstAddPopupOpen(true);
   };
 
@@ -861,40 +971,55 @@ export default function QuotationPage() {
     setGstAddSaving(true);
     setGstAddError("");
     try {
-      await createGstMaster({ taxName: `GST ${pct}%`, taxPercent: pct, active: true });
+      const createdGst = await createGstMaster({ taxName: `GST ${pct}%`, taxPercent: pct, active: true });
       const updated = await getActiveGstMasters();
       setGstMasters(Array.isArray(updated) ? updated : []);
       setGstAddPopupOpen(false);
+      const createdMasterId = createdGst?.id ? String(createdGst.id) : "";
+      const fallbackMatchId = Array.isArray(updated)
+        ? String(
+            updated.find((item) => parseNonNegativeNumber(item.taxPercent, 0) === pct)?.id || ""
+          )
+        : "";
+      const nextMasterId = createdMasterId || fallbackMatchId;
+
+      if (nextMasterId) {
+        if (gstAddContext.mode === "line-item" && gstAddContext.itemId != null) {
+          handleLineItemGstMasterChange(gstAddContext.itemId, nextMasterId);
+        }
+      }
     } catch {
       setGstAddError("Failed to save. Please try again.");
     } finally {
+      setGstAddContext({ mode: "summary", itemId: null });
       setGstAddSaving(false);
     }
   };
 
-  const handleGstRowChange = (rowId, gstMasterId) => {
+  const handleLineItemGstMasterChange = (itemId, gstMasterId) => {
     const selectedMaster = gstMasters.find((item) => String(item.id) === String(gstMasterId));
-    if (!gstMasterId) { setGstRows([]); return; }
-    setGstRows((previous) => {
-      if (previous.length === 0) {
-        return [{
-          id: `gst-row-${Date.now()}`,
-          gstMasterId: selectedMaster?.id ?? "",
-          taxName: selectedMaster?.taxName ?? "",
-          taxPercent: Number(selectedMaster?.taxPercent ?? 0),
-        }];
-      }
-      return previous.map((row) =>
-        row.id !== rowId
-          ? row
-          : {
-              ...row,
-              gstMasterId: selectedMaster?.id ?? "",
-              taxName: selectedMaster?.taxName ?? "",
-              taxPercent: Number(selectedMaster?.taxPercent ?? 0),
-            }
-      );
-    });
+
+    setLineItems((previous) =>
+      previous.map((item) => {
+        if (item.id !== itemId) {
+          return item;
+        }
+
+        return normalizeLineItem({
+          ...item,
+          gstMasterId: selectedMaster?.id ?? null,
+          gstPct: Number(selectedMaster?.taxPercent ?? 0),
+          gstPercent: Number(selectedMaster?.taxPercent ?? 0),
+        }, {
+          isTamilNadu,
+          defaultDiscountPct: 0,
+          defaultGstPct: parseNonNegativeNumber(gstPct, 0),
+          defaultGstMasterId,
+        });
+      })
+    );
+
+    setSaveMessage("");
   };
 
   const buildCurrentQuotation = () =>
@@ -905,19 +1030,26 @@ export default function QuotationPage() {
       customerName,
       partyMode,
       selectedLead,
-      lineItems: mergePendingPriceEdits(lineItems, editingPrices),
-      discountPct: normalizedDiscountPct,
+      lineItems: mergePendingPriceEdits(lineItems, editingPrices, {
+        isTamilNadu,
+        defaultDiscountPct: 0,
+        defaultGstPct: parseNonNegativeNumber(gstPct, 0),
+        defaultGstMasterId,
+      }),
+      discountPct: 0,
       includeDesignFee,
       designFeeAmount: includeDesignFee ? Number(designFeeAmount || 0) : 0,
+      designFeeDiscountPct: includeDesignFee ? parseNonNegativeNumber(designFeeDiscountPct, 0) : 0,
+      designFeeGstPct: includeDesignFee ? parseNonNegativeNumber(designFeeGstPct, 0) : 0,
       gstRows: gstRows.map((row) => ({
         gstMasterId: row.gstMasterId ? Number(row.gstMasterId) : null,
         taxName: row.taxName || "",
         taxPercent: Number(row.taxPercent || 0),
       })),
-      gstPct: resolvedGstPct,
-      cgstPct,
-      sgstPct,
-      igstPct,
+      gstPct: parseNonNegativeNumber(gstPct, 0),
+      cgstPct: isTamilNadu ? parseNonNegativeNumber(gstPct, 0) / 2 : 0,
+      sgstPct: isTamilNadu ? parseNonNegativeNumber(gstPct, 0) / 2 : 0,
+      igstPct: isTamilNadu ? 0 : parseNonNegativeNumber(gstPct, 0),
       totals,
       status: quotationStatus,
       verificationRequestedAt,
@@ -1275,7 +1407,14 @@ export default function QuotationPage() {
                   disabled={!canEditQuotation}
                   onChange={e => {
                     setIncludeDesignFee(e.target.checked);
-                    if (!e.target.checked) setDesignFeeAmount("");
+                    if (e.target.checked && parseNonNegativeNumber(designFeeGstPct, 0) === 0) {
+                      setDesignFeeGstPct(String(parseNonNegativeNumber(gstPct, 0)));
+                    }
+                    if (!e.target.checked) {
+                      setDesignFeeAmount("");
+                      setDesignFeeDiscountPct("0");
+                      setDesignFeeGstPct("0");
+                    }
                   }}
                   style={{ width: 15, height: 15, accentColor: "#45597a", cursor: canEditQuotation ? "pointer" : "default" }}
                 />
@@ -1307,9 +1446,11 @@ export default function QuotationPage() {
                 <colgroup>
                   <col style={{ width: 36 }} />
                   <col />
+                  {showHsnSacColumn && <col style={{ width: 88 }} />}
                   <col style={{ width: 72 }} />
-                  <col style={{ width: 100 }} />
-                  <col style={{ width: 80 }} />
+                  <col style={{ width: 96 }} />
+                  <col style={{ width: 86 }} />
+                  <col style={{ width: 152 }} />
                   <col style={{ width: 110 }} />
                   <col style={{ width: 60 }} />
                 </colgroup>
@@ -1319,9 +1460,11 @@ export default function QuotationPage() {
                     {[
                       { label: "#",          align: "center" },
                       { label: "Product",    align: "left"   },
+                      ...(showHsnSacColumn ? [{ label: "HSN/SAC", align: "left" }] : []),
                       { label: "Qty",        align: "right"  },
                       { label: "Unit price", align: "right"  },
-                      { label: "Type",       align: "right"  },
+                      { label: "Discount %", align: "right"  },
+                       { label: "GST Master", align: "right"  },
                       { label: "Total",      align: "right"  },
                       { label: "",           align: "right"  },
                     ].map((col, i) => (
@@ -1398,7 +1541,35 @@ export default function QuotationPage() {
                               {specText}
                             </div>
                           )}
+                          {Number(item.discountAmount || 0) > 0 && !isDesignOnly && (
+                            <div style={{
+                              fontSize: 11,
+                              color: "#059669",
+                              marginTop: 3,
+                              lineHeight: 1.4,
+                              fontFamily: "'DM Mono', monospace",
+                              wordBreak: "break-word",
+                              fontWeight: 600,
+                            }}>
+                              Discounted Amount: ₹{Number(item.discountAmount || 0).toFixed(2)}
+                            </div>
+                          )}
                           <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 5 }}>
+                            {(() => {
+                              const d = designLabel(item.designStatus);
+                              if (!d) return null;
+                              return (
+                                <span style={{
+                                  fontSize: 10, fontWeight: 700,
+                                  background: d.bg, color: d.color,
+                                  border: `1px solid ${d.color}44`,
+                                  borderRadius: 4, padding: "2px 5px",
+                                  display: "inline-block", whiteSpace: "nowrap",
+                                }}>
+                                  {d.label}
+                                </span>
+                              );
+                            })()}
                             {noSlabWarning && (
                               <span style={{ fontSize: 10, fontWeight: 600, color: "#b45309" }}>
                                 No slab match — enter price manually
@@ -1406,6 +1577,19 @@ export default function QuotationPage() {
                             )}
                           </div>
                         </td>
+
+                        {showHsnSacColumn && (
+                          <td style={{ ...lineItemCellBase, textAlign: "left" }}>
+                            <div style={{
+                              fontSize: 12,
+                              color: "#0f172a",
+                              fontFamily: "'DM Mono', monospace",
+                              wordBreak: "break-word",
+                            }}>
+                              {extractTaxGroupCode(item) || "—"}
+                            </div>
+                          </td>
+                        )}
 
                         {/* Qty */}
                         <td style={{ ...lineItemCellBase, textAlign: "right" }}>
@@ -1421,7 +1605,11 @@ export default function QuotationPage() {
                                   ...prev,
                                   [item.id]: { ...prev[item.id], quantity: e.target.value },
                                 }));
-                                applyEdit(item.id, "quantity", e.target.value, setLineItems, setEditingPrices);
+                                applyEdit(item.id, "quantity", e.target.value, setLineItems, setEditingPrices, {
+                                  isTamilNadu,
+                                  defaultGstPct: parseNonNegativeNumber(gstPct, 0),
+                                  defaultGstMasterId,
+                                });
                               }}
                               onFocus={e => e.target.select()}
                             />
@@ -1443,7 +1631,11 @@ export default function QuotationPage() {
                                   ...prev,
                                   [item.id]: { ...prev[item.id], unitPrice: e.target.value },
                                 }));
-                                applyEdit(item.id, "unitPrice", e.target.value, setLineItems, setEditingPrices);
+                                applyEdit(item.id, "unitPrice", e.target.value, setLineItems, setEditingPrices, {
+                                  isTamilNadu,
+                                  defaultGstPct: parseNonNegativeNumber(gstPct, 0),
+                                  defaultGstMasterId,
+                                });
                               }}
                               onFocus={e => e.target.select()}
                               placeholder="₹"
@@ -1451,34 +1643,99 @@ export default function QuotationPage() {
                           )}
                         </td>
 
-                        {/* Type badge */}
+                        {/* Discount */}
                         <td style={{ ...lineItemCellBase, textAlign: "right" }}>
-                          {(() => {
-                            const d = designLabel(item.designStatus);
-                            if (!d) return <span style={{ color: "#d1d5db" }}>—</span>;
-                            return (
-                              <span style={{
-                                fontSize: 10, fontWeight: 700,
-                                background: d.bg, color: d.color,
-                                border: `1px solid ${d.color}44`,
-                                borderRadius: 4, padding: "2px 5px",
-                                display: "inline-block", whiteSpace: "nowrap",
-                              }}>
-                                {d.label}
+                          {isDesignOnly ? (
+                            <span style={{ color: "#d1d5db" }}>â€”</span>
+                          ) : (
+                            <input
+                              type="number" min="0" step="0.01"
+                              style={inBase}
+                              value={getEditVal(editingPrices, item.id, "discountPct", item)}
+                              onChange={e => {
+                                setEditingPrices(prev => ({
+                                  ...prev,
+                                  [item.id]: { ...prev[item.id], discountPct: e.target.value },
+                                }));
+                                applyEdit(
+                                  item.id,
+                                  "discountPct",
+                                  e.target.value,
+                                  setLineItems,
+                                  setEditingPrices,
+                                  { isTamilNadu, defaultGstPct: parseNonNegativeNumber(gstPct, 0), defaultGstMasterId }
+                                );
+                              }}
+                              onFocus={e => e.target.select()}
+                            />
+                          )}
+                        </td>
+
+                        {/* GST master */}
+                        <td style={{ ...lineItemCellBase, textAlign: "right" }}>
+                          {isDesignOnly ? (
+                            <span style={{ color: "#d1d5db" }}>?</span>
+                          ) : (
+                            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                <select
+                                  className="qp-field-input"
+                                  style={{
+                                    ...inBase,
+                                    flex: 1,
+                                    minWidth: 0,
+                                    textAlign: "left",
+                                    appearance: "auto",
+                                    fontFamily: "'DM Sans', sans-serif",
+                                    padding: "5px 7px",
+                                  }}
+                                  value={item.gstMasterId ? String(item.gstMasterId) : ""}
+                                  onChange={(e) => handleLineItemGstMasterChange(item.id, e.target.value)}
+                                  disabled={gstMastersLoading}
+                                >
+                                  <option value="">{gstMastersLoading ? "Loading..." : "Select GST master"}</option>
+                                  {gstMasters.map((option) => (
+                                    <option key={option.id} value={option.id}>
+                                      {option.taxName
+                                        ? `GST ${Number(option.taxPercent || 0)}%`
+                                        : `GST ${Number(option.taxPercent || 0)}%`}
+                                    </option>
+                                  ))}
+                                </select>
+                                <button
+                                  type="button"
+                                  className="qp-item-btn"
+                                  onClick={() => handleOpenGstAddPopup({
+                                    mode: "line-item",
+                                    itemId: item.id,
+                                    prefillPercent: Number(item.gstPct ?? 0),
+                                  })}
+                                  title="Add GST master for this product"
+                                >
+                                  <i className="ti ti-plus" style={{ fontSize: 13 }} />
+                                </button>
+                              </div>
+                              <span style={{ fontSize: 10, color: "#6b7280", fontFamily: "'DM Mono', monospace" }}>
+                                GST {Number(item.gstPct ?? 0).toFixed(2)}%
                               </span>
-                            );
-                          })()}
+                            </div>
+                          )}
                         </td>
 
                         {/* Total */}
                         <td style={{ ...lineItemCellBase, textAlign: "right" }}>
-                          <span style={{
-                            fontSize: 13, fontWeight: 700,
-                            fontFamily: "'DM Mono', monospace",
-                            color: isUnpriced ? "#dc2626" : "#0f172a",
-                          }}>
-                            ₹{Number(item.lineTotal || 0).toFixed(2)}
-                          </span>
+                          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 }}>
+                            <span style={{
+                              fontSize: 13, fontWeight: 700,
+                              fontFamily: "'DM Mono', monospace",
+                              color: isUnpriced ? "#dc2626" : "#0f172a",
+                            }}>
+                              ₹{Number(item.lineTotal || 0).toFixed(2)}
+                            </span>
+                            <span style={{ fontSize: 10, color: "#9ca3af", fontFamily: "'DM Mono', monospace" }}>
+                              Base ₹{Number(item.baseAmount || 0).toFixed(2)}
+                            </span>
+                          </div>
                         </td>
 
                         {/* Actions */}
@@ -1510,27 +1767,40 @@ export default function QuotationPage() {
                     <tr style={{ background: "#faf5ff" }}>
                       <td style={{ ...lineItemCellBase, textAlign: "center" }}>
                         <span style={{ fontSize: 12, color: "#d1d5db", fontFamily: "'DM Mono', monospace" }}>
-                          —
+                          ?
                         </span>
                       </td>
                       <td style={{ ...lineItemCellBase }}>
                         <div style={{ fontSize: 13, fontWeight: 600, color: "#7c3aed" }}>
                           Design Fee
                         </div>
+                        {Number(designFeePricing.discountAmount || 0) > 0 && (
+                          <div style={{
+                            fontSize: 11,
+                            color: "#059669",
+                            marginTop: 3,
+                            lineHeight: 1.4,
+                            fontFamily: "'DM Mono', monospace",
+                            wordBreak: "break-word",
+                            fontWeight: 600,
+                          }}>
+                            Discounted Amount: ₹{Number(designFeePricing.discountAmount || 0).toFixed(2)}
+                          </div>
+                        )}
                         <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 2 }}>
                           One-time design charge
                         </div>
                       </td>
-                      <td style={{ ...lineItemCellBase }} />
-                      <td style={{ ...lineItemCellBase }} />
+                      {showHsnSacColumn && (
+                        <td style={{ ...lineItemCellBase, textAlign: "left" }}>
+                          <span style={{ fontSize: 12, color: "#d1d5db", fontFamily: "'DM Mono', monospace" }}>
+                            —
+                          </span>
+                        </td>
+                      )}
                       <td style={{ ...lineItemCellBase, textAlign: "right" }}>
-                        <span style={{
-                          fontSize: 10, fontWeight: 700,
-                          background: "#f5f3ff", color: "#7c3aed",
-                          border: "1px solid #ddd6fe",
-                          borderRadius: 4, padding: "2px 5px",
-                        }}>
-                          Design
+                        <span style={{ fontSize: 13, fontWeight: 600, color: "#7c3aed", fontFamily: "'DM Mono', monospace" }}>
+                          1
                         </span>
                       </td>
                       <td style={{ ...lineItemCellBase, textAlign: "right" }}>
@@ -1548,18 +1818,51 @@ export default function QuotationPage() {
                           value={designFeeAmount}
                           onChange={e => setDesignFeeAmount(e.target.value)}
                           onFocus={e => e.target.select()}
-                          placeholder="₹ fee"
+                          placeholder="? fee"
                         />
                       </td>
                       <td style={{ ...lineItemCellBase, textAlign: "right" }}>
-                        <span style={{
-                          fontSize: 13, fontWeight: 700,
-                          fontFamily: "'DM Mono', monospace",
-                          color: "#7c3aed",
-                        }}>
-                          ₹{Number(designFeeAmount || 0).toFixed(2)}
+                        <input
+                          type="number" min="0" step="0.01"
+                          disabled={!canEditQuotation}
+                          style={{
+                            border: "1.5px solid #ddd6fe",
+                            borderRadius: 6, padding: "5px 7px",
+                            fontSize: 13, fontFamily: "'DM Mono', monospace",
+                            background: "#faf5ff", color: "#7c3aed",
+                            fontWeight: 600, outline: "none",
+                            width: "100%", textAlign: "right",
+                          }}
+                          value={designFeeDiscountPct}
+                          onChange={e => setDesignFeeDiscountPct(e.target.value)}
+                          onFocus={e => e.target.select()}
+                          placeholder="0"
+                        />
+                      </td>
+                      <td style={{ ...lineItemCellBase, textAlign: "right" }}>
+                        <input
+                          type="number" min="0" step="0.01"
+                          disabled={!canEditQuotation}
+                          style={{
+                            border: "1.5px solid #ddd6fe",
+                            borderRadius: 6, padding: "5px 7px",
+                            fontSize: 13, fontFamily: "'DM Mono', monospace",
+                            background: "#faf5ff", color: "#7c3aed",
+                            fontWeight: 600, outline: "none",
+                            width: "100%", textAlign: "right",
+                          }}
+                          value={designFeeGstPct}
+                          onChange={e => setDesignFeeGstPct(e.target.value)}
+                          onFocus={e => e.target.select()}
+                          placeholder="0"
+                        />
+                      </td>
+                      <td style={{ ...lineItemCellBase, textAlign: "right" }}>
+                        <span style={{ fontSize: 13, fontWeight: 700, fontFamily: "'DM Mono', monospace", color: "#7c3aed" }}>
+                          ₹{designFeePricing.lineTotal.toFixed(2)}
                         </span>
                       </td>
+                      <td style={{ ...lineItemCellBase }} />
                     </tr>
                   )}
                 </tbody>
@@ -1570,51 +1873,116 @@ export default function QuotationPage() {
 
                 {/* ── Tax & Totals ── */}
         <div className="qp-card">
-          <div className="qp-card-label">Tax &amp; discount</div>
-          <div className="qp-tax-row">
-            <div className="qp-field-group">
-              <div className="qp-field-label">Discount (%)</div>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                className="qp-field-input"
-                style={{ fontFamily: "'DM Mono', monospace", textAlign: "right" }}
-                value={discountPct}
-                onChange={(e) => {
-                  const nextValue = e.target.value;
-                  if (nextValue === "") {
-                    setDiscountPct("");
-                    return;
-                  }
-                  setDiscountPct(String(parseNonNegativeNumber(nextValue, 0)));
-                }}
-                onBlur={() => {
-                  setDiscountPct(String(parseNonNegativeNumber(discountPct, 0)));
-                }}
-              />
-            </div>
-            <div className="qp-field-group">
-              <div className="qp-field-label">GST</div>
-              <div className="qp-gst-row qp-gst-row-empty">
-                <select
-                  className="qp-field-input"
-                  value={gstRows[0]?.gstMasterId || ""}
-                  onChange={(e) => handleGstRowChange(gstRows[0]?.id || "single", e.target.value)}
-                  disabled={gstMastersLoading}
-                >
-                  <option value="">No GST</option>
-                  {gstMasters.map((option) => (
-                    <option key={option.id} value={option.id}>
-                      {option.taxPercent}%
-                    </option>
-                  ))}
-                </select>
-                <button type="button" className="qp-item-btn" onClick={handleOpenGstAddPopup} title="Add new GST">
-                  <i className="ti ti-plus" style={{ fontSize: 13 }} />
-                </button>
-              </div>
-            </div>
+          <div className="qp-card-label">Tax &amp; summary</div>
+          <div style={{ marginTop: 14, overflowX: "auto" }}>
+            <table style={{
+              width: "100%",
+              minWidth: isTamilNadu ? 760 : 540,
+              borderCollapse: "collapse",
+              tableLayout: "fixed",
+              fontFamily: "'DM Sans', sans-serif",
+            }}>
+              <colgroup>
+                <col style={{ width: isTamilNadu ? 180 : 190 }} />
+                <col style={{ width: 98 }} />
+                {isTamilNadu ? (
+                  <>
+                    <col style={{ width: 70 }} />
+                    <col style={{ width: 98 }} />
+                    <col style={{ width: 92 }} />
+                    <col style={{ width: 98 }} />
+                    <col style={{ width: 108 }} />
+                  </>
+                ) : (
+                  <>
+                    <col style={{ width: 72 }} />
+                    <col style={{ width: 102 }} />
+                    <col style={{ width: 114 }} />
+                  </>
+                )}
+              </colgroup>
+              <thead>
+                <tr style={{ borderBottom: "2px solid #e5e7eb" }}>
+                  <th style={{ ...taxHeadCell, textAlign: "left" }}>Products</th>
+                  <th style={{ ...taxHeadCell, textAlign: "right" }}>Taxable Value</th>
+                  {isTamilNadu ? (
+                    <>
+                      <th style={{ ...taxHeadCell, textAlign: "right" }}>CGST %</th>
+                      <th style={{ ...taxHeadCell, textAlign: "right" }}>CGST Amt</th>
+                      <th style={{ ...taxHeadCell, textAlign: "right" }}>SGST/UTGST %</th>
+                      <th style={{ ...taxHeadCell, textAlign: "right" }}>SGST/UTGST Amt</th>
+                      <th style={{ ...taxHeadCell, textAlign: "right" }}>Tax Amount</th>
+                    </>
+                  ) : (
+                    <>
+                      <th style={{ ...taxHeadCell, textAlign: "right" }}>IGST %</th>
+                      <th style={{ ...taxHeadCell, textAlign: "right" }}>IGST Amt</th>
+                      <th style={{ ...taxHeadCell, textAlign: "right" }}>Tax Amount</th>
+                    </>
+                  )}
+                </tr>
+              </thead>
+              <tbody>
+                {taxSummary.rows.length === 0 ? (
+                  <tr>
+                    <td colSpan={isTamilNadu ? 7 : 5} style={{
+                      ...taxCellBase,
+                      textAlign: "center",
+                      color: "#9ca3af",
+                    }}>
+                      No taxable product rows yet.
+                    </td>
+                  </tr>
+                ) : (
+                  <>
+                    {taxSummary.rows.map((row) => (
+                      <tr key={`gst-row-${row.gstPct}`} style={{ borderBottom: "1px solid #f3f4f6" }}>
+                        <td style={{ ...taxCellBase, textAlign: "left", fontFamily: "'DM Sans', sans-serif" }}>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: "#0f172a" }}>
+                            {row.displayText || row.serialText || row.primaryText}
+                          </div>
+                        </td>
+                        <td style={{ ...taxCellBase, textAlign: "right" }}>₹{row.taxableAmount.toFixed(2)}</td>
+                        {isTamilNadu ? (
+                          <>
+                            <td style={{ ...taxCellBase, textAlign: "right" }}>{row.cgstRate.toFixed(2)}%</td>
+                            <td style={{ ...taxCellBase, textAlign: "right" }}>₹{row.cgstAmount.toFixed(2)}</td>
+                            <td style={{ ...taxCellBase, textAlign: "right" }}>{row.sgstRate.toFixed(2)}%</td>
+                            <td style={{ ...taxCellBase, textAlign: "right" }}>₹{row.sgstAmount.toFixed(2)}</td>
+                            <td style={{ ...taxCellBase, textAlign: "right" }}>₹{row.taxTotalAmount.toFixed(2)}</td>
+                          </>
+                        ) : (
+                          <>
+                            <td style={{ ...taxCellBase, textAlign: "right" }}>{row.igstRate.toFixed(2)}%</td>
+                            <td style={{ ...taxCellBase, textAlign: "right" }}>₹{row.igstAmount.toFixed(2)}</td>
+                            <td style={{ ...taxCellBase, textAlign: "right" }}>₹{row.taxTotalAmount.toFixed(2)}</td>
+                          </>
+                        )}
+                      </tr>
+                    ))}
+                    <tr style={{ borderTop: "2px solid #d1d5db", background: "#fafafa" }}>
+                      <td style={{ ...taxCellBase, fontWeight: 700 }}>Total</td>
+                      <td style={{ ...taxCellBase, textAlign: "right", fontWeight: 700 }}>₹{taxSummary.productTaxableAmount.toFixed(2)}</td>
+                      {isTamilNadu ? (
+                        <>
+                          <td style={{ ...taxCellBase }} />
+                          <td style={{ ...taxCellBase, textAlign: "right", fontWeight: 700 }}>₹{taxSummary.totalCgstAmount.toFixed(2)}</td>
+                          <td style={{ ...taxCellBase }} />
+                          <td style={{ ...taxCellBase, textAlign: "right", fontWeight: 700 }}>₹{taxSummary.totalSgstAmount.toFixed(2)}</td>
+                          <td style={{ ...taxCellBase, textAlign: "right", fontWeight: 700 }}>₹{taxSummary.productTaxAmount.toFixed(2)}</td>
+                        </>
+                      ) : (
+                        <>
+                          <td style={{ ...taxCellBase }} />
+                          <td style={{ ...taxCellBase, textAlign: "right", fontWeight: 700 }}>₹{taxSummary.totalIgstAmount.toFixed(2)}</td>
+                          <td style={{ ...taxCellBase, textAlign: "right", fontWeight: 700 }}>₹{taxSummary.productTaxAmount.toFixed(2)}</td>
+                        </>
+                      )}
+                    </tr>
+                  </>
+                )}
+              </tbody>
+            </table>
           </div>
 
           <div className="qp-totals-block">
@@ -1622,26 +1990,28 @@ export default function QuotationPage() {
               <div className="qp-total-label">Subtotal</div>
               <div className="qp-total-value">₹{subtotal.toFixed(2)}</div>
             </div>
-            {normalizedDiscountPct > 0 && (
-              <div className="qp-total-line discount">
-                <div className="qp-total-label">Discount ({normalizedDiscountPct}%)</div>
-                <div className="qp-total-value">−₹{discountAmt.toFixed(2)}</div>
-              </div>
-            )}
+            <div className="qp-total-line discount">
+              <div className="qp-total-label">Discount Amount</div>
+              <div className="qp-total-value">−₹{discountAmt.toFixed(2)}</div>
+            </div>
+            <div className="qp-total-line">
+              <div className="qp-total-label">GST total</div>
+              <div className="qp-total-value">+₹{taxAmt.toFixed(2)}</div>
+            </div>
             {isTamilNadu ? (
               <>
                 <div className="qp-total-line">
-                  <div className="qp-total-label">CGST ({cgstPct}%)</div>
+                  <div className="qp-total-label">CGST</div>
                   <div className="qp-total-value">+₹{cgstAmt.toFixed(2)}</div>
                 </div>
                 <div className="qp-total-line">
-                  <div className="qp-total-label">SGST ({sgstPct}%)</div>
+                  <div className="qp-total-label">SGST</div>
                   <div className="qp-total-value">+₹{sgstAmt.toFixed(2)}</div>
                 </div>
               </>
             ) : (
               <div className="qp-total-line">
-                <div className="qp-total-label">IGST ({igstPct}%)</div>
+                <div className="qp-total-label">IGST</div>
                 <div className="qp-total-value">+₹{igstAmt.toFixed(2)}</div>
               </div>
             )}
@@ -1731,7 +2101,12 @@ export default function QuotationPage() {
           }
         }}
         onConfirm={(lineItem) => {
-          const normalizedLineItem = normalizeLineItem(lineItem);
+          const normalizedLineItem = normalizeLineItem(lineItem, {
+            isTamilNadu,
+            defaultDiscountPct: 0,
+            defaultGstPct: parseNonNegativeNumber(gstPct, 0),
+            defaultGstMasterId: editingItem?.gstMasterId ?? defaultGstMasterId,
+          });
           if (editingItem?.id) {
             setLineItems((prev) => prev.map((i) => (i.id === editingItem.id ? normalizedLineItem : i)));
           } else {

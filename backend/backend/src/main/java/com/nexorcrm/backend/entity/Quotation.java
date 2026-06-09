@@ -43,6 +43,12 @@ public class Quotation {
     @Column(name = "client_company")
     private String clientCompany;
 
+    @Column(name = "client_address", length = 500)
+    private String clientAddress;
+
+    @Column(name = "client_state", length = 100)
+    private String clientState;
+
     @Column(name = "subtotal", precision = 12, scale = 2, nullable = false)
     private BigDecimal subtotal = BigDecimal.ZERO;
 
@@ -66,6 +72,12 @@ public class Quotation {
 
     @Column(name = "design_fee_amount", precision = 12, scale = 2, nullable = false)
     private BigDecimal designFeeAmount = BigDecimal.ZERO;
+
+    @Column(name = "design_fee_discount_percent", precision = 5, scale = 2, nullable = false)
+    private BigDecimal designFeeDiscountPercent = BigDecimal.ZERO;
+
+    @Column(name = "design_fee_gst_percent", precision = 5, scale = 2, nullable = false)
+    private BigDecimal designFeeGstPercent = BigDecimal.ZERO;
 
     @Column(name = "gst_rows_json", columnDefinition = "TEXT")
     private String gstRowsJson;
@@ -161,6 +173,10 @@ public class Quotation {
     public void setClientEmail(String clientEmail) { this.clientEmail = clientEmail; }
     public String getClientCompany() { return clientCompany; }
     public void setClientCompany(String clientCompany) { this.clientCompany = clientCompany; }
+    public String getClientAddress() { return clientAddress; }
+    public void setClientAddress(String clientAddress) { this.clientAddress = clientAddress; }
+    public String getClientState() { return clientState; }
+    public void setClientState(String clientState) { this.clientState = clientState; }
     public BigDecimal getSubtotal() { return subtotal; }
     public void setSubtotal(BigDecimal subtotal) { this.subtotal = subtotal; }
     public BigDecimal getDiscountPercent() { return discountPercent; }
@@ -177,6 +193,10 @@ public class Quotation {
     public void setIncludeDesignFee(boolean includeDesignFee) { this.includeDesignFee = includeDesignFee; }
     public BigDecimal getDesignFeeAmount() { return designFeeAmount; }
     public void setDesignFeeAmount(BigDecimal designFeeAmount) { this.designFeeAmount = designFeeAmount; }
+    public BigDecimal getDesignFeeDiscountPercent() { return designFeeDiscountPercent; }
+    public void setDesignFeeDiscountPercent(BigDecimal designFeeDiscountPercent) { this.designFeeDiscountPercent = designFeeDiscountPercent; }
+    public BigDecimal getDesignFeeGstPercent() { return designFeeGstPercent; }
+    public void setDesignFeeGstPercent(BigDecimal designFeeGstPercent) { this.designFeeGstPercent = designFeeGstPercent; }
     public String getGstRowsJson() { return gstRowsJson; }
     public void setGstRowsJson(String gstRowsJson) { this.gstRowsJson = gstRowsJson; }
     public BigDecimal getGrandTotal() { return grandTotal; }

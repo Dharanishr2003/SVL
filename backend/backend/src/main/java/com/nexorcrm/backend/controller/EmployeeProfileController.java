@@ -5,6 +5,7 @@ import com.nexorcrm.backend.dto.EmployeeVerificationResponse;
 import com.nexorcrm.backend.dto.VerifyEmployeeFieldsRequest;
 import com.nexorcrm.backend.entity.EmployeeTokenScope;
 import com.nexorcrm.backend.service.EmployeeProfileFormService;
+import org.springframework.core.io.Resource;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -38,6 +39,11 @@ public class EmployeeProfileController {
     @GetMapping("/{employeeId}/verification")
     public EmployeeVerificationResponse getVerification(@PathVariable Long employeeId) {
         return employeeProfileFormService.getVerification(employeeId);
+    }
+
+    @GetMapping("/{employeeId}/documents/{documentId}/file")
+    public ResponseEntity<Resource> getDocumentFile(@PathVariable Long employeeId, @PathVariable Long documentId) {
+        return employeeProfileFormService.getDocumentFile(employeeId, documentId);
     }
 
     @PostMapping("/{employeeId}/verify-fields")

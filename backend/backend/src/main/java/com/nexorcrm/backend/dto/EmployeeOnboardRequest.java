@@ -89,6 +89,7 @@ public class EmployeeOnboardRequest {
     private MultipartFile uploadCandidatePanCard;
     private MultipartFile uploadBankPassBookCopy;
     private MultipartFile uploadExperienceCertificate;
+    private MultipartFile uploadCertificate;
     private MultipartFile uploadGraduationCertificate;
     private MultipartFile uploadGraduationMarksheet;
     private MultipartFile uploadHscMarkSheet;
@@ -319,6 +320,9 @@ public class EmployeeOnboardRequest {
 
     public MultipartFile getUploadExperienceCertificate() { return uploadExperienceCertificate; }
     public void setUploadExperienceCertificate(MultipartFile uploadExperienceCertificate) { this.uploadExperienceCertificate = uploadExperienceCertificate; }
+
+    public MultipartFile getUploadCertificate() { return uploadCertificate; }
+    public void setUploadCertificate(MultipartFile uploadCertificate) { this.uploadCertificate = uploadCertificate; }
 
     public MultipartFile getUploadGraduationCertificate() { return uploadGraduationCertificate; }
     public void setUploadGraduationCertificate(MultipartFile uploadGraduationCertificate) { this.uploadGraduationCertificate = uploadGraduationCertificate; }

@@ -4,10 +4,48 @@ import { getPublicEmployeeForm, submitPublicEmployeeForm } from "../../api/emplo
 import { extractApiErrorMessage } from "../../utils/errorMessage";
 import { useToast } from "../../components/system/ToastProvider";
 import { defaultCountryOption, getCountryDisplayMaxLength, sanitizePhoneDigits } from "../../utils/phoneUtils";
+import {
+  EDUCATION_QUALIFICATION_OPTIONS,
+  EDUCATION_UPLOAD_DOC_TYPES,
+  calculateEducationPercentage,
+  getPublicEducationUploadDocTypes,
+  getEducationVisibilityRules,
+  normalizePositiveNumericInput,
+} from "../../utils/educationUploads";
 
 function isBlank(value) {
   return value === null || value === undefined || String(value).trim() === "";
 }
+
+
+function sanitizeYearDigits(value) {
+  return String(value || "")
+    .replace(/\D/g, "")
+    .slice(0, 4);
+}
+
+function normalizeEducationValues(form) {
+  const next = { ...form };
+  next.EDUCATION_MARK = normalizePositiveNumericInput(next.EDUCATION_MARK);
+  next.EDUCATION_MAX_MARK = normalizePositiveNumericInput(next.EDUCATION_MAX_MARK);
+  const computedPercentage = calculateEducationPercentage(next.EDUCATION_MARK, next.EDUCATION_MAX_MARK);
+  if (computedPercentage || next.EDUCATION_MARK_PERCENTAGE) {
+    next.EDUCATION_MARK_PERCENTAGE =
+      computedPercentage || normalizePositiveNumericInput(next.EDUCATION_MARK_PERCENTAGE) || "";
+  }
+  return next;
+}
+
+const EDUCATION_FIELDS_TO_CLEAR = [
+  "EDUCATION_COURSE_NAME",
+  "EDUCATION_CERTIFICATE_NUMBER",
+  "EDUCATION_ROLL_NUMBER",
+  "EDUCATION_MARK",
+  "EDUCATION_MAX_MARK",
+  "EDUCATION_MARK_PERCENTAGE",
+  "EDUCATION_FROM_YEAR",
+  "EDUCATION_TO_YEAR",
+];
 
 const PUBLIC_FORM_SECTION_CONFIGS = [
   {
@@ -34,22 +72,31 @@ const PUBLIC_FORM_SECTION_CONFIGS = [
     key: "address",
     title: "Address Details",
     fieldKeys: ["LOCATION", "PIN_CODE", "STATE", "CURRENT_ADDRESS", "PERMANENT_ADDRESS", "PAN_NUMBER", "AADHAAR_NUMBER"],
-    uploadDocTypes: ["AADHAAR_CARD", "PAN_CARD"],
+    uploadDocTypes: ["AADHAAR_CARD", "PAN_CARD", "COMMUNITY_CERTIFICATE"],
     uploadAfterFieldKey: "PERMANENT_ADDRESS",
   },
   {
     key: "education",
     title: "Education Details",
-    fieldKeys: ["GRADUATION_DETAILS", "HSC_MARK_AND_YEAR", "SSLC_MARK_AND_YEAR"],
+    fieldKeys: [
+      "EDUCATION_QUALIFICATION",
+      "EDUCATION_COURSE_NAME",
+      "EDUCATION_CERTIFICATE_NUMBER",
+      "EDUCATION_ROLL_NUMBER",
+      "EDUCATION_MARK",
+      "EDUCATION_MAX_MARK",
+      "EDUCATION_MARK_PERCENTAGE",
+      "EDUCATION_FROM_YEAR",
+      "EDUCATION_TO_YEAR",
+    ],
     uploadDocTypes: [
       "CERTIFICATE",
       "GRADUATION_CERTIFICATE",
       "GRADUATION_MARKSHEET",
       "HSC_MARKSHEET",
       "SSLC_MARKSHEET",
-      "COMMUNITY_CERTIFICATE",
     ],
-    uploadAfterFieldKey: "SSLC_MARK_AND_YEAR",
+    uploadAfterFieldKey: "EDUCATION_TO_YEAR",
   },
   {
     key: "bank",
@@ -120,6 +167,7 @@ export default function PublicEmployeeFormPage() {
   const [form, setForm] = useState({});
   const [initialForm, setInitialForm] = useState({});
   const [files, setFiles] = useState({}); // { DOC_TYPE: File | File[] }
+  const [experienceCertificateAvailable, setExperienceCertificateAvailable] = useState("NO");
 
   useEffect(() => {
     async function load() {
@@ -136,8 +184,12 @@ export default function PublicEmployeeFormPage() {
         if (!initial.COUNTRY_CODE) {
           initial.COUNTRY_CODE = defaultCountryOption.value;
         }
-        setForm(initial);
+        const normalized = normalizeEducationValues(initial);
+        setForm(normalized);
         setInitialForm(initial);
+        const experienceUpload = (res?.uploads || []).find((upload) => upload?.docType === "EXPERIENCE_CERTIFICATE");
+        const experienceStatus = String(experienceUpload?.status || "").toUpperCase();
+        setExperienceCertificateAvailable(["PENDING", "REJECTED"].includes(experienceStatus) ? "YES" : "NO");
       } catch (e) {
         showError(extractApiErrorMessage(e, "Invalid or expired link"));
       } finally {
@@ -196,7 +248,7 @@ export default function PublicEmployeeFormPage() {
         "GENDER",
         "MARITAL_STATUS",
         "BLOOD_GROUP",
-        "GRADUATION_DETAILS",
+        "EDUCATION_QUALIFICATION",
         "PLATFORM_SOURCE",
       ]),
     [],
@@ -233,6 +285,55 @@ export default function PublicEmployeeFormPage() {
     });
   };
 
+  const handleEducationFieldChange = (fieldKey, value) => {
+    const normalizedValue =
+      fieldKey === "EDUCATION_MARK" || fieldKey === "EDUCATION_MAX_MARK"
+        ? normalizePositiveNumericInput(value)
+        : value;
+    setForm((prev) => {
+      const next = { ...prev, [fieldKey]: normalizedValue };
+      if (fieldKey === "EDUCATION_MARK" || fieldKey === "EDUCATION_MAX_MARK") {
+        next.EDUCATION_MARK_PERCENTAGE = calculateEducationPercentage(
+          fieldKey === "EDUCATION_MARK" ? normalizedValue : next.EDUCATION_MARK,
+          fieldKey === "EDUCATION_MAX_MARK" ? normalizedValue : next.EDUCATION_MAX_MARK,
+        );
+      }
+      if (fieldKey === "EDUCATION_QUALIFICATION") {
+        const visibility = getEducationVisibilityRules(value);
+        if (!value || visibility.isBasicQualification) {
+          EDUCATION_FIELDS_TO_CLEAR.forEach((key) => {
+            next[key] = "";
+          });
+        } else if (!visibility.showCourseName) {
+          next.EDUCATION_COURSE_NAME = "";
+        }
+      }
+      return next;
+    });
+
+    if (fieldKey === "EDUCATION_QUALIFICATION") {
+      const visibility = getEducationVisibilityRules(value);
+      const allowedDocTypes = new Set(
+        visibility.showUploads ? getPublicEducationUploadDocTypes(value) : [],
+      );
+      setFiles((prev) => {
+        const next = { ...prev };
+        if (!visibility.showUploads) {
+          EDUCATION_UPLOAD_DOC_TYPES.forEach((docType) => {
+            delete next[docType];
+          });
+          return next;
+        }
+        EDUCATION_UPLOAD_DOC_TYPES.forEach((docType) => {
+          if (!allowedDocTypes.has(docType)) {
+            delete next[docType];
+          }
+        });
+        return next;
+      });
+    }
+  };
+
   const renderUploadField = (upload) => {
     if (!upload) return null;
     const rejected = String(upload.status || "").toUpperCase() === "REJECTED";
@@ -261,6 +362,59 @@ export default function PublicEmployeeFormPage() {
     );
   };
 
+  const isEducationUploadAllowed = (docType) => {
+    if (!EDUCATION_UPLOAD_DOC_TYPES.includes(docType)) {
+      return true;
+    }
+    const visibility = getEducationVisibilityRules(form.EDUCATION_QUALIFICATION);
+    if (!visibility.showUploads) {
+      return false;
+    }
+    return getPublicEducationUploadDocTypes(form.EDUCATION_QUALIFICATION).includes(docType);
+  };
+
+  const handleExperienceCertificateAvailableChange = (value) => {
+    setExperienceCertificateAvailable(value);
+    if (value !== "YES") {
+      setFiles((prev) => {
+        const next = { ...prev };
+        delete next.EXPERIENCE_CERTIFICATE;
+        return next;
+      });
+    }
+  };
+
+  const renderExperienceCertificateToggle = () => (
+    <div className="mb-3">
+      <label className="form-check d-flex gap-2 align-items-center mb-0">
+        <input
+          type="checkbox"
+          className="form-check-input"
+          checked={experienceCertificateAvailable === "YES"}
+          onChange={(e) => handleExperienceCertificateAvailableChange(e.target.checked ? "YES" : "NO")}
+        />
+        <span className="form-check-label">Experience Certificate available?</span>
+      </label>
+    </div>
+  );
+
+  const renderExperienceCertificateUpload = () => {
+    if (experienceCertificateAvailable !== "YES") {
+      return null;
+    }
+
+    return (
+      <div className="col-md-6">
+        <label className="form-label">Experience Certificate</label>
+        <input
+          type="file"
+          className="form-control"
+          onChange={(e) => setFiles((p) => ({ ...p, EXPERIENCE_CERTIFICATE: e.target.files?.[0] || null }))}
+        />
+      </div>
+    );
+  };
+
   const renderFieldControl = (f) => {
     if (!f) return null;
     if (f.fieldKey === "SPOUSE_NAME" && String(form.MARITAL_STATUS || "").toUpperCase() !== "MARRIED") {
@@ -274,6 +428,10 @@ export default function PublicEmployeeFormPage() {
     const isDropdown = dropdownKeys.has(f.fieldKey);
     const isYesNoSelect = yesNoFieldKeys.has(f.fieldKey);
     const isStandalonePhone = f.fieldKey === "PREVIOUS_EMPLOYMENT_MANAGER_MOBILE_NUMBER";
+    const isEducationYear = f.fieldKey === "EDUCATION_FROM_YEAR" || f.fieldKey === "EDUCATION_TO_YEAR";
+    const isEducationMark = f.fieldKey === "EDUCATION_MARK" || f.fieldKey === "EDUCATION_MAX_MARK";
+    const isEducationPercentage = f.fieldKey === "EDUCATION_MARK_PERCENTAGE";
+    const isEducationQualification = f.fieldKey === "EDUCATION_QUALIFICATION";
 
     return (
       <div key={f.fieldKey} className="mb-3">
@@ -281,7 +439,49 @@ export default function PublicEmployeeFormPage() {
           {f.label || f.fieldKey} {rejected ? <span className="text-danger">*</span> : null}
         </label>
         {rejected && f.remarks ? <div className="text-danger small mb-1">Remark: {f.remarks}</div> : null}
-        {isDropdown || isYesNoSelect ? (
+        {isEducationQualification ? (
+          <select
+            className="form-select"
+            value={form[f.fieldKey] || ""}
+            onChange={(e) => handleEducationFieldChange(f.fieldKey, e.target.value)}
+            disabled={!editable || lockedDepartment}
+          >
+            <option value="">Select Qualification</option>
+            {EDUCATION_QUALIFICATION_OPTIONS.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+        ) : isEducationMark ? (
+          <input
+            type="number"
+            step="any"
+            min={0}
+            className="form-control"
+            value={form[f.fieldKey] || ""}
+            onChange={(e) => handleEducationFieldChange(f.fieldKey, e.target.value)}
+            disabled={!editable || lockedDepartment}
+          />
+        ) : isEducationPercentage ? (
+          <input
+            type="text"
+            className="form-control"
+            value={form[f.fieldKey] || ""}
+            readOnly
+            tabIndex={-1}
+          />
+        ) : isEducationYear ? (
+          <input
+            type="text"
+            inputMode="numeric"
+            maxLength={4}
+            className="form-control"
+            value={form[f.fieldKey] || ""}
+            onChange={(e) => handleEducationFieldChange(f.fieldKey, sanitizeYearDigits(e.target.value))}
+            disabled={!editable || lockedDepartment}
+          />
+        ) : isDropdown || isYesNoSelect ? (
           <select
             className="form-select"
             value={form[f.fieldKey] || ""}
@@ -314,15 +514,6 @@ export default function PublicEmployeeFormPage() {
                 <option value="O-">O-</option>
                 <option value="AB+">AB+</option>
                 <option value="AB-">AB-</option>
-              </>
-            ) : null}
-            {f.fieldKey === "GRADUATION_DETAILS" ? (
-              <>
-                <option value="SSLC">SSLC</option>
-                <option value="HSC">HSC</option>
-                <option value="UG">UG</option>
-                <option value="PG">PG</option>
-                <option value="OTHER">Other</option>
               </>
             ) : null}
             {f.fieldKey === "PLATFORM_SOURCE" ? (
@@ -423,8 +614,14 @@ export default function PublicEmployeeFormPage() {
     const sectionUploads = (section.uploadDocTypes || [])
       .map((docType) => uploadByDocType.get(docType))
       .filter(Boolean);
+    const visibleSectionUploads =
+      section.key === "education"
+        ? sectionUploads.filter((upload) => isEducationUploadAllowed(upload.docType))
+        : section.key === "previousEmployment"
+          ? sectionUploads.filter((upload) => upload.docType !== "EXPERIENCE_CERTIFICATE")
+        : sectionUploads;
 
-    if (sectionFields.length === 0 && sectionUploads.length === 0) {
+    if (sectionFields.length === 0 && visibleSectionUploads.length === 0) {
       return null;
     }
 
@@ -434,21 +631,56 @@ export default function PublicEmployeeFormPage() {
     return (
       <section key={section.key} className="mb-4">
         <h5 className="mb-3">{section.title}</h5>
-        {sectionFields.map((field) => {
-          const node = renderFieldControl(field);
-          const shouldInsertUploads = !uploadsInserted && uploadAnchor && field.fieldKey === uploadAnchor && sectionUploads.length > 0;
-          if (!shouldInsertUploads) {
-            return node;
-          }
-          uploadsInserted = true;
-          return (
-            <React.Fragment key={field.fieldKey}>
-              {node}
-              {sectionUploads.map(renderUploadField)}
-            </React.Fragment>
-          );
-        })}
-        {!uploadsInserted && sectionUploads.map(renderUploadField)}
+        {section.key === "education" ? (
+          <>
+            {sectionFields
+              .filter((field) => field.fieldKey === "EDUCATION_QUALIFICATION")
+              .map((field) => renderFieldControl(field))}
+            {getEducationVisibilityRules(form.EDUCATION_QUALIFICATION).showAdditionalFields ? (
+              <div className="row g-3">
+                {sectionFields
+                  .filter((field) => field.fieldKey !== "EDUCATION_QUALIFICATION")
+                  .filter((field) =>
+                    field.fieldKey !== "EDUCATION_COURSE_NAME" ||
+                    getEducationVisibilityRules(form.EDUCATION_QUALIFICATION).showCourseName,
+                  )
+                  .map((field) => (
+                    <div key={field.fieldKey} className="col-md-4">
+                      {renderFieldControl(field)}
+                    </div>
+                  ))}
+              </div>
+            ) : null}
+          </>
+        ) : (
+          sectionFields.map((field) => {
+            const node = renderFieldControl(field);
+            const isPreviousEmploymentAddress =
+              section.key === "previousEmployment" && field.fieldKey === "PREVIOUS_EMPLOYMENT_COMPANY_ADDRESS";
+            const shouldInsertUploads =
+              !uploadsInserted && uploadAnchor && field.fieldKey === uploadAnchor && visibleSectionUploads.length > 0;
+            return (
+              <React.Fragment key={field.fieldKey}>
+                {node}
+                {isPreviousEmploymentAddress ? (
+                  <div className="row g-3 mt-1">
+                    <div className="col-md-6">{renderExperienceCertificateToggle()}</div>
+                    {renderExperienceCertificateUpload()}
+                  </div>
+                ) : null}
+                {shouldInsertUploads && (() => {
+                  uploadsInserted = true;
+                  return visibleSectionUploads.map(renderUploadField);
+                })()}
+              </React.Fragment>
+            );
+          })
+        )}
+        {!uploadsInserted &&
+          visibleSectionUploads.map((upload) => {
+            uploadsInserted = true;
+            return renderUploadField(upload);
+          })}
       </section>
     );
   };
@@ -458,9 +690,10 @@ export default function PublicEmployeeFormPage() {
     setSaving(true);
     try {
       const fd = new FormData();
+      const normalizedForm = normalizeEducationValues(form);
       editableFieldList.forEach((f) => {
         const fieldKey = f.fieldKey;
-        const val = form[fieldKey];
+        const val = normalizedForm[fieldKey];
         const initial = initialForm[fieldKey];
         const changed = String(val || "") !== String(initial || "");
         const alwaysSubmit = fieldKey === "DEPT";
@@ -471,6 +704,12 @@ export default function PublicEmployeeFormPage() {
 
       editableUploadList.forEach((u) => {
         const docType = u.docType;
+        if (EDUCATION_UPLOAD_DOC_TYPES.includes(docType) && !isEducationUploadAllowed(docType)) {
+          return;
+        }
+        if (docType === "EXPERIENCE_CERTIFICATE" && experienceCertificateAvailable !== "YES") {
+          return;
+        }
         const v = files[docType];
         if (!v) return;
         if (Array.isArray(v)) {

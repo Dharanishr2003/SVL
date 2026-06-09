@@ -258,6 +258,9 @@ public class Employee {
     @Column(name = "experience_certificate_path", length = 500)
     private String experienceCertificatePath;
 
+    @Column(name = "certificate_path", length = 500)
+    private String certificatePath;
+
     @Column(name = "graduation_certificate_path", length = 500)
     private String graduationCertificatePath;
 
@@ -624,6 +627,9 @@ public class Employee {
 
     public String getExperienceCertificatePath() { return experienceCertificatePath; }
     public void setExperienceCertificatePath(String experienceCertificatePath) { this.experienceCertificatePath = experienceCertificatePath; }
+
+    public String getCertificatePath() { return certificatePath; }
+    public void setCertificatePath(String certificatePath) { this.certificatePath = certificatePath; }
 
     public String getGraduationCertificatePath() { return graduationCertificatePath; }
     public void setGraduationCertificatePath(String graduationCertificatePath) { this.graduationCertificatePath = graduationCertificatePath; }

@@ -27,6 +27,9 @@ public class QuotationItem {
     @Column(name = "requirement_id")
     private Long requirementId;
 
+    @Column(name = "gst_master_id")
+    private Long gstMasterId;
+
     @Column(name = "product_name", nullable = false)
     private String productName;
 
@@ -42,6 +45,12 @@ public class QuotationItem {
     @Column(name = "unit_price", precision = 12, scale = 2, nullable = false)
     private BigDecimal unitPrice = BigDecimal.ZERO;
 
+    @Column(name = "discount_percent", precision = 6, scale = 2, nullable = false)
+    private BigDecimal discountPercent = BigDecimal.ZERO;
+
+    @Column(name = "gst_percent", precision = 6, scale = 2, nullable = false)
+    private BigDecimal gstPercent = BigDecimal.ZERO;
+
     @Column(name = "line_total", precision = 12, scale = 2, nullable = false)
     private BigDecimal lineTotal = BigDecimal.ZERO;
 
@@ -53,6 +62,8 @@ public class QuotationItem {
     public void setQuotation(Quotation quotation) { this.quotation = quotation; }
     public Long getRequirementId() { return requirementId; }
     public void setRequirementId(Long requirementId) { this.requirementId = requirementId; }
+    public Long getGstMasterId() { return gstMasterId; }
+    public void setGstMasterId(Long gstMasterId) { this.gstMasterId = gstMasterId; }
     public String getProductName() { return productName; }
     public void setProductName(String productName) { this.productName = productName; }
     public String getSpecsSummary() { return specsSummary; }
@@ -63,6 +74,10 @@ public class QuotationItem {
     public void setQuantity(Integer quantity) { this.quantity = quantity; }
     public BigDecimal getUnitPrice() { return unitPrice; }
     public void setUnitPrice(BigDecimal unitPrice) { this.unitPrice = unitPrice; }
+    public BigDecimal getDiscountPercent() { return discountPercent; }
+    public void setDiscountPercent(BigDecimal discountPercent) { this.discountPercent = discountPercent; }
+    public BigDecimal getGstPercent() { return gstPercent; }
+    public void setGstPercent(BigDecimal gstPercent) { this.gstPercent = gstPercent; }
     public BigDecimal getLineTotal() { return lineTotal; }
     public void setLineTotal(BigDecimal lineTotal) { this.lineTotal = lineTotal; }
     public Integer getSortOrder() { return sortOrder; }

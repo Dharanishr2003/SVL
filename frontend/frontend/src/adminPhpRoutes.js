@@ -188,7 +188,7 @@ export const adminPhpRoutes = [
     component: "ContactsPage",
   },
   {
-    path: "coocks/item",
+    path: "stocks/item",
     component: "StockItemPage",
   },
   {

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import "../../../public/assets/css/addModalShared.css";
 import "./UserWizardModal.css";
 import {
@@ -42,10 +42,9 @@ export default function EmployeeWizardModal({
   const [viewer, setViewer] = useState(null); // { title, url }
   const [viewerObjectUrl, setViewerObjectUrl] = useState(null);
   const [phoneError, setPhoneError] = useState("");
-  const experienceCertificateInputRef = useRef(null);
 
   const apiBase = useMemo(
-    () => (import.meta.env.VITE_API_URL || "http://localhost:8082").replace(/\/+$/, ""),
+    () => (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || "http://localhost:8082").replace(/\/+$/, ""),
     [],
   );
 
@@ -86,12 +85,14 @@ export default function EmployeeWizardModal({
         return;
       }
 
-      const url = toFileUrl(fileOrPath);
+      const rawPath = String(fileOrPath || "").trim();
+      const employeeFileMatch = rawPath.match(/uploads\/employees\/(\d+)\/([^/]+)/i);
+      const url = employeeFileMatch
+        ? `${apiBase}/api/employees/${employeeFileMatch[1]}/files/${encodeURIComponent(employeeFileMatch[2])}`
+        : toFileUrl(fileOrPath);
       const res = await fetch(url, { credentials: "include" });
       if (!res.ok) {
-        // fallback to direct open
-        window.open(url, "_blank", "noreferrer");
-        return;
+        throw new Error("Failed to load preview");
       }
       const blob = await res.blob();
       const objectUrl = URL.createObjectURL(blob);
@@ -99,7 +100,10 @@ export default function EmployeeWizardModal({
       setViewer({ title, url: objectUrl });
     } catch {
       const url = fileOrPath instanceof File ? null : toFileUrl(fileOrPath);
-      if (url) window.open(url, "_blank", "noreferrer");
+      if (url) {
+        window.open(url, "_blank", "noreferrer");
+        return;
+      }
     }
   };
 
@@ -768,23 +772,10 @@ export default function EmployeeWizardModal({
                     <div className="col-md-6">
                       <label className="form-label">Experience Certificate</label>
                       <input
-                        ref={experienceCertificateInputRef}
                         type="file"
-                        className="d-none"
+                        className="form-control user-wizard-input"
                         onChange={(e) => setForm((p) => ({ ...p, uploadExperienceCertificate: e.target.files?.[0] || null }))}
                       />
-                      <div className="d-flex flex-wrap align-items-center gap-2">
-                        <button
-                          type="button"
-                          className="btn btn-outline-primary btn-sm"
-                          onClick={() => experienceCertificateInputRef.current?.click()}
-                        >
-                          {form.uploadExperienceCertificate || form.experienceCertificatePath ? "Update file" : "Upload file"}
-                        </button>
-                        {form.uploadExperienceCertificate ? (
-                          <span className="small text-muted">{form.uploadExperienceCertificate.name}</span>
-                        ) : null}
-                      </div>
                       {(form.uploadExperienceCertificate || form.experienceCertificatePath) && (
                         <div className="mt-1 small">
                           <a
