@@ -706,6 +706,19 @@
   .qp-line-item > *:nth-child(3),
   .qp-line-item > *:nth-child(4),
   .qp-line-item > *:nth-child(5) { display: none; }
+  .qp-header-center { display: none; }
+  .qp-mode-label { display: none; }
+  .qp-mode-circle {
+    width: 36px;
+    height: 36px;
+    font-size: 14px;
+  }
+  .qp-mode-item {
+    gap: 0;
+  }
+  .qp-mode-toggle {
+    gap: 12px;
+  }
   .qp-tax-row { flex-direction: column; }
   .qp-tax-row .qp-field-group:first-child,
   .qp-tax-row .qp-field-group:last-child { width: 100%; flex: 1 1 auto; }

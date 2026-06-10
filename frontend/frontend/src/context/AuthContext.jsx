@@ -4,6 +4,8 @@ import api, {
   clearTokens,
   setAccessToken,
 } from "../utils/api";
+import { useIdleTimer } from "../hooks/useIdleTimer";
+import IdleTimeoutModal from "../components/common/IdleTimeoutModal";
 
 export const AuthContext = createContext(null);
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8082";
@@ -246,8 +248,21 @@ export function AuthProvider({ children }) {
       clearTokens();
       setUser(null);
       setAccessTokenState(null);
+      if (window.location.pathname !== "/login") {
+        window.location.assign("/login");
+      }
     }
   };
+
+  const isAuthenticated = Boolean(user && accessToken);
+
+  // Auto logout configuration: 1 minute total, 30 seconds warning
+  const { showWarning, countdown, resetTimer } = useIdleTimer({
+    timeoutMs: 15* 60 * 1000,
+    warningMs: 2* 60 * 1000,
+    onTimeout: logout,
+    enabled: isAuthenticated,
+  });
 
   const updateUserProfile = (profileData) => {
     setUser((currentUser) => mergeProfileIntoUser(currentUser, profileData));
@@ -258,15 +273,27 @@ export function AuthProvider({ children }) {
       user,
       accessToken,
       loading,
-      isAuthenticated: Boolean(user && accessToken),
+      isAuthenticated,
       login,
       logout,
       updateUserProfile,
     }),
-    [user, accessToken, loading],
+    [user, accessToken, loading, isAuthenticated],
   );
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+      {isAuthenticated && (
+        <IdleTimeoutModal
+          show={showWarning}
+          countdown={countdown}
+          onStayLoggedIn={resetTimer}
+          onLogout={logout}
+        />
+      )}
+    </AuthContext.Provider>
+  );
 }
 
 export function useAuth() {

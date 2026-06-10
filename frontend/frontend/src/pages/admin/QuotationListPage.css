@@ -116,3 +116,56 @@
     white-space: normal;
   }
 }
+
+/* ── Quotation List Responsive Table (Mobile View - Approach 3) ── */
+@media (max-width: 768px) {
+  /* Hide secondary headers and columns on mobile */
+  .col-customer,
+  .col-date,
+  .col-total,
+  .col-notes {
+    display: none !important;
+  }
+
+  /* Make sure visible columns fit nicely */
+  .col-qno {
+    width: 30% !important;
+  }
+  .col-status {
+    width: 30% !important;
+  }
+  .col-actions {
+    width: 40% !important;
+    text-align: right !important;
+  }
+
+  /* Hide the desktop action buttons container on mobile */
+  .desktop-actions {
+    display: none !important;
+  }
+
+  /* Show mobile action buttons container */
+  .mobile-actions-container {
+    display: flex !important;
+  }
+
+  /* Show the mobile eye button only on mobile */
+  .mobile-action-view {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 34px !important;
+    height: 34px !important;
+    padding: 0 !important;
+    border-radius: 50% !important;
+    background-color: rgba(69, 89, 122, 0.08) !important;
+    border: none !important;
+    color: #45597a !important;
+  }
+}
+
+/* By default, hide the mobile action views on desktop views */
+.mobile-actions-container,
+.mobile-action-view {
+  display: none !important;
+}

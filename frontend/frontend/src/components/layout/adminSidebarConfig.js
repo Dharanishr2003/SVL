@@ -15,7 +15,7 @@ export const adminSidebarSections = [
         href: "/employee-dashboard",
         icon: "ti ti-user-circle",
         accessAny: ["employee-dashboard"],
-        rolesAny: ["EMPLOYEE", "TEAM_LEAD", "MANAGER"],
+        rolesAny: ["EMPLOYEE", "TEAM_LEAD", "MANAGER","SUPER_ADMIN"],
       },
       {
         label: "Sales Dashboard",

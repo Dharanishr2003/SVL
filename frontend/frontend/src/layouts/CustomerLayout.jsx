@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { getCustomerLead } from "../api/customerApi";
 import { getCustomerChatNotifications } from "../api/customerChatApi";
+import BottomNav from "../components/layout/BottomNav";
 
 export default function CustomerLayout() {
   const navigate = useNavigate();
@@ -230,6 +231,8 @@ export default function CustomerLayout() {
           <Outlet />
         </div>
       </div>
+
+      <BottomNav />
     </div>
   );
 }

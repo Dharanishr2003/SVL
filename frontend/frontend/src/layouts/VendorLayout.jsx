@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { clearVendorSession, getVendorSession, setVendorSession } from "../utils/vendorSession";
 import { logoutVendor, refreshVendorSession } from "../api/vendorAuthApi";
 import { setVendorAccessToken } from "../utils/vendorApi";
+import BottomNav from "../components/layout/BottomNav";
 
 export default function VendorLayout() {
   const navigate = useNavigate();
@@ -128,6 +129,8 @@ export default function VendorLayout() {
           <Outlet />
         </div>
       </div>
+
+      <BottomNav />
     </div>
   );
 }

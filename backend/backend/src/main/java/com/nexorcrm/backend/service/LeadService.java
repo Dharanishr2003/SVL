@@ -984,7 +984,18 @@ public class LeadService {
             row.setCompanyName(normalizeNullable(request.getCompanyName()));
         }
         if (request.getEmail() != null) {
-            row.setEmail(normalizeNullable(request.getEmail()));
+            String email = normalizeNullable(request.getEmail());
+            row.setEmail(email);
+            row.setEmailNormalized(normalizeEmail(email));
+        }
+        if (request.getMobile() != null) {
+            String mobile = request.getMobile().trim();
+            String mobileNormalized = normalizeMobile(mobile);
+            if (!StringUtils.hasText(mobileNormalized)) {
+                throw new IllegalStateException("Mobile is required");
+            }
+            row.setMobile(mobile);
+            row.setMobileNormalized(mobileNormalized);
         }
         if (request.getProductType() != null) {
             row.setProductType(normalizeNullable(request.getProductType()));
@@ -1985,7 +1996,8 @@ public class LeadService {
     private boolean canEditLead(User actor, Lead row) {
         if (actor.getRole() == Role.SUPER_ADMIN
                 || actor.getRole() == Role.ADMIN
-                || actor.getRole() == Role.MANAGER) {
+                || actor.getRole() == Role.MANAGER
+                || actor.getRole() == Role.TEAM_LEAD) {
             return true;
         }
         if (actor.getRole() == Role.EMPLOYEE) {

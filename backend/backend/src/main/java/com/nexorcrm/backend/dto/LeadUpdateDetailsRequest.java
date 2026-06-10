@@ -74,6 +74,7 @@ public class LeadUpdateDetailsRequest {
     private String budgetVerificationRejectionReason;
 
     private String email;
+    private String mobile;
     private String primarySource;
     private String secondarySource;
     private String productType;
@@ -474,6 +475,8 @@ public class LeadUpdateDetailsRequest {
 
     public String getEmail() { return email; }
     public void setEmail(String email) { this.email = email; }
+    public String getMobile() { return mobile; }
+    public void setMobile(String mobile) { this.mobile = mobile; }
     public String getPrimarySource() { return primarySource; }
     public void setPrimarySource(String primarySource) { this.primarySource = primarySource; }
     public String getSecondarySource() { return secondarySource; }

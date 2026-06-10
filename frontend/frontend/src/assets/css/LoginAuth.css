@@ -247,20 +247,31 @@
 }
 
 @media (max-width: 870px) {
-  .auth-container {
-    min-height: 800px;
+  .auth-shell {
     height: 100vh;
+    overflow: hidden;
+  }
+
+  .auth-container {
+    min-height: 100vh;
+    height: 100vh;
+    overflow: hidden;
   }
 
   .auth-signin {
     width: 100%;
-    top: 95%;
-    transform: translate(-50%, -100%);
+    top: 60%;
+    transform: translate(-50%, -50%);
     transition: 1s 0.8s ease-in-out;
   }
 
   .auth-signin {
     left: 50%;
+  }
+
+  .auth-btn {
+    width: 100%;
+    max-width: 380px;
   }
 
   .auth-panels {

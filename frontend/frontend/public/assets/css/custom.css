@@ -2334,4 +2334,234 @@ table.dataTable.dtr-inline.collapsed
     }
 }
 
+/* ===================================================================
+   MOBILE STYLING (max-width: 991.98px)
+   Does NOT affect webview/desktop layout
+=================================================================== */
+@media (max-width: 991.98px) {
+  /* Premium Topbar Styling on Mobile */
+  .customer-topbar {
+    background: linear-gradient(135deg, #1e293b, #0f172a) !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15) !important;
+    height: 64px !important;
+  }
+  
+  .customer-topbar__inner {
+    padding: 0 16px !important;
+    height: 100% !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+  }
 
+  .customer-topbar__brand {
+    order: 2 !important;
+    margin-left: auto !important;
+    margin-right: 0 !important;
+  }
+
+  .customer-topbar__inner .header-user {
+    order: 1 !important;
+  }
+
+  /* Admin Header Logo Positioning Override */
+  .header .header-left {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    display: flex !important;
+    justify-content: flex-end !important;
+    align-items: center !important;
+    pointer-events: none !important;
+    z-index: 10 !important;
+    background: transparent !important;
+    border: none !important;
+  }
+
+  .header .header-left .logo,
+  .header .header-left .dark-logo {
+    margin-left: auto !important;
+    margin-right: 15px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    pointer-events: auto !important;
+    width: auto !important;
+    text-align: right !important;
+  }
+
+  .mobile_btn {
+    position: relative !important;
+    z-index: 20 !important;
+  }
+
+  .header-user {
+    position: relative !important;
+    z-index: 20 !important;
+  }
+
+  .customer-topbar__brand .logo img {
+    height: 32px !important;
+    width: auto !important;
+  }
+
+  .customer-topbar__profile {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .customer-topbar__name {
+    color: #f8fafc !important;
+    font-weight: 600 !important;
+    font-size: 0.9rem !important;
+  }
+
+  .customer-topbar__bell {
+    background: rgba(255, 255, 255, 0.1) !important;
+    border: none !important;
+    color: #ffffff !important;
+    width: 36px !important;
+    height: 36px !important;
+    border-radius: 50% !important;
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    transition: background 0.2s ease;
+  }
+
+  .customer-topbar__bell:active {
+    background: rgba(255, 255, 255, 0.2) !important;
+  }
+
+  /* Responsive Lists & Tables on Mobile */
+  .table:not(.calendar-table), 
+  .vod-table {
+    display: block !important;
+    width: 100% !important;
+    border: none !important;
+    background: transparent !important;
+  }
+  
+  .table:not(.calendar-table) thead,
+  .vod-table thead {
+    display: none !important;
+  }
+  
+  .table:not(.calendar-table) tbody,
+  .vod-table tbody {
+    display: block !important;
+    width: 100% !important;
+  }
+  
+  .table:not(.calendar-table) tbody tr,
+  .vod-table tbody tr {
+    display: block !important;
+    width: 100% !important;
+    background: #ffffff !important;
+    border: 1px solid rgba(226, 232, 240, 0.8) !important;
+    border-radius: 16px !important;
+    margin-bottom: 16px !important;
+    padding: 16px !important;
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.02) !important;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  
+  .table:not(.calendar-table) tbody tr:active,
+  .vod-table tbody tr:active {
+    transform: scale(0.99);
+    box-shadow: 0 2px 6px rgba(15, 23, 42, 0.04) !important;
+  }
+
+  .table:not(.calendar-table) tbody td,
+  .vod-table tbody td {
+    display: flex !important;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 0 !important;
+    border: none !important;
+    border-bottom: 1px dashed rgba(226, 232, 240, 0.6) !important;
+    font-size: 0.9rem !important;
+    text-align: right !important;
+  }
+
+  .table:not(.calendar-table) tbody td:last-child,
+  .vod-table tbody td:last-child {
+    border-bottom: none !important;
+    padding-bottom: 0 !important;
+    margin-top: 8px;
+    justify-content: center !important;
+  }
+
+  .table:not(.calendar-table) tbody td::before,
+  .vod-table tbody td::before {
+    content: attr(data-label);
+    font-weight: 600;
+    color: #64748b;
+    margin-right: 16px;
+    text-align: left;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  
+  .table:not(.calendar-table) tbody td:not([data-label]),
+  .vod-table tbody td:not([data-label]) {
+    justify-content: flex-start !important;
+    text-align: left !important;
+    padding: 8px 0 !important;
+  }
+
+  /* General mobile layout adjustments */
+  .page-wrapper {
+    padding-bottom: 90px !important;
+  }
+
+  /* Hide vertical scrollbar helper when bottom navigation is visible */
+  .sidebar {
+    padding-bottom: 80px !important;
+  }
+
+  /* Leads Mobile Actions Drawer Panel */
+  .leads-mobile-options-panel {
+    background: #ffffff !important;
+    border: 1px solid rgba(226, 232, 240, 0.9) !important;
+    border-radius: 16px !important;
+    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.15) !important;
+    animation: slideDownIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+
+  @keyframes slideDownIn {
+    from {
+      opacity: 0;
+      transform: translateY(-8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* Stretch content width on mobile */
+  .content {
+    padding: 10px 8px !important;
+  }
+  .leads-page-shell,
+  .container-fluid {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    max-width: 100% !important;
+    width: 100% !important;
+  }
+  .leads-page-body {
+    padding: 12px !important;
+    border-radius: 16px !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
+}

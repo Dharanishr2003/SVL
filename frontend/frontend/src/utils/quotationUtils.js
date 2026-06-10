@@ -273,7 +273,28 @@ export function buildDesignFeePricing(options = {}) {
 }
 
 export function extractTaxGroupCode(item) {
+  // Parse specs — may arrive as:
+  //   • a plain object  (from AddItemModal → live UI line items)
+  //   • a JSON string   (item.specs from backend response)
+  //   • absent, with item.specsJson holding the string (PDF payload path via createQuotationPayload)
+  const specs = (() => {
+    if (item?.specs && typeof item.specs === "object") return item.specs;
+    const raw = item?.specs || item?.specsJson || item?.variantFields;
+    if (!raw) return {};
+    if (typeof raw === "object") return raw;
+    try { return JSON.parse(raw); } catch { return {}; }
+  })();
+
   const candidates = [
+    // Product Field Config stores the value under the configured key (snake_case)
+    specs?.hsn_sac,
+    specs?.hsn,
+    specs?.hsnSac,
+    specs?.sac,
+    specs?.sacCode,
+    specs?.hsnCode,
+    specs?.hsnSacCode,
+    // Top-level properties — kept for backward compatibility with older saved quotations
     item?.hsnSac,
     item?.hsnSacCode,
     item?.hsnCode,
@@ -432,6 +453,10 @@ export function buildQuotationTaxSummary(lineItems = [], options = {}) {
       };
     });
 
+  // True when at least one row carries an HSN/SAC code — used to
+  // switch the first column label from "Products" to "HSN/SAC".
+  const hasHsnCodes = rows.some((row) => row.codes.length > 0);
+
   const productTaxableAmount = rows.reduce((sum, row) => sum + Number(row.taxableAmount || 0), 0);
   const productTaxAmount = rows.reduce((sum, row) => sum + Number(row.gstAmount || 0), 0);
   const productCgstAmount = rows.reduce((sum, row) => sum + Number(row.cgstAmount || 0), 0);
@@ -450,6 +475,7 @@ export function buildQuotationTaxSummary(lineItems = [], options = {}) {
 
   return {
     rows,
+    hasHsnCodes,
     productTaxableAmount,
     productTaxAmount,
     productCgstAmount,
@@ -1004,6 +1030,7 @@ export async function buildQuotationPdf({
   const tableLineColor = [180, 180, 180];
   const tableLineWidth = 0.3;
   const companyNameText = String(resolvedTemplate.companyName || "");
+  const firstSectionStartY = 18;
   const drawnWatermarkPages = new Set();
   const drawPageWatermark = () => {
     if (!resolvedTemplate.watermarkBase64) return;
@@ -1011,7 +1038,44 @@ export async function buildQuotationPdf({
     const pageNumber = pageInfo?.pageNumber || doc.getNumberOfPages();
     if (drawnWatermarkPages.has(pageNumber)) return;
     drawnWatermarkPages.add(pageNumber);
-    safeAddImageFill(doc, resolvedTemplate.watermarkBase64, 0, 0, pageWidth, pageHeight);
+    
+    // Draw watermark covering full page, aspect ratio preserved (cover-fit), centered
+    const watermarkBase64 = resolvedTemplate.watermarkBase64;
+    if (watermarkBase64 && typeof watermarkBase64 === "string") {
+      const comma = watermarkBase64.indexOf(",");
+      if (comma !== -1) {
+        const b64 = watermarkBase64.slice(comma + 1).trim();
+        if (b64 && b64.length >= 100) {
+          try {
+            const prefix = watermarkBase64.slice(0, comma).toLowerCase();
+            let fmt = "PNG";
+            if (prefix.includes("jpeg") || prefix.includes("jpg")) fmt = "JPEG";
+            const props = doc.getImageProperties(b64);
+            if (props && props.width && props.height) {
+              const imgRatio = props.width / props.height;
+              const pageRatio = pageWidth / pageHeight;
+              let w, h;
+              // Cover-fit: scale so the image fills the full page in both dimensions
+              if (imgRatio > pageRatio) {
+                // Image is wider than page — fit by height
+                h = pageHeight;
+                w = h * imgRatio;
+              } else {
+                // Image is taller than page — fit by width
+                w = pageWidth;
+                h = w / imgRatio;
+              }
+              w = Math.max(w, 1);
+              h = Math.max(h, 1);
+              // Center so overflow is clipped equally on both sides
+              const x = (pageWidth - w) / 2;
+              const y = (pageHeight - h) / 2;
+              doc.addImage(b64, fmt, x, y, w, h);
+            }
+          } catch (_e) {}
+        }
+      }
+    }
   };
   const addWatermarkedPage = () => {
     doc.addPage();
@@ -1088,7 +1152,7 @@ export async function buildQuotationPdf({
   // ══ SECTION 1 — Header: ONE table, logo inside left cell ══
   autoTable(doc, {
     ...tableHookOptions,
-    startY: 10,
+    startY: firstSectionStartY,
     margin: { left: 14, right: 14 },
     tableWidth: 182,
     theme: "grid",
@@ -1417,7 +1481,7 @@ export async function buildQuotationPdf({
     theme: "grid",
     head: [isTN
       ? [
-          "Products",
+          taxSummary.hasHsnCodes ? "HSN/SAC" : "Products",
           "Taxable Value",
           "CGST %",
           "CGST Amount",
@@ -1426,7 +1490,7 @@ export async function buildQuotationPdf({
           "Tax Amount",
         ]
       : [
-          "Products",
+          taxSummary.hasHsnCodes ? "HSN/SAC" : "Products",
           "Taxable Value",
           "IGST %",
           "IGST Amount",
@@ -1569,21 +1633,27 @@ export async function buildQuotationPdf({
     },
     theme: "grid",
     margin: { left: 14, right: 14 },
+    pageBreak: "avoid",
+    rowPageBreak: "avoid",
     didDrawCell: (data) => {
-      if (data.section === "body" && data.column.index === 1) {
-        if (resolvedTemplate.signatureBase64) {
-          safeAddImage(
-            doc,
-            resolvedTemplate.signatureBase64,
-            data.cell.x + 3,
-            data.cell.y + 8,
-            34,
-            18,
-          );
-        }
-        doc.setFont("helvetica", "normal").setFontSize(7.5).setTextColor(30, 30, 30);
-        doc.text("Authorised Signature", data.cell.x + 3, data.cell.y + 32);
-      }
+      if (data.section !== "body") return;
+      if (data.column.index !== 1 || !resolvedTemplate.signatureBase64) return;
+
+      const signatureWidth = 34;
+      const signatureX = data.cell.x + Math.max(2, (data.cell.width - signatureWidth) / 2);
+      const signatureY = data.cell.y + Math.max(8, data.cell.height - 34);
+      safeAddImage(
+        doc,
+        resolvedTemplate.signatureBase64,
+        signatureX,
+        signatureY,
+        signatureWidth,
+        18,
+      );
+      doc.setFont("helvetica", "normal").setFontSize(7.5).setTextColor(30, 30, 30);
+      doc.text("Authorised Signature", data.cell.x + data.cell.width / 2, signatureY + 24, {
+        align: "center",
+      });
     },
   });
 
@@ -1653,7 +1723,7 @@ async function prepareQuotationPdfDocument(quotation, template = {}) {
     signatureBase64: template?.signatureBase64
       ? await convertImageToPng(template.signatureBase64, 300) : null,
     watermarkBase64: template?.watermarkBase64
-      ? await convertImageToPng(template.watermarkBase64, 1800) : null,
+      ? await convertImageToPng(template.watermarkBase64, 1800, 0.25) : null,
   };
   const quotationForPdf = normalizeQuotationLeadForPdf(quotation || {});
   const doc = await buildQuotationPdf({

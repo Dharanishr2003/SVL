@@ -383,23 +383,54 @@ export default function Topbar({
             </div>
 
             {/* Mobile Menu */}
-              <div className="dropdown mobile-user-menu d-none">
+              <div className="dropdown mobile-user-menu mobile-user-menu--visible">
               <a
                 href="#"
-                className="nav-link dropdown-toggle"
+                className="mobile-user-menu__trigger dropdown-toggle"
                 data-bs-toggle="dropdown"
                 aria-expanded="false"
+                title="Account"
               >
-                <i className="fa fa-ellipsis-v"></i>
+                <span className="mobile-avatar-wrap">
+                  <img
+                    src={user?.profilePhotoUrl || "/assets/img/profiles/avatar-12.jpg"}
+                    alt="User"
+                    className="mobile-avatar-img"
+                  />
+                  <span className="mobile-avatar-online"></span>
+                </span>
               </a>
-              <div className="dropdown-menu dropdown-menu-end">
-                <Link className="dropdown-item" to="/profile">
+              <div className="dropdown-menu dropdown-menu-end mobile-user-dropdown">
+                <div className="mobile-user-dropdown__header">
+                  <span className="mobile-avatar-wrap mobile-avatar-wrap--lg">
+                    <img
+                      src={user?.profilePhotoUrl || "/assets/img/profiles/avatar-12.jpg"}
+                      alt="User"
+                      className="mobile-avatar-img"
+                    />
+                    <span className="mobile-avatar-online"></span>
+                  </span>
+                  <div className="mobile-user-dropdown__info">
+                    <span className="mobile-user-dropdown__name">
+                      {user?.firstName
+                        ? `${user.firstName}${user.lastName ? ` ${user.lastName}` : ""}`
+                        : user?.username || "User"}
+                    </span>
+                    <span className="mobile-user-dropdown__role">{user?.role || "Admin"}</span>
+                  </div>
+                </div>
+                <div className="mobile-user-dropdown__divider"></div>
+                <Link className="dropdown-item mobile-user-dropdown__item" to="/profile">
+                  <i className="ti ti-user"></i>
                   My Profile
                 </Link>
-                <Link className="dropdown-item" to="/profile-settings">
+                <Link className="dropdown-item mobile-user-dropdown__item" to="/profile-settings">
+                  <i className="ti ti-settings"></i>
                   Settings
                 </Link>
-                <button className="dropdown-item" onClick={handleLogout}>
+                <div className="mobile-user-dropdown__divider"></div>
+                <button className="dropdown-item mobile-user-dropdown__item mobile-user-dropdown__item--danger" onClick={handleLogout}>
+                  <i className="ti ti-logout"></i>
                   Logout
                 </button>
               </div>

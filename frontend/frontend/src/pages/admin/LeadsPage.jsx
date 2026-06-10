@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 import { jsPDF } from "jspdf";
@@ -180,6 +181,30 @@ function formatDateTime(value) {
   }
 }
 
+function formatCreatedOn(value) {
+  if (!value) return "-";
+  try {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return String(value);
+    const day = String(date.getDate()).padStart(2, "0");
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const month = months[date.getMonth()];
+    const year = date.getFullYear();
+    return `${day} ${month} ${year}`;
+  } catch {
+    return String(value);
+  }
+}
+
+function getStatusClass(status) {
+  const s = String(status || "").toLowerCase().trim();
+  if (s.includes("new")) return "new-lead";
+  if (s.includes("interested")) return "interested";
+  if (s.includes("deal")) return "deal";
+  if (s.includes("proposal")) return "proposal";
+  return "default-status";
+}
+
 function getCountryIsoFromPhoneCode(countryCode) {
   const option = getCountryOptionByValue(countryCode);
   if (option?.country) return option.country;
@@ -330,6 +355,21 @@ export default function LeadsPage() {
   const [convertingLeadId, setConvertingLeadId] = useState(null);
   const [convertConfirm, setConvertConfirm] = useState(null);
   const [dupWarnLead, setDupWarnLead] = useState(null);
+
+  const [activeActionsRow, setActiveActionsRow] = useState(null);
+  const [actionsMenuPos, setActionsMenuPos] = useState({ top: 0, left: 0 });
+
+  useEffect(() => {
+    const handleOutsideClickOrScroll = () => {
+      setActiveActionsRow(null);
+    };
+    window.addEventListener("click", handleOutsideClickOrScroll);
+    window.addEventListener("scroll", handleOutsideClickOrScroll, true);
+    return () => {
+      window.removeEventListener("click", handleOutsideClickOrScroll);
+      window.removeEventListener("scroll", handleOutsideClickOrScroll, true);
+    };
+  }, []);
 
   const [showCreate, setShowCreate] = useState(false);
   const [createWizardStep, setCreateWizardStep] = useState(0);
@@ -1578,12 +1618,33 @@ export default function LeadsPage() {
 
   return (
     <div className="content"><div className="container-fluid leads-page-shell">
-      <div className="leads-page-header">
+      <div className="leads-page-header d-flex align-items-center justify-content-between mb-4">
         <div>
-          <h3 className="mb-2">Leads</h3>
-          <p className="text-muted mb-0">Add & Manage Leads</p>
+          <h2 className="leads-header-title mb-1">Leads</h2>
+          <p className="leads-header-subtitle text-muted mb-0">Add, view and manage all your leads in one place.</p>
         </div>
-        
+        <div className="d-flex align-items-center gap-2">
+          {role !== "EMPLOYEE" && (
+            <button
+              className="btn btn-outline-primary d-flex align-items-center gap-2"
+              style={{ borderColor: "#3b82f6", color: "#3b82f6", fontWeight: "600", padding: "10px 20px", borderRadius: "10px" }}
+              onClick={() => navigate('/leads/import')}
+            >
+              <i className="ti ti-upload" />
+              Import Leads
+            </button>
+          )}
+          <button
+            className="btn btn-primary create-lead-btn d-flex align-items-center gap-2"
+            style={{ backgroundColor: "#3b82f6", borderColor: "#3b82f6", fontWeight: "600", padding: "10px 20px", borderRadius: "10px" }}
+            onClick={openCreateModal}
+            disabled={!canCreateNewLead}
+            title={!canCreateNewLead ? "Your branch flow is assigned to a group outside your access scope." : ""}
+          >
+            <i className="ti ti-plus" />
+            Create New Lead
+          </button>
+        </div>
       </div>
       <ul className="nav nav-tabs mb-3">
         <li className="nav-item">
@@ -1608,53 +1669,15 @@ export default function LeadsPage() {
       </ul>
       {activeMainTab === 'leads' && (
       <div className="leads-page-body">
-          <div className="leads-toolbar">
-            <div className="d-flex flex-wrap gap-2">
-              <button className="btn btn-outline-primary leads-toolbar-btn" onClick={exportExcel}>
-                Excel
-              </button>
-              <button className="btn btn-outline-primary leads-toolbar-btn" onClick={exportCsv}>
-                CSV
-              </button>
-              <button className="btn btn-outline-primary leads-toolbar-btn" onClick={exportPdf}>
-                PDF
-              </button>
-            </div>
-            <div className="d-flex flex-wrap gap-2 align-items-center">
-              <button
-                className="btn btn-outline-warning leads-toolbar-btn"
-                onClick={() => setFilterOpen((prev) => !prev)}
-              >
-                <i className="ti ti-filter me-1" />
-                Filter
-              </button>
-              {role !== "EMPLOYEE" && (
-                <button
-                  className="btn btn-outline-info leads-toolbar-btn"
-                  onClick={() => navigate('/leads/import')}
-                >
-                  <i className="ti ti-upload me-1" />
-                  Import Leads
-                </button>
-              )}
-              <button
-                className="btn btn-success leads-toolbar-btn leads-primary-action"
-                onClick={openCreateModal}
-                disabled={!canCreateNewLead}
-                title={!canCreateNewLead ? "Your branch flow is assigned to a group outside your access scope." : ""}
-              >
-                <i className="ti ti-plus me-1" />
-                Create New Lead
-              </button>
-            </div>
-          </div>
-
-          <div className="leads-search-row">
-            <div className="leads-search-box">
-              <label className="mb-0 leads-search-label">Search</label>
+          {/* Redesigned Controls Row */}
+          <div className="leads-controls-bar d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4">
+            {/* Search Input on the Left */}
+            <div className="search-leads-container position-relative flex-grow-1 flex-md-grow-0" style={{ minWidth: "260px" }}>
               <input
-                className="form-control leads-search-input"
+                className="form-control search-leads-input"
+                style={{ height: 42, borderRadius: 10, paddingLeft: 38, fontSize: "0.95rem" }}
                 value={filters.search}
+                placeholder="Search leads..."
                 onChange={(e) =>
                   setFilters((prev) => ({ ...prev, search: e.target.value }))
                 }
@@ -1662,23 +1685,91 @@ export default function LeadsPage() {
                   if (e.key === "Enter") applyFilters();
                 }}
               />
+              <i className="ti ti-search position-absolute text-muted" style={{ left: 14, top: "50%", transform: "translateY(-50%)", fontSize: "1.1rem" }} />
+            </div>
+
+            {/* Actions & Toggles on the Right */}
+            <div className="d-flex align-items-center gap-2 flex-wrap">
+              <button
+                className={`btn btn-outline-filter d-flex align-items-center gap-2 ${filterOpen ? 'active' : ''}`}
+                style={{ height: 42, padding: "0 18px", borderRadius: 10, fontWeight: "500", fontSize: "0.9rem" }}
+                onClick={() => setFilterOpen((prev) => !prev)}
+              >
+                <i className="ti ti-filter" style={{ fontSize: "1rem" }} />
+                Filters
+              </button>
+
+              <div className="dropdown">
+                <button
+                  className="btn btn-outline-export dropdown-toggle d-flex align-items-center gap-2"
+                  type="button"
+                  id="exportDropdown"
+                  data-bs-toggle="dropdown"
+                  aria-expanded="false"
+                  style={{ height: 42, padding: "0 18px", borderRadius: 10, fontWeight: "500", fontSize: "0.9rem" }}
+                >
+                  <i className="ti ti-download" style={{ fontSize: "1rem" }} />
+                  Export
+                </button>
+                <ul className="dropdown-menu shadow border-0" aria-labelledby="exportDropdown">
+                  <li>
+                    <button className="dropdown-item py-2 text-start" onClick={exportExcel}>
+                      Excel
+                    </button>
+                  </li>
+                  <li>
+                    <button className="dropdown-item py-2 text-start" onClick={exportCsv}>
+                      CSV
+                    </button>
+                  </li>
+                  <li>
+                    <button className="dropdown-item py-2 text-start" onClick={exportPdf}>
+                      PDF
+                    </button>
+                  </li>
+                </ul>
+              </div>
+
+              {/* Layout view toggle (visual match for mockup) */}
+              <button className="btn btn-layout-toggle d-flex align-items-center justify-content-center" style={{ width: 42, height: 42, borderRadius: 10 }}>
+                <i className="ti ti-layout-grid" style={{ fontSize: "1.1rem" }} />
+              </button>
             </div>
           </div>
 
           {filterOpen && (
-            <div className="card border mb-3">
-              <div className="card-body">
+            <div className="card border-0 shadow-sm filter-drawer-card mb-4" style={{ borderRadius: 14, backgroundColor: "#f8fafc" }}>
+              <div className="card-body p-4">
                 <div className="row g-3">
                   <div className="col-md-3">
-                    <label className="form-label">Primary</label>
+                    <label className="form-label fw-semibold text-dark mb-2" style={{ fontSize: "0.88rem" }}>Status</label>
                     <select
-                      className="form-select"
+                      className="form-select custom-filter-select"
+                      style={{ height: 42, borderRadius: 8 }}
+                      value={filters.status}
+                      onChange={(e) =>
+                        setFilters((prev) => ({ ...prev, status: e.target.value }))
+                      }
+                    >
+                      <option value="">All Statuses</option>
+                      {(leadFilters.leadStatuses || []).map((item) => (
+                        <option key={item} value={item}>
+                          {item}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="col-md-3">
+                    <label className="form-label fw-semibold text-dark mb-2" style={{ fontSize: "0.88rem" }}>Source</label>
+                    <select
+                      className="form-select custom-filter-select"
+                      style={{ height: 42, borderRadius: 8 }}
                       value={filters.primary}
                       onChange={(e) =>
                         setFilters((prev) => ({ ...prev, primary: e.target.value }))
                       }
                     >
-                      <option value="">All</option>
+                      <option value="">All Sources</option>
                       {[...new Set([...primaryOptions, ...leadFilters.primarySources])]
                         .filter(Boolean)
                         .map((item) => (
@@ -1688,65 +1779,17 @@ export default function LeadsPage() {
                         ))}
                     </select>
                   </div>
-                  <div className="col-md-2">
-                    <label className="form-label">Lead Status</label>
-                    <select
-                      className="form-select"
-                      value={filters.status}
-                      onChange={(e) =>
-                        setFilters((prev) => ({ ...prev, status: e.target.value }))
-                      }
-                    >
-                      <option value="">All</option>
-                      {(leadFilters.leadStatuses || []).map((item) => (
-                        <option key={item} value={item}>
-                          {item}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="col-md-2">
-                    <label className="form-label">SV Status</label>
-                    <select
-                      className="form-select"
-                      value={filters.svStatus}
-                      onChange={(e) =>
-                        setFilters((prev) => ({ ...prev, svStatus: e.target.value }))
-                      }
-                    >
-                      <option value="">All</option>
-                      {(leadFilters.svStatuses || []).map((item) => (
-                        <option key={item} value={item}>
-                          {item}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="col-md-2">
-                    <label className="form-label">Quick Date</label>
-                    <select
-                      className="form-select"
-                      value={filters.quickDate}
-                      onChange={(e) =>
-                        setFilters((prev) => ({ ...prev, quickDate: e.target.value }))
-                      }
-                    >
-                      <option value="">All</option>
-                      <option value="today">Today</option>
-                      <option value="weekly">Last 7 Days</option>
-                      <option value="monthly">Last 30 Days</option>
-                    </select>
-                  </div>
                   <div className="col-md-3">
-                    <label className="form-label">Owner</label>
+                    <label className="form-label fw-semibold text-dark mb-2" style={{ fontSize: "0.88rem" }}>Owner</label>
                     <select
-                      className="form-select"
+                      className="form-select custom-filter-select"
+                      style={{ height: 42, borderRadius: 8 }}
                       value={filters.owner}
                       onChange={(e) =>
                         setFilters((prev) => ({ ...prev, owner: e.target.value }))
                       }
                     >
-                      <option value="">All</option>
+                      <option value="">All Owners</option>
                       {(leadFilters.owners || []).map((item) => (
                         <option key={item} value={item}>
                           {item}
@@ -1754,13 +1797,29 @@ export default function LeadsPage() {
                       ))}
                     </select>
                   </div>
+                  <div className="col-md-3">
+                    <label className="form-label fw-semibold text-dark mb-2" style={{ fontSize: "0.88rem" }}>Date Range</label>
+                    <select
+                      className="form-select custom-filter-select"
+                      style={{ height: 42, borderRadius: 8 }}
+                      value={filters.quickDate}
+                      onChange={(e) =>
+                        setFilters((prev) => ({ ...prev, quickDate: e.target.value }))
+                      }
+                    >
+                      <option value="">All Dates</option>
+                      <option value="today">Today</option>
+                      <option value="weekly">Last 7 Days</option>
+                      <option value="monthly">Last 30 Days</option>
+                    </select>
+                  </div>
                 </div>
-                <div className="d-flex justify-content-end gap-2 mt-3">
-                  <button className="btn btn-light" onClick={resetFilters}>
+                <div className="d-flex justify-content-end gap-2 mt-4">
+                  <button className="btn btn-filter-reset" style={{ height: 40, padding: "0 20px", borderRadius: 8, fontWeight: "500" }} onClick={resetFilters}>
                     Reset
                   </button>
-                  <button className="btn btn-primary" onClick={applyFilters}>
-                    Apply
+                  <button className="btn btn-filter-apply text-white" style={{ height: 40, padding: "0 20px", borderRadius: 8, fontWeight: "500", backgroundColor: "#3b82f6" }} onClick={applyFilters}>
+                    Apply Filters
                   </button>
                 </div>
               </div>
@@ -1768,63 +1827,16 @@ export default function LeadsPage() {
           )}
 
           <div
-            className="table-responsive leads-table-wrap"
-            style={{ overflowX: "auto", WebkitOverflowScrolling: "touch", touchAction: "pan-x" }}
+            className="table-responsive leads-table-wrap border-0 shadow-sm mb-4"
+            style={{ overflowX: "auto", WebkitOverflowScrolling: "touch", touchAction: "pan-x", borderRadius: 12, minHeight: "260px" }}
           >
-            <div className="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
-              <div className="d-flex align-items-center gap-2">
-                <span className="text-muted small">Rows per page</span>
-                <select
-                  className="form-select form-select-sm"
-                  style={{ width: 110 }}
-                  value={pageSize}
-                  onChange={(e) => {
-                    const next = Number(e.target.value);
-                    setPageSize(Number.isFinite(next) && next > 0 ? next : 25);
-                    setPage(1);
-                  }}
-                  disabled={loading}
-                >
-                  {[10, 25, 50, 100].map((n) => (
-                    <option key={n} value={n}>
-                      {n}
-                    </option>
-                  ))}
-                </select>
-                <span className="text-muted small">
-                  {totalRows === 0
-                    ? "0 rows"
-                    : `Showing ${pageOffset + 1}-${Math.min(pageOffset + pageSize, totalRows)} of ${totalRows}`}
-                </span>
-              </div>
-              <div className="d-flex align-items-center gap-2">
-                <button
-                  type="button"
-                  className="btn btn-sm btn-light"
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  disabled={loading || clampedPage <= 1}
-                >
-                  Prev
-                </button>
-                <span className="text-muted small">
-                  Page {clampedPage} of {pageCount}
-                </span>
-                <button
-                  type="button"
-                  className="btn btn-sm btn-light"
-                  onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
-                  disabled={loading || clampedPage >= pageCount}
-                >
-                  Next
-                </button>
-              </div>
-            </div>
-            <table className="table table-hover align-middle leads-table">
+            <table className="table table-hover align-middle leads-table mb-0">
               <thead>
                 <tr>
-                  <th style={{ width: 36 }}>
+                  <th className="col-select" style={{ width: 36 }}>
                     <input
                       type="checkbox"
+                      className="form-check-input"
                       checked={
                         pagedRows.length > 0 &&
                         pagedRows.every((row) => selectedLeadIds.has(row.id))
@@ -1832,198 +1844,242 @@ export default function LeadsPage() {
                       onChange={toggleSelectAll}
                     />
                   </th>
-                  <th className="text-nowrap">
-                    #
-                    <span className="ms-1 text-muted d-inline-flex align-items-center">
-                      <EditGlyph size={12} />
-                    </span>
+                  <th className="col-index text-nowrap text-muted" style={{ fontWeight: "600", fontSize: "0.85rem" }}>#</th>
+                  <th className="col-name text-muted" style={{ fontWeight: "600", fontSize: "0.85rem" }}>
+                    Name <span className="ms-1 sort-indicator text-muted">↕</span>
                   </th>
-                  <th>Name</th>
-                  <th>Mobile</th>
-                  <th>Primary</th>
-                  <th>Secondary</th>
-                  <th className="text-nowrap">
-                    Status
-                    <span className="ms-1 d-inline-flex align-items-center" style={{ color: "#6f65d6" }}>
-                      <EditGlyph size={12} />
-                    </span>
+                  <th className="col-mobile text-muted" style={{ fontWeight: "600", fontSize: "0.85rem" }}>Mobile</th>
+                  {/* <th className="col-primary text-muted" style={{ fontWeight: "600", fontSize: "0.85rem" }}>
+                    Primary <span className="ms-1 sort-indicator text-muted">↕</span>
+                  </th> */}
+                  {/* <th className="col-secondary text-muted" style={{ fontWeight: "600", fontSize: "0.85rem" }}>
+                    Secondary <span className="ms-1 sort-indicator text-muted">↕</span>
+                  </th> */}
+                   <th className="col-source text-muted" style={{ fontWeight: "600", fontSize: "0.85rem" }}>
+                    Source <span className="ms-1 sort-indicator text-muted">↕</span>
                   </th>
-                  <th>Remarks</th>
-                  <th>Owner</th>
-                  <th>Created Date</th>
+                  <th className="col-status text-muted" style={{ fontWeight: "600", fontSize: "0.85rem" }}>
+                    Status <span className="ms-1 sort-indicator text-muted">↕</span>
+                  </th>
+                 
+                  <th className="col-owner text-muted" style={{ fontWeight: "600", fontSize: "0.85rem" }}>
+                    Owner <span className="ms-1 sort-indicator text-muted">↕</span>
+                  </th>
+                  <th className="col-date text-muted" style={{ fontWeight: "600", fontSize: "0.85rem" }}>Created On</th>
+                  <th className="col-actions text-muted" style={{ fontWeight: "600", fontSize: "0.85rem" }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={10}>Loading...</td>
+                    <td colSpan={11} className="text-center py-4 text-muted">Loading...</td>
                   </tr>
                 ) : pagedRows.length === 0 ? (
                   <tr>
-                    <td colSpan={10}>No leads found</td>
+                    <td colSpan={11} className="text-center py-4 text-muted">No leads found</td>
                   </tr>
                 ) : (
                   pagedRows.map((row, index) => {
                     const statusKey = String(row.status || "").trim().toLowerCase();
                     const isDealRow = statusKey === "deal";
                     return (
-                    <tr key={row.id}>
-                      <td>
-                        {isDealRow ? null : (
-                          <input
-                            type="checkbox"
-                            checked={selectedLeadIds.has(row.id)}
-                            onChange={() => toggleLeadSelection(row.id)}
-                          />
-                        )}
-                      </td>
-                      <td>
-                        <div className="d-inline-flex align-items-center gap-2">
-                          <span>{pageOffset + index + 1}</span>
-                          {isDealRow ? (
-                            <>
-                              <button
-                                className="btn btn-sm d-inline-flex align-items-center justify-content-center"
-                                style={{
-                                  backgroundColor: "#6c757d",
-                                  color: "#fff",
-                                  width: 24,
-                                  height: 24,
-                                  padding: 0,
-                                  borderRadius: 4,
-                                  border: "none",
-                                }}
-                                onClick={() => navigate(`/leads/${row.id}`)}
-                                title="View Lead"
-                              >
-                                <i className="ti ti-eye" />
-                              </button>
-                              {role !== "EMPLOYEE" && (
-                                <button
-                                  className="btn btn-sm d-inline-flex align-items-center justify-content-center"
-                                  style={{
-                                    backgroundColor: "#e74c3c",
-                                    color: "#fff",
-                                    width: 24,
-                                    height: 24,
-                                    padding: 0,
-                                    borderRadius: 4,
-                                    border: "none",
-                                  }}
-                                  onClick={() => handleDeleteLead(row)}
-                                  title="Delete Lead"
-                                >
-                                  <i className="ti ti-trash" />
-                                </button>
-                              )}
-                              <span className="badge bg-secondary">Deal</span>
-                            </>
-                          ) : (
-                            <>
-                              <button
-                                className="btn btn-sm d-inline-flex align-items-center justify-content-center"
-                                style={{
-                                  backgroundColor: "#6f65d6",
-                                  color: "#fff",
-                                  width: 24,
-                                  height: 24,
-                                  padding: 0,
-                                  borderRadius: 4,
-                                  border: "none",
-                                }}
-                                onClick={() => navigate(`/leads/${row.id}`)}
-                                title="Edit Lead"
-                              >
-                                <EditGlyph size={11} />
-                              </button>
-                              <button
-                                className="btn btn-sm d-inline-flex align-items-center justify-content-center"
-                                style={{
-                                  backgroundColor: "#e74c3c",
-                                  color: "#fff",
-                                  width: 24,
-                                  height: 24,
-                                  padding: 0,
-                                  borderRadius: 4,
-                                  border: "none",
-                                }}
-                                onClick={() => handleDeleteLead(row)}
-                                title="Delete Lead"
-                              >
-                                <i className="ti ti-trash" />
-                              </button>
-                            </>
+                      <tr key={row.id}>
+                        <td className="col-select">
+                          {isDealRow ? null : (
+                            <input
+                              type="checkbox"
+                              className="form-check-input"
+                              checked={selectedLeadIds.has(row.id)}
+                              onChange={() => toggleLeadSelection(row.id)}
+                            />
                           )}
-                        </div>
-                      </td>
-                      <td>{row.name || "-"}</td>
-                      <td>
-                        <div className="d-flex align-items-center gap-2">
-                          <span>{row.mobile || "-"}</span>
-                          {row.mobile && (
-                            <a
-                              className="btn btn-sm btn-outline-secondary"
-                              href={`tel:${row.mobile}`}
-                            >
-                              <PhoneGlyph size={12} />
-                            </a>
-                          )}
-                        </div>
-                      </td>
-                      <td>{row.primarySource || "-"}</td>
-                      <td>{row.secondarySource || "-"}</td>
-                      <td>
-                        <div className="d-inline-flex align-items-center gap-2">
-                          <span>{row.status || "-"}</span>
-                          {!isDealRow && (
-                            <button
-                              className="btn btn-sm d-inline-flex align-items-center justify-content-center"
-                              style={{
-                                backgroundColor: "#6f65d6",
-                                color: "#fff",
-                                width: 24,
-                                height: 24,
-                                padding: 0,
-                                borderRadius: 4,
-                                border: "none",
-                              }}
-                              onClick={() => openStatusModal(row)}
-                              title="Edit Status"
-                            >
-                              <EditGlyph size={11} />
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                      <td>
-                        {isDealRow ? (
-                          <span className="text-muted">-</span>
-                        ) : (
+                        </td>
+                        <td className="col-index text-muted" style={{ fontSize: "0.9rem" }}>{pageOffset + index + 1}</td>
+                        <td className="col-name fw-semibold" style={{ color: "#1e293b", fontSize: "0.9rem" }}>{row.name || "-"}</td>
+                        <td className="col-mobile" style={{ fontSize: "0.9rem" }}>
+                          <div className="d-flex align-items-center gap-2">
+                            <span>{row.mobile || "-"}</span>
+                            {row.mobile && (
+                              <a
+                                className="btn-phone-call d-flex align-items-center justify-content-center"
+                                href={`tel:${row.mobile}`}
+                                style={{ width: 28, height: 28, borderRadius: "50%", border: "1px solid #e2e8f0", color: "#64748b", backgroundColor: "#fff" }}
+                              >
+                                <PhoneGlyph size={11} />
+                              </a>
+                            )}
+                          </div>
+                        </td>
+                        {/* <td className="col-primary" style={{ fontSize: "0.9rem", color: "#475569" }}>{row.primarySource || "-"}</td> */}
+                        {/* <td className="col-secondary" style={{ fontSize: "0.9rem", color: "#475569" }}>{row.secondarySource || "-"}</td> */}
+                                               <td className="col-source" style={{ fontSize: "0.9rem", color: "#475569" }}>{row.secondarySource || row.primarySource || "-"}</td>
+
+                        <td className="col-status">
+                          <span className={`status-pill ${getStatusClass(row.status)}`}>
+                            {row.status || "-"}
+                          </span>
+                        </td>
+                        <td className="col-owner" style={{ fontSize: "0.9rem", color: "#475569" }}>
+                          {row.owner || "-"}
+                        </td>
+                        <td className="col-date" style={{ fontSize: "0.9rem", color: "#475569" }}>{formatCreatedOn(row.createdAt)}</td>
+                        <td className="col-actions">
                           <button
-                            className="btn btn-sm d-inline-flex align-items-center justify-content-center"
-                            style={{
-                              backgroundColor: "#6f65d6",
-                              color: "#fff",
-                              width: 24,
-                              height: 24,
-                              padding: 0,
-                              borderRadius: 4,
-                              border: "none",
+                            className="btn btn-kebab-actions d-flex align-items-center justify-content-center"
+                            style={{ width: 32, height: 32, borderRadius: "50%", border: "none", backgroundColor: "transparent", color: "#64748b" }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (activeActionsRow?.id === row.id) {
+                                setActiveActionsRow(null);
+                              } else {
+                                const rect = e.currentTarget.getBoundingClientRect();
+                                setActionsMenuPos({
+                                  top: rect.top + window.scrollY,
+                                  left: rect.right + window.scrollX,
+                                });
+                                setActiveActionsRow(row);
+                              }
                             }}
-                            onClick={() => openRemarkModal(row)}
-                            title={row.svStatus ? "View Remark" : "Add Remark"}
                           >
-                            <NoteGlyph size={11} />
+                            <i className="ti ti-dots-vertical" style={{ fontSize: "1.15rem" }} />
                           </button>
-                        )}
-                      </td>
-                      <td>{row.owner || "-"}</td>
-                      <td>{formatDateTime(row.createdAt)}</td>
-                    </tr>
-                  )})
+                        </td>
+                      </tr>
+                    )
+                  })
                 )}
               </tbody>
             </table>
+          </div>
+
+          {/* Redesigned Pagination Footer */}
+          <div className="leads-pagination-footer d-flex flex-wrap align-items-center justify-content-between gap-3 mt-4 pt-3 border-top">
+            <span className="entries-info text-muted small">
+              {totalRows === 0
+                ? "Showing 0 to 0 of 0 entries"
+                : `Showing ${pageOffset + 1} to ${Math.min(pageOffset + pageSize, totalRows)} of ${totalRows} entries`}
+            </span>
+
+            {/* Custom Pagination Numbers */}
+            <div className="pagination-numbers-container d-flex align-items-center gap-1">
+              <button
+                type="button"
+                className="btn-pagination-arrow btn btn-sm btn-light border-0 d-flex align-items-center justify-content-center"
+                style={{ width: 32, height: 32, borderRadius: 6 }}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={clampedPage <= 1}
+              >
+                <i className="ti ti-chevron-left" />
+              </button>
+
+              {(() => {
+                const buttons = [];
+                const maxVisible = 5;
+                let startPage = Math.max(1, clampedPage - 2);
+                let endPage = Math.min(pageCount, startPage + maxVisible - 1);
+                if (maxVisible - 1 > endPage - startPage) {
+                  startPage = Math.max(1, endPage - maxVisible + 1);
+                }
+
+                if (startPage > 1) {
+                  buttons.push(
+                    <button
+                      key={1}
+                      className={`btn-pagination-num btn btn-sm border-0 ${clampedPage === 1 ? 'btn-primary text-white' : 'btn-light'}`}
+                      style={{ width: 32, height: 32, borderRadius: 6, fontWeight: "500", backgroundColor: clampedPage === 1 ? "#3b82f6" : undefined }}
+                      onClick={() => setPage(1)}
+                    >
+                      1
+                    </button>
+                  );
+                  if (startPage > 2) {
+                    buttons.push(<span key="dots-start" className="pagination-dots px-1 text-muted">...</span>);
+                  }
+                }
+
+                for (let i = startPage; endPage >= i; i++) {
+                  buttons.push(
+                    <button
+                      key={i}
+                      className={`btn-pagination-num btn btn-sm border-0 ${clampedPage === i ? 'btn-primary text-white' : 'btn-light'}`}
+                      style={{ width: 32, height: 32, borderRadius: 6, fontWeight: "500", backgroundColor: clampedPage === i ? "#3b82f6" : undefined }}
+                      onClick={() => setPage(i)}
+                    >
+                      {i}
+                    </button>
+                  );
+                }
+
+                if (pageCount > endPage) {
+                  if (pageCount - 1 > endPage) {
+                    buttons.push(<span key="dots-end" className="pagination-dots px-1 text-muted">...</span>);
+                  }
+                  buttons.push(
+                    <button
+                      key={pageCount}
+                      className={`btn-pagination-num btn btn-sm border-0 ${clampedPage === pageCount ? 'btn-primary text-white' : 'btn-light'}`}
+                      style={{ width: 32, height: 32, borderRadius: 6, fontWeight: "500", backgroundColor: clampedPage === pageCount ? "#3b82f6" : undefined }}
+                      onClick={() => setPage(pageCount)}
+                    >
+                      {pageCount}
+                    </button>
+                  );
+                }
+
+                return buttons;
+              })()}
+
+              <button
+                type="button"
+                className="btn-pagination-arrow btn btn-sm btn-light border-0 d-flex align-items-center justify-content-center"
+                style={{ width: 32, height: 32, borderRadius: 6 }}
+                onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+                disabled={clampedPage >= pageCount}
+              >
+                <i className="ti ti-chevron-right" />
+              </button>
+            </div>
+
+            {/* Page Size Selector */}
+            <div className="d-flex align-items-center gap-2">
+              <span className="text-muted small">Show</span>
+              <select
+                className="form-select show-entries-select"
+                style={{ width: 95, height: 36, padding: "0 8px", borderRadius: 8, fontSize: "0.85rem" }}
+                value={pageSize}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === "custom") {
+                    const num = window.prompt("Enter custom rows per page:", pageSize);
+                    const parsed = parseInt(num, 10);
+                    if (!isNaN(parsed) && parsed > 0) {
+                      setPageSize(parsed);
+                    }
+                  } else {
+                    setPageSize(Number(val));
+                  }
+                  setPage(1);
+                }}
+              >
+                {(() => {
+                  const defaultOptions = [10, 25, 50, 100];
+                  const renderOptions = [...defaultOptions];
+                  if (!defaultOptions.includes(pageSize)) {
+                    renderOptions.push(pageSize);
+                    renderOptions.sort((a, b) => a - b);
+                  }
+                  return (
+                    <>
+                      {renderOptions.map((n) => (
+                        <option key={n} value={n}>{n}</option>
+                      ))}
+                      <option value="custom">Custom...</option>
+                    </>
+                  );
+                })()}
+              </select>
+              <span className="text-muted small">entries</span>
+            </div>
           </div>
       </div>
       )}
@@ -3114,6 +3170,58 @@ export default function LeadsPage() {
           </div>
           <div className="modal-backdrop fade show" style={{ zIndex: 1055 }} />
         </>
+      )}
+
+      {activeActionsRow && createPortal(
+        <div
+          className="floating-actions-menu shadow-lg border"
+          style={{
+            position: "absolute",
+            top: actionsMenuPos.top,
+            left: actionsMenuPos.left,
+            transform: "translate(-100%, -100%) translateY(-5px)",
+            zIndex: 9999,
+            background: "#fff",
+            borderRadius: 8,
+            padding: "6px 0",
+            minWidth: 150
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            className="dropdown-item py-2 px-3 text-start d-flex align-items-center gap-2"
+            style={{ fontSize: "0.85rem" }}
+            onClick={() => {
+              navigate(`/leads/${activeActionsRow.id}`);
+              setActiveActionsRow(null);
+            }}
+          >
+            <i className="ti ti-edit" style={{ fontSize: "1rem", color: "#64748b" }} /> Edit Lead
+          </button>
+          <button
+            className="dropdown-item py-2 px-3 text-start d-flex align-items-center gap-2"
+            style={{ fontSize: "0.85rem" }}
+            onClick={() => {
+              openStatusModal(activeActionsRow);
+              setActiveActionsRow(null);
+            }}
+          >
+            <i className="ti ti-refresh" style={{ fontSize: "1rem", color: "#64748b" }} /> Update Status
+          </button>
+          {role !== "EMPLOYEE" && (
+            <button
+              className="dropdown-item py-2 px-3 text-start d-flex align-items-center gap-2 text-danger"
+              style={{ fontSize: "0.85rem" }}
+              onClick={() => {
+                handleDeleteLead(activeActionsRow);
+                setActiveActionsRow(null);
+              }}
+            >
+              <i className="ti ti-trash" style={{ fontSize: "1rem", color: "#ef4444" }} /> Delete Lead
+            </button>
+          )}
+        </div>,
+        document.body
       )}
 
       {confirmDialog}

@@ -5,6 +5,7 @@ import Topbar from "../components/layout/Topbar";
 import TopbarAttendanceAction from "../components/layout/TopbarAttendanceAction";
 import Sidebar from "../components/layout/Sidebar";
 import Footer from "../components/layout/Footer";
+import BottomNav from "../components/layout/BottomNav";
 import { useAuth } from "../context/AuthContext";
 import "../styles/wizardFormShell.css";
 
@@ -85,6 +86,8 @@ export default function AdminLayout() {
           </div>
           <Footer />
         </div>
+
+        <BottomNav />
       </div>
     </>
   );

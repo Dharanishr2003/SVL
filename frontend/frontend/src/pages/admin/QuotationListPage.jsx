@@ -128,6 +128,7 @@ export default function QuotationListPage() {
   });
   const [quotationTemplate, setQuotationTemplate] = useState(null);
   const [successMessage, setSuccessMessage] = useState(location.state?.successMessage || "");
+  const [selectedQuotationDetails, setSelectedQuotationDetails] = useState(null);
 
   useEffect(() => {
     let ignore = false;
@@ -432,13 +433,13 @@ export default function QuotationListPage() {
                 <table className="table table-bordered table-hover align-middle">
                   <thead>
                     <tr>
-                      <th>Quotation No.</th>
-                      <th>Customer</th>
-                      <th>Status</th>
-                      <th>Date</th>
-                      <th>Total</th>
-                      <th>Notes</th>
-                      <th>Actions</th>
+                      <th className="col-qno">Quotation No.</th>
+                      <th className="col-customer">Customer</th>
+                      <th className="col-status">Status</th>
+                      <th className="col-date">Date</th>
+                      <th className="col-total">Total</th>
+                      <th className="col-notes">Notes</th>
+                      <th className="col-actions">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -452,9 +453,9 @@ export default function QuotationListPage() {
 
                       return (
                         <tr key={quotation.id}>
-                          <td>{quotation.quotationNumber || "-"}</td>
-                          <td>{quotation.clientName || quotation.customerName || "-"}</td>
-                          <td>
+                          <td className="col-qno">{quotation.quotationNumber || "-"}</td>
+                          <td className="col-customer">{quotation.clientName || quotation.customerName || "-"}</td>
+                          <td className="col-status">
                             <span className={statusUi.className}>
                               {status === QUOTATION_STATUS_VERIFICATION_PENDING && quotation.negotiatingAt
                                 ? "Re-verification Pending"
@@ -463,7 +464,7 @@ export default function QuotationListPage() {
                                 : statusUi.label}
                             </span>
                             {isEmployee && status === QUOTATION_STATUS_APPROVED && (
-                              <div className="mt-2">
+                              <div className="mt-2 desktop-actions">
                                 <button
                                   type="button"
                                   className="btn btn-info btn-sm w-100"
@@ -475,7 +476,7 @@ export default function QuotationListPage() {
                               </div>
                             )}
                             {isEmployee && status === QUOTATION_STATUS_SENT && (
-                              <div className="mt-2">
+                              <div className="mt-2 desktop-actions">
                                 <button
                                   type="button"
                                   className="btn btn-secondary btn-sm w-100"
@@ -487,9 +488,9 @@ export default function QuotationListPage() {
                               </div>
                             )}
                           </td>
-                          <td>{formatDate(quotation.quotationDate || quotation.createdAt)}</td>
-                          <td>Rs. {Number(quotation.grandTotal ?? quotation.totals?.grandTotal ?? 0).toFixed(2)}</td>
-                          <td>
+                          <td className="col-date">{formatDate(quotation.quotationDate || quotation.createdAt)}</td>
+                          <td className="col-total">Rs. {Number(quotation.grandTotal ?? quotation.totals?.grandTotal ?? 0).toFixed(2)}</td>
+                          <td className="col-notes">
                             <div className="small">
                               <div>
                                 <strong>Employee:</strong> {quotation.verificationRequestNotes || "-"}
@@ -499,8 +500,8 @@ export default function QuotationListPage() {
                               </div>
                             </div>
                           </td>
-                          <td>
-                            <div className="d-flex flex-wrap gap-2">
+                          <td className="col-actions">
+                            <div className="desktop-actions d-flex flex-wrap gap-2">
                               <button
                                 type="button"
                                 className="btn btn-primary btn-sm"
@@ -583,6 +584,52 @@ export default function QuotationListPage() {
                                 >
                                   <i className="ti ti-trash me-1"></i>
                                   Delete
+                                </button>
+                              )}
+                            </div>
+                            <div className="mobile-actions-container d-flex align-items-center gap-1 justify-content-end">
+                              <button
+                                type="button"
+                                className="btn btn-outline-primary btn-sm mobile-action-view"
+                                onClick={() => setSelectedQuotationDetails(quotation)}
+                              >
+                                <i className="ti ti-eye"></i>
+                              </button>
+                              <button
+                                type="button"
+                                className="btn btn-primary btn-sm mobile-action-btn"
+                                onClick={() => handleEdit(quotation)}
+                                disabled={isEmployee && !canEditForEmployee}
+                                title="Edit"
+                                style={{
+                                  width: 34,
+                                  height: 34,
+                                  padding: 0,
+                                  borderRadius: "50%",
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  justifyContent: "center"
+                                }}
+                              >
+                                <i className="ti ti-edit"></i>
+                              </button>
+                              {userRole === "SUPER_ADMIN" && (
+                                <button
+                                  type="button"
+                                  className="btn btn-danger btn-sm mobile-action-btn"
+                                  onClick={() => handleDelete(quotation)}
+                                  title="Delete"
+                                  style={{
+                                    width: 34,
+                                    height: 34,
+                                    padding: 0,
+                                    borderRadius: "50%",
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    justifyContent: "center"
+                                  }}
+                                >
+                                  <i className="ti ti-trash"></i>
                                 </button>
                               )}
                             </div>
@@ -775,6 +822,179 @@ export default function QuotationListPage() {
                 <button type="button" className="btn btn-secondary btn-sm" onClick={closeLogDialog}>
                   Close
                 </button>
+              </div>
+            </div>
+          </div>
+          <div className="modal-backdrop fade show quotation-list-backdrop"></div>
+        </>
+      )}
+      {selectedQuotationDetails && (
+        <>
+          <div className="modal fade show d-block" tabIndex="-1" role="dialog" aria-modal="true">
+            <div className="modal-dialog modal-dialog-centered">
+              <div className="modal-content border-0 shadow-lg" style={{ borderRadius: "18px" }}>
+                <div className="modal-header bg-light" style={{ borderTopLeftRadius: "18px", borderTopRightRadius: "18px" }}>
+                  <h5 className="modal-title fw-bold" style={{ color: "#45597a" }}>
+                    Details ({selectedQuotationDetails.quotationNumber || "Draft"})
+                  </h5>
+                  <button type="button" className="btn-close" onClick={() => setSelectedQuotationDetails(null)}></button>
+                </div>
+                <div className="modal-body p-4">
+                  <div className="d-flex flex-column gap-3">
+                    <div className="row">
+                      <div className="col-4 text-muted fw-semibold">Customer:</div>
+                      <div className="col-8 fw-bold">{selectedQuotationDetails.clientName || selectedQuotationDetails.customerName || "-"}</div>
+                    </div>
+                    <div className="row">
+                      <div className="col-4 text-muted fw-semibold">Status:</div>
+                      <div className="col-8">
+                        <span className={getStatusUi(selectedQuotationDetails.status || QUOTATION_STATUS_DRAFT).className}>
+                          {selectedQuotationDetails.status || QUOTATION_STATUS_DRAFT}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="row">
+                      <div className="col-4 text-muted fw-semibold">Date:</div>
+                      <div className="col-8">{formatDate(selectedQuotationDetails.quotationDate || selectedQuotationDetails.createdAt)}</div>
+                    </div>
+                    <div className="row">
+                      <div className="col-4 text-muted fw-semibold">Total:</div>
+                      <div className="col-8 fw-bold text-success">
+                        Rs. {Number(selectedQuotationDetails.grandTotal ?? selectedQuotationDetails.totals?.grandTotal ?? 0).toFixed(2)}
+                      </div>
+                    </div>
+                    <div className="row">
+                      <div className="col-4 text-muted fw-semibold">Employee Notes:</div>
+                      <div className="col-8">{selectedQuotationDetails.verificationRequestNotes || "-"}</div>
+                    </div>
+                    <div className="row">
+                      <div className="col-4 text-muted fw-semibold">Branch Head Notes:</div>
+                      <div className="col-8">{selectedQuotationDetails.approvalNotes || "-"}</div>
+                    </div>
+                  </div>
+
+                  <hr className="my-4" />
+
+                  {/* Actions inside the details modal */}
+                  <div className="d-grid gap-2">
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      onClick={() => {
+                        handleEdit(selectedQuotationDetails);
+                        setSelectedQuotationDetails(null);
+                      }}
+                      disabled={isEmployee && !(selectedQuotationDetails.status === QUOTATION_STATUS_DRAFT || selectedQuotationDetails.status === QUOTATION_STATUS_NEGOTIATING)}
+                    >
+                      <i className="ti ti-edit me-2"></i>
+                      Edit Quotation
+                    </button>
+                    {selectedQuotationDetails.status !== QUOTATION_STATUS_DRAFT && (
+                      <button
+                        type="button"
+                        className="btn btn-outline-primary"
+                        onClick={() => {
+                          handleView(selectedQuotationDetails);
+                          setSelectedQuotationDetails(null);
+                        }}
+                      >
+                        <i className="ti ti-eye me-2"></i>
+                        View PDF Preview
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      className="btn btn-success"
+                      onClick={() => {
+                        handleDownload(selectedQuotationDetails);
+                        setSelectedQuotationDetails(null);
+                      }}
+                      disabled={isEmployee && !(selectedQuotationDetails.status === QUOTATION_STATUS_APPROVED || selectedQuotationDetails.status === QUOTATION_STATUS_ACCEPTED)}
+                    >
+                      <i className="ti ti-file-download me-2"></i>
+                      Download PDF
+                    </button>
+                    {isEmployee && selectedQuotationDetails.status === QUOTATION_STATUS_APPROVED && (
+                      <button
+                        type="button"
+                        className="btn btn-info"
+                        onClick={() => {
+                          handleMarkSent(selectedQuotationDetails);
+                          setSelectedQuotationDetails(null);
+                        }}
+                      >
+                        <i className="ti ti-mail-forward me-2"></i>
+                        Mark as Sent
+                      </button>
+                    )}
+                    {isEmployee && selectedQuotationDetails.status === QUOTATION_STATUS_SENT && (
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        onClick={() => {
+                          openCustomerResponseDialog(selectedQuotationDetails);
+                          setSelectedQuotationDetails(null);
+                        }}
+                      >
+                        <i className="ti ti-help me-2"></i>
+                        Customer Response
+                      </button>
+                    )}
+                    {isEmployee && selectedQuotationDetails.status === QUOTATION_STATUS_DRAFT && (
+                      <button
+                        type="button"
+                        className="btn btn-warning"
+                        onClick={() => {
+                          openVerifyDialog(selectedQuotationDetails);
+                          setSelectedQuotationDetails(null);
+                        }}
+                      >
+                        <i className="ti ti-send me-2"></i>
+                        Send for Verification
+                      </button>
+                    )}
+                    {isEmployee && selectedQuotationDetails.status === QUOTATION_STATUS_NEGOTIATING && (
+                      <button
+                        type="button"
+                        className="btn btn-warning"
+                        onClick={() => {
+                          openVerifyDialog(selectedQuotationDetails);
+                          setSelectedQuotationDetails(null);
+                        }}
+                      >
+                        <i className="ti ti-send me-2"></i>
+                        Re-send for Approval
+                      </button>
+                    )}
+                    {isHigherAuthority && (
+                      <button
+                        type="button"
+                        className="btn btn-info"
+                        onClick={() => {
+                          openApproveDialog(selectedQuotationDetails);
+                          setSelectedQuotationDetails(null);
+                        }}
+                        disabled={!canApproveQuotation(selectedQuotationDetails, userRole, user)}
+                      >
+                        <i className="ti ti-circle-check me-2"></i>
+                        {selectedQuotationDetails.status === QUOTATION_STATUS_APPROVED ? "Approved" : "Approve"}
+                      </button>
+                    )}
+                    {userRole === "SUPER_ADMIN" && (
+                      <button
+                        type="button"
+                        className="btn btn-danger"
+                        onClick={() => {
+                          handleDelete(selectedQuotationDetails);
+                          setSelectedQuotationDetails(null);
+                        }}
+                      >
+                        <i className="ti ti-trash me-2"></i>
+                        Delete Quotation
+                      </button>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
           </div>

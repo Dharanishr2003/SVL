@@ -1903,7 +1903,7 @@ export default function QuotationPage() {
               </colgroup>
               <thead>
                 <tr style={{ borderBottom: "2px solid #e5e7eb" }}>
-                  <th style={{ ...taxHeadCell, textAlign: "left" }}>Products</th>
+                  <th style={{ ...taxHeadCell, textAlign: "left" }}>{taxSummary.hasHsnCodes ? "HSN/SAC" : "Products"}</th>
                   <th style={{ ...taxHeadCell, textAlign: "right" }}>Taxable Value</th>
                   {isTamilNadu ? (
                     <>
