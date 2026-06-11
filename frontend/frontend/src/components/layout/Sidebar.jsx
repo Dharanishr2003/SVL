@@ -58,7 +58,7 @@ export default function Sidebar() {
 
   useEffect(() => {
     return attachAdminNavigationHandlers(containerRef.current, navigate);
-  }, [navigate, location.pathname]);
+  }, [navigate, location.pathname, visibleSections]);
 
   const renderItems = (items) =>
     items.map((item) => {

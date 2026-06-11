@@ -54,13 +54,19 @@ export const adminSidebarSections = [
         accessAny: ["quotation"],
         children: [
           {
+            label: "Quotation List",
+            href: "/quotation-list",
+            accessAny: ["quotation"],
+          },
+          {
             label: "Create Quotation",
             href: "/quotation",
             accessAny: ["quotation"],
           },
+          
           {
-            label: "Quotation List",
-            href: "/quotation-list",
+            label: "Quotation Template",
+            href: "/quotation-template",
             accessAny: ["quotation"],
           },
         ],

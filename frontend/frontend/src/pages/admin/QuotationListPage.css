@@ -169,3 +169,46 @@
 .mobile-action-view {
   display: none !important;
 }
+
+/* Floating Actions dropdown menu styling */
+.floating-actions-menu {
+  background: #ffffff;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 8px;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1) !important;
+  animation: fadeIn 0.15s ease-out;
+  transform-origin: top right;
+  z-index: 1050 !important;
+}
+
+.floating-actions-menu .dropdown-item {
+  border: none;
+  background: transparent;
+  color: #334155;
+  transition: background-color 0.15s ease, color 0.15s ease;
+  cursor: pointer;
+  width: 100%;
+}
+.floating-actions-menu .dropdown-item:hover {
+  background-color: #f8fafc;
+  color: #0f172a;
+}
+.floating-actions-menu .dropdown-item.text-danger:hover {
+  background-color: #fef2f2;
+  color: #ef4444;
+}
+
+.btn-kebab-actions:hover {
+  background-color: #f1f5f9 !important;
+  color: #0f172a !important;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+

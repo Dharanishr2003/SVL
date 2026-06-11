@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
+import { createPortal } from "react-dom";
 import {
   approveQuotation,
   deleteQuotation,
@@ -24,6 +25,7 @@ import {
   setQuotationDraft,
 } from "../../utils/quotationUtils";
 import { getQuotationTemplate } from "../../api/quotationTemplateApi";
+import PageSizeSelector from "../../components/admin/PageSizeSelector";
 import "./QuotationListPage.css";
 
 function formatDate(value) {
@@ -129,6 +131,29 @@ export default function QuotationListPage() {
   const [quotationTemplate, setQuotationTemplate] = useState(null);
   const [successMessage, setSuccessMessage] = useState(location.state?.successMessage || "");
   const [selectedQuotationDetails, setSelectedQuotationDetails] = useState(null);
+
+  // New state variables for search, sorting, and pagination
+  const [searchText, setSearchText] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [sortField, setSortField] = useState("date");
+  const [sortOrder, setSortOrder] = useState("desc");
+
+  // Kebab actions state
+  const [activeActionsRow, setActiveActionsRow] = useState(null);
+  const [actionsMenuPos, setActionsMenuPos] = useState({ top: 0, left: 0 });
+
+  useEffect(() => {
+    const handleOutsideClickOrScroll = () => {
+      setActiveActionsRow(null);
+    };
+    window.addEventListener("click", handleOutsideClickOrScroll);
+    window.addEventListener("scroll", handleOutsideClickOrScroll, true);
+    return () => {
+      window.removeEventListener("click", handleOutsideClickOrScroll);
+      window.removeEventListener("scroll", handleOutsideClickOrScroll, true);
+    };
+  }, []);
 
   useEffect(() => {
     let ignore = false;
@@ -385,30 +410,96 @@ export default function QuotationListPage() {
     }
   };
 
+  // Sorting & searching handlers
+  const handleSort = (field) => {
+    if (sortField === field) {
+      setSortOrder(sortOrder === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      setSortOrder("asc");
+    }
+    setPage(1);
+  };
+
+  // Reset to first page when search changes
+  useEffect(() => {
+    setPage(1);
+  }, [searchText]);
+
+  const filteredQuotations = useMemo(() => {
+    const term = searchText.toLowerCase().trim();
+    let result = quotations;
+    if (term) {
+      result = quotations.filter((q) => {
+        const qNo = (q.quotationNumber || "").toLowerCase();
+        const customer = (q.clientName || q.customerName || "").toLowerCase();
+        const status = (q.status || "").toLowerCase();
+        return qNo.includes(term) || customer.includes(term) || status.includes(term);
+      });
+    }
+
+    return [...result].sort((a, b) => {
+      let aVal = "";
+      let bVal = "";
+
+      if (sortField === "quotationNumber") {
+        aVal = a.quotationNumber || "";
+        bVal = b.quotationNumber || "";
+      } else if (sortField === "customer") {
+        aVal = a.clientName || a.customerName || "";
+        bVal = b.clientName || b.customerName || "";
+      } else if (sortField === "status") {
+        aVal = a.status || "";
+        bVal = b.status || "";
+      } else if (sortField === "date") {
+        aVal = a.quotationDate || a.createdAt || "";
+        bVal = b.quotationDate || b.createdAt || "";
+      } else if (sortField === "total") {
+        const totalA = Number(a.grandTotal ?? a.totals?.grandTotal ?? 0);
+        const totalB = Number(b.grandTotal ?? b.totals?.grandTotal ?? 0);
+        return sortOrder === "asc" ? totalA - totalB : totalB - totalA;
+      }
+
+      if (typeof aVal === "string") {
+        return sortOrder === "asc"
+          ? aVal.localeCompare(bVal)
+          : bVal.localeCompare(aVal);
+      }
+      return 0;
+    });
+  }, [quotations, searchText, sortField, sortOrder]);
+
+  const totalPages = Math.ceil(filteredQuotations.length / pageSize);
+  const pagedQuotations = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return filteredQuotations.slice(start, start + pageSize);
+  }, [filteredQuotations, page, pageSize]);
+
   return (
     <>
       <div className="content">
-        <div className="page-breadcrumb d-none d-md-flex align-items-center mb-3">
-          <Link to="/admin-dashboard" className="breadcrumb-item">
-            <i className="ti ti-smart-home"></i>
-          </Link>
-          <span className="breadcrumb-item active">Quotation List</span>
-        </div>
-
-        <div className="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+      <div className="card border-0 shadow-sm p-4 mb-4 bg-white" style={{ borderRadius: 12 }}>
+        <div className="d-flex align-items-center justify-content-between flex-wrap gap-3">
           <div>
-            <h4 className="mb-1">Quotation List</h4>
-            <p className="text-muted mb-0">
+            <h2 className="leads-header-title mb-1" style={{ fontSize: "1.4rem", fontWeight: "700", color: "#0f172a" }}>Quotation List</h2>
+            <p className="leads-header-subtitle text-muted mb-0" style={{ fontSize: "0.9rem" }}>
               {isEmployee
                 ? "Track verification status for your quotations."
                 : "Review and approve verification requests."}
             </p>
           </div>
-          <Link to="/quotation" className="btn btn-primary">
-            <i className="ti ti-plus me-1"></i>
-            Create Quotation
-          </Link>
+          <div className="d-flex align-items-center gap-2">
+            <Link
+              to="/quotation"
+              className="btn btn-primary create-lead-btn d-flex align-items-center gap-2"
+              style={{ backgroundColor: "#3b82f6", borderColor: "#3b82f6", fontWeight: "600", padding: "10px 20px", borderRadius: "10px" }}
+            >
+              <i className="ti ti-plus" />
+              Create Quotation
+            </Link>
+          </div>
         </div>
+      </div>
 
         {successMessage && (
           <div className="alert alert-success alert-dismissible">
@@ -424,223 +515,31 @@ export default function QuotationListPage() {
           </div>
         )}
 
-        <div className="card">
+        <div className="card table-list-card border-0 shadow-sm" style={{ borderRadius: 12 }}>
           <div className="card-body">
-            {loading ? (
-              <div className="py-5 text-center text-muted">Loading quotations...</div>
-            ) : quotations.length ? (
-              <div className="table-responsive">
-                <table className="table table-bordered table-hover align-middle">
-                  <thead>
-                    <tr>
-                      <th className="col-qno">Quotation No.</th>
-                      <th className="col-customer">Customer</th>
-                      <th className="col-status">Status</th>
-                      <th className="col-date">Date</th>
-                      <th className="col-total">Total</th>
-                      <th className="col-notes">Notes</th>
-                      <th className="col-actions">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {quotations.map((quotation) => {
-                      const status = quotation.status || QUOTATION_STATUS_DRAFT;
-                      const statusUi = getStatusUi(status);
-                      const canEditForEmployee = status === QUOTATION_STATUS_DRAFT || status === QUOTATION_STATUS_NEGOTIATING;
-                      const canDownloadForEmployee = status === QUOTATION_STATUS_APPROVED || status === QUOTATION_STATUS_ACCEPTED;
-                      const canViewQuotation = status !== QUOTATION_STATUS_DRAFT;
-                      const canApprove = canApproveQuotation(quotation, userRole, user);
-
-                      return (
-                        <tr key={quotation.id}>
-                          <td className="col-qno">{quotation.quotationNumber || "-"}</td>
-                          <td className="col-customer">{quotation.clientName || quotation.customerName || "-"}</td>
-                          <td className="col-status">
-                            <span className={statusUi.className}>
-                              {status === QUOTATION_STATUS_VERIFICATION_PENDING && quotation.negotiatingAt
-                                ? "Re-verification Pending"
-                                : status === QUOTATION_STATUS_APPROVED && quotation.negotiatingAt
-                                ? "Re-verification Approved"
-                                : statusUi.label}
-                            </span>
-                            {isEmployee && status === QUOTATION_STATUS_APPROVED && (
-                              <div className="mt-2 desktop-actions">
-                                <button
-                                  type="button"
-                                  className="btn btn-info btn-sm w-100"
-                                  onClick={() => handleMarkSent(quotation)}
-                                >
-                                  <i className="ti ti-mail-forward me-1"></i>
-                                  Mark as Sent
-                                </button>
-                              </div>
-                            )}
-                            {isEmployee && status === QUOTATION_STATUS_SENT && (
-                              <div className="mt-2 desktop-actions">
-                                <button
-                                  type="button"
-                                  className="btn btn-secondary btn-sm w-100"
-                                  onClick={() => openCustomerResponseDialog(quotation)}
-                                >
-                                  <i className="ti ti-help me-1"></i>
-                                  Customer Response
-                                </button>
-                              </div>
-                            )}
-                          </td>
-                          <td className="col-date">{formatDate(quotation.quotationDate || quotation.createdAt)}</td>
-                          <td className="col-total">Rs. {Number(quotation.grandTotal ?? quotation.totals?.grandTotal ?? 0).toFixed(2)}</td>
-                          <td className="col-notes">
-                            <div className="small">
-                              <div>
-                                <strong>Employee:</strong> {quotation.verificationRequestNotes || "-"}
-                              </div>
-                              <div>
-                                <strong>Branch Head:</strong> {quotation.approvalNotes || "-"}
-                              </div>
-                            </div>
-                          </td>
-                          <td className="col-actions">
-                            <div className="desktop-actions d-flex flex-wrap gap-2">
-                              <button
-                                type="button"
-                                className="btn btn-primary btn-sm"
-                                onClick={() => handleEdit(quotation)}
-                                disabled={isEmployee && !canEditForEmployee}
-                              >
-                                <i className="ti ti-edit me-1"></i>
-                                Edit
-                              </button>
-
-                              {canViewQuotation && (
-                                <button
-                                  type="button"
-                                  className="btn btn-outline-primary btn-sm"
-                                  onClick={() => handleView(quotation)}
-                                >
-                                  <i className="ti ti-eye me-1"></i>
-                                  View
-                                </button>
-                              )}
-
-                              <button
-                                type="button"
-                                className="btn btn-success btn-sm"
-                                onClick={() => handleDownload(quotation)}
-                                disabled={isEmployee && !canDownloadForEmployee}
-                              >
-                                <i className="ti ti-file-download me-1"></i>
-                                PDF
-                              </button>
-
-                              <button
-                                type="button"
-                                className="btn btn-outline-secondary btn-sm"
-                                onClick={() => openLogDialog(quotation)}
-                              >
-                                <i className="ti ti-history me-1"></i>
-                                Log
-                              </button>
-
-                              {isEmployee && status === QUOTATION_STATUS_DRAFT && (
-                                <button
-                                  type="button"
-                                  className="btn btn-warning btn-sm"
-                                  onClick={() => openVerifyDialog(quotation)}
-                                >
-                                  <i className="ti ti-send me-1"></i>
-                                  Send for Verification
-                                </button>
-                              )}
-
-                              {isEmployee && status === QUOTATION_STATUS_NEGOTIATING && (
-                                <button
-                                  type="button"
-                                  className="btn btn-warning btn-sm"
-                                  onClick={() => openVerifyDialog(quotation)}
-                                >
-                                  <i className="ti ti-send me-1"></i>
-                                  Re-send for Approval
-                                </button>
-                              )}
-
-                              {isHigherAuthority && (
-                                <button
-                                  type="button"
-                                  className="btn btn-info btn-sm"
-                                  onClick={() => openApproveDialog(quotation)}
-                                  disabled={!canApprove}
-                                >
-                                  <i className="ti ti-circle-check me-1"></i>
-                                  {status === QUOTATION_STATUS_APPROVED ? "Approved" : "Approve"}
-                                </button>
-                              )}
-
-                              {userRole === "SUPER_ADMIN" && (
-                                <button
-                                  type="button"
-                                  className="btn btn-danger btn-sm"
-                                  onClick={() => handleDelete(quotation)}
-                                >
-                                  <i className="ti ti-trash me-1"></i>
-                                  Delete
-                                </button>
-                              )}
-                            </div>
-                            <div className="mobile-actions-container d-flex align-items-center gap-1 justify-content-end">
-                              <button
-                                type="button"
-                                className="btn btn-outline-primary btn-sm mobile-action-view"
-                                onClick={() => setSelectedQuotationDetails(quotation)}
-                              >
-                                <i className="ti ti-eye"></i>
-                              </button>
-                              <button
-                                type="button"
-                                className="btn btn-primary btn-sm mobile-action-btn"
-                                onClick={() => handleEdit(quotation)}
-                                disabled={isEmployee && !canEditForEmployee}
-                                title="Edit"
-                                style={{
-                                  width: 34,
-                                  height: 34,
-                                  padding: 0,
-                                  borderRadius: "50%",
-                                  display: "inline-flex",
-                                  alignItems: "center",
-                                  justifyContent: "center"
-                                }}
-                              >
-                                <i className="ti ti-edit"></i>
-                              </button>
-                              {userRole === "SUPER_ADMIN" && (
-                                <button
-                                  type="button"
-                                  className="btn btn-danger btn-sm mobile-action-btn"
-                                  onClick={() => handleDelete(quotation)}
-                                  title="Delete"
-                                  style={{
-                                    width: 34,
-                                    height: 34,
-                                    padding: 0,
-                                    borderRadius: "50%",
-                                    display: "inline-flex",
-                                    alignItems: "center",
-                                    justifyContent: "center"
-                                  }}
-                                >
-                                  <i className="ti ti-trash"></i>
-                                </button>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+            {/* Redesigned Controls Row */}
+            <div className="leads-controls-bar d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4">
+              {/* Search Box */}
+              <div className="d-flex align-items-center gap-2 p-1 border" style={{ borderRadius: 12, backgroundColor: "#f8fafc", width: "100%", maxWidth: 350 }}>
+                <i className="ti ti-search text-muted ms-2" style={{ fontSize: "1.1rem" }} />
+                <input
+                  type="text"
+                  className="form-control border-0 bg-transparent shadow-none"
+                  placeholder="Search by quotation no., customer, status..."
+                  style={{ height: 36, fontSize: "0.9rem" }}
+                  value={searchText}
+                  onChange={(e) => setSearchText(e.target.value)}
+                />
               </div>
-            ) : (
+            </div>
+
+            {loading ? (
+              <div className="py-5 text-center text-muted">
+                <div className="spinner-border text-primary" role="status">
+                  <span className="sr-only">Loading...</span>
+                </div>
+              </div>
+            ) : pagedQuotations.length === 0 ? (
               <div className="text-center py-5">
                 <h5 className="mb-2">No quotations found</h5>
                 <p className="text-muted mb-3">
@@ -652,6 +551,243 @@ export default function QuotationListPage() {
                   Create Quotation
                 </Link>
               </div>
+            ) : (
+              <>
+                <div
+                  className="table-responsive leads-table-wrap border-0 shadow-sm mb-4"
+                  style={{ overflowX: "auto", WebkitOverflowScrolling: "touch", touchAction: "pan-x", borderRadius: 12, minHeight: "260px" }}
+                >
+                  <table className="table table-hover align-middle leads-table mb-0">
+                    <thead>
+                      <tr>
+                        <th
+                          className="col-qno text-muted"
+                          style={{ fontWeight: "600", fontSize: "0.85rem", cursor: "pointer", userSelect: "none" }}
+                          onClick={() => handleSort("quotationNumber")}
+                        >
+                          Quotation No. {sortField === "quotationNumber" && <span className="ms-1 sort-indicator text-muted">{sortOrder === "asc" ? "▲" : "▼"}</span>}
+                        </th>
+                        <th
+                          className="col-customer text-muted"
+                          style={{ fontWeight: "600", fontSize: "0.85rem", cursor: "pointer", userSelect: "none" }}
+                          onClick={() => handleSort("customer")}
+                        >
+                          Customer {sortField === "customer" && <span className="ms-1 sort-indicator text-muted">{sortOrder === "asc" ? "▲" : "▼"}</span>}
+                        </th>
+                        <th
+                          className="col-status text-muted"
+                          style={{ fontWeight: "600", fontSize: "0.85rem", cursor: "pointer", userSelect: "none" }}
+                          onClick={() => handleSort("status")}
+                        >
+                          Status {sortField === "status" && <span className="ms-1 sort-indicator text-muted">{sortOrder === "asc" ? "▲" : "▼"}</span>}
+                        </th>
+                        <th
+                          className="col-date text-muted"
+                          style={{ fontWeight: "600", fontSize: "0.85rem", cursor: "pointer", userSelect: "none" }}
+                          onClick={() => handleSort("date")}
+                        >
+                          Date {sortField === "date" && <span className="ms-1 sort-indicator text-muted">{sortOrder === "asc" ? "▲" : "▼"}</span>}
+                        </th>
+                        <th
+                          className="col-total text-muted"
+                          style={{ fontWeight: "600", fontSize: "0.85rem", cursor: "pointer", userSelect: "none" }}
+                          onClick={() => handleSort("total")}
+                        >
+                          Total {sortField === "total" && <span className="ms-1 sort-indicator text-muted">{sortOrder === "asc" ? "▲" : "▼"}</span>}
+                        </th>
+                        <th className="col-notes text-muted" style={{ fontWeight: "600", fontSize: "0.85rem" }}>Notes</th>
+                        <th className="col-actions text-muted" style={{ fontWeight: "600", fontSize: "0.85rem" }}>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pagedQuotations.map((quotation) => {
+                        const status = quotation.status || QUOTATION_STATUS_DRAFT;
+                        const statusUi = getStatusUi(status);
+                        const canApprove = canApproveQuotation(quotation, userRole, user);
+                        const isApprovedOrAccepted = status === QUOTATION_STATUS_APPROVED || status === QUOTATION_STATUS_ACCEPTED;
+
+                        return (
+                          <tr key={quotation.id}>
+                            <td className="col-qno fw-semibold" style={{ color: "#1e293b", fontSize: "0.9rem" }}>{quotation.quotationNumber || "-"}</td>
+                            <td className="col-customer" style={{ fontSize: "0.9rem" }}>{quotation.clientName || quotation.customerName || "-"}</td>
+                            <td className="col-status">
+                              <span className={statusUi.className}>
+                                {status === QUOTATION_STATUS_VERIFICATION_PENDING && quotation.negotiatingAt
+                                  ? "Re-verification Pending"
+                                  : status === QUOTATION_STATUS_APPROVED && quotation.negotiatingAt
+                                  ? "Re-verification Approved"
+                                  : statusUi.label}
+                              </span>
+                              {isEmployee && status === QUOTATION_STATUS_APPROVED && (
+                                <div className="mt-2">
+                                  <button
+                                    type="button"
+                                    className="btn btn-info btn-sm w-100"
+                                    onClick={() => handleMarkSent(quotation)}
+                                  >
+                                    <i className="ti ti-mail-forward me-1"></i>
+                                    Mark as Sent
+                                  </button>
+                                </div>
+                              )}
+                              {isEmployee && status === QUOTATION_STATUS_SENT && (
+                                <div className="mt-2">
+                                  <button
+                                    type="button"
+                                    className="btn btn-secondary btn-sm w-100"
+                                    onClick={() => openCustomerResponseDialog(quotation)}
+                                  >
+                                    <i className="ti ti-help me-1"></i>
+                                    Customer Response
+                                  </button>
+                                </div>
+                              )}
+                            </td>
+                            <td className="col-date" style={{ fontSize: "0.9rem" }}>{formatDate(quotation.quotationDate || quotation.createdAt)}</td>
+                            <td className="col-total fw-semibold text-success" style={{ fontSize: "0.9rem" }}>Rs. {Number(quotation.grandTotal ?? quotation.totals?.grandTotal ?? 0).toFixed(2)}</td>
+                            <td className="col-notes" style={{ fontSize: "0.85rem" }}>
+                              <div className="small">
+                                <div>
+                                  <strong>Employee:</strong> {quotation.verificationRequestNotes || "-"}
+                                </div>
+                                <div>
+                                  <strong>Branch Head:</strong> {quotation.approvalNotes || "-"}
+                                </div>
+                              </div>
+                            </td>
+                            <td className="col-actions">
+                              <div className="d-flex align-items-center gap-2">
+                                <button
+                                  className="btn btn-kebab-actions d-flex align-items-center justify-content-center"
+                                  style={{ width: 32, height: 32, borderRadius: "50%", border: "none", backgroundColor: "transparent", color: "#64748b" }}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (activeActionsRow?.id === quotation.id) {
+                                      setActiveActionsRow(null);
+                                    } else {
+                                      const rect = e.currentTarget.getBoundingClientRect();
+                                      setActionsMenuPos({
+                                        top: rect.top + window.scrollY,
+                                        left: rect.right + window.scrollX,
+                                      });
+                                      setActiveActionsRow(quotation);
+                                    }
+                                  }}
+                                >
+                                  <i className="ti ti-dots-vertical" style={{ fontSize: "1.15rem" }} />
+                                </button>
+                                {canApprove && (
+                                  <button
+                                    type="button"
+                                    className="btn btn-success btn-sm d-flex align-items-center gap-1"
+                                    style={{ padding: "6px 12px", borderRadius: 8, fontSize: "0.85rem", fontWeight: "600" }}
+                                    onClick={() => openApproveDialog(quotation)}
+                                  >
+                                    <i className="ti ti-circle-check"></i>
+                                    Approve
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Pagination Footer */}
+                <div className="leads-pagination-footer d-flex flex-wrap align-items-center justify-content-between gap-3 mt-4 pt-3 border-top">
+                  <span className="entries-info text-muted small">
+                    Showing {(page - 1) * pageSize + 1} to {Math.min(page * pageSize, filteredQuotations.length)} of {filteredQuotations.length} entries
+                  </span>
+
+                  <div className="pagination-numbers-container d-flex align-items-center gap-1">
+                    <button
+                      type="button"
+                      className="btn-pagination-arrow btn btn-sm btn-light border-0 d-flex align-items-center justify-content-center"
+                      style={{ width: 32, height: 32, borderRadius: 6 }}
+                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      disabled={page <= 1}
+                    >
+                      <i className="ti ti-chevron-left" />
+                    </button>
+
+                    {(() => {
+                      const buttons = [];
+                      const maxVisible = 5;
+                      let startPage = Math.max(1, page - 2);
+                      let endPage = Math.min(totalPages, startPage + maxVisible - 1);
+                      if (maxVisible - 1 > endPage - startPage) {
+                        startPage = Math.max(1, endPage - maxVisible + 1);
+                      }
+
+                      if (startPage > 1) {
+                        buttons.push(
+                          <button
+                            key={1}
+                            className={`btn-pagination-num btn btn-sm border-0 ${page === 1 ? 'btn-primary text-white' : 'btn-light'}`}
+                            style={{ width: 32, height: 32, borderRadius: 6, fontWeight: "500", backgroundColor: page === 1 ? "#3b82f6" : undefined }}
+                            onClick={() => setPage(1)}
+                          >
+                            1
+                          </button>
+                        );
+                        if (startPage > 2) {
+                          buttons.push(<span key="dots-start" className="pagination-dots px-1 text-muted">...</span>);
+                        }
+                      }
+
+                      for (let i = startPage; endPage >= i; i++) {
+                        buttons.push(
+                          <button
+                            key={i}
+                            className={`btn-pagination-num btn btn-sm border-0 ${page === i ? 'btn-primary text-white' : 'btn-light'}`}
+                            style={{ width: 32, height: 32, borderRadius: 6, fontWeight: "500", backgroundColor: page === i ? "#3b82f6" : undefined }}
+                            onClick={() => setPage(i)}
+                          >
+                            {i}
+                          </button>
+                        );
+                      }
+
+                      if (totalPages > endPage) {
+                        if (totalPages - 1 > endPage) {
+                          buttons.push(<span key="dots-end" className="pagination-dots px-1 text-muted">...</span>);
+                        }
+                        buttons.push(
+                          <button
+                            key={totalPages}
+                            className={`btn-pagination-num btn btn-sm border-0 ${page === totalPages ? 'btn-primary text-white' : 'btn-light'}`}
+                            style={{ width: 32, height: 32, borderRadius: 6, fontWeight: "500", backgroundColor: page === totalPages ? "#3b82f6" : undefined }}
+                            onClick={() => setPage(totalPages)}
+                          >
+                            {totalPages}
+                          </button>
+                        );
+                      }
+
+                      return buttons;
+                    })()}
+
+                    <button
+                      type="button"
+                      className="btn-pagination-arrow btn btn-sm btn-light border-0 d-flex align-items-center justify-content-center"
+                      style={{ width: 32, height: 32, borderRadius: 6 }}
+                      onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                      disabled={page >= totalPages}
+                    >
+                      <i className="ti ti-chevron-right" />
+                    </button>
+                  </div>
+
+                  <PageSizeSelector
+                    pageSize={pageSize}
+                    setPageSize={setPageSize}
+                    setPage={setPage}
+                  />
+                </div>
+              </>
             )}
           </div>
         </div>
@@ -828,6 +964,7 @@ export default function QuotationListPage() {
           <div className="modal-backdrop fade show quotation-list-backdrop"></div>
         </>
       )}
+
       {selectedQuotationDetails && (
         <>
           <div className="modal fade show d-block" tabIndex="-1" role="dialog" aria-modal="true">
@@ -1000,6 +1137,134 @@ export default function QuotationListPage() {
           </div>
           <div className="modal-backdrop fade show quotation-list-backdrop"></div>
         </>
+      )}
+
+      {activeActionsRow && createPortal(
+        <div
+          className="floating-actions-menu shadow-lg border"
+          style={{
+            position: "absolute",
+            top: actionsMenuPos.top,
+            left: actionsMenuPos.left,
+            transform: "translate(-100%, -100%) translateY(-5px)",
+            zIndex: 9999,
+            background: "#fff",
+            borderRadius: 8,
+            padding: "6px 0",
+            minWidth: 180
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Edit */}
+          <button
+            className="dropdown-item py-2 px-3 text-start d-flex align-items-center gap-2"
+            style={{ fontSize: "0.85rem" }}
+            onClick={() => {
+              handleEdit(activeActionsRow);
+              setActiveActionsRow(null);
+            }}
+            disabled={isEmployee && !(activeActionsRow.status === QUOTATION_STATUS_DRAFT || activeActionsRow.status === QUOTATION_STATUS_NEGOTIATING)}
+          >
+            <i className="ti ti-edit" style={{ fontSize: "1rem", color: "#64748b" }} /> Edit Quotation
+          </button>
+
+          {/* View PDF Preview */}
+          {activeActionsRow.status !== QUOTATION_STATUS_DRAFT && (
+            <button
+              className="dropdown-item py-2 px-3 text-start d-flex align-items-center gap-2"
+              style={{ fontSize: "0.85rem" }}
+              onClick={() => {
+                handleView(activeActionsRow);
+                setActiveActionsRow(null);
+              }}
+            >
+              <i className="ti ti-eye" style={{ fontSize: "1rem", color: "#64748b" }} /> View Preview
+            </button>
+          )}
+
+          {/* Download PDF */}
+          <button
+            className="dropdown-item py-2 px-3 text-start d-flex align-items-center gap-2"
+            style={{ fontSize: "0.85rem" }}
+            onClick={() => {
+              handleDownload(activeActionsRow);
+              setActiveActionsRow(null);
+            }}
+            disabled={isEmployee && !(activeActionsRow.status === QUOTATION_STATUS_APPROVED || activeActionsRow.status === QUOTATION_STATUS_ACCEPTED)}
+          >
+            <i className="ti ti-file-download" style={{ fontSize: "1rem", color: "#64748b" }} /> Download PDF
+          </button>
+
+          {/* Log */}
+          <button
+            className="dropdown-item py-2 px-3 text-start d-flex align-items-center gap-2"
+            style={{ fontSize: "0.85rem" }}
+            onClick={() => {
+              openLogDialog(activeActionsRow);
+              setActiveActionsRow(null);
+            }}
+          >
+            <i className="ti ti-history" style={{ fontSize: "1rem", color: "#64748b" }} /> View Log
+          </button>
+
+          {/* Send for Verification */}
+          {isEmployee && activeActionsRow.status === QUOTATION_STATUS_DRAFT && (
+            <button
+              className="dropdown-item py-2 px-3 text-start d-flex align-items-center gap-2"
+              style={{ fontSize: "0.85rem" }}
+              onClick={() => {
+                openVerifyDialog(activeActionsRow);
+                setActiveActionsRow(null);
+              }}
+            >
+              <i className="ti ti-send" style={{ fontSize: "1rem", color: "#64748b" }} /> Send for Verification
+            </button>
+          )}
+
+          {/* Re-send for Approval */}
+          {isEmployee && activeActionsRow.status === QUOTATION_STATUS_NEGOTIATING && (
+            <button
+              className="dropdown-item py-2 px-3 text-start d-flex align-items-center gap-2"
+              style={{ fontSize: "0.85rem" }}
+              onClick={() => {
+                openVerifyDialog(activeActionsRow);
+                setActiveActionsRow(null);
+              }}
+            >
+              <i className="ti ti-send" style={{ fontSize: "1rem", color: "#64748b" }} /> Re-send for Approval
+            </button>
+          )}
+
+          {/* Approve */}
+          {isHigherAuthority && (
+            <button
+              className="dropdown-item py-2 px-3 text-start d-flex align-items-center gap-2"
+              style={{ fontSize: "0.85rem" }}
+              onClick={() => {
+                openApproveDialog(activeActionsRow);
+                setActiveActionsRow(null);
+              }}
+              disabled={!canApproveQuotation(activeActionsRow, userRole, user)}
+            >
+              <i className="ti ti-circle-check" style={{ fontSize: "1rem", color: "#64748b" }} /> Approve
+            </button>
+          )}
+
+          {/* Delete */}
+          {userRole === "SUPER_ADMIN" && (
+            <button
+              className="dropdown-item py-2 px-3 text-start d-flex align-items-center gap-2 text-danger"
+              style={{ fontSize: "0.85rem" }}
+              onClick={() => {
+                handleDelete(activeActionsRow);
+                setActiveActionsRow(null);
+              }}
+            >
+              <i className="ti ti-trash" style={{ fontSize: "1rem", color: "#ef4444" }} /> Delete
+            </button>
+          )}
+        </div>,
+        document.body
       )}
     </>
   );

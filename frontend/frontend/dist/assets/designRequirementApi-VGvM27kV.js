@@ -1,1 +1,0 @@
-import{w as t}from"./index-B5DXsv_A.js";const n=async s=>{try{return(await t.get(`/api/v1/design-requirements/lead/${s}`)).data||null}catch(e){if(e?.response?.status===404||e?.response?.status===204)return null;throw e}};export{n as g};

@@ -1,0 +1,1 @@
+import{j as i}from"./index-BR3vcIvB.js";function a(){return i.jsx("div",{className:"card",children:i.jsxs("div",{className:"card-body",children:[i.jsx("h4",{className:"mb-2",children:"Notification Settings"}),i.jsx("p",{className:"mb-0",children:"Layout working confirmation."})]})})}export{a as default};

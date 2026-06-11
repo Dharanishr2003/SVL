@@ -2563,5 +2563,39 @@ table.dataTable.dtr-inline.collapsed
     border-radius: 16px !important;
     border: none !important;
     box-shadow: none !important;
-  }
 }
+
+/* ── Sidebar active: text-only highlight (no background fill) ── */
+/* Ensure all active sidebar text (both top-level and submenu items) are orange */
+.sidebar .sidebar-menu a.active:not(.subdrop),
+.sidebar .sidebar-menu a.active:not(.subdrop) span,
+.sidebar .sidebar-menu a.active:not(.subdrop) i,
+.sidebar .sidebar-menu li.active > a:not(.subdrop),
+.sidebar .sidebar-menu li.active > a:not(.subdrop) span,
+.sidebar .sidebar-menu li.active > a:not(.subdrop) i {
+  color: #F26522 !important;
+  background: transparent !important;
+}
+
+/* Remove menu arrow backgrounds and color their borders orange for active leaf items */
+.sidebar .sidebar-menu a.active:not(.subdrop) .menu-arrow,
+.sidebar .sidebar-menu li.active > a:not(.subdrop) .menu-arrow {
+  background: transparent !important;
+}
+.sidebar .sidebar-menu a.active:not(.subdrop) .menu-arrow::before,
+.sidebar .sidebar-menu li.active > a:not(.subdrop) .menu-arrow::before {
+  border-color: #F26522 !important;
+}
+
+/* Ensure the parent trigger keeps its white background and dark text when active/subdropped */
+.sidebar .sidebar-menu a.subdrop,
+.sidebar .sidebar-menu a.subdrop span,
+.sidebar .sidebar-menu a.subdrop i {
+  background: #ffffff !important;
+  color: #111827 !important;
+}
+
+
+
+
+

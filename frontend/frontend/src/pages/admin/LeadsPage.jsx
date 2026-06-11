@@ -48,6 +48,12 @@ import { useToast } from "../../components/system/ToastProvider";
 import useConfirmDialog from "../../components/system/useConfirmDialog";
 import { useCountryCodePicker } from "../../hooks/useCountryCodePicker";
 import "./LeadsPage.css";
+import LeadSearch from "../../components/admin/LeadSearch";
+import LeadExportDropdown from "../../components/admin/LeadExportDropdown";
+import LeadFilters from "../../components/admin/LeadFilters";
+import LeadListView from "../../components/admin/LeadListView";
+import LeadGridView from "../../components/admin/LeadGridView";
+import PageSizeSelector from "../../components/admin/PageSizeSelector";
 
 const EMPTY_CREATE_FORM = {
   createBranchId: "",
@@ -349,6 +355,7 @@ export default function LeadsPage() {
   const [leadStatusOptions, setLeadStatusOptions] = useState([]);
 
   const [activeMainTab, setActiveMainTab] = useState('leads');
+  const [viewMode, setViewMode] = useState("list");
   const [duplicateLeads, setDuplicateLeads] = useState([]);
   const [dupLoading, setDupLoading] = useState(false);
   const [dupError, setDupError] = useState('');
@@ -358,6 +365,12 @@ export default function LeadsPage() {
 
   const [activeActionsRow, setActiveActionsRow] = useState(null);
   const [actionsMenuPos, setActionsMenuPos] = useState({ top: 0, left: 0 });
+
+  // Bulk Operations State
+  const [bulkAssignOpen, setBulkAssignOpen] = useState(false);
+  const [bulkAssignUserId, setBulkAssignUserId] = useState("");
+  const [bulkAssignEmployees, setBulkAssignEmployees] = useState([]);
+  const [bulkAssignLoading, setBulkAssignLoading] = useState(false);
 
   useEffect(() => {
     const handleOutsideClickOrScroll = () => {
@@ -388,6 +401,7 @@ export default function LeadsPage() {
   const [sourceOptionsLoaded, setSourceOptionsLoaded] = useState(false);
   const createNameInputRef = useRef(null);
   const createStateInputRef = useRef(null);
+  const isInitialSearch = useRef(true);
 
   const handleAddPrimarySource = async () => {
     const value = String(newPrimarySource || "").trim();
@@ -578,7 +592,38 @@ export default function LeadsPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
 
-  const visibleRows = useMemo(() => rows, [rows]);
+  const [sortField, setSortField] = useState(null);
+  const [sortOrder, setSortOrder] = useState("asc");
+
+  const handleSort = (field) => {
+    if (sortField === field) {
+      setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
+    } else {
+      setSortField(field);
+      setSortOrder("asc");
+    }
+  };
+
+  const visibleRows = useMemo(() => {
+    if (!sortField) return rows;
+    return [...rows].sort((a, b) => {
+      let valA = a[sortField];
+      let valB = b[sortField];
+
+      if (sortField === "createdAt") {
+        const timeA = valA ? new Date(valA).getTime() : 0;
+        const timeB = valB ? new Date(valB).getTime() : 0;
+        return sortOrder === "asc" ? timeA - timeB : timeB - timeA;
+      }
+
+      valA = String(valA || "").toLowerCase();
+      valB = String(valB || "").toLowerCase();
+      if (valA < valB) return sortOrder === "asc" ? -1 : 1;
+      if (valA > valB) return sortOrder === "asc" ? 1 : -1;
+      return 0;
+    });
+  }, [rows, sortField, sortOrder]);
+
   const totalRows = visibleRows.length;
   const pageCount = Math.max(1, Math.ceil(totalRows / Math.max(1, pageSize)));
   const clampedPage = Math.min(Math.max(1, page), pageCount);
@@ -640,6 +685,18 @@ export default function LeadsPage() {
     loadLeads();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (isInitialSearch.current) {
+      isInitialSearch.current = false;
+      return;
+    }
+    const delayDebounce = setTimeout(() => {
+      loadLeads(filters);
+    }, 300);
+    return () => clearTimeout(delayDebounce);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters.search]);
 
   useEffect(() => {
     let isMounted = true;
@@ -1427,6 +1484,81 @@ export default function LeadsPage() {
     });
   };
 
+  const handleBulkDelete = async () => {
+    if (selectedLeadIds.size === 0) return;
+    showConfirm({
+      title: "Delete Multiple Leads",
+      message: `Are you sure you want to delete the selected ${selectedLeadIds.size} leads? This action cannot be undone.`,
+      confirmLabel: "Delete All",
+      cancelLabel: "Cancel",
+      onConfirm: async () => {
+        setSaving(true);
+        setError("");
+        try {
+          await Promise.all(Array.from(selectedLeadIds).map((id) => deleteLead(id)));
+          setRows((prev) => prev.filter((row) => !selectedLeadIds.has(row.id)));
+          setDuplicateLeads((prev) => prev.filter((row) => !selectedLeadIds.has(row.id)));
+          showSuccess(`${selectedLeadIds.size} leads deleted successfully`);
+          setSelectedLeadIds(new Set());
+        } catch (e) {
+          setError(extractApiErrorMessage(e, "Failed to delete some leads"));
+        } finally {
+          setSaving(false);
+        }
+      },
+    });
+  };
+
+  const openBulkAssignModal = async () => {
+    if (selectedLeadIds.size === 0) return;
+    setBulkAssignLoading(true);
+    try {
+      const emps = await getImportableEmployees();
+      setBulkAssignEmployees(Array.isArray(emps) ? emps : []);
+      setBulkAssignOpen(true);
+    } catch (e) {
+      showError(extractApiErrorMessage(e, "Failed to load employees for assignment"));
+    } finally {
+      setBulkAssignLoading(false);
+    }
+  };
+
+  const submitBulkAssign = async () => {
+    if (!bulkAssignUserId) {
+      showError("Please select an employee");
+      return;
+    }
+    setBulkAssignLoading(true);
+    try {
+      const emp = bulkAssignEmployees.find((e) => String(e.id) === String(bulkAssignUserId));
+      const empName = emp ? emp.username || emp.name : "Assigned";
+      
+      await Promise.all(
+        Array.from(selectedLeadIds).map((id) =>
+          updateLeadAllocator(id, Number(bulkAssignUserId))
+        )
+      );
+
+      setRows((prev) =>
+        prev.map((row) => {
+          if (selectedLeadIds.has(row.id)) {
+            return { ...row, owner: empName, ownerUserId: Number(bulkAssignUserId) };
+          }
+          return row;
+        })
+      );
+      
+      showSuccess(`Allocated ${selectedLeadIds.size} leads successfully`);
+      setSelectedLeadIds(new Set());
+      setBulkAssignOpen(false);
+      setBulkAssignUserId("");
+    } catch (e) {
+      showError(extractApiErrorMessage(e, "Failed to assign some leads"));
+    } finally {
+      setBulkAssignLoading(false);
+    }
+  };
+
   const orderedLeadStatuses = useMemo(() => {
     const currentRowStatus = String(statusLead?.status || "").trim();
     const flowStatuses = Array.isArray(flowRules)
@@ -1530,6 +1662,10 @@ export default function LeadsPage() {
   };
 
   const exportCsv = () => {
+    const targetRows = selectedLeadIds.size > 0
+      ? visibleRows.filter((r) => selectedLeadIds.has(r.id))
+      : visibleRows;
+
     const headers = [
       "Lead ID",
       "Name",
@@ -1542,7 +1678,7 @@ export default function LeadsPage() {
       "Owner",
       "Created Date",
     ];
-    const body = visibleRows.map((row) => [
+    const body = targetRows.map((row) => [
       row.leadId || "",
       row.name || "",
       row.mobile || "",
@@ -1565,10 +1701,91 @@ export default function LeadsPage() {
   };
 
   const exportExcel = () => {
-    exportCsv();
+    const targetRows = selectedLeadIds.size > 0
+      ? visibleRows.filter((r) => selectedLeadIds.has(r.id))
+      : visibleRows;
+
+    const headers = [
+      "Lead ID",
+      "Name",
+      "Mobile",
+      "Email",
+      "Primary",
+      "Secondary",
+      "Status",
+      "Group",
+      "Owner",
+      "Created Date",
+    ];
+
+    const escapeXml = (unsafe) => {
+      return String(unsafe ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&apos;");
+    };
+
+    const headerHtml = `      <tr>
+        ${headers.map((h) => `<th>${escapeXml(h)}</th>`).join("\n        ")}
+      </tr>`;
+
+    const rowsHtml = targetRows
+      .map(
+        (row) => `      <tr>
+        <td>${escapeXml(row.leadId)}</td>
+        <td>${escapeXml(row.name)}</td>
+        <td>${escapeXml(row.mobile)}</td>
+        <td>${escapeXml(row.email)}</td>
+        <td>${escapeXml(row.primarySource)}</td>
+        <td>${escapeXml(row.secondarySource)}</td>
+        <td>${escapeXml(row.status)}</td>
+        <td>${escapeXml(row.leadGroupName)}</td>
+        <td>${escapeXml(row.owner)}</td>
+        <td>${escapeXml(row.createdAt)}</td>
+      </tr>`,
+      )
+      .join("\n");
+
+    const template = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+<head>
+<!--[if gte mso 9]>
+<xml>
+  <x:ExcelWorkbook>
+    <x:ExcelWorksheets>
+      <x:ExcelWorksheet>
+        <x:Name>Leads</x:Name>
+        <x:WorksheetOptions>
+          <x:DisplayGridlines/>
+        </x:WorksheetOptions>
+      </x:ExcelWorksheet>
+    </x:ExcelWorksheets>
+  </x:ExcelWorkbook>
+</xml>
+<![endif]-->
+<meta http-equiv="content-type" content="text/plain; charset=UTF-8"/>
+</head>
+<body>
+  <table>
+    <thead>
+${headerHtml}
+    </thead>
+    <tbody>
+${rowsHtml}
+    </tbody>
+  </table>
+</body>
+</html>`;
+
+    downloadTextFile(`leads-${Date.now()}.xls`, template, "application/vnd.ms-excel;charset=utf-8;");
   };
 
   const exportPdf = () => {
+    const targetRows = selectedLeadIds.size > 0
+      ? visibleRows.filter((r) => selectedLeadIds.has(r.id))
+      : visibleRows;
+
     const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
     const title = "Leads Export";
     const generatedAt = new Date().toLocaleString();
@@ -1590,7 +1807,7 @@ export default function LeadsPage() {
       "Created Date",
     ]];
 
-    const body = visibleRows.map((row) => [
+    const body = targetRows.map((row) => [
       row.leadId || "",
       row.name || "",
       row.mobile || "",
@@ -1618,35 +1835,37 @@ export default function LeadsPage() {
 
   return (
     <div className="content"><div className="container-fluid leads-page-shell">
-      <div className="leads-page-header d-flex align-items-center justify-content-between mb-4">
-        <div>
-          <h2 className="leads-header-title mb-1">Leads</h2>
-          <p className="leads-header-subtitle text-muted mb-0">Add, view and manage all your leads in one place.</p>
-        </div>
-        <div className="d-flex align-items-center gap-2">
-          {role !== "EMPLOYEE" && (
+      <div className="card border-0 shadow-sm p-4 mb-4 bg-white" style={{ borderRadius: 12 }}>
+        <div className="d-flex align-items-center justify-content-between flex-wrap gap-3">
+          <div>
+            <h2 className="leads-header-title mb-1" style={{ fontSize: "1.4rem", fontWeight: "700", color: "#0f172a" }}>Leads</h2>
+            <p className="leads-header-subtitle text-muted mb-0" style={{ fontSize: "0.9rem" }}>Add, view and manage all your leads in one place.</p>
+          </div>
+          <div className="d-flex align-items-center gap-2">
+            {role !== "EMPLOYEE" && (
+              <button
+                className="btn btn-outline-primary d-flex align-items-center gap-2"
+                style={{ borderColor: "#3b82f6", color: "#3b82f6", fontWeight: "600", padding: "10px 20px", borderRadius: "10px" }}
+                onClick={() => navigate('/leads/import')}
+              >
+                <i className="ti ti-upload" />
+                Import Leads
+              </button>
+            )}
             <button
-              className="btn btn-outline-primary d-flex align-items-center gap-2"
-              style={{ borderColor: "#3b82f6", color: "#3b82f6", fontWeight: "600", padding: "10px 20px", borderRadius: "10px" }}
-              onClick={() => navigate('/leads/import')}
+              className="btn btn-primary create-lead-btn d-flex align-items-center gap-2"
+              style={{ backgroundColor: "#3b82f6", borderColor: "#3b82f6", fontWeight: "600", padding: "10px 20px", borderRadius: "10px" }}
+              onClick={openCreateModal}
+              disabled={!canCreateNewLead}
+              title={!canCreateNewLead ? "Your branch flow is assigned to a group outside your access scope." : ""}
             >
-              <i className="ti ti-upload" />
-              Import Leads
+              <i className="ti ti-plus" />
+              Create New Lead
             </button>
-          )}
-          <button
-            className="btn btn-primary create-lead-btn d-flex align-items-center gap-2"
-            style={{ backgroundColor: "#3b82f6", borderColor: "#3b82f6", fontWeight: "600", padding: "10px 20px", borderRadius: "10px" }}
-            onClick={openCreateModal}
-            disabled={!canCreateNewLead}
-            title={!canCreateNewLead ? "Your branch flow is assigned to a group outside your access scope." : ""}
-          >
-            <i className="ti ti-plus" />
-            Create New Lead
-          </button>
+          </div>
         </div>
       </div>
-      <ul className="nav nav-tabs mb-3">
+      <ul className="nav nav-tabs mb-1">
         <li className="nav-item">
           <button
             className={`nav-link ${activeMainTab === 'leads' ? 'active' : ''}`}
@@ -1672,22 +1891,12 @@ export default function LeadsPage() {
           {/* Redesigned Controls Row */}
           <div className="leads-controls-bar d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4">
             {/* Search Input on the Left */}
-            <div className="search-leads-container position-relative flex-grow-1 flex-md-grow-0" style={{ minWidth: "260px" }}>
-              <input
-                className="form-control search-leads-input"
-                style={{ height: 42, borderRadius: 10, paddingLeft: 38, fontSize: "0.95rem" }}
-                value={filters.search}
-                placeholder="Search leads..."
-                onChange={(e) =>
-                  setFilters((prev) => ({ ...prev, search: e.target.value }))
-                }
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") applyFilters();
-                }}
-              />
-              <i className="ti ti-search position-absolute text-muted" style={{ left: 14, top: "50%", transform: "translateY(-50%)", fontSize: "1.1rem" }} />
-            </div>
-
+            <LeadSearch
+              search={filters.search}
+              setSearch={(val) => setFilters((prev) => ({ ...prev, search: val }))}
+              applyFilters={applyFilters}
+            />
+ 
             {/* Actions & Toggles on the Right */}
             <div className="d-flex align-items-center gap-2 flex-wrap">
               <button
@@ -1698,259 +1907,99 @@ export default function LeadsPage() {
                 <i className="ti ti-filter" style={{ fontSize: "1rem" }} />
                 Filters
               </button>
+ 
+              <LeadExportDropdown
+                exportExcel={exportExcel}
+                exportCsv={exportCsv}
+                exportPdf={exportPdf}
+              />
 
-              <div className="dropdown">
+              {/* Layout view toggle */}
+              {/* Layout view toggle */}
+              <div className="d-flex align-items-center gap-1 p-1" style={{ border: "1px solid #e2e8f0", borderRadius: 12, backgroundColor: "#f8fafc" }}>
                 <button
-                  className="btn btn-outline-export dropdown-toggle d-flex align-items-center gap-2"
                   type="button"
-                  id="exportDropdown"
-                  data-bs-toggle="dropdown"
-                  aria-expanded="false"
-                  style={{ height: 42, padding: "0 18px", borderRadius: 10, fontWeight: "500", fontSize: "0.9rem" }}
+                  className="btn d-flex align-items-center justify-content-center"
+                  style={{
+                    width: 38,
+                    height: 38,
+                    borderRadius: 9,
+                    border: "none",
+                    backgroundColor: viewMode === "list" ? "#3b82f6" : "transparent",
+                    color: viewMode === "list" ? "#fff" : "#64748b",
+                    transition: "all 0.2s ease"
+                  }}
+                  onClick={() => setViewMode("list")}
+                  title="List View"
                 >
-                  <i className="ti ti-download" style={{ fontSize: "1rem" }} />
-                  Export
+                  <i className="ti ti-list" style={{ fontSize: "1.3rem" }} />
                 </button>
-                <ul className="dropdown-menu shadow border-0" aria-labelledby="exportDropdown">
-                  <li>
-                    <button className="dropdown-item py-2 text-start" onClick={exportExcel}>
-                      Excel
-                    </button>
-                  </li>
-                  <li>
-                    <button className="dropdown-item py-2 text-start" onClick={exportCsv}>
-                      CSV
-                    </button>
-                  </li>
-                  <li>
-                    <button className="dropdown-item py-2 text-start" onClick={exportPdf}>
-                      PDF
-                    </button>
-                  </li>
-                </ul>
+                <button
+                  type="button"
+                  className="btn d-flex align-items-center justify-content-center"
+                  style={{
+                    width: 38,
+                    height: 38,
+                    borderRadius: 9,
+                    border: "none",
+                    backgroundColor: viewMode === "grid" ? "#3b82f6" : "transparent",
+                    transition: "all 0.2s ease"
+                  }}
+                  onClick={() => setViewMode("grid")}
+                  title="Grid View"
+                >
+                  <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect x="1" y="1" width="6" height="6" rx="1.5" stroke={viewMode === "grid" ? "#fff" : "#3b82f6"} strokeWidth="2" />
+                    <rect x="11" y="1" width="6" height="6" rx="1.5" stroke={viewMode === "grid" ? "#fff" : "#3b82f6"} strokeWidth="2" />
+                    <rect x="1" y="11" width="6" height="6" rx="1.5" stroke={viewMode === "grid" ? "#fff" : "#3b82f6"} strokeWidth="2" />
+                    <rect x="11" y="11" width="6" height="6" rx="1.5" stroke={viewMode === "grid" ? "#fff" : "#3b82f6"} strokeWidth="2" />
+                  </svg>
+                </button>
               </div>
-
-              {/* Layout view toggle (visual match for mockup) */}
-              <button className="btn btn-layout-toggle d-flex align-items-center justify-content-center" style={{ width: 42, height: 42, borderRadius: 10 }}>
-                <i className="ti ti-layout-grid" style={{ fontSize: "1.1rem" }} />
-              </button>
             </div>
           </div>
 
-          {filterOpen && (
-            <div className="card border-0 shadow-sm filter-drawer-card mb-4" style={{ borderRadius: 14, backgroundColor: "#f8fafc" }}>
-              <div className="card-body p-4">
-                <div className="row g-3">
-                  <div className="col-md-3">
-                    <label className="form-label fw-semibold text-dark mb-2" style={{ fontSize: "0.88rem" }}>Status</label>
-                    <select
-                      className="form-select custom-filter-select"
-                      style={{ height: 42, borderRadius: 8 }}
-                      value={filters.status}
-                      onChange={(e) =>
-                        setFilters((prev) => ({ ...prev, status: e.target.value }))
-                      }
-                    >
-                      <option value="">All Statuses</option>
-                      {(leadFilters.leadStatuses || []).map((item) => (
-                        <option key={item} value={item}>
-                          {item}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="col-md-3">
-                    <label className="form-label fw-semibold text-dark mb-2" style={{ fontSize: "0.88rem" }}>Source</label>
-                    <select
-                      className="form-select custom-filter-select"
-                      style={{ height: 42, borderRadius: 8 }}
-                      value={filters.primary}
-                      onChange={(e) =>
-                        setFilters((prev) => ({ ...prev, primary: e.target.value }))
-                      }
-                    >
-                      <option value="">All Sources</option>
-                      {[...new Set([...primaryOptions, ...leadFilters.primarySources])]
-                        .filter(Boolean)
-                        .map((item) => (
-                          <option key={item} value={item}>
-                            {item}
-                          </option>
-                        ))}
-                    </select>
-                  </div>
-                  <div className="col-md-3">
-                    <label className="form-label fw-semibold text-dark mb-2" style={{ fontSize: "0.88rem" }}>Owner</label>
-                    <select
-                      className="form-select custom-filter-select"
-                      style={{ height: 42, borderRadius: 8 }}
-                      value={filters.owner}
-                      onChange={(e) =>
-                        setFilters((prev) => ({ ...prev, owner: e.target.value }))
-                      }
-                    >
-                      <option value="">All Owners</option>
-                      {(leadFilters.owners || []).map((item) => (
-                        <option key={item} value={item}>
-                          {item}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="col-md-3">
-                    <label className="form-label fw-semibold text-dark mb-2" style={{ fontSize: "0.88rem" }}>Date Range</label>
-                    <select
-                      className="form-select custom-filter-select"
-                      style={{ height: 42, borderRadius: 8 }}
-                      value={filters.quickDate}
-                      onChange={(e) =>
-                        setFilters((prev) => ({ ...prev, quickDate: e.target.value }))
-                      }
-                    >
-                      <option value="">All Dates</option>
-                      <option value="today">Today</option>
-                      <option value="weekly">Last 7 Days</option>
-                      <option value="monthly">Last 30 Days</option>
-                    </select>
-                  </div>
-                </div>
-                <div className="d-flex justify-content-end gap-2 mt-4">
-                  <button className="btn btn-filter-reset" style={{ height: 40, padding: "0 20px", borderRadius: 8, fontWeight: "500" }} onClick={resetFilters}>
-                    Reset
-                  </button>
-                  <button className="btn btn-filter-apply text-white" style={{ height: 40, padding: "0 20px", borderRadius: 8, fontWeight: "500", backgroundColor: "#3b82f6" }} onClick={applyFilters}>
-                    Apply Filters
-                  </button>
-                </div>
-              </div>
-            </div>
+          <LeadFilters
+            filterOpen={filterOpen}
+            filters={filters}
+            setFilters={setFilters}
+            leadFilters={leadFilters}
+            primaryOptions={primaryOptions}
+            resetFilters={resetFilters}
+            applyFilters={applyFilters}
+          />
+
+          {viewMode === "list" ? (
+            <LeadListView
+              pagedRows={pagedRows}
+              loading={loading}
+              selectedLeadIds={selectedLeadIds}
+              toggleSelectAll={toggleSelectAll}
+              toggleLeadSelection={toggleLeadSelection}
+              pageOffset={pageOffset}
+              activeActionsRow={activeActionsRow}
+              setActiveActionsRow={setActiveActionsRow}
+              setActionsMenuPos={setActionsMenuPos}
+              getStatusClass={getStatusClass}
+              formatCreatedOn={formatCreatedOn}
+              sortField={sortField}
+              sortOrder={sortOrder}
+              onSort={handleSort}
+            />
+          ) : (
+            <LeadGridView
+              pagedRows={pagedRows}
+              loading={loading}
+              selectedLeadIds={selectedLeadIds}
+              toggleLeadSelection={toggleLeadSelection}
+              activeActionsRow={activeActionsRow}
+              setActiveActionsRow={setActiveActionsRow}
+              setActionsMenuPos={setActionsMenuPos}
+              getStatusClass={getStatusClass}
+              formatCreatedOn={formatCreatedOn}
+              navigate={navigate}
+            />
           )}
-
-          <div
-            className="table-responsive leads-table-wrap border-0 shadow-sm mb-4"
-            style={{ overflowX: "auto", WebkitOverflowScrolling: "touch", touchAction: "pan-x", borderRadius: 12, minHeight: "260px" }}
-          >
-            <table className="table table-hover align-middle leads-table mb-0">
-              <thead>
-                <tr>
-                  <th className="col-select" style={{ width: 36 }}>
-                    <input
-                      type="checkbox"
-                      className="form-check-input"
-                      checked={
-                        pagedRows.length > 0 &&
-                        pagedRows.every((row) => selectedLeadIds.has(row.id))
-                      }
-                      onChange={toggleSelectAll}
-                    />
-                  </th>
-                  <th className="col-index text-nowrap text-muted" style={{ fontWeight: "600", fontSize: "0.85rem" }}>#</th>
-                  <th className="col-name text-muted" style={{ fontWeight: "600", fontSize: "0.85rem" }}>
-                    Name <span className="ms-1 sort-indicator text-muted">↕</span>
-                  </th>
-                  <th className="col-mobile text-muted" style={{ fontWeight: "600", fontSize: "0.85rem" }}>Mobile</th>
-                  {/* <th className="col-primary text-muted" style={{ fontWeight: "600", fontSize: "0.85rem" }}>
-                    Primary <span className="ms-1 sort-indicator text-muted">↕</span>
-                  </th> */}
-                  {/* <th className="col-secondary text-muted" style={{ fontWeight: "600", fontSize: "0.85rem" }}>
-                    Secondary <span className="ms-1 sort-indicator text-muted">↕</span>
-                  </th> */}
-                   <th className="col-source text-muted" style={{ fontWeight: "600", fontSize: "0.85rem" }}>
-                    Source <span className="ms-1 sort-indicator text-muted">↕</span>
-                  </th>
-                  <th className="col-status text-muted" style={{ fontWeight: "600", fontSize: "0.85rem" }}>
-                    Status <span className="ms-1 sort-indicator text-muted">↕</span>
-                  </th>
-                 
-                  <th className="col-owner text-muted" style={{ fontWeight: "600", fontSize: "0.85rem" }}>
-                    Owner <span className="ms-1 sort-indicator text-muted">↕</span>
-                  </th>
-                  <th className="col-date text-muted" style={{ fontWeight: "600", fontSize: "0.85rem" }}>Created On</th>
-                  <th className="col-actions text-muted" style={{ fontWeight: "600", fontSize: "0.85rem" }}>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {loading ? (
-                  <tr>
-                    <td colSpan={11} className="text-center py-4 text-muted">Loading...</td>
-                  </tr>
-                ) : pagedRows.length === 0 ? (
-                  <tr>
-                    <td colSpan={11} className="text-center py-4 text-muted">No leads found</td>
-                  </tr>
-                ) : (
-                  pagedRows.map((row, index) => {
-                    const statusKey = String(row.status || "").trim().toLowerCase();
-                    const isDealRow = statusKey === "deal";
-                    return (
-                      <tr key={row.id}>
-                        <td className="col-select">
-                          {isDealRow ? null : (
-                            <input
-                              type="checkbox"
-                              className="form-check-input"
-                              checked={selectedLeadIds.has(row.id)}
-                              onChange={() => toggleLeadSelection(row.id)}
-                            />
-                          )}
-                        </td>
-                        <td className="col-index text-muted" style={{ fontSize: "0.9rem" }}>{pageOffset + index + 1}</td>
-                        <td className="col-name fw-semibold" style={{ color: "#1e293b", fontSize: "0.9rem" }}>{row.name || "-"}</td>
-                        <td className="col-mobile" style={{ fontSize: "0.9rem" }}>
-                          <div className="d-flex align-items-center gap-2">
-                            <span>{row.mobile || "-"}</span>
-                            {row.mobile && (
-                              <a
-                                className="btn-phone-call d-flex align-items-center justify-content-center"
-                                href={`tel:${row.mobile}`}
-                                style={{ width: 28, height: 28, borderRadius: "50%", border: "1px solid #e2e8f0", color: "#64748b", backgroundColor: "#fff" }}
-                              >
-                                <PhoneGlyph size={11} />
-                              </a>
-                            )}
-                          </div>
-                        </td>
-                        {/* <td className="col-primary" style={{ fontSize: "0.9rem", color: "#475569" }}>{row.primarySource || "-"}</td> */}
-                        {/* <td className="col-secondary" style={{ fontSize: "0.9rem", color: "#475569" }}>{row.secondarySource || "-"}</td> */}
-                                               <td className="col-source" style={{ fontSize: "0.9rem", color: "#475569" }}>{row.secondarySource || row.primarySource || "-"}</td>
-
-                        <td className="col-status">
-                          <span className={`status-pill ${getStatusClass(row.status)}`}>
-                            {row.status || "-"}
-                          </span>
-                        </td>
-                        <td className="col-owner" style={{ fontSize: "0.9rem", color: "#475569" }}>
-                          {row.owner || "-"}
-                        </td>
-                        <td className="col-date" style={{ fontSize: "0.9rem", color: "#475569" }}>{formatCreatedOn(row.createdAt)}</td>
-                        <td className="col-actions">
-                          <button
-                            className="btn btn-kebab-actions d-flex align-items-center justify-content-center"
-                            style={{ width: 32, height: 32, borderRadius: "50%", border: "none", backgroundColor: "transparent", color: "#64748b" }}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (activeActionsRow?.id === row.id) {
-                                setActiveActionsRow(null);
-                              } else {
-                                const rect = e.currentTarget.getBoundingClientRect();
-                                setActionsMenuPos({
-                                  top: rect.top + window.scrollY,
-                                  left: rect.right + window.scrollX,
-                                });
-                                setActiveActionsRow(row);
-                              }
-                            }}
-                          >
-                            <i className="ti ti-dots-vertical" style={{ fontSize: "1.15rem" }} />
-                          </button>
-                        </td>
-                      </tr>
-                    )
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
 
           {/* Redesigned Pagination Footer */}
           <div className="leads-pagination-footer d-flex flex-wrap align-items-center justify-content-between gap-3 mt-4 pt-3 border-top">
@@ -2041,145 +2090,127 @@ export default function LeadsPage() {
             </div>
 
             {/* Page Size Selector */}
-            <div className="d-flex align-items-center gap-2">
-              <span className="text-muted small">Show</span>
-              <select
-                className="form-select show-entries-select"
-                style={{ width: 95, height: 36, padding: "0 8px", borderRadius: 8, fontSize: "0.85rem" }}
-                value={pageSize}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  if (val === "custom") {
-                    const num = window.prompt("Enter custom rows per page:", pageSize);
-                    const parsed = parseInt(num, 10);
-                    if (!isNaN(parsed) && parsed > 0) {
-                      setPageSize(parsed);
-                    }
-                  } else {
-                    setPageSize(Number(val));
-                  }
-                  setPage(1);
-                }}
-              >
-                {(() => {
-                  const defaultOptions = [10, 25, 50, 100];
-                  const renderOptions = [...defaultOptions];
-                  if (!defaultOptions.includes(pageSize)) {
-                    renderOptions.push(pageSize);
-                    renderOptions.sort((a, b) => a - b);
-                  }
-                  return (
-                    <>
-                      {renderOptions.map((n) => (
-                        <option key={n} value={n}>{n}</option>
-                      ))}
-                      <option value="custom">Custom...</option>
-                    </>
-                  );
-                })()}
-              </select>
-              <span className="text-muted small">entries</span>
-            </div>
+            <PageSizeSelector
+              pageSize={pageSize}
+              setPageSize={setPageSize}
+              setPage={setPage}
+            />
           </div>
       </div>
       )}
 
       {activeMainTab === 'duplicates' && (
-        <div className="card">
-          <div className="card-body">
-            <div className="d-flex justify-content-between align-items-center mb-3">
-              <h6 className="mb-0">Duplicate Leads</h6>
-              <button className="btn btn-sm btn-outline-secondary" onClick={loadDuplicateLeads}>
-                <i className="ti ti-refresh me-1" /> Refresh
-              </button>
-            </div>
-            {dupError && <div className="alert alert-danger py-2">{dupError}</div>}
-            {dupLoading ? (
-              <div className="text-center py-4">
-                <div className="spinner-border spinner-border-sm text-primary" />
-                <div className="text-muted mt-2 small">Loading duplicates…</div>
-              </div>
-            ) : duplicateLeads.length === 0 ? (
-              <div className="text-center py-4 text-muted">
-                <i className="ti ti-circle-check" style={{ fontSize: 32 }} />
-                <div className="mt-2">No duplicate leads</div>
-              </div>
-            ) : (
-              <div className="table-responsive">
-                <table className="table table-hover align-middle">
-                  <thead>
-                    <tr>
-                      <th>#</th>
-                      <th>Name</th>
-                      <th>Mobile</th>
-                      <th>Primary Source</th>
-                      <th>Owner</th>
-                      <th>Matches Existing Lead</th>
-                      <th>Created</th>
-                      <th>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {duplicateLeads.map((lead, idx) => (
-                      <tr key={lead.id}>
-                        <td className="text-muted small">{idx + 1}</td>
-                        <td>{lead.name}</td>
-                        <td>{lead.mobile}</td>
-                        <td>{lead.primarySource}</td>
-                        <td>{lead.owner}</td>
-                        <td>
-                          {lead.duplicateOfLeadRef || lead.duplicateOfLeadName ? (
-                            <span className="small text-danger">
-                              <i className="ti ti-alert-circle me-1" />
-                              {lead.duplicateOfLeadName || '—'}
-                              {lead.duplicateOfLeadRef && (
-                                <span className="text-muted ms-1">({lead.duplicateOfLeadRef})</span>
-                              )}
-                            </span>
-                          ) : (
-                            <span className="badge bg-warning text-dark">Duplicate</span>
-                          )}
-                        </td>
-                        <td className="text-muted small">
-                          {lead.createdAt ? new Date(lead.createdAt).toLocaleDateString() : '—'}
-                        </td>
-                        <td>
-                          <div className="d-flex gap-2">
-                            <button
-                              className="btn btn-sm btn-outline-primary"
-                              onClick={() => navigate(`/leads/${lead.id}`)}
-                              title="Edit Lead"
-                            >
-                              <i className="ti ti-pencil" />
-                            </button>
-                            <button
-                              className="btn btn-sm btn-outline-success"
-                              disabled={convertingLeadId === lead.id}
-                              onClick={() => handleConvertDuplicate(lead.id, false)}
-                              title="Convert to New Lead"
-                            >
-                              {convertingLeadId === lead.id
-                                ? <span className="spinner-border spinner-border-sm" />
-                                : <i className="ti ti-arrow-right" />}
-                            </button>
-                            {role !== 'EMPLOYEE' && (
-                              <button
-                                className="btn btn-sm btn-outline-danger"
-                                onClick={() => handleDeleteLead(lead)}
-                                title="Delete Lead"
-                              >
-                                <i className="ti ti-trash" />
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+        <div className="duplicates-tab-container">
+          <div className="d-flex justify-content-between align-items-center mb-4">
+            <h5 className="mb-0 fw-bold" style={{ color: "#0f172a", fontSize: "1.1rem" }}>Duplicate Leads</h5>
+            <button
+              className="btn btn-outline-filter d-flex align-items-center gap-2"
+              style={{ height: 38, padding: "0 16px", borderRadius: 8, fontWeight: "500", fontSize: "0.85rem" }}
+              onClick={loadDuplicateLeads}
+            >
+              <i className="ti ti-refresh" /> Refresh
+            </button>
           </div>
+          {dupError && <div className="alert alert-danger py-2">{dupError}</div>}
+          {dupLoading ? (
+            <div className="text-center py-5 border-0 shadow-sm bg-white" style={{ borderRadius: 12 }}>
+              <div className="spinner-border spinner-border-sm text-primary mb-2" />
+              <div className="text-muted small">Loading duplicates…</div>
+            </div>
+          ) : duplicateLeads.length === 0 ? (
+            <div className="text-center py-5 text-muted border-0 shadow-sm bg-white" style={{ borderRadius: 12 }}>
+              <i className="ti ti-circle-check text-success" style={{ fontSize: 36 }} />
+              <div className="mt-2 fw-medium">No duplicate leads found</div>
+            </div>
+          ) : (
+            <div
+              className="table-responsive leads-table-wrap border-0 shadow-sm mb-4"
+              style={{ overflowX: "auto", WebkitOverflowScrolling: "touch", touchAction: "pan-x", borderRadius: 12, minHeight: "260px" }}
+            >
+              <table className="table table-hover align-middle leads-table mb-0">
+                <thead>
+                  <tr>
+                    <th className="text-muted" style={{ fontWeight: "600", fontSize: "0.85rem", width: 50 }}>#</th>
+                    <th className="text-muted" style={{ fontWeight: "600", fontSize: "0.85rem" }}>Name</th>
+                    <th className="text-muted" style={{ fontWeight: "600", fontSize: "0.85rem" }}>Mobile</th>
+                    <th className="text-muted" style={{ fontWeight: "600", fontSize: "0.85rem" }}>Primary Source</th>
+                    <th className="text-muted" style={{ fontWeight: "600", fontSize: "0.85rem" }}>Owner</th>
+                    <th className="text-muted" style={{ fontWeight: "600", fontSize: "0.85rem" }}>Matches Existing Lead</th>
+                    <th className="text-muted" style={{ fontWeight: "600", fontSize: "0.85rem" }}>Created</th>
+                    <th className="text-muted" style={{ fontWeight: "600", fontSize: "0.85rem", width: 80 }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {duplicateLeads.map((lead, idx) => (
+                    <tr key={lead.id}>
+                      <td className="text-muted" style={{ fontSize: "0.9rem" }}>{idx + 1}</td>
+                      <td className="fw-semibold" style={{ color: "#1e293b", fontSize: "0.9rem" }}>{lead.name}</td>
+                      <td style={{ fontSize: "0.9rem", color: "#475569" }}>{lead.mobile}</td>
+                      <td style={{ fontSize: "0.9rem", color: "#475569" }}>{lead.primarySource}</td>
+                      <td style={{ fontSize: "0.9rem", color: "#475569" }}>{lead.owner}</td>
+                      <td style={{ fontSize: "0.9rem" }}>
+                        {lead.duplicateOfLeadRef || lead.duplicateOfLeadName ? (
+                          <span className="small text-danger d-inline-flex align-items-center">
+                            <i className="ti ti-alert-circle me-1" />
+                            {lead.duplicateOfLeadName || '—'}
+                            {lead.duplicateOfLeadRef && (
+                              <span className="text-muted ms-1">({lead.duplicateOfLeadRef})</span>
+                            )}
+                          </span>
+                        ) : (
+                          <span className="badge bg-warning text-dark">Duplicate</span>
+                        )}
+                      </td>
+                      <td className="text-muted" style={{ fontSize: "0.9rem" }}>
+                        {lead.createdAt ? new Date(lead.createdAt).toLocaleDateString() : '—'}
+                      </td>
+                      <td>
+                        <div className="dropdown">
+                          <button
+                            className="btn btn-kebab-actions d-flex align-items-center justify-content-center dropdown-toggle no-caret"
+                            style={{ width: 32, height: 32, borderRadius: "50%", border: "none", backgroundColor: "transparent", color: "#64748b" }}
+                            data-bs-toggle="dropdown"
+                            aria-expanded="false"
+                          >
+                            <i className="ti ti-dots-vertical" style={{ fontSize: "1.15rem" }} />
+                          </button>
+                          <ul className="dropdown-menu dropdown-menu-end shadow border-0" style={{ borderRadius: 10, minWidth: 160 }}>
+                            <li>
+                              <button className="dropdown-item py-2 d-flex align-items-center gap-2" style={{ fontSize: "0.85rem" }} onClick={() => navigate(`/leads/${lead.id}`)}>
+                                <i className="ti ti-pencil text-primary" style={{ fontSize: "0.95rem" }} /> Edit Lead
+                              </button>
+                            </li>
+                            <li>
+                              <button
+                                className="dropdown-item py-2 d-flex align-items-center gap-2"
+                                style={{ fontSize: "0.85rem" }}
+                                disabled={convertingLeadId === lead.id}
+                                onClick={() => handleConvertDuplicate(lead.id, false)}
+                              >
+                                {convertingLeadId === lead.id ? (
+                                  <span className="spinner-border spinner-border-sm text-success" />
+                                ) : (
+                                  <i className="ti ti-arrow-right text-success" style={{ fontSize: "0.95rem" }} />
+                                )}
+                                Convert Lead
+                              </button>
+                            </li>
+                            {role !== 'EMPLOYEE' && (
+                              <li>
+                                <button className="dropdown-item py-2 d-flex align-items-center gap-2 text-danger" style={{ fontSize: "0.85rem" }} onClick={() => handleDeleteLead(lead)}>
+                                  <i className="ti ti-trash" style={{ fontSize: "0.95rem" }} /> Delete Lead
+                                </button>
+                              </li>
+                            )}
+                          </ul>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 
@@ -3222,6 +3253,109 @@ export default function LeadsPage() {
           )}
         </div>,
         document.body
+      )}
+
+      {/* Floating Bulk Actions Bar */}
+      {selectedLeadIds.size > 0 && (
+        <div
+          className="position-fixed start-50 translate-middle-x d-flex align-items-center justify-content-between gap-3 shadow-lg px-4 py-3 bg-dark text-white"
+          style={{
+            bottom: 24,
+            borderRadius: 16,
+            zIndex: 1040,
+            minWidth: 400,
+            border: "1px solid rgba(255, 255, 255, 0.15)",
+            animation: "fadeIn 0.2s ease"
+          }}
+        >
+          <div className="d-flex align-items-center gap-2">
+            <span className="badge bg-primary text-white" style={{ fontSize: "0.9rem", padding: "6px 10px" }}>
+              {selectedLeadIds.size}
+            </span>
+            <span className="fw-medium text-white" style={{ color: "#ffffff" }}>leads selected</span>
+          </div>
+          <div className="d-flex align-items-center gap-2">
+            <button
+              className="btn btn-sm d-flex align-items-center gap-1"
+              style={{ borderRadius: 8, padding: "6px 12px", fontSize: "0.85rem", backgroundColor: "rgba(255, 255, 255, 0.15)", color: "#ffffff", border: "1px solid rgba(255, 255, 255, 0.3)" }}
+              onClick={openBulkAssignModal}
+              disabled={bulkAssignLoading}
+            >
+              <i className="ti ti-user-check" /> Assign
+            </button>
+            {role !== "EMPLOYEE" && (
+              <button
+                className="btn btn-sm btn-danger d-flex align-items-center gap-1"
+                style={{ borderRadius: 8, padding: "6px 12px", fontSize: "0.85rem", backgroundColor: "#dc2626", color: "#ffffff", border: "none" }}
+                onClick={handleBulkDelete}
+              >
+                <i className="ti ti-trash" /> Delete
+              </button>
+            )}
+            <button
+              className="btn btn-sm btn-link p-0 ms-2 text-decoration-none"
+              style={{ fontSize: "0.85rem", color: "rgba(255, 255, 255, 0.7)" }}
+              onClick={() => setSelectedLeadIds(new Set())}
+            >
+              Clear
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Assign Modal */}
+      {bulkAssignOpen && (
+        <>
+          <div className="modal fade show" style={{ display: 'block', zIndex: 1060 }} tabIndex="-1">
+            <div className="modal-dialog modal-dialog-centered" style={{ maxWidth: 440 }}>
+              <div className="modal-content">
+                <div className="modal-header">
+                  <h5 className="modal-title">Bulk Allocate Leads</h5>
+                  <button className="btn-close" onClick={() => setBulkAssignOpen(false)} />
+                </div>
+                <div className="modal-body">
+                  <p className="text-muted small">
+                    Select an employee to allocate the <strong>{selectedLeadIds.size}</strong> selected leads to:
+                  </p>
+                  <div className="mb-3">
+                    <label className="form-label fw-semibold">Employee</label>
+                    <select
+                      className="form-select"
+                      value={bulkAssignUserId}
+                      onChange={(e) => setBulkAssignUserId(e.target.value)}
+                    >
+                      <option value="">Select Employee</option>
+                      {bulkAssignEmployees.map((emp) => (
+                        <option key={emp.id} value={emp.id}>
+                          {emp.username || emp.name} ({emp.role})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div className="modal-footer">
+                  <button
+                    className="btn btn-light"
+                    onClick={() => {
+                      setBulkAssignOpen(false);
+                      setBulkAssignUserId("");
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    className="btn btn-primary"
+                    onClick={submitBulkAssign}
+                    disabled={bulkAssignLoading || !bulkAssignUserId}
+                  >
+                    {bulkAssignLoading ? "Assigning..." : "Assign Leads"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="modal-backdrop fade show" style={{ zIndex: 1055 }} />
+        </>
       )}
 
       {confirmDialog}
