@@ -1,5 +1,9 @@
   import React, { useEffect, useMemo, useRef, useState } from "react";
-  import { useLocation, useNavigate } from "react-router-dom";
+  import { Link, useLocation, useNavigate } from "react-router-dom";
+  import PageSizeSelector from "../../components/admin/PageSizeSelector";
+  import LeadExportDropdown from "../../components/admin/LeadExportDropdown";
+  import { jsPDF } from "jspdf";
+  import autoTable from "jspdf-autotable";
   import {
     getEmployees,
     createEmployee,
@@ -27,6 +31,16 @@
   } from "../../utils/phoneUtils";
   import "../../../public/assets/css/addModalShared.css";
   import "./EmployeesPage.css";
+
+  function downloadTextFile(filename, content, mime) {
+    const blob = new Blob([content], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
 
   const EMPTY_FORM = {
     employeeCode: "",
@@ -276,7 +290,12 @@
     const [onboardDepartmentId, setOnboardDepartmentId] = useState("");
     const [onboardDesignationId, setOnboardDesignationId] = useState("");
 
-    const gridView = location.pathname.endsWith("/employees-grid");
+    const [viewMode, setViewMode] = useState(() => localStorage.getItem("employees_view_mode") || "list");
+    const gridView = viewMode === "grid";
+
+    useEffect(() => {
+      localStorage.setItem("employees_view_mode", viewMode);
+    }, [viewMode]);
 
     const [filterOpen, setFilterOpen] = useState(false);
     const [linkModalOpen, setLinkModalOpen] = useState(false);
@@ -296,10 +315,183 @@
       designationId: "",
       profileStatus: "",
     });
+    const [searchText, setSearchText] = useState("");
     const [page, setPage] = useState(1);
     const [pageSize, setPageSize] = useState(25);
     const [totalRows, setTotalRows] = useState(0);
     const [totalPages, setTotalPages] = useState(1);
+    const [sortField, setSortField] = useState("name");
+    const [sortOrder, setSortOrder] = useState("asc");
+
+    // Bulk selection state
+    const [selectedEmployeeIds, setSelectedEmployeeIds] = useState(new Set());
+
+    const toggleSelectAll = () => {
+      const allSelectedOnPage = rows.length > 0 && rows.every((r) => selectedEmployeeIds.has(r.id));
+      setSelectedEmployeeIds((prev) => {
+        const next = new Set(prev);
+        if (allSelectedOnPage) {
+          rows.forEach((r) => next.delete(r.id));
+        } else {
+          rows.forEach((r) => next.add(r.id));
+        }
+        return next;
+      });
+    };
+
+    const toggleEmployeeSelection = (id) => {
+      setSelectedEmployeeIds((prev) => {
+        const next = new Set(prev);
+        if (next.has(id)) {
+          next.delete(id);
+        } else {
+          next.add(id);
+        }
+        return next;
+      });
+    };
+
+    const handleBulkDelete = async () => {
+      if (selectedEmployeeIds.size === 0) return;
+      if (window.confirm(`Are you sure you want to delete the selected ${selectedEmployeeIds.size} employees?`)) {
+        setSaving(true);
+        try {
+          await Promise.all(Array.from(selectedEmployeeIds).map((id) => deleteEmployee(id)));
+          showSuccess(`${selectedEmployeeIds.size} employees deleted successfully`);
+          setSelectedEmployeeIds(new Set());
+          await loadData(page, pageSize, appliedFilters, searchText, sortField, sortOrder);
+        } catch (e) {
+          showError("Failed to delete some employees");
+        } finally {
+          setSaving(false);
+        }
+      }
+    };
+
+    const exportCsv = () => {
+      const headers = ["Employee Code", "Name", "Phone", "Email", "Department", "Designation", "Join Date", "Status", "Profile Status"];
+      const csvRows = [
+        headers.map(h => `"${h}"`).join(","),
+        ...rows.map(row => [
+          row.employeeCode || "",
+          row.name || "",
+          row.phone || "",
+          row.email || "",
+          row.dept || "",
+          row.designation || "",
+          row.joinDate || "",
+          row.status || "",
+          row.profileStatus || ""
+        ].map(val => `"${String(val).replace(/"/g, '""')}"`).join(","))
+      ];
+      downloadTextFile(`employees-${Date.now()}.csv`, csvRows.join("\n"), "text/csv;charset=utf-8;");
+    };
+
+    const exportExcel = () => {
+      const headers = ["Employee Code", "Name", "Phone", "Email", "Department", "Designation", "Join Date", "Status", "Profile Status"];
+      const escapeXml = (unsafe) => {
+        return String(unsafe ?? "")
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&apos;");
+      };
+
+      const headerHtml = `      <tr>
+        ${headers.map((h) => `<th>${escapeXml(h)}</th>`).join("\n        ")}
+      </tr>`;
+
+      const rowsHtml = rows
+        .map(
+          (row) => `      <tr>
+          <td>${escapeXml(row.employeeCode)}</td>
+          <td>${escapeXml(row.name)}</td>
+          <td>${escapeXml(row.phone)}</td>
+          <td>${escapeXml(row.email)}</td>
+          <td>${escapeXml(row.dept)}</td>
+          <td>${escapeXml(row.designation)}</td>
+          <td>${escapeXml(row.joinDate)}</td>
+          <td>${escapeXml(row.status)}</td>
+          <td>${escapeXml(row.profileStatus)}</td>
+        </tr>`,
+        )
+        .join("\n");
+
+      const template = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+<head>
+<!--[if gte mso 9]>
+<xml>
+  <x:ExcelWorkbook>
+    <x:ExcelWorksheets>
+      <x:ExcelWorksheet>
+        <x:Name>Employees</x:Name>
+        <x:WorksheetOptions>
+          <x:DisplayGridlines/>
+        </x:WorksheetOptions>
+      </x:ExcelWorksheet>
+    </x:ExcelWorksheets>
+  </x:ExcelWorkbook>
+</xml>
+<![endif]-->
+<meta http-equiv="content-type" content="text/plain; charset=UTF-8"/>
+</head>
+<body>
+  <table>
+    <thead>
+${headerHtml}
+    </thead>
+    <tbody>
+${rowsHtml}
+    </tbody>
+  </table>
+</body>
+</html>`;
+
+      downloadTextFile(`employees-${Date.now()}.xls`, template, "application/vnd.ms-excel;charset=utf-8;");
+    };
+
+    const exportPdf = () => {
+      const doc = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
+      const title = "Employees Export";
+      const generatedAt = new Date().toLocaleString();
+      doc.setFontSize(14);
+      doc.text(title, 40, 40);
+      doc.setFontSize(10);
+      doc.text(`Generated: ${generatedAt}`, 40, 58);
+
+      const headers = [["Employee Code", "Name", "Phone", "Department", "Designation", "Join Date", "Status", "Profile"]];
+      const data = rows.map((row) => [
+        row.employeeCode || "",
+        row.name || "",
+        row.phone || "",
+        row.dept || "",
+        row.designation || "",
+        row.joinDate || "",
+        row.status || "",
+        row.profileStatus || ""
+      ]);
+
+      autoTable(doc, {
+        startY: 70,
+        head: headers,
+        body: data,
+        theme: "striped",
+        styles: { fontSize: 8 },
+        headStyles: { fillColor: [59, 130, 246] }
+      });
+
+      doc.save(`employees-${Date.now()}.pdf`);
+    };
+
+    const handleSort = (field) => {
+      if (sortField === field) {
+        setSortOrder(prev => prev === "asc" ? "desc" : "asc");
+      } else {
+        setSortField(field);
+        setSortOrder("asc");
+      }
+    };
 
     async function handleSendOfferLetter(emp) { 
       try { 
@@ -308,7 +500,7 @@
         setGeneratedLinkEmployee(emp); 
         setLinkModalOpen(true); 
         showSuccess("Offer letter sent"); 
-        await loadData(page, pageSize, appliedFilters); 
+        await loadData(page, pageSize, appliedFilters, searchText); 
       } catch (e) { 
         const status = e?.response?.status;
         if (status === 409) {
@@ -318,7 +510,7 @@
             setGeneratedLinkEmployee(emp);
             setLinkModalOpen(true);
             showSuccess("Profile completion mail sent");
-            await loadData(page, pageSize, appliedFilters);
+            await loadData(page, pageSize, appliedFilters, searchText);
             return;
           } catch (e2) {
             showError(extractApiErrorMessage(e2, "Failed to send profile completion mail"));
@@ -337,7 +529,7 @@
         setGeneratedLinkEmployee(emp);
         setLinkModalOpen(true);
         showSuccess("Offer letter resent");
-        await loadData(page, pageSize, appliedFilters);
+        await loadData(page, pageSize, appliedFilters, searchText);
       } catch (e) {
         showError(extractApiErrorMessage(e, "Failed to resend offer letter"));
       }
@@ -376,7 +568,7 @@
       return withInactiveSelected(onboardDesignations, onboardDesignationId);
     }, [activeOnboardDesignations, onboardDesignations, onboardMode, onboardDesignationId]);
 
-    const loadData = async (nextPage = page, nextPageSize = pageSize, nextFilters = appliedFilters) => {
+    const loadData = async (nextPage = page, nextPageSize = pageSize, nextFilters = appliedFilters, searchVal = searchText, nextSortField = sortField, nextSortOrder = sortOrder) => {
       setLoading(true);
       try {
         const query = {
@@ -388,6 +580,10 @@
         if (nextFilters?.departmentId) query.departmentId = nextFilters.departmentId;
         if (nextFilters?.designationId) query.designationId = nextFilters.designationId;
         if (nextFilters?.profileStatus) query.profileStatus = nextFilters.profileStatus;
+        if (searchVal.trim()) query.q = searchVal.trim();
+        if (nextSortField) {
+          query.sort = `${nextSortField},${nextSortOrder}`;
+        }
 
         const data = await getEmployees(query);
         const pageRows = Array.isArray(data?.content) ? data.content : Array.isArray(data) ? data : [];
@@ -407,8 +603,12 @@
     };
 
     useEffect(() => {
-      loadData(page, pageSize, appliedFilters);
-    }, [page, pageSize, appliedFilters]);
+      loadData(page, pageSize, appliedFilters, searchText, sortField, sortOrder);
+    }, [page, pageSize, appliedFilters, searchText, sortField, sortOrder]);
+
+    useEffect(() => {
+      setPage(1);
+    }, [searchText]);
 
     const clampedPage = Math.min(Math.max(1, page), totalPages);
     const pageOffset = (clampedPage - 1) * pageSize;
@@ -956,318 +1156,407 @@
       setSelectedId(null);
     };
 
-    if (gridView) {
       return (
-        <div className="container-fluid">
-          <div className="d-flex justify-content-between align-items-center mb-3">
-            <h4 className="mb-0">Employees Grid</h4>
-            <button className="btn btn-primary" onClick={openAdd}>Add Employee +</button>
+      <div className="container-fluid content">
+        {/* Header Block */}
+        <div className="card border-0 shadow-sm p-4 mb-4 bg-white" style={{ borderRadius: 12 }}>
+          <div className="d-flex align-items-center justify-content-between flex-wrap gap-3">
+            <div>
+              <h2 className="leads-header-title mb-1" style={{ fontSize: "1.4rem", fontWeight: "700", color: "#0f172a" }}>Employees</h2>
+              <nav aria-label="breadcrumb">
+                <ol className="breadcrumb mb-0" style={{ fontSize: "0.85rem" }}>
+                  <li className="breadcrumb-item">
+                    <Link to="/admin-dashboard" className="text-decoration-none text-muted">
+                      <i className="ti ti-smart-home" />
+                    </Link>
+                  </li>
+                  <li className="breadcrumb-item text-muted">Employee</li>
+                  <li className="breadcrumb-item active text-primary" aria-current="page">
+                    Employees
+                  </li>
+                </ol>
+              </nav>
+            </div>
+            <div className="d-flex align-items-center gap-2">
+              <button
+                type="button"
+                className="btn btn-primary d-flex align-items-center gap-2"
+                style={{ backgroundColor: "#3b82f6", borderColor: "#3b82f6", fontWeight: "600", padding: "10px 20px", borderRadius: "10px" }}
+                onClick={openAdd}
+              >
+                <i className="ti ti-plus" />
+                Add Employee
+              </button>
+            </div>
           </div>
-          <div className="row">
-            {loading ? <div>Loading...</div> : employeeGridData.map((emp, idx) => (
-              <div className="col-xl-3 col-lg-4 col-md-6 d-flex" key={`${emp.name}-${idx}`}>
-                <div className="card flex-fill">
-                  <div className="card-body">
-                    <div className="position-absolute top-0 end-0 p-2">
-                      <button className="btn btn-sm btn-light" onClick={() => openEditModal(emp)}><EditGlyph size={12} /></button>
-                      <button className="btn btn-sm btn-light text-danger ms-1" onClick={() => confirmDelete(emp.id)}><TrashGlyph size={12} /></button>
-                    </div>
-                    <div className="d-flex align-items-center mb-3">
-                      <img
-                        src={emp.img || "assets/img/users/user-32.jpg"}
-                        alt={emp.name}
-                        className="rounded-circle me-2"
-                        width="42"
-                        height="42"
-                      />
-                      <div>
-                        <h6 className="mb-0">{emp.name || "-"}</h6>
-                        <small className="text-muted">{emp.role}</small>
-                      </div>
-                    </div>
-                    <p className="mb-1">Projects: {emp.projects}</p>
-                    <p className="mb-1">Done: {emp.done}</p>
-                    <p className="mb-1">In Progress: {emp.progress}</p>
-                    <p className="mb-0">Productivity: {emp.productivity}%</p>
-                  </div>
+        </div>
+
+        {/* Content Card */}
+        <div className="card table-list-card border-0 shadow-sm" style={{ borderRadius: 12 }}>
+          <div className="card-body">
+            {/* Search Controls Bar */}
+            <div className="leads-controls-bar d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4">
+              <div className="d-flex align-items-center gap-2 p-1 border" style={{ borderRadius: 12, backgroundColor: "#f8fafc", width: "100%", maxWidth: 350 }}>
+                <i className="ti ti-search text-muted ms-2" style={{ fontSize: "1.1rem" }} />
+                <input
+                  type="text"
+                  className="form-control border-0 bg-transparent shadow-none"
+                  placeholder="Search employees..."
+                  style={{ height: 36, fontSize: "0.9rem" }}
+                  value={searchText}
+                  onChange={(e) => setSearchText(e.target.value)}
+                />
+              </div>
+
+              {/* Actions & Toggles on the Right */}
+              <div className="d-flex align-items-center gap-2 flex-wrap">
+                <button
+                  type="button"
+                  className={`btn btn-outline-filter d-flex align-items-center gap-2 ${filterOpen ? 'active' : ''}`}
+                  style={{ height: 42, padding: "0 18px", borderRadius: 10, fontWeight: "500", fontSize: "0.9rem" }}
+                  onClick={() => setFilterOpen((prev) => !prev)}
+                >
+                  <i className="ti ti-filter" style={{ fontSize: "1rem" }} />
+                  Filters
+                </button>
+
+                <LeadExportDropdown
+                  exportExcel={exportExcel}
+                  exportCsv={exportCsv}
+                  exportPdf={exportPdf}
+                />
+
+                {/* Layout View Toggle */}
+                <div className="d-flex align-items-center gap-1 p-1" style={{ border: "1px solid #e2e8f0", borderRadius: 12, backgroundColor: "#f8fafc" }}>
+                  <button
+                    type="button"
+                    className="btn d-flex align-items-center justify-content-center"
+                    style={{
+                      width: 38,
+                      height: 38,
+                      borderRadius: 9,
+                      border: "none",
+                      backgroundColor: !gridView ? "#3b82f6" : "transparent",
+                      color: !gridView ? "#fff" : "#64748b",
+                      transition: "all 0.2s ease"
+                    }}
+                    onClick={() => setViewMode("list")}
+                    title="List View"
+                  >
+                    <i className="ti ti-list" style={{ fontSize: "1.3rem" }} />
+                  </button>
+                  <button
+                    type="button"
+                    className="btn d-flex align-items-center justify-content-center"
+                    style={{
+                      width: 38,
+                      height: 38,
+                      borderRadius: 9,
+                      border: "none",
+                      backgroundColor: gridView ? "#3b82f6" : "transparent",
+                      color: gridView ? "#fff" : "#64748b",
+                      transition: "all 0.2s ease"
+                    }}
+                    onClick={() => setViewMode("grid")}
+                    title="Grid View"
+                  >
+                    <i className="ti ti-layout-grid" style={{ fontSize: "1.3rem" }} />
+                  </button>
                 </div>
               </div>
-            ))}
-          </div>
-        </div>
-      );
-    }
+            </div>
 
-    return (
-      <div className="container-fluid">
-        <div className="d-flex justify-content-between align-items-center mb-3">
-          <h4 className="mb-0">Employees</h4>
-          <button className="btn btn-primary" onClick={openAdd}>Add Employee +</button>
-        </div>
-        <div className="card">
-          <div className="card-header d-flex justify-content-between align-items-center">
-            <h5 className="mb-0">Employee List</h5>
-            <button
-              className="btn btn-outline-warning leads-toolbar-btn"
-              onClick={() => setFilterOpen((prev) => !prev)}
+            {/* Filter Drawer */}
+            <div
+              className="position-fixed top-0 start-0 w-100 h-100"
+              style={{
+                background: "rgba(15, 23, 42, 0.32)",
+                backdropFilter: "blur(4px)",
+                WebkitBackdropFilter: "blur(4px)",
+                zIndex: 1048,
+                transition: "opacity 0.35s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.35s",
+                opacity: filterOpen ? 1 : 0,
+                visibility: filterOpen ? "visible" : "hidden",
+              }}
+              onClick={() => setFilterOpen(false)}
+            />
+            <div
+              className="filter-drawer position-fixed top-0 end-0 h-100 bg-white border-start shadow-lg d-flex flex-column"
+              style={{
+                width: 380,
+                zIndex: 1049,
+                transition: "transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.4s",
+                transform: filterOpen ? "translateX(0)" : "translateX(100%)",
+                visibility: filterOpen ? "visible" : "hidden",
+              }}
             >
-              <i className="ti ti-filter me-1" />
-              Filter
-            </button>
-          </div>
-          {filterOpen && (
-            <>
-              <div
-                className="position-fixed top-0 start-0 w-100 h-100"
-                style={{ background: "rgba(189, 172, 172, 0.35)", zIndex: 1048 }}
-                onClick={() => setFilterOpen(false)}
-              />
-              <div
-                className="position-fixed top-0 end-0 h-100 bg-white border-start shadow"
-                style={{ width: 380, zIndex: 1049 }}
-              >
-                <div className="d-flex align-items-center justify-content-between p-3 border-bottom">
-                  <h6 className="mb-0">Filters</h6>
-                  <button type="button" className="btn-close" onClick={() => setFilterOpen(false)} />
+              <div className="d-flex align-items-center justify-content-between p-3 border-bottom">
+                <h6 className="mb-0 fw-bold">Filters</h6>
+                <button type="button" className="btn-close" onClick={() => setFilterOpen(false)} />
+              </div>
+              <div className="p-3" style={{ flex: 1, overflowY: "auto", paddingBottom: 100 }}>
+                <div className="mb-3">
+                  <label className="form-label text-muted small fw-semibold">Profile Status</label>
+                  <select
+                    className="form-select"
+                    value={filters.profileStatus}
+                    onChange={(e) => setFilters((prev) => ({ ...prev, profileStatus: e.target.value }))}
+                    disabled={filterLoading}
+                  >
+                    <option value="">All</option>
+                    <option value="DRAFT">DRAFT</option>
+                    <option value="PENDING_VERIFICATION">PENDING_VERIFICATION</option>
+                    <option value="VERIFIED">VERIFIED</option>
+                  </select>
                 </div>
-                <div className="p-3">
+                <div className="mb-3">
+                  <label className="form-label text-muted small fw-semibold">Head Office</label>
+                  <select
+                    className="form-select"
+                    value={filters.headOfficeId}
+                    onChange={(e) => {
+                      const headOfficeId = e.target.value;
+                      setFilters((prev) => ({
+                        ...prev,
+                        headOfficeId,
+                        branchId: "",
+                        departmentId: "",
+                        designationId: "",
+                      }));
+                    }}
+                    disabled={filterLoading || hoLoading}
+                  >
+                    <option value="">All</option>
+                    {[...activeHeadOffices]
+                      .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))
+                      .map((h) => (
+                        <option key={h.id} value={h.id}>
+                          {h.name}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+                {filters.headOfficeId ? (
                   <div className="mb-3">
-                    <label className="form-label">Profile Status</label>
+                    <label className="form-label text-muted small fw-semibold">Branch</label>
                     <select
                       className="form-select"
-                      value={filters.profileStatus}
-                      onChange={(e) => setFilters((prev) => ({ ...prev, profileStatus: e.target.value }))}
-                      disabled={filterLoading}
-                    >
-                      <option value="">All</option>
-                      <option value="DRAFT">DRAFT</option>
-                      <option value="PENDING_VERIFICATION">PENDING_VERIFICATION</option>
-                      <option value="VERIFIED">VERIFIED</option>
-                    </select>
-                  </div>
-                  <div className="mb-3">
-                    <label className="form-label">Head Office</label>
-                    <select
-                      className="form-select"
-                      value={filters.headOfficeId}
+                      value={filters.branchId}
                       onChange={(e) => {
-                        const headOfficeId = e.target.value;
+                        const branchId = e.target.value;
                         setFilters((prev) => ({
                           ...prev,
-                          headOfficeId,
-                          branchId: "",
+                          branchId,
                           departmentId: "",
                           designationId: "",
                         }));
                       }}
-                      disabled={filterLoading || hoLoading}
+                      disabled={!filters.headOfficeId || filterLoading}
                     >
                       <option value="">All</option>
-                      {[...activeHeadOffices]
+                      {[...activeFilterBranches]
                         .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))
-                        .map((h) => (
-                          <option key={h.id} value={h.id}>
-                            {h.name}
+                        .map((b) => (
+                          <option key={b.id} value={b.id}>
+                            {b.name}
                           </option>
                         ))}
                     </select>
                   </div>
-                  {filters.headOfficeId ? (
-                    <div className="mb-3">
-                      <label className="form-label">Branch</label>
-                      <select
-                        className="form-select"
-                        value={filters.branchId}
-                        onChange={(e) => {
-                          const branchId = e.target.value;
-                          setFilters((prev) => ({
-                            ...prev,
-                            branchId,
-                            departmentId: "",
-                            designationId: "",
-                          }));
-                        }}
-                        disabled={!filters.headOfficeId || filterLoading}
-                      >
-                        <option value="">All</option>
-                        {[...activeFilterBranches]
-                          .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))
-                          .map((b) => (
-                            <option key={b.id} value={b.id}>
-                              {b.name}
-                            </option>
-                          ))}
-                      </select>
-                    </div>
-                  ) : null}
-                  {filters.branchId ? (
-                    <div className="mb-3">
-                      <label className="form-label">Department</label>
-                      <select
-                        className="form-select"
-                        value={filters.departmentId}
-                        onChange={(e) => {
-                          const departmentId = e.target.value;
-                          setFilters((prev) => ({
-                            ...prev,
-                            departmentId,
-                            designationId: "",
-                          }));
-                        }}
-                        disabled={!filters.branchId || filterLoading}
-                      >
-                        <option value="">All</option>
-                        {[...activeFilterDepartments]
-                          .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))
-                          .map((d) => (
-                            <option key={d.id} value={d.id}>
-                              {d.name}
-                            </option>
-                          ))}
-                      </select>
-                    </div>
-                  ) : null}
-                  {filters.departmentId ? (
-                    <div className="mb-3">
-                      <label className="form-label">Designation</label>
-                      <select
-                        className="form-select"
-                        value={filters.designationId}
-                        onChange={(e) => setFilters((prev) => ({ ...prev, designationId: e.target.value }))}
-                        disabled={!filters.departmentId || filterLoading}
-                      >
-                        <option value="">All</option>
-                        {[...activeFilterDesignations]
-                          .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))
-                          .map((d) => (
-                            <option key={d.id} value={d.id}>
-                              {d.name}
-                            </option>
-                          ))}
-                      </select>
-                    </div>
-                  ) : null}
-                </div>
-                <div className="p-3 border-top d-flex gap-2">
-                  <button
-                    type="button"
-                    className="btn btn-light w-50"
-                    onClick={() => {
-                      const cleared = {
-                        headOfficeId: "",
-                        branchId: "",
-                        departmentId: "",
-                        designationId: "",
-                        profileStatus: "",
-                      };
-                      setFilters(cleared);
-                      setAppliedFilters(cleared);
-                      setPage(1);
-                      setFilterBranches([]);
-                      setFilterDepartments([]);
-                      setFilterDesignations([]);
-                      setFilterOpen(false);
-                    }}
-                  >
-                    Clear
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-primary w-50"
-                    onClick={() => {
-                      setAppliedFilters(filters);
-                      setPage(1);
-                      setFilterOpen(false);
-                    }}
-                  >
-                    Apply
-                  </button>
-                </div>
+                ) : null}
+                {filters.branchId ? (
+                  <div className="mb-3">
+                    <label className="form-label text-muted small fw-semibold">Department</label>
+                    <select
+                      className="form-select"
+                      value={filters.departmentId}
+                      onChange={(e) => {
+                        const departmentId = e.target.value;
+                        setFilters((prev) => ({
+                          ...prev,
+                          departmentId,
+                          designationId: "",
+                        }));
+                      }}
+                      disabled={!filters.branchId || filterLoading}
+                    >
+                      <option value="">All</option>
+                      {[...activeFilterDepartments]
+                        .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))
+                        .map((d) => (
+                          <option key={d.id} value={d.id}>
+                            {d.name}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+                ) : null}
+                {filters.departmentId ? (
+                  <div className="mb-3">
+                    <label className="form-label text-muted small fw-semibold">Designation</label>
+                    <select
+                      className="form-select"
+                      value={filters.designationId}
+                      onChange={(e) => setFilters((prev) => ({ ...prev, designationId: e.target.value }))}
+                      disabled={!filters.departmentId || filterLoading}
+                    >
+                      <option value="">All</option>
+                      {[...activeFilterDesignations]
+                        .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))
+                        .map((d) => (
+                          <option key={d.id} value={d.id}>
+                            {d.name}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+                ) : null}
               </div>
-            </>
-          )}
-          <div className="card-body p-0">
-            <div className="d-flex flex-wrap align-items-center justify-content-between gap-2 px-3 py-2 border-bottom">
-              <div className="d-flex align-items-center gap-2">
-                <span className="text-muted small">Rows per page</span>
-                <select
-                  className="form-select form-select-sm"
-                  style={{ width: 110 }}
-                  value={pageSize}
-                  onChange={(e) => {
-                    const next = Number(e.target.value);
-                    setPageSize(Number.isFinite(next) && next > 0 ? next : 25);
+              <div className="p-3 border-top d-flex gap-2 position-absolute bottom-0 w-100 bg-white">
+                <button
+                  type="button"
+                  className="btn btn-light w-50"
+                  style={{ borderRadius: 8, fontWeight: "600" }}
+                  onClick={() => {
+                    const cleared = {
+                      headOfficeId: "",
+                      branchId: "",
+                      departmentId: "",
+                      designationId: "",
+                      profileStatus: "",
+                    };
+                    setFilters(cleared);
+                    setAppliedFilters(cleared);
                     setPage(1);
+                    setFilterBranches([]);
+                    setFilterDepartments([]);
+                    setFilterDesignations([]);
+                    setFilterOpen(false);
                   }}
-                  disabled={loading}
                 >
-                  {[10, 25, 50, 100].map((n) => (
-                    <option key={n} value={n}>
-                      {n}
-                    </option>
-                  ))}
-                </select>
-                <span className="text-muted small">
-                  {totalRows === 0
-                    ? "0 rows"
-                    : `Showing ${pageOffset + 1}-${Math.min(pageOffset + pageSize, totalRows)} of ${totalRows}`}
-                </span>
-              </div>
-              <div className="d-flex align-items-center gap-2">
-                <button
-                  type="button"
-                  className="btn btn-sm btn-light"
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  disabled={loading || clampedPage <= 1}
-                >
-                  Prev
+                  Clear
                 </button>
-                <span className="text-muted small">
-                  Page {clampedPage} of {totalPages}
-                </span>
                 <button
                   type="button"
-                  className="btn btn-sm btn-light"
-                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={loading || clampedPage >= totalPages}
+                  className="btn btn-primary w-50"
+                  style={{ borderRadius: 8, fontWeight: "600", backgroundColor: "#3b82f6", borderColor: "#3b82f6" }}
+                  onClick={() => {
+                    setAppliedFilters(filters);
+                    setPage(1);
+                    setFilterOpen(false);
+                  }}
                 >
-                  Next
+                  Apply
                 </button>
               </div>
             </div>
-            <div className="table-responsive">
-              <table className="table table-striped table-hover mb-0">
-                <thead>
-                  <tr>
-                    <th>S.No</th>
-                    <th>Employee</th>
-                   
-                    <th>Phone</th>
-                    <th>Department</th>
-                    <th>Designation</th>
-                    <th>Join Date</th>
-                    <th>Status</th>
-                    <th>Profile</th>
-                    <th>Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {loading ? (
-                    <tr>
-                      <td colSpan="10">Loading...</td>
-                    </tr>
-                  ) : pagedRows.length === 0 ? (
-                    <tr>
-                      <td colSpan="10" className="text-center py-4 text-muted">
-                        No employees found
-                      </td>
-                    </tr>
-                  ) : (
-                    pagedRows.map((emp, idx) => (
-                      <tr key={emp.id}>
-                        <td>{pageOffset + idx + 1}</td>
-                        <td>
-                          <div className="d-flex align-items-center">
+
+            {gridView ? (
+              <div className="row g-3 mb-4">
+                {loading ? (
+                  <div className="col-12 text-center py-4 text-muted">Loading employees...</div>
+                ) : employeeGridData.length === 0 ? (
+                  <div className="col-12 text-center py-4 text-muted">No employees found</div>
+                ) : (
+                  employeeGridData.map((emp, idx) => (
+                    <div className="col-xl-3 col-lg-4 col-md-6 d-flex" key={`${emp.name}-${idx}`}>
+                      <div className="card flex-fill border shadow-none" style={{ borderRadius: 12 }}>
+                        <div className="card-body position-relative">
+                          <div className="position-absolute top-0 start-0 p-2" style={{ zIndex: 10 }}>
+                            <input
+                              type="checkbox"
+                              className="form-check-input"
+                              checked={selectedEmployeeIds.has(emp.id)}
+                              onChange={() => toggleEmployeeSelection(emp.id)}
+                            />
+                          </div>
+                          <div className="position-absolute top-0 end-0 p-2">
+                            <div className="dropdown">
+                              <button
+                                className="btn btn-kebab-actions d-flex align-items-center justify-content-center dropdown-toggle no-caret"
+                                style={{ width: 32, height: 32, borderRadius: "50%", border: "none", backgroundColor: "transparent", color: "#64748b" }}
+                                data-bs-toggle="dropdown"
+                                aria-expanded="false"
+                              >
+                                <i className="ti ti-dots-vertical" style={{ fontSize: "1.15rem" }} />
+                              </button>
+                              <ul className="dropdown-menu dropdown-menu-end shadow border-0" style={{ borderRadius: 10, minWidth: 160 }}>
+                                <li>
+                                  <button className="dropdown-item py-2 d-flex align-items-center gap-2" style={{ fontSize: "0.85rem" }} onClick={() => openEditModal(emp)}>
+                                    <i className="ti ti-pencil text-primary" style={{ fontSize: "0.95rem" }} /> Edit
+                                  </button>
+                                </li>
+                                <li>
+                                  <button className="dropdown-item py-2 d-flex align-items-center gap-2 text-danger" style={{ fontSize: "0.85rem" }} onClick={() => confirmDelete(emp.id)}>
+                                    <i className="ti ti-trash" style={{ fontSize: "0.95rem" }} /> Delete
+                                  </button>
+                                </li>
+                                {(() => {
+                                  const sentPending =
+                                    emp.offerLetterSent &&
+                                    String(emp.profileStatus || "").toUpperCase() === "DRAFT";
+                                  const expiry = emp.offerLetterLinkExpiresAt
+                                    ? String(emp.offerLetterLinkExpiresAt).slice(0, 10)
+                                    : "";
+                                  const title = sentPending
+                                    ? `Already sent${expiry ? ` (valid until ${expiry})` : ""}. Use Resend to send again.`
+                                    : "Send offer letter email";
+                                  return (
+                                    <>
+                                      <li>
+                                        <button
+                                          className="dropdown-item py-2 d-flex align-items-center gap-2"
+                                          style={{ fontSize: "0.85rem" }}
+                                          type="button"
+                                          onClick={() => handleSendOfferLetter(emp)}
+                                          title={title}
+                                          disabled={sentPending}
+                                        >
+                                          <i className="ti ti-mail text-secondary" style={{ fontSize: "0.95rem" }} /> {sentPending ? "Sent" : "Send Mail"}
+                                        </button>
+                                      </li>
+                                      {sentPending && (
+                                        <li>
+                                          <button
+                                            className="dropdown-item py-2 d-flex align-items-center gap-2"
+                                            style={{ fontSize: "0.85rem" }}
+                                            type="button"
+                                            onClick={() =>
+                                              showConfirm({
+                                                title: "Resend offer letter?",
+                                                message:
+                                                  "This will generate a new secure profile link and email it to the employee.",
+                                                confirmLabel: "Resend",
+                                                cancelLabel: "Cancel",
+                                                onConfirm: () => handleResendOfferLetter(emp),
+                                              })
+                                            }
+                                            title="Resend offer letter email"
+                                          >
+                                            <i className="ti ti-refresh text-warning" style={{ fontSize: "0.95rem" }} /> Resend
+                                          </button>
+                                        </li>
+                                      )}
+                                    </>
+                                  );
+                                })()}
+                                {String(emp.profileStatus || "").toUpperCase() !== "VERIFIED" ? (
+                                  <li>
+                                    <button
+                                      className="dropdown-item py-2 d-flex align-items-center gap-2"
+                                      style={{ fontSize: "0.85rem" }}
+                                      type="button"
+                                      onClick={() => navigate(`/employees/${emp.id}/verify`)}
+                                      title="Verify profile"
+                                    >
+                                      <i className="ti ti-checkbox text-success" style={{ fontSize: "0.95rem" }} /> Verify
+                                    </button>
+                                  </li>
+                                ) : null}
+                              </ul>
+                            </div>
+                          </div>
+                          <div className="d-flex align-items-center mb-3">
                             <img
                               src={
                                 emp._raw?.candidatePhotoPath
@@ -1276,99 +1565,342 @@
                               }
                               alt={emp.name}
                               className="rounded-circle me-2"
-                              width="34"
-                              height="34"
+                              width="42"
+                              height="42"
                               onError={(e) => (e.target.src = "assets/img/users/user-32.jpg")}
                             />
-                            <span>{emp.name}</span>
+                            <div>
+                              <h6 className="mb-0 fw-semibold" style={{ color: "#0f172a" }}>{emp.name || "-"}</h6>
+                              <small className="text-muted">{emp.role}</small>
+                            </div>
                           </div>
-                        </td>
-                     
-                        <td>{emp.phone}</td>
-                        <td>{emp.dept || "-"}</td>
-                        <td>{emp.designation}</td>
-                        <td>{emp.joinDate || "-"}</td>
-                        <td>
-                          <span
-                            className={`badge ${
-                              emp.status === "ACTIVE" ? "badge-success" : "badge-danger"
-                            }`}
-                          >
-                            {emp.status === "ACTIVE" ? "Active" : "Inactive"}
-                          </span>
-                        </td>
-                        <td>
-                          <span className="badge badge-info">
-                            {emp.profileStatus || "-"}
-                          </span>
-                        </td>
-                        <td>
-                          <button className="btn btn-sm btn-outline-primary" onClick={() => openEditModal(emp)}>
-                            <EditGlyph size={12} />
-                          </button>
-                          <button className="btn btn-sm btn-outline-danger ms-1" onClick={() => confirmDelete(emp.id)}>
-                            <TrashGlyph size={12} />
-                          </button>
-                          {(() => {
-                            const sentPending =
-                              emp.offerLetterSent &&
-                              String(emp.profileStatus || "").toUpperCase() === "DRAFT";
-                            const expiry = emp.offerLetterLinkExpiresAt
-                              ? String(emp.offerLetterLinkExpiresAt).slice(0, 10)
-                              : "";
-                            const title = sentPending
-                              ? `Already sent${expiry ? ` (valid until ${expiry})` : ""}. Use Resend to send again.`
-                              : "Send offer letter email";
-                            return (
-                              <>
-                                <button
-                                  className="btn btn-sm btn-outline-secondary ms-1"
-                                  type="button"
-                                  onClick={() => handleSendOfferLetter(emp)}
-                                  title={title}
-                                  disabled={sentPending}
-                                >
-                                  {sentPending ? "Sent" : "Send Mail"}
-                                </button>
-                                {sentPending && (
-                                  <button
-                                    className="btn btn-sm btn-outline-warning ms-1"
-                                    type="button"
-                                    onClick={() =>
-                                      showConfirm({
-                                        title: "Resend offer letter?",
-                                        message:
-                                          "This will generate a new secure profile link and email it to the employee.",
-                                        confirmLabel: "Resend",
-                                        cancelLabel: "Cancel",
-                                        onConfirm: () => handleResendOfferLetter(emp),
-                                      })
-                                    }
-                                    title="Resend offer letter email"
-                                  >
-                                    Resend
-                                  </button>
-                                )}
-                              </>
-                            );
-                          })()}
-                          {String(emp.profileStatus || "").toUpperCase() !== "VERIFIED" ? (
-                            <button
-                              className="btn btn-sm btn-outline-success ms-1"
-                              type="button"
-                              onClick={() => navigate(`/employees/${emp.id}/verify`)}
-                              title="Verify profile"
-                            >
-                              Verify
-                            </button>
-                          ) : null}
+                          <p className="mb-1" style={{ fontSize: "0.85rem", color: "#475569" }}><strong>Phone:</strong> {emp.phone || "-"}</p>
+                          <p className="mb-1" style={{ fontSize: "0.85rem", color: "#475569" }}><strong>Dept:</strong> {emp.dept || "-"}</p>
+                          <p className="mb-1" style={{ fontSize: "0.85rem", color: "#475569" }}>
+                            <strong>Status:</strong>{" "}
+                            <span className={`badge badge-xs ms-1 ${emp.status === "ACTIVE" ? "badge-success" : "badge-danger"}`}>
+                              {emp.status === "ACTIVE" ? "Active" : "Inactive"}
+                            </span>
+                          </p>
+                          <p className="mb-0" style={{ fontSize: "0.85rem", color: "#475569" }}>
+                            <strong>Profile:</strong>{" "}
+                            {(() => {
+                              const status = String(emp.profileStatus || "").toUpperCase();
+                              if (status === "VERIFIED") {
+                                return <span className="badge badge-success ms-1">VERIFIED</span>;
+                              }
+                              if (status === "DRAFT") {
+                                return <span className="badge badge-primary ms-1">DRAFT</span>;
+                              }
+                              if (status === "PENDING_VERIFICATION" || status === "PENDING") {
+                                return <span className="badge badge-warning text-dark ms-1">PENDING</span>;
+                              }
+                              return <span className="badge badge-secondary ms-1">{emp.profileStatus || "-"}</span>;
+                            })()}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            ) : (
+              <div className="table-responsive leads-table-wrap border-0 shadow-sm mb-4" style={{ borderRadius: 12 }}>
+                <table className="table table-hover align-middle leads-table mb-0">
+                  <thead>
+                    <tr>
+                      <th style={{ width: "40px" }}>
+                        <input
+                          type="checkbox"
+                          className="form-check-input"
+                          checked={pagedRows.length > 0 && pagedRows.every((r) => selectedEmployeeIds.has(r.id))}
+                          onChange={toggleSelectAll}
+                        />
+                      </th>
+                      <th className="text-muted" style={{ width: "60px", fontWeight: "600", fontSize: "0.85rem" }}>S.No</th>
+                      <th
+                        className="text-muted"
+                        style={{ minWidth: "180px", fontWeight: "600", fontSize: "0.85rem", cursor: "pointer", userSelect: "none" }}
+                        onClick={() => handleSort("name")}
+                      >
+                        Employee {sortField === "name" && <span className="ms-1 sort-indicator text-muted">{sortOrder === "asc" ? "▲" : "▼"}</span>}
+                      </th>
+                      <th
+                        className="text-muted"
+                        style={{ minWidth: "120px", fontWeight: "600", fontSize: "0.85rem", cursor: "pointer", userSelect: "none" }}
+                        onClick={() => handleSort("phone")}
+                      >
+                        Phone {sortField === "phone" && <span className="ms-1 sort-indicator text-muted">{sortOrder === "asc" ? "▲" : "▼"}</span>}
+                      </th>
+                      <th
+                        className="text-muted"
+                        style={{ minWidth: "120px", fontWeight: "600", fontSize: "0.85rem", cursor: "pointer", userSelect: "none" }}
+                        onClick={() => handleSort("dept")}
+                      >
+                        Department {sortField === "dept" && <span className="ms-1 sort-indicator text-muted">{sortOrder === "asc" ? "▲" : "▼"}</span>}
+                      </th>
+                      <th
+                        className="text-muted"
+                        style={{ minWidth: "120px", fontWeight: "600", fontSize: "0.85rem", cursor: "pointer", userSelect: "none" }}
+                        onClick={() => handleSort("designation")}
+                      >
+                        Designation {sortField === "designation" && <span className="ms-1 sort-indicator text-muted">{sortOrder === "asc" ? "▲" : "▼"}</span>}
+                      </th>
+                      <th
+                        className="text-muted"
+                        style={{ minWidth: "110px", fontWeight: "600", fontSize: "0.85rem", cursor: "pointer", userSelect: "none" }}
+                        onClick={() => handleSort("joinDate")}
+                      >
+                        Join Date {sortField === "joinDate" && <span className="ms-1 sort-indicator text-muted">{sortOrder === "asc" ? "▲" : "▼"}</span>}
+                      </th>
+                      <th
+                        className="text-muted"
+                        style={{ minWidth: "100px", fontWeight: "600", fontSize: "0.85rem", cursor: "pointer", userSelect: "none" }}
+                        onClick={() => handleSort("status")}
+                      >
+                        Status {sortField === "status" && <span className="ms-1 sort-indicator text-muted">{sortOrder === "asc" ? "▲" : "▼"}</span>}
+                      </th>
+                      <th
+                        className="text-muted"
+                        style={{ minWidth: "100px", fontWeight: "600", fontSize: "0.85rem", cursor: "pointer", userSelect: "none" }}
+                        onClick={() => handleSort("profileStatus")}
+                      >
+                        Profile {sortField === "profileStatus" && <span className="ms-1 sort-indicator text-muted">{sortOrder === "asc" ? "▲" : "▼"}</span>}
+                      </th>
+                      <th className="text-muted text-end" style={{ width: "80px", fontWeight: "600", fontSize: "0.85rem" }}>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {loading ? (
+                      <tr>
+                        <td colSpan="10" className="text-center py-4 text-muted">Loading employees...</td>
+                      </tr>
+                    ) : pagedRows.length === 0 ? (
+                      <tr>
+                        <td colSpan="10" className="text-center py-4 text-muted">
+                          No employees found
                         </td>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
+                    ) : (
+                      pagedRows.map((emp, idx) => (
+                        <tr key={emp.id}>
+                          <td>
+                            <input
+                              type="checkbox"
+                              className="form-check-input"
+                              checked={selectedEmployeeIds.has(emp.id)}
+                              onChange={() => toggleEmployeeSelection(emp.id)}
+                            />
+                          </td>
+                          <td className="fw-semibold" style={{ color: "#1e293b", fontSize: "0.9rem" }}>{pageOffset + idx + 1}</td>
+                          <td>
+                            <div className="d-flex align-items-center">
+                              <img
+                                src={
+                                  emp._raw?.candidatePhotoPath
+                                    ? `http://localhost:8082/${emp._raw.candidatePhotoPath}`
+                                    : "assets/img/users/user-32.jpg"
+                                }
+                                alt={emp.name}
+                                className="rounded-circle me-2"
+                                width="34"
+                                height="34"
+                                onError={(e) => (e.target.src = "assets/img/users/user-32.jpg")}
+                              />
+                              <span className="fw-semibold" style={{ color: "#0f172a", fontSize: "0.9rem" }}>{emp.name}</span>
+                            </div>
+                          </td>
+                          <td style={{ color: "#475569", fontSize: "0.9rem" }}>{emp.phone}</td>
+                          <td style={{ color: "#475569", fontSize: "0.9rem" }}>{emp.dept || "-"}</td>
+                          <td style={{ color: "#475569", fontSize: "0.9rem" }}>{emp.designation}</td>
+                          <td style={{ color: "#475569", fontSize: "0.9rem" }}>{emp.joinDate || "-"}</td>
+                          <td>
+                            <span
+                              className={`badge d-inline-flex align-items-center badge-xs ${
+                                emp.status === "ACTIVE" ? "badge-success" : "badge-danger"
+                              }`}
+                            >
+                              <i className="ti ti-point-filled me-1"></i>
+                              {emp.status === "ACTIVE" ? "Active" : "Inactive"}
+                            </span>
+                          </td>
+                          <td>
+                            {(() => {
+                              const status = String(emp.profileStatus || "").toUpperCase();
+                              if (status === "VERIFIED") {
+                                return (
+                                  <span className="badge badge-success" style={{ fontSize: "0.8rem" }}>
+                                    VERIFIED
+                                  </span>
+                                );
+                              }
+                              if (status === "DRAFT") {
+                                return (
+                                  <span className="badge badge-primary" style={{ fontSize: "0.8rem" }}>
+                                    DRAFT
+                                  </span>
+                                );
+                              }
+                              if (status === "PENDING_VERIFICATION" || status === "PENDING") {
+                                return (
+                                  <span className="badge badge-warning text-dark" style={{ fontSize: "0.8rem" }}>
+                                    PENDING
+                                  </span>
+                                );
+                              }
+                              return (
+                                <span className="badge badge-secondary" style={{ fontSize: "0.8rem" }}>
+                                  {emp.profileStatus || "-"}
+                                </span>
+                              );
+                            })()}
+                          </td>
+                          <td className="text-end">
+                            <div className="dropdown">
+                              <button
+                                className="btn btn-kebab-actions d-flex align-items-center justify-content-center dropdown-toggle no-caret"
+                                style={{ width: 32, height: 32, borderRadius: "50%", border: "none", backgroundColor: "transparent", color: "#64748b" }}
+                                data-bs-toggle="dropdown"
+                                aria-expanded="false"
+                              >
+                                <i className="ti ti-dots-vertical" style={{ fontSize: "1.15rem" }} />
+                              </button>
+                              <ul className="dropdown-menu dropdown-menu-end shadow border-0" style={{ borderRadius: 10, minWidth: 160 }}>
+                                <li>
+                                  <button className="dropdown-item py-2 d-flex align-items-center gap-2" style={{ fontSize: "0.85rem" }} onClick={() => openEditModal(emp)}>
+                                    <i className="ti ti-pencil text-primary" style={{ fontSize: "0.95rem" }} /> Edit
+                                  </button>
+                                </li>
+                                <li>
+                                  <button className="dropdown-item py-2 d-flex align-items-center gap-2 text-danger" style={{ fontSize: "0.85rem" }} onClick={() => confirmDelete(emp.id)}>
+                                    <i className="ti ti-trash" style={{ fontSize: "0.95rem" }} /> Delete
+                                  </button>
+                                </li>
+                                {(() => {
+                                  const sentPending =
+                                    emp.offerLetterSent &&
+                                    String(emp.profileStatus || "").toUpperCase() === "DRAFT";
+                                  const expiry = emp.offerLetterLinkExpiresAt
+                                    ? String(emp.offerLetterLinkExpiresAt).slice(0, 10)
+                                    : "";
+                                  const title = sentPending
+                                    ? `Already sent${expiry ? ` (valid until ${expiry})` : ""}. Use Resend to send again.`
+                                    : "Send offer letter email";
+                                  return (
+                                    <>
+                                      <li>
+                                        <button
+                                          className="dropdown-item py-2 d-flex align-items-center gap-2"
+                                          style={{ fontSize: "0.85rem" }}
+                                          type="button"
+                                          onClick={() => handleSendOfferLetter(emp)}
+                                          title={title}
+                                          disabled={sentPending}
+                                        >
+                                          <i className="ti ti-mail text-secondary" style={{ fontSize: "0.95rem" }} /> {sentPending ? "Sent" : "Send Mail"}
+                                        </button>
+                                      </li>
+                                      {sentPending && (
+                                        <li>
+                                          <button
+                                            className="dropdown-item py-2 d-flex align-items-center gap-2"
+                                            style={{ fontSize: "0.85rem" }}
+                                            type="button"
+                                            onClick={() =>
+                                              showConfirm({
+                                                title: "Resend offer letter?",
+                                                message:
+                                                  "This will generate a new secure profile link and email it to the employee.",
+                                                confirmLabel: "Resend",
+                                                cancelLabel: "Cancel",
+                                                onConfirm: () => handleResendOfferLetter(emp),
+                                              })
+                                            }
+                                            title="Resend offer letter email"
+                                          >
+                                            <i className="ti ti-refresh text-warning" style={{ fontSize: "0.95rem" }} /> Resend
+                                          </button>
+                                        </li>
+                                      )}
+                                    </>
+                                  );
+                                })()}
+                                {String(emp.profileStatus || "").toUpperCase() !== "VERIFIED" ? (
+                                  <li>
+                                    <button
+                                      className="dropdown-item py-2 d-flex align-items-center gap-2"
+                                      style={{ fontSize: "0.85rem" }}
+                                      type="button"
+                                      onClick={() => navigate(`/employees/${emp.id}/verify`)}
+                                      title="Verify profile"
+                                    >
+                                      <i className="ti ti-checkbox text-success" style={{ fontSize: "0.95rem" }} /> Verify
+                                    </button>
+                                  </li>
+                                ) : null}
+                              </ul>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* Pagination Footer */}
+            {totalRows > 0 && (
+              <div className="leads-pagination-footer d-flex flex-wrap align-items-center justify-content-between gap-3 mt-4 pt-3 border-top bg-white">
+                <span className="entries-info text-muted small">
+                  Showing {pageOffset + 1} to {Math.min(pageOffset + pageSize, totalRows)} of {totalRows} entries
+                </span>
+
+                <div className="pagination-numbers-container d-flex align-items-center gap-1">
+                  <button
+                    type="button"
+                    className="btn-pagination-arrow btn btn-sm btn-light border-0 d-flex align-items-center justify-content-center"
+                    style={{ width: 32, height: 32, borderRadius: 6 }}
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    disabled={loading || clampedPage <= 1}
+                  >
+                    <i className="ti ti-chevron-left" />
+                  </button>
+
+                  {Array.from({ length: totalPages }).map((_, idx) => {
+                    const pageNum = idx + 1;
+                    return (
+                      <button
+                        key={pageNum}
+                        type="button"
+                        className={`btn-pagination-num btn btn-sm border-0 ${clampedPage === pageNum ? "active" : "btn-light"}`}
+                        style={{ width: 32, height: 32, borderRadius: 6 }}
+                        onClick={() => setPage(pageNum)}
+                        disabled={loading}
+                      >
+                        {pageNum}
+                      </button>
+                    );
+                  })}
+
+                  <button
+                    type="button"
+                    className="btn-pagination-arrow btn btn-sm btn-light border-0 d-flex align-items-center justify-content-center"
+                    style={{ width: 32, height: 32, borderRadius: 6 }}
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={loading || clampedPage >= totalPages}
+                  >
+                    <i className="ti ti-chevron-right" />
+                  </button>
+                </div>
+
+                <PageSizeSelector
+                  pageSize={pageSize}
+                  setPageSize={setPageSize}
+                  setPage={setPage}
+                />
+              </div>
+            )}
           </div>
         </div>
 
@@ -1679,6 +2211,44 @@
                   </button>
                 </div>
               </div>
+            </div>
+          </div>
+        )}
+        {/* Floating Bulk Actions Bar */}
+        {selectedEmployeeIds.size > 0 && (
+          <div
+            className="position-fixed start-50 translate-middle-x d-flex align-items-center justify-content-between gap-3 shadow-lg px-4 py-3 bg-dark text-white"
+            style={{
+              bottom: 24,
+              borderRadius: 16,
+              zIndex: 1040,
+              minWidth: 400,
+              border: "1px solid rgba(255, 255, 255, 0.15)",
+              animation: "fadeIn 0.2s ease"
+            }}
+          >
+            <div className="d-flex align-items-center gap-2">
+              <span className="badge bg-primary text-white" style={{ fontSize: "0.9rem", padding: "6px 10px" }}>
+                {selectedEmployeeIds.size}
+              </span>
+              <span className="fw-medium text-white" style={{ color: "#ffffff" }}>employees selected</span>
+            </div>
+            <div className="d-flex align-items-center gap-2">
+              <button
+                className="btn btn-sm btn-danger d-flex align-items-center gap-1"
+                style={{ borderRadius: 8, padding: "6px 12px", fontSize: "0.85rem", backgroundColor: "#dc2626", color: "#ffffff", border: "none" }}
+                onClick={handleBulkDelete}
+                disabled={saving}
+              >
+                <i className="ti ti-trash" /> Delete
+              </button>
+              <button
+                className="btn btn-sm btn-link p-0 ms-2 text-decoration-none"
+                style={{ fontSize: "0.85rem", color: "rgba(255, 255, 255, 0.7)" }}
+                onClick={() => setSelectedEmployeeIds(new Set())}
+              >
+                Clear
+              </button>
             </div>
           </div>
         )}

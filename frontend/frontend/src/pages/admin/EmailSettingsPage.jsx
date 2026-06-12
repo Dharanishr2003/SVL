@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { getMailSettings, saveMailSettings, sendTestMail } from "../../api/mailSettingsApi";
 import { useToast } from "../../components/system/ToastProvider";
 import { extractApiErrorMessage } from "../../utils/errorMessage";
+import "./LeadsPage.css";
 
 const DEFAULT_FORM = {
   enabled: true,
@@ -119,127 +121,166 @@ export default function EmailSettingsPage() {
   }
 
   return (
-    <div className="container-fluid">
-      <div className="d-flex align-items-center justify-content-between mb-3">
-        <div>
-          <h3 className="page-title mb-1">Mail Settings</h3>
-          <div className="text-muted small">Configure SMTP used by the backend to send emails.</div>
+    <div className="content">
+      {/* Styled Header Card */}
+      <div className="card border-0 shadow-sm p-4 mb-4 bg-white" style={{ borderRadius: 12 }}>
+        <div className="d-flex align-items-center justify-content-between flex-wrap gap-3">
+          <div>
+            <h2 className="leads-header-title mb-1" style={{ fontSize: "1.4rem", fontWeight: "700", color: "#0f172a" }}>Email Settings</h2>
+            <nav className="mb-0">
+              <ol className="breadcrumb mb-0" style={{ fontSize: "0.9rem" }}>
+                <li className="breadcrumb-item">
+                  <Link to="/admin-dashboard" style={{ color: "#64748b", textDecoration: "none" }}>
+                    <i className="ti ti-smart-home"></i>
+                  </Link>
+                </li>
+                <li className="breadcrumb-item" style={{ color: "#64748b" }}>Settings</li>
+                <li className="breadcrumb-item active" style={{ color: "#0f172a", fontWeight: "500" }}>Email Settings</li>
+              </ol>
+            </nav>
+          </div>
+
+          <div className="d-flex align-items-center gap-2">
+            <button
+              type="button"
+              className="btn btn-primary create-lead-btn d-flex align-items-center gap-2"
+              onClick={handleSave}
+              disabled={loading || saving || !canSave}
+              style={{ backgroundColor: "#3b82f6", borderColor: "#3b82f6", fontWeight: "600", padding: "10px 20px", borderRadius: "10px" }}
+            >
+              <i className="ti ti-device-floppy" style={{ fontSize: "1.1rem" }}></i>
+              {saving ? "Saving..." : "Save Settings"}
+            </button>
+          </div>
         </div>
-        <button className="btn btn-primary" onClick={handleSave} disabled={loading || saving || !canSave}>
-          {saving ? "Saving..." : "Save"}
-        </button>
       </div>
 
-      <div className="card mb-3">
-        <div className="card-body">
+      {/* Main Settings Card */}
+      <div className="card border-0 shadow-sm mb-4" style={{ borderRadius: 12 }}>
+        <div className="card-header bg-white border-bottom p-3">
+          <h5 className="mb-0" style={{ fontWeight: "600", color: "#0f172a" }}>SMTP Server Configuration</h5>
+          <p className="text-muted small mb-0">Configure the SMTP server settings used by the system to dispatch notifications and emails.</p>
+        </div>
+        <div className="card-body p-4">
           {loading ? (
-            <div>Loading...</div>
+            <div className="text-center py-4">Loading settings...</div>
           ) : (
             <div className="row g-3">
               <div className="col-md-3">
-                <label className="form-label">Enabled</label>
-                <div className="form-check form-switch">
+                <label className="form-label fw-semibold text-dark" style={{ fontSize: "0.9rem" }}>Enabled</label>
+                <div className="form-check form-switch m-0 pt-1">
                   <input
                     className="form-check-input"
                     type="checkbox"
                     checked={!!form.enabled}
                     onChange={(e) => setForm((p) => ({ ...p, enabled: e.target.checked }))}
+                    id="smtpEnabledSwitch"
                   />
-                  <label className="form-check-label text-muted">Send emails</label>
+                  <label className="form-check-label text-muted small" htmlFor="smtpEnabledSwitch">Send emails</label>
                 </div>
               </div>
 
-              <div className="col-md-3">
-                <label className="form-label">SMTP Host</label>
+              <div className="col-md-5">
+                <label className="form-label fw-semibold text-dark" style={{ fontSize: "0.9rem" }}>SMTP Host</label>
                 <input
-                  className="form-control"
+                  className="form-control animate-focus"
+                  style={{ borderRadius: 8, height: 42 }}
                   value={form.host}
                   onChange={(e) => setForm((p) => ({ ...p, host: e.target.value }))}
                   placeholder="smtp.gmail.com"
                 />
               </div>
 
-              <div className="col-md-2">
-                <label className="form-label">Port</label>
+              <div className="col-md-4">
+                <label className="form-label fw-semibold text-dark" style={{ fontSize: "0.9rem" }}>Port</label>
                 <input
                   type="number"
-                  className="form-control"
+                  className="form-control animate-focus"
+                  style={{ borderRadius: 8, height: 42 }}
                   value={form.port}
                   onChange={(e) => setForm((p) => ({ ...p, port: e.target.value }))}
                 />
               </div>
 
-              <div className="col-md-4">
-                <label className="form-label">Username</label>
+              <div className="col-md-6">
+                <label className="form-label fw-semibold text-dark" style={{ fontSize: "0.9rem" }}>Username</label>
                 <input
-                  className="form-control"
+                  className="form-control animate-focus"
+                  style={{ borderRadius: 8, height: 42 }}
                   value={form.username}
                   onChange={(e) => setForm((p) => ({ ...p, username: e.target.value }))}
+                  placeholder="e.g. user@gmail.com"
                 />
               </div>
 
-              <div className="col-md-4">
-                <label className="form-label">Password</label>
+              <div className="col-md-6">
+                <label className="form-label fw-semibold text-dark" style={{ fontSize: "0.9rem" }}>Password</label>
                 <input
                   type="password"
-                  className="form-control"
+                  className="form-control animate-focus"
+                  style={{ borderRadius: 8, height: 42 }}
                   value={form.password}
                   onChange={(e) => setForm((p) => ({ ...p, password: e.target.value }))}
-                  placeholder={hasPassword ? "Password is set (enter to change)" : "Enter password"}
+                  placeholder={hasPassword ? "•••••••• (enter to change)" : "Enter password"}
                   autoComplete="new-password"
                 />
-                <div className="text-muted small mt-1">
-                  {hasPassword ? "Password is already set. Leave blank to keep it unchanged." : "Password is not set yet."}
+                <div className="text-muted small mt-1" style={{ fontSize: "0.8rem" }}>
+                  {hasPassword ? "Password is set. Leave blank to keep existing." : "Password is not configured."}
                 </div>
               </div>
 
-              <div className="col-md-2">
-                <label className="form-label">SMTP Auth</label>
+              <div className="col-md-6">
+                <label className="form-label fw-semibold text-dark" style={{ fontSize: "0.9rem" }}>SMTP Auth</label>
                 <select
-                  className="form-select"
+                  className="form-select animate-focus"
+                  style={{ borderRadius: 8, height: 42 }}
                   value={String(!!form.smtpAuth)}
                   onChange={(e) => setForm((p) => ({ ...p, smtpAuth: e.target.value === "true" }))}
                 >
-                  <option value="true">true</option>
-                  <option value="false">false</option>
+                  <option value="true">True</option>
+                  <option value="false">False</option>
                 </select>
               </div>
 
-              <div className="col-md-2">
-                <label className="form-label">STARTTLS</label>
+              <div className="col-md-6">
+                <label className="form-label fw-semibold text-dark" style={{ fontSize: "0.9rem" }}>STARTTLS</label>
                 <select
-                  className="form-select"
+                  className="form-select animate-focus"
+                  style={{ borderRadius: 8, height: 42 }}
                   value={String(!!form.starttls)}
                   onChange={(e) => setForm((p) => ({ ...p, starttls: e.target.value === "true" }))}
                 >
-                  <option value="true">true</option>
-                  <option value="false">false</option>
+                  <option value="true">True</option>
+                  <option value="false">False</option>
                 </select>
               </div>
 
-              <div className="col-md-4">
-                <label className="form-label">From Address</label>
+              <div className="col-md-6">
+                <label className="form-label fw-semibold text-dark" style={{ fontSize: "0.9rem" }}>From Email Address</label>
                 <input
-                  className="form-control"
+                  className="form-control animate-focus"
+                  style={{ borderRadius: 8, height: 42 }}
                   value={form.fromAddress}
                   onChange={(e) => setForm((p) => ({ ...p, fromAddress: e.target.value }))}
                   placeholder="no-reply@yourdomain.com"
                 />
               </div>
 
-              <div className="col-md-4">
-                <label className="form-label">From Name</label>
+              <div className="col-md-6">
+                <label className="form-label fw-semibold text-dark" style={{ fontSize: "0.9rem" }}>From Sender Name</label>
                 <input
-                  className="form-control"
+                  className="form-control animate-focus"
+                  style={{ borderRadius: 8, height: 42 }}
                   value={form.fromName}
                   onChange={(e) => setForm((p) => ({ ...p, fromName: e.target.value }))}
                 />
               </div>
 
               <div className="col-md-6">
-                <label className="form-label">Default CC (comma separated)</label>
+                <label className="form-label fw-semibold text-dark" style={{ fontSize: "0.9rem" }}>Default CC Recipients (comma separated)</label>
                 <input
-                  className="form-control"
+                  className="form-control animate-focus"
+                  style={{ borderRadius: 8, height: 42 }}
                   value={form.cc}
                   onChange={(e) => setForm((p) => ({ ...p, cc: e.target.value }))}
                   placeholder="cc1@example.com, cc2@example.com"
@@ -247,9 +288,10 @@ export default function EmailSettingsPage() {
               </div>
 
               <div className="col-md-6">
-                <label className="form-label">Default BCC (comma separated)</label>
+                <label className="form-label fw-semibold text-dark" style={{ fontSize: "0.9rem" }}>Default BCC Recipients (comma separated)</label>
                 <input
-                  className="form-control"
+                  className="form-control animate-focus"
+                  style={{ borderRadius: 8, height: 42 }}
                   value={form.bcc}
                   onChange={(e) => setForm((p) => ({ ...p, bcc: e.target.value }))}
                   placeholder="bcc1@example.com, bcc2@example.com"
@@ -260,19 +302,33 @@ export default function EmailSettingsPage() {
         </div>
       </div>
 
-      <div className="card">
-        <div className="card-header">
-          <h5 className="card-title mb-0">Send Test Email</h5>
+      {/* Test Connection Card */}
+      <div className="card border-0 shadow-sm" style={{ borderRadius: 12 }}>
+        <div className="card-header bg-white border-bottom p-3">
+          <h5 className="mb-0" style={{ fontWeight: "600", color: "#0f172a" }}>Test Connection</h5>
+          <p className="text-muted small mb-0">Verify your configuration settings by sending a test email to any recipient.</p>
         </div>
-        <div className="card-body">
-          <div className="row g-2 align-items-end">
-            <div className="col-md-6">
-              <label className="form-label">To Address</label>
-              <input className="form-control" value={testTo} onChange={(e) => setTestTo(e.target.value)} />
+        <div className="card-body p-4">
+          <div className="row g-3 align-items-end">
+            <div className="col-md-8">
+              <label className="form-label fw-semibold text-dark" style={{ fontSize: "0.9rem" }}>Recipient Email Address</label>
+              <input
+                className="form-control animate-focus"
+                style={{ borderRadius: 8, height: 42 }}
+                value={testTo}
+                onChange={(e) => setTestTo(e.target.value)}
+                placeholder="test-recipient@example.com"
+              />
             </div>
-            <div className="col-md-3">
-              <button className="btn btn-outline-primary w-100" onClick={handleTest} disabled={loading || testing}>
-                {testing ? "Sending..." : "Send Test"}
+            <div className="col-md-4">
+              <button
+                className="btn btn-outline-primary w-100 d-flex align-items-center justify-content-center gap-2"
+                style={{ height: 42, borderRadius: 8, fontWeight: "600" }}
+                onClick={handleTest}
+                disabled={loading || testing}
+              >
+                <i className="ti ti-mail-forward"></i>
+                {testing ? "Sending..." : "Send Test Email"}
               </button>
             </div>
           </div>

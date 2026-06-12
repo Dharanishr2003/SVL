@@ -1,1 +1,0 @@
-import{w as a}from"./index-BR3vcIvB.js";async function n(){return(await a.get("/api/quotation-template")).data}async function s(t){return(await a.post("/api/quotation-template",t)).data}export{n as g,s};

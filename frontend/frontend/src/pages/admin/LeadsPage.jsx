@@ -1943,17 +1943,13 @@ ${rowsHtml}
                     borderRadius: 9,
                     border: "none",
                     backgroundColor: viewMode === "grid" ? "#3b82f6" : "transparent",
+                    color: viewMode === "grid" ? "#fff" : "#64748b",
                     transition: "all 0.2s ease"
                   }}
                   onClick={() => setViewMode("grid")}
                   title="Grid View"
                 >
-                  <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <rect x="1" y="1" width="6" height="6" rx="1.5" stroke={viewMode === "grid" ? "#fff" : "#3b82f6"} strokeWidth="2" />
-                    <rect x="11" y="1" width="6" height="6" rx="1.5" stroke={viewMode === "grid" ? "#fff" : "#3b82f6"} strokeWidth="2" />
-                    <rect x="1" y="11" width="6" height="6" rx="1.5" stroke={viewMode === "grid" ? "#fff" : "#3b82f6"} strokeWidth="2" />
-                    <rect x="11" y="11" width="6" height="6" rx="1.5" stroke={viewMode === "grid" ? "#fff" : "#3b82f6"} strokeWidth="2" />
-                  </svg>
+                  <i className="ti ti-layout-grid" style={{ fontSize: "1.3rem" }} />
                 </button>
               </div>
             </div>

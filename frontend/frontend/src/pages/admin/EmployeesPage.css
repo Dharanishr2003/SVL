@@ -142,3 +142,36 @@
     padding-right: 0.85rem;
   }
 }
+
+/* Premium Filter Button & Drawer Select Styles */
+.btn-outline-filter, .btn-outline-export {
+  background-color: #fff !important;
+  border: 1px solid #cbd5e1 !important;
+  color: #334155 !important;
+  transition: all 0.2s ease !important;
+}
+.btn-outline-filter:hover, .btn-outline-export:hover {
+  background-color: #f8fafc !important;
+  border-color: #94a3b8 !important;
+  color: #0f172a !important;
+}
+.btn-outline-filter.active {
+  background-color: #eff6ff !important;
+  border-color: #3b82f6 !important;
+  color: #1d4ed8 !important;
+}
+
+/* Filter Drawer Select Input Borders */
+.filter-drawer select.form-select {
+  border-radius: 10px !important;
+  border: 1px solid #cbd5e1 !important;
+  height: 42px !important;
+  font-size: 0.9rem !important;
+  color: #0f172a !important;
+  background-color: #ffffff !important;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease !important;
+}
+.filter-drawer select.form-select:focus {
+  border-color: #3b82f6 !important;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1) !important;
+}

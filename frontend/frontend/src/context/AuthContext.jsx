@@ -3,6 +3,7 @@ import api, {
   attachAuthHandlers,
   clearTokens,
   setAccessToken,
+  getAccessToken,
 } from "../utils/api";
 import { useIdleTimer } from "../hooks/useIdleTimer";
 import IdleTimeoutModal from "../components/common/IdleTimeoutModal";
@@ -120,8 +121,14 @@ function isPublicUnauthenticatedRoute(pathname) {
 }
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null);
-  const [accessToken, setAccessTokenState] = useState(null);
+  const [accessToken, setAccessTokenState] = useState(() => getAccessToken());
+  const [user, setUser] = useState(() => {
+    const token = getAccessToken();
+    if (token) {
+      return userFromToken(token);
+    }
+    return null;
+  });
   const [loading, setLoading] = useState(true);
 
   const hydrateUserProfile = async () => {
@@ -171,7 +178,7 @@ export function AuthProvider({ children }) {
     });
   }, [user?.email]);
 
-  // Restore session on every page load via the refresh cookie
+  // Restore session on every page load
   useEffect(() => {
     const restoreSession = async () => {
       // Vendor portal uses a separate refresh endpoint/cookie; don't attempt staff refresh here.
@@ -183,6 +190,30 @@ export function AuthProvider({ children }) {
         setLoading(false);
         return;
       }
+
+      const storedToken = getAccessToken();
+      if (storedToken) {
+        try {
+          const payload = parseTokenPayload(storedToken);
+          const isExpired = payload?.exp ? (payload.exp * 1000 < Date.now()) : true;
+          if (!isExpired) {
+            setUser(userFromToken(storedToken, "", { user: payload }));
+            setAccessTokenState(storedToken);
+            setLoading(false);
+            hydrateUserProfile().catch(() => {});
+            return;
+          }
+        } catch (e) {
+          console.debug("[AuthContext] Failed to parse cached token:", e);
+        }
+      }
+
+      // If we are on the login page and have no stored token, don't attempt to refresh
+      if (window.location.pathname === "/login" && !storedToken) {
+        setLoading(false);
+        return;
+      }
+
       try {
         const response = await api.post("/api/auth/refresh", {});
         const nextAccess = response.data?.accessToken;

@@ -1,10 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { createPortal } from "react-dom";
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
 import { getDepartmentsMaster } from "../../api/departmentsApi";
 import { createPolicy, deletePolicy, getPolicies, updatePolicy } from "../../api/policiesApi";
 import api from "../../utils/api";
 import { extractApiErrorMessage } from "../../utils/errorMessage";
 import { useToast } from "../../components/system/ToastProvider";
+import PageSizeSelector from "../../components/admin/PageSizeSelector";
+import "./LeadsPage.css";
 
 const initialForm = {
   name: "",
@@ -31,11 +36,18 @@ export default function PolicyPage() {
   const [selectedId, setSelectedId] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
 
+  // Table pagination and selection states
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [searchQuery, setSearchQuery] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+
   const load = async () => {
     setLoading(true);
     try {
       const data = await getPolicies();
       setRows(Array.isArray(data) ? data : []);
+      setSelectedIds(new Set());
     } catch (e) {
       setRows([]);
       showError(extractApiErrorMessage(e, "Failed to load policies"));
@@ -61,8 +73,6 @@ export default function PolicyPage() {
     loadMeta();
   }, []);
 
-  const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8082";
-
   const orderedRows = useMemo(
     () => [...rows].sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""))),
     [rows],
@@ -84,6 +94,112 @@ export default function PolicyPage() {
     } catch {
       return "-";
     }
+  };
+
+  // Search & Filter
+  const filteredRows = orderedRows.filter((r) => {
+    const name = (r.name || "").toLowerCase();
+    const dept = (r.departmentName || "").toLowerCase();
+    const desc = (r.description || "").toLowerCase();
+    const q = searchQuery.toLowerCase();
+    return name.includes(q) || dept.includes(q) || desc.includes(q);
+  });
+
+  const totalRows = filteredRows.length;
+  const pageCount = Math.max(1, Math.ceil(totalRows / pageSize));
+  const clampedPage = Math.min(Math.max(1, page), pageCount);
+  const pageOffset = (clampedPage - 1) * pageSize;
+  const pagedRows = filteredRows.slice(pageOffset, pageOffset + pageSize);
+
+  const handleSelectAll = (checked) => {
+    if (checked) {
+      setSelectedIds(new Set(pagedRows.map(r => r.id)));
+    } else {
+      setSelectedIds(new Set());
+    }
+  };
+
+  const handleSelectRow = (id, checked) => {
+    const next = new Set(selectedIds);
+    if (checked) {
+      next.add(id);
+    } else {
+      next.delete(id);
+    }
+    setSelectedIds(next);
+  };
+
+  const exportExcel = () => {
+    const targetRows = selectedIds.size > 0
+      ? rows.filter(r => selectedIds.has(r.id))
+      : rows;
+    const headers = ["Name", "Department", "Description", "Created Date"];
+    const escapeXml = (unsafe) => String(unsafe ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const headerHtml = `<tr>${headers.map(h => `<th>${escapeXml(h)}</th>`).join("")}</tr>`;
+    const rowsHtml = targetRows.map(r => `
+      <tr>
+        <td>${escapeXml(r.name)}</td>
+        <td>${escapeXml(r.departmentName)}</td>
+        <td>${escapeXml(r.description || '')}</td>
+        <td>${escapeXml(formatDate(r.createdAt))}</td>
+      </tr>
+    `).join("");
+    const template = `<html><head><meta charset="UTF-8"/></head><body><table><thead>${headerHtml}</thead><tbody>${rowsHtml}</tbody></table></body></html>`;
+    const blob = new Blob([template], { type: "application/vnd.ms-excel" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `policies-${Date.now()}.xls`;
+    link.click();
+  };
+
+  const exportCsv = () => {
+    const targetRows = selectedIds.size > 0
+      ? rows.filter(r => selectedIds.has(r.id))
+      : rows;
+    const headers = ["Name", "Department", "Description", "Created Date"];
+    const csvContent = [
+      headers.join(","),
+      ...targetRows.map(r => [
+        `"${(r.name || '').replace(/"/g, '""')}"`,
+        `"${(r.departmentName || '').replace(/"/g, '""')}"`,
+        `"${(r.description || '').replace(/"/g, '""')}"`,
+        `"${formatDate(r.createdAt)}"`
+      ].join(","))
+    ].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `policies-${Date.now()}.csv`;
+    link.click();
+  };
+
+  const exportPdf = () => {
+    const targetRows = selectedIds.size > 0
+      ? rows.filter(r => selectedIds.has(r.id))
+      : rows;
+    const doc = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
+    doc.setFontSize(14);
+    doc.text("Policies Report", 40, 40);
+    doc.setFontSize(10);
+    doc.text(`Generated: ${new Date().toLocaleString()}`, 40, 58);
+    const headers = [["Name", "Department", "Description", "Created Date"]];
+    const body = targetRows.map(r => [
+      r.name || '',
+      r.departmentName || '',
+      r.description || '',
+      formatDate(r.createdAt)
+    ]);
+    autoTable(doc, {
+      head: headers,
+      body,
+      startY: 72,
+      styles: { fontSize: 9, cellPadding: 4 },
+      headStyles: { fillColor: [59, 130, 246] },
+      margin: { left: 40, right: 40 }
+    });
+    doc.save(`policies-${Date.now()}.pdf`);
   };
 
   const handleAddPolicy = async (e) => {
@@ -209,184 +325,284 @@ export default function PolicyPage() {
   return (
     <>
       <div className="content">
-        <div className="d-md-flex d-block align-items-center justify-content-between page-breadcrumb mb-3">
-          <div className="my-auto mb-2">
-            <h2 className="mb-1">Policies</h2>
-            <nav>
-              <ol className="breadcrumb mb-0">
-                <li className="breadcrumb-item">
-                  <Link to="/admin-dashboard">
-                    <i className="ti ti-smart-home"></i>
-                  </Link>
-                </li>
-                <li className="breadcrumb-item">HR</li>
-                <li className="breadcrumb-item active">Policies</li>
-              </ol>
-            </nav>
-          </div>
-          <div className="mb-2">
-            <button
-              type="button"
-              className="btn btn-primary d-flex align-items-center"
-              onClick={() => {
-                setForm(initialForm);
-                setFile(null);
-                setShowAddModal(true);
-              }}
-            >
-              <i className="ti ti-circle-plus me-2"></i>Add Policy
-            </button>
-          </div>
-        </div>
-
-        <div className="card">
-          <div className="card-header">
-            <h5>Policies List</h5>
-          </div>
-          <div className="card-body p-0">
-            <div className="custom-datatable-filter table-responsive">
-              <table className="table">
-                <thead className="thead-light">
-                  <tr>
-                    <th>Name</th>
-                    <th>Department</th>
-                    <th>Description</th>
-                    <th>Created Date</th>
-                    <th>⋮ Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {loading ? (
-                    <tr>
-                      <td colSpan={5}>Loading...</td>
-                    </tr>
-                  ) : orderedRows.length === 0 ? (
-                    <tr>
-                      <td colSpan={5}>No policies found</td>
-                    </tr>
-                  ) : (
-                    orderedRows.map((row) => (
-                      <tr key={row.id || row.name}>
-                        <td>
-                          <h6 className="fs-14 fw-medium text-gray-9">{row.name || "-"}</h6>
-                        </td>
-                        <td>{row.departmentName || "-"}</td>
-                        <td>{row.description || "-"}</td>
-                        <td>{formatDate(row.createdAt)}</td>
-                        <td>
-                          <div className="action-icon d-inline-flex">
-                            <button
-                              type="button"
-                              className="btn btn-link p-0 me-2"
-                              onClick={() => openView(row)}
-                              aria-label="View policy"
-                            >
-                              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z" />
-                                <circle cx="12" cy="12" r="3" />
-                              </svg>
-                            </button>
-                            <button
-                              type="button"
-                              className="btn btn-link p-0 me-2"
-                              onClick={() => openEdit(row)}
-                              aria-label="Edit policy"
-                            >
-                              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <path d="M12 20h9" />
-                                <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z" />
-                              </svg>
-                            </button>
-                            <button
-                              type="button"
-                              className="btn btn-link p-0 text-danger"
-                              onClick={() => confirmDelete(row)}
-                              aria-label="Delete policy"
-                            >
-                              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <path d="M3 6h18" />
-                                <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
-                                <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
-                              </svg>
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+        {/* White top header card */}
+        <div className="card border-0 shadow-sm mb-4 bg-white" style={{ borderRadius: 12 }}>
+          <div className="card-body p-4 d-flex justify-content-between align-items-center flex-wrap gap-3">
+            <div>
+              <h3 className="fw-bold mb-1 text-slate-800" style={{ fontSize: "1.3rem" }}>Policies</h3>
+              <nav aria-label="breadcrumb">
+                <ol className="breadcrumb mb-0" style={{ fontSize: "0.85rem" }}>
+                  <li className="breadcrumb-item">
+                    <Link to="/admin-dashboard" className="text-muted text-decoration-none">
+                      <i className="ti ti-smart-home" />
+                    </Link>
+                  </li>
+                  <li className="breadcrumb-item text-muted">HR</li>
+                  <li className="breadcrumb-item active text-primary" aria-current="page">Policies</li>
+                </ol>
+              </nav>
+            </div>
+            <div className="d-flex align-items-center gap-2">
+              <button
+                type="button"
+                className="btn btn-primary d-flex align-items-center gap-2"
+                style={{ borderRadius: 8 }}
+                onClick={() => {
+                  setForm(initialForm);
+                  setFile(null);
+                  setShowAddModal(true);
+                }}
+              >
+                <i className="ti ti-circle-plus"></i>Add Policy
+              </button>
             </div>
           </div>
         </div>
+
+        {/* Policies table card */}
+        <div className="card border-0 shadow-sm bg-white" style={{ borderRadius: 12, overflow: "hidden" }}>
+          {/* Table Controls Bar */}
+          <div className="p-3 border-bottom d-flex flex-wrap align-items-center justify-content-between gap-3 bg-light">
+            <div className="d-flex align-items-center gap-2 flex-grow-1" style={{ maxWidth: 350 }}>
+              <div className="input-group">
+                <span className="input-group-text bg-white border-end-0" style={{ borderRadius: "8px 0 0 8px" }}><i className="ti ti-search text-muted" /></span>
+                <input
+                  type="text"
+                  className="form-control border-start-0"
+                  style={{ borderRadius: "0 8px 8px 0", height: 38 }}
+                  placeholder="Search policies..."
+                  value={searchQuery}
+                  onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
+                />
+              </div>
+            </div>
+
+            <div className="d-flex align-items-center gap-2">
+              <div className="dropdown">
+                <button
+                  className="btn btn-white border d-flex align-items-center gap-2 dropdown-toggle"
+                  type="button"
+                  id="policiesExportDropdown"
+                  data-bs-toggle="dropdown"
+                  aria-expanded="false"
+                  style={{ height: 38, borderRadius: 8, fontSize: "0.85rem" }}
+                >
+                  <i className="ti ti-download" /> Export
+                </button>
+                <ul className="dropdown-menu shadow border-0" aria-labelledby="policiesExportDropdown">
+                  <li><button className="dropdown-item" onClick={exportExcel}>Excel</button></li>
+                  <li><button className="dropdown-item" onClick={exportCsv}>CSV</button></li>
+                  <li><button className="dropdown-item" onClick={exportPdf}>PDF</button></li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <div className="table-responsive">
+            <table className="table table-hover align-middle mb-0">
+              <thead className="table-light">
+                <tr>
+                  <th style={{ width: 40 }}>
+                    <input
+                      type="checkbox"
+                      className="form-check-input"
+                      checked={pagedRows.length > 0 && pagedRows.every(r => selectedIds.has(r.id))}
+                      onChange={(e) => handleSelectAll(e.target.checked)}
+                    />
+                  </th>
+                  <th>Name</th>
+                  <th>Department</th>
+                  <th>Description</th>
+                  <th>Created Date</th>
+                  <th style={{ width: 80 }} className="text-end">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr><td colSpan="6" className="text-center py-4">Loading...</td></tr>
+                ) : pagedRows.length === 0 ? (
+                  <tr><td colSpan="6" className="text-center py-4 text-muted">No policies found</td></tr>
+                ) : (
+                  pagedRows.map((row) => (
+                    <tr key={row.id || row.name}>
+                      <td>
+                        <input
+                          type="checkbox"
+                          className="form-check-input"
+                          checked={selectedIds.has(row.id)}
+                          onChange={(e) => handleSelectRow(row.id, e.target.checked)}
+                        />
+                      </td>
+                      <td>
+                        <h6 className="fw-semibold text-slate-800 mb-0">{row.name || "-"}</h6>
+                      </td>
+                      <td>{row.departmentName || "-"}</td>
+                      <td>{row.description || "-"}</td>
+                      <td>{formatDate(row.createdAt)}</td>
+                      <td className="text-end">
+                        <div className="dropdown">
+                          <button className="btn btn-light btn-sm btn-icon" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i className="ti ti-dots-vertical" />
+                          </button>
+                          <ul className="dropdown-menu dropdown-menu-end shadow border-0">
+                            <li>
+                              <button className="dropdown-item" onClick={() => openView(row)}>
+                                View Details
+                              </button>
+                            </li>
+                            <li>
+                              <button className="dropdown-item" onClick={() => openEdit(row)}>
+                                Edit
+                              </button>
+                            </li>
+                            <li>
+                              <button className="dropdown-item text-danger" onClick={() => confirmDelete(row)}>
+                                Delete
+                              </button>
+                            </li>
+                          </ul>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Custom Pagination Footer */}
+          {!loading && rows.length > 0 && (
+            <div className="p-3 border-top d-flex flex-wrap align-items-center justify-content-between gap-3 bg-light">
+              <div className="text-muted small">
+                Showing {totalRows > 0 ? pageOffset + 1 : 0} to {Math.min(pageOffset + pageSize, totalRows)} of {totalRows} entries
+              </div>
+              <div className="d-flex align-items-center gap-2">
+                <button
+                  type="button"
+                  className="btn-pagination-arrow btn btn-sm btn-light border-0 d-flex align-items-center justify-content-center"
+                  style={{ width: 32, height: 32, borderRadius: 6 }}
+                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                  disabled={clampedPage === 1}
+                >
+                  <i className="ti ti-chevron-left" />
+                </button>
+                {(() => {
+                  const buttons = [];
+                  for (let i = 1; i <= pageCount; i++) {
+                    if (i === 1 || i === pageCount || (i >= clampedPage - 2 && i <= clampedPage + 2)) {
+                      buttons.push(
+                        <button
+                          key={i}
+                          className={`btn-pagination-num btn btn-sm border-0 ${clampedPage === i ? 'btn-primary text-white' : 'btn-light'}`}
+                          style={{ width: 32, height: 32, borderRadius: 6, fontWeight: "500", backgroundColor: clampedPage === i ? "#3b82f6" : undefined }}
+                          onClick={() => setPage(i)}
+                        >
+                          {i}
+                        </button>
+                      );
+                    } else if (i === clampedPage - 3 || i === clampedPage + 3) {
+                      buttons.push(<span key={`dots-${i}`} className="px-1 text-muted">...</span>);
+                    }
+                  }
+                  return buttons;
+                })()}
+                <button
+                  type="button"
+                  className="btn-pagination-arrow btn btn-sm btn-light border-0 d-flex align-items-center justify-content-center"
+                  style={{ width: 32, height: 32, borderRadius: 6 }}
+                  onClick={() => setPage(p => Math.min(pageCount, p + 1))}
+                  disabled={clampedPage === pageCount}
+                >
+                  <i className="ti ti-chevron-right" />
+                </button>
+                <PageSizeSelector
+                  pageSize={pageSize}
+                  setPageSize={setPageSize}
+                  setPage={setPage}
+                />
+              </div>
+            </div>
+          )}
+        </div>
       </div>
+
+      {/* Floating Dark Bottom Actions Bar */}
+      {selectedIds.size > 0 && createPortal(
+        <div className="floating-bulk-bar" style={{
+          position: "fixed",
+          bottom: 24,
+          left: "50%",
+          transform: "translateX(-50%)",
+          backgroundColor: "#0f172a",
+          color: "#fff",
+          padding: "12px 24px",
+          borderRadius: 12,
+          display: "flex",
+          alignItems: "center",
+          gap: 16,
+          zIndex: 9999,
+          boxShadow: "0 10px 25px rgba(0,0,0,0.3)"
+        }}>
+          <span className="small">{selectedIds.size} row(s) selected</span>
+          <button className="btn btn-sm btn-outline-light" onClick={() => setSelectedIds(new Set())}>Clear</button>
+          <button className="btn btn-sm btn-primary" onClick={exportPdf}>Export Selected PDF</button>
+        </div>,
+        document.body
+      )}
 
       {showAddModal && (
         <>
           <div className="modal fade show" style={{ display: "block" }} tabIndex="-1">
             <div className="modal-dialog modal-dialog-centered modal-lg">
-              <div className="modal-content">
+              <div className="modal-content border-0 shadow">
                 <div className="modal-header">
-                  <h4 className="modal-title">Add Policy</h4>
-                  <button type="button" className="btn-close custom-btn-close" onClick={() => setShowAddModal(false)}>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <line x1="6" y1="6" x2="18" y2="18" />
-                      <line x1="18" y1="6" x2="6" y2="18" />
-                    </svg>
-                  </button>
+                  <h4 className="modal-title fw-bold">Add Policy</h4>
+                  <button type="button" className="btn-close" onClick={() => setShowAddModal(false)}></button>
                 </div>
                 <form onSubmit={handleAddPolicy}>
                   <div className="modal-body pb-0">
                     <div className="row">
-                      <div className="col-md-12">
-                        <div className="mb-3">
-                          <label className="form-label">Policy Name</label>
-                          <input
-                            type="text"
-                            className="form-control"
-                            value={form.name}
-                            onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
-                          />
-                        </div>
+                      <div className="col-md-12 mb-3">
+                        <label className="form-label">Policy Name</label>
+                        <input
+                          type="text"
+                          className="form-control"
+                          value={form.name}
+                          onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
+                        />
                       </div>
-                      <div className="col-md-12">
-                        <div className="mb-3">
-                          <label className="form-label">Description</label>
-                          <textarea
-                            className="form-control"
-                            value={form.description}
-                            onChange={(e) => setForm((prev) => ({ ...prev, description: e.target.value }))}
-                          />
-                        </div>
+                      <div className="col-md-12 mb-3">
+                        <label className="form-label">Description</label>
+                        <textarea
+                          className="form-control"
+                          rows="3"
+                          value={form.description}
+                          onChange={(e) => setForm((prev) => ({ ...prev, description: e.target.value }))}
+                        />
                       </div>
-                      <div className="col-md-12">
-                        <div className="mb-3">
-                          <label className="form-label">Department</label>
-                          <select
-                            className="form-select"
-                            value={form.departmentId}
-                            onChange={(e) => setForm((prev) => ({ ...prev, departmentId: e.target.value }))}
-                            disabled={metaLoading}
-                          >
-                            <option value="">Select</option>
-                            {departmentOptions.map((d) => (
-                              <option key={d.id} value={d.id}>
-                                {d.name}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
+                      <div className="col-md-12 mb-3">
+                        <label className="form-label">Department</label>
+                        <select
+                          className="form-select"
+                          value={form.departmentId}
+                          onChange={(e) => setForm((prev) => ({ ...prev, departmentId: e.target.value }))}
+                          disabled={metaLoading}
+                        >
+                          <option value="">Select</option>
+                          {departmentOptions.map((d) => (
+                            <option key={d.id} value={d.id}>
+                              {d.name}
+                            </option>
+                          ))}
+                        </select>
                       </div>
-
-                      <div className="col-md-12">
-                        <div className="mb-3">
-                          <label className="form-label">Upload Policy</label>
-                          <input
-                            type="file"
-                            className="form-control"
-                            onChange={(e) => setFile(e.target.files?.[0] || null)}
-                          />
-                        </div>
+                      <div className="col-md-12 mb-3">
+                        <label className="form-label">Upload Policy</label>
+                        <input
+                          type="file"
+                          className="form-control"
+                          onChange={(e) => setFile(e.target.files?.[0] || null)}
+                        />
                       </div>
                     </div>
                   </div>
@@ -410,69 +626,56 @@ export default function PolicyPage() {
         <>
           <div className="modal fade show" style={{ display: "block" }} tabIndex="-1">
             <div className="modal-dialog modal-dialog-centered modal-lg">
-              <div className="modal-content">
+              <div className="modal-content border-0 shadow">
                 <div className="modal-header">
-                  <h4 className="modal-title">Edit Policy</h4>
-                  <button type="button" className="btn-close custom-btn-close" onClick={() => setShowEditModal(false)}>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <line x1="6" y1="6" x2="18" y2="18" />
-                      <line x1="18" y1="6" x2="6" y2="18" />
-                    </svg>
-                  </button>
+                  <h4 className="modal-title fw-bold">Edit Policy</h4>
+                  <button type="button" className="btn-close" onClick={() => setShowEditModal(false)}></button>
                 </div>
                 <form onSubmit={handleEditPolicy}>
                   <div className="modal-body pb-0">
                     <div className="row">
-                      <div className="col-md-12">
-                        <div className="mb-3">
-                          <label className="form-label">Policy Name</label>
-                          <input
-                            type="text"
-                            className="form-control"
-                            value={editForm.name}
-                            onChange={(e) => setEditForm((prev) => ({ ...prev, name: e.target.value }))}
-                          />
-                        </div>
+                      <div className="col-md-12 mb-3">
+                        <label className="form-label">Policy Name</label>
+                        <input
+                          type="text"
+                          className="form-control"
+                          value={editForm.name}
+                          onChange={(e) => setEditForm((prev) => ({ ...prev, name: e.target.value }))}
+                        />
                       </div>
-                      <div className="col-md-12">
-                        <div className="mb-3">
-                          <label className="form-label">Description</label>
-                          <textarea
-                            className="form-control"
-                            value={editForm.description}
-                            onChange={(e) => setEditForm((prev) => ({ ...prev, description: e.target.value }))}
-                          />
-                        </div>
+                      <div className="col-md-12 mb-3">
+                        <label className="form-label">Description</label>
+                        <textarea
+                          className="form-control"
+                          rows="3"
+                          value={editForm.description}
+                          onChange={(e) => setEditForm((prev) => ({ ...prev, description: e.target.value }))}
+                        />
                       </div>
-                      <div className="col-md-12">
-                        <div className="mb-3">
-                          <label className="form-label">Department</label>
-                          <select
-                            className="form-select"
-                            value={editForm.departmentId}
-                            onChange={(e) => setEditForm((prev) => ({ ...prev, departmentId: e.target.value }))}
-                            disabled={metaLoading}
-                          >
-                            <option value="">Select</option>
-                            {departmentOptions.map((d) => (
-                              <option key={d.id} value={d.id}>
-                                {d.name}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
+                      <div className="col-md-12 mb-3">
+                        <label className="form-label">Department</label>
+                        <select
+                          className="form-select"
+                          value={editForm.departmentId}
+                          onChange={(e) => setEditForm((prev) => ({ ...prev, departmentId: e.target.value }))}
+                          disabled={metaLoading}
+                        >
+                          <option value="">Select</option>
+                          {departmentOptions.map((d) => (
+                            <option key={d.id} value={d.id}>
+                              {d.name}
+                            </option>
+                          ))}
+                        </select>
                       </div>
-
-                      <div className="col-md-12">
-                        <div className="mb-3">
-                          <label className="form-label">Upload Policy</label>
-                          <input
-                            type="file"
-                            className="form-control"
-                            onChange={(e) => setEditFile(e.target.files?.[0] || null)}
-                          />
-                          <small className="text-muted">Leave blank to keep existing file.</small>
-                        </div>
+                      <div className="col-md-12 mb-3">
+                        <label className="form-label">Upload Policy</label>
+                        <input
+                          type="file"
+                          className="form-control"
+                          onChange={(e) => setEditFile(e.target.files?.[0] || null)}
+                        />
+                        <small className="text-muted">Leave blank to keep existing file.</small>
                       </div>
                     </div>
                   </div>
@@ -496,15 +699,10 @@ export default function PolicyPage() {
         <>
           <div className="modal fade show" style={{ display: "block" }} tabIndex="-1">
             <div className="modal-dialog modal-dialog-centered">
-              <div className="modal-content">
+              <div className="modal-content border-0 shadow">
                 <div className="modal-header">
-                  <h4 className="modal-title">Confirm Delete</h4>
-                  <button type="button" className="btn-close custom-btn-close" onClick={() => setShowDeleteModal(false)}>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <line x1="6" y1="6" x2="18" y2="18" />
-                      <line x1="18" y1="6" x2="6" y2="18" />
-                    </svg>
-                  </button>
+                  <h4 className="modal-title fw-bold text-danger">Confirm Delete</h4>
+                  <button type="button" className="btn-close" onClick={() => setShowDeleteModal(false)}></button>
                 </div>
                 <div className="modal-body">
                   <p>
@@ -532,15 +730,10 @@ export default function PolicyPage() {
         <>
           <div className="modal fade show" style={{ display: "block" }} tabIndex="-1">
             <div className="modal-dialog modal-dialog-centered modal-lg">
-              <div className="modal-content">
+              <div className="modal-content border-0 shadow">
                 <div className="modal-header">
-                  <h4 className="modal-title">Policy Details</h4>
-                  <button type="button" className="btn-close custom-btn-close" onClick={() => setShowViewModal(false)}>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <line x1="6" y1="6" x2="18" y2="18" />
-                      <line x1="18" y1="6" x2="6" y2="18" />
-                    </svg>
-                  </button>
+                  <h4 className="modal-title fw-bold">Policy Details</h4>
+                  <button type="button" className="btn-close" onClick={() => setShowViewModal(false)}></button>
                 </div>
                 <div className="modal-body">
                   <div className="row">

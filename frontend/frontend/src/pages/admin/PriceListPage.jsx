@@ -6,6 +6,7 @@ import { getPriceList, getPriceListSummary, normalizePriceListPage, savePriceEnt
 import { getServiceCategories } from "../../api/serviceCategoriesApi";
 import { getServiceTypes } from "../../api/serviceTypesApi";
 import { getCustomOptions, saveCustomOption } from "../../api/customOptionsApi";
+import PageSizeSelector from "../../components/admin/PageSizeSelector";
 import {
   collectCustomOptionSaves,
   getConfiguredSizeDimensions,
@@ -1569,44 +1570,6 @@ export default function PriceListPage() {
         {/* Level 3: Variant table */}
         {selectedTypeId && (!selectedTypeHasSubtypes || selectedSubtypeId) && (
           <div className="leads-table-wrap">
-            <div className="d-flex align-items-center justify-content-between flex-wrap gap-2 px-3 pt-3 pb-2">
-              <div className="text-muted small">
-                Showing {startRow}-{endRow} of {totalRows}
-              </div>
-              <div className="d-flex align-items-center gap-2 flex-wrap">
-                <label className="text-muted small mb-0">Rows per page</label>
-                <select
-                  className="form-select form-select-sm"
-                  style={{ width: 92 }}
-                  value={pageSize}
-                  onChange={(e) => {
-                    setPageSize(Number(e.target.value));
-                    setPage(1);
-                  }}
-                >
-                  {[10, 20, 50].map((size) => (
-                    <option key={size} value={size}>{size}</option>
-                  ))}
-                </select>
-                <button
-                  className="btn btn-outline-secondary btn-sm"
-                  disabled={page <= 1 || loading}
-                  onClick={() => setPage((current) => Math.max(1, current - 1))}
-                >
-                  Prev
-                </button>
-                <span className="text-muted small">
-                  Page {page} of {totalPages}
-                </span>
-                <button
-                  className="btn btn-outline-secondary btn-sm"
-                  disabled={page >= totalPages || loading}
-                  onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
-                >
-                  Next
-                </button>
-              </div>
-            </div>
             <table className="table leads-table mb-0">
               <thead>
                 <tr>
@@ -1731,26 +1694,100 @@ export default function PriceListPage() {
                 })()}
               </tbody>
             </table>
-            <div className="d-flex align-items-center justify-content-between flex-wrap gap-2 px-3 py-3 border-top">
-              <div className="text-muted small">
-                Page {page} of {totalPages}
-              </div>
-              <div className="d-flex gap-2">
+            <div className="leads-pagination-footer d-flex flex-wrap align-items-center justify-content-between gap-3 pt-3 border-top mt-3 px-3 pb-3">
+              <span className="entries-info text-muted small">
+                Showing {startRow} to {endRow} of {totalRows} entries
+              </span>
+
+              {/* Custom Pagination Numbers */}
+              <div className="pagination-numbers-container d-flex align-items-center gap-1">
                 <button
-                  className="btn btn-outline-secondary btn-sm"
-                  disabled={page <= 1 || loading}
-                  onClick={() => setPage((current) => Math.max(1, current - 1))}
+                  type="button"
+                  className="btn-pagination-arrow btn btn-sm btn-light border-0 d-flex align-items-center justify-content-center"
+                  style={{ width: 32, height: 32, borderRadius: 6 }}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={loading || page <= 1}
                 >
-                  Prev
+                  <i className="ti ti-chevron-left" />
                 </button>
+
+                {(() => {
+                  const buttons = [];
+                  const maxVisible = 5;
+                  let startPage = Math.max(1, page - 2);
+                  let endPage = Math.min(totalPages, startPage + maxVisible - 1);
+                  if (maxVisible - 1 > endPage - startPage) {
+                    startPage = Math.max(1, endPage - maxVisible + 1);
+                  }
+
+                  if (startPage > 1) {
+                    buttons.push(
+                      <button
+                        key={1}
+                        className={`btn-pagination-num btn btn-sm border-0 ${page === 1 ? 'btn-primary text-white' : 'btn-light'}`}
+                        style={{ width: 32, height: 32, borderRadius: 6, fontWeight: "500", backgroundColor: page === 1 ? "#3b82f6" : undefined }}
+                        onClick={() => setPage(1)}
+                        disabled={loading}
+                      >
+                        1
+                      </button>
+                    );
+                    if (startPage > 2) {
+                      buttons.push(<span key="dots-start" className="pagination-dots px-1 text-muted">...</span>);
+                    }
+                  }
+
+                  for (let i = startPage; endPage >= i; i++) {
+                    buttons.push(
+                      <button
+                        key={i}
+                        className={`btn-pagination-num btn btn-sm border-0 ${page === i ? 'btn-primary text-white' : 'btn-light'}`}
+                        style={{ width: 32, height: 32, borderRadius: 6, fontWeight: "500", backgroundColor: page === i ? "#3b82f6" : undefined }}
+                        onClick={() => setPage(i)}
+                        disabled={loading}
+                      >
+                        {i}
+                      </button>
+                    );
+                  }
+
+                  if (totalPages > endPage) {
+                    if (totalPages - 1 > endPage) {
+                      buttons.push(<span key="dots-end" className="pagination-dots px-1 text-muted">...</span>);
+                    }
+                    buttons.push(
+                      <button
+                        key={totalPages}
+                        className={`btn-pagination-num btn btn-sm border-0 ${page === totalPages ? 'btn-primary text-white' : 'btn-light'}`}
+                        style={{ width: 32, height: 32, borderRadius: 6, fontWeight: "500", backgroundColor: page === totalPages ? "#3b82f6" : undefined }}
+                        onClick={() => setPage(totalPages)}
+                        disabled={loading}
+                      >
+                        {totalPages}
+                      </button>
+                    );
+                  }
+
+                  return buttons;
+                })()}
+
                 <button
-                  className="btn btn-outline-secondary btn-sm"
-                  disabled={page >= totalPages || loading}
-                  onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
+                  type="button"
+                  className="btn-pagination-arrow btn btn-sm btn-light border-0 d-flex align-items-center justify-content-center"
+                  style={{ width: 32, height: 32, borderRadius: 6 }}
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={loading || page >= totalPages}
                 >
-                  Next
+                  <i className="ti ti-chevron-right" />
                 </button>
               </div>
+
+              {/* Page Size Selector */}
+              <PageSizeSelector
+                pageSize={pageSize}
+                setPageSize={setPageSize}
+                setPage={setPage}
+              />
             </div>
           </div>
         )}

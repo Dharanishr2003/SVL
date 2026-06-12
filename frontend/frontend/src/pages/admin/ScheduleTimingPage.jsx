@@ -1,7 +1,12 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Link } from 'react-router-dom';
+import { createPortal } from 'react-dom';
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
 import * as attendanceApi from '../../api/attendanceApi';
 import LocationPickerModal from '../../components/admin/LocationPickerModal';
+import PageSizeSelector from "../../components/admin/PageSizeSelector";
+import "./LeadsPage.css";
 import "../../../public/assets/css/addModalShared.css";
 
 /* helpers */
@@ -28,6 +33,18 @@ const ScheduleTimingPage = () => {
   const [editingLocId, setEditingLocId] = useState(null);
   const [locationModalVisible, setLocationModalVisible] = useState(false);
 
+  // Pagination, Search, and Selection States for Shifts
+  const [selectedShiftIds, setSelectedShiftIds] = useState(new Set());
+  const [searchQueryShifts, setSearchQueryShifts] = useState("");
+  const [pageShifts, setPageShifts] = useState(1);
+  const [pageSizeShifts, setPageSizeShifts] = useState(10);
+
+  // Pagination, Search, and Selection States for Locations
+  const [selectedLocIds, setSelectedLocIds] = useState(new Set());
+  const [searchQueryLocations, setSearchQueryLocations] = useState("");
+  const [pageLocations, setPageLocations] = useState(1);
+  const [pageSizeLocations, setPageSizeLocations] = useState(10);
+
   /* ── Data loading ── */
   const loadData = useCallback(async () => {
     try {
@@ -39,6 +56,8 @@ const ScheduleTimingPage = () => {
       ]);
       setShifts(Array.isArray(shiftList) ? shiftList : []);
       setLocations(Array.isArray(locList) ? locList : []);
+      setSelectedShiftIds(new Set());
+      setSelectedLocIds(new Set());
     } catch (e) {
       setError(e?.response?.data?.message || e.message || 'Failed to load data');
     } finally {
@@ -111,310 +130,651 @@ const ScheduleTimingPage = () => {
     catch (e) { setError(e?.response?.data?.message || 'Delete failed'); }
   };
 
+  // Filter Shifts
+  const filteredShifts = useMemo(() => {
+    return shifts.filter(s => {
+      const name = (s.name || "").toLowerCase();
+      const q = searchQueryShifts.toLowerCase();
+      return name.includes(q);
+    });
+  }, [shifts, searchQueryShifts]);
+
+  // Paginate Shifts
+  const totalShifts = filteredShifts.length;
+  const shiftsPageCount = Math.max(1, Math.ceil(totalShifts / pageSizeShifts));
+  const clampedShiftsPage = Math.min(Math.max(1, pageShifts), shiftsPageCount);
+  const offsetShifts = (clampedShiftsPage - 1) * pageSizeShifts;
+  const pagedShifts = filteredShifts.slice(offsetShifts, offsetShifts + pageSizeShifts);
+
+  // Filter Locations
+  const filteredLocs = useMemo(() => {
+    return locations.filter(l => {
+      const name = (l.name || "").toLowerCase();
+      const q = searchQueryLocations.toLowerCase();
+      return name.includes(q);
+    });
+  }, [locations, searchQueryLocations]);
+
+  // Paginate Locations
+  const totalLocs = filteredLocs.length;
+  const locsPageCount = Math.max(1, Math.ceil(totalLocs / pageSizeLocations));
+  const clampedLocsPage = Math.min(Math.max(1, pageLocations), locsPageCount);
+  const offsetLocs = (clampedLocsPage - 1) * pageSizeLocations;
+  const pagedLocs = filteredLocs.slice(offsetLocs, offsetLocs + pageSizeLocations);
+
+  const handleSelectAllShifts = (checked) => {
+    if (checked) {
+      setSelectedShiftIds(new Set(pagedShifts.map(s => s.id)));
+    } else {
+      setSelectedShiftIds(new Set());
+    }
+  };
+
+  const handleSelectShift = (id, checked) => {
+    const next = new Set(selectedShiftIds);
+    if (checked) next.add(id);
+    else next.delete(id);
+    setSelectedShiftIds(next);
+  };
+
+  const handleSelectAllLocs = (checked) => {
+    if (checked) {
+      setSelectedLocIds(new Set(pagedLocs.map(l => l.id)));
+    } else {
+      setSelectedLocIds(new Set());
+    }
+  };
+
+  const handleSelectLoc = (id, checked) => {
+    const next = new Set(selectedLocIds);
+    if (checked) next.add(id);
+    else next.delete(id);
+    setSelectedLocIds(next);
+  };
+
+  const exportShiftsExcel = () => {
+    const target = selectedShiftIds.size > 0 ? shifts.filter(s => selectedShiftIds.has(s.id)) : shifts;
+    const headers = ["Name", "Start Time", "End Time", "Break Allowed", "Lunch Allowed", "Min Work Time", "Night Shift"];
+    const escapeXml = (u) => String(u ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const headerHtml = `<tr>${headers.map(h => `<th>${escapeXml(h)}</th>`).join("")}</tr>`;
+    const rowsHtml = target.map(s => `
+      <tr>
+        <td>${escapeXml(s.name)}</td>
+        <td>${escapeXml(s.startTime)}</td>
+        <td>${escapeXml(s.endTime)}</td>
+        <td>${s.breakAllowedMinutes}m</td>
+        <td>${s.lunchAllowedMinutes}m</td>
+        <td>${fmtDuration(s.minWorkMinutes)}</td>
+        <td>${s.isNightShift ? "Yes" : "No"}</td>
+      </tr>
+    `).join("");
+    const template = `<html><head><meta charset="UTF-8"/></head><body><table><thead>${headerHtml}</thead><tbody>${rowsHtml}</tbody></table></body></html>`;
+    const blob = new Blob([template], { type: "application/vnd.ms-excel" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `shifts-${Date.now()}.xls`;
+    link.click();
+  };
+
+  const exportShiftsPdf = () => {
+    const target = selectedShiftIds.size > 0 ? shifts.filter(s => selectedShiftIds.has(s.id)) : shifts;
+    const doc = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
+    doc.text("Shifts Report", 40, 40);
+    const headers = [["Name", "Start", "End", "Break", "Lunch", "Min Work", "Night"]];
+    const body = target.map(s => [
+      s.name,
+      s.startTime,
+      s.endTime,
+      `${s.breakAllowedMinutes}m`,
+      `${s.lunchAllowedMinutes}m`,
+      fmtDuration(s.minWorkMinutes),
+      s.isNightShift ? "Yes" : "No"
+    ]);
+    autoTable(doc, { head: headers, body, startY: 60 });
+    doc.save(`shifts-${Date.now()}.pdf`);
+  };
+
+  const exportLocsExcel = () => {
+    const target = selectedLocIds.size > 0 ? locations.filter(l => selectedLocIds.has(l.id)) : locations;
+    const headers = ["Name", "Latitude", "Longitude", "Radius (m)", "Active"];
+    const escapeXml = (u) => String(u ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const headerHtml = `<tr>${headers.map(h => `<th>${escapeXml(h)}</th>`).join("")}</tr>`;
+    const rowsHtml = target.map(l => `
+      <tr>
+        <td>${escapeXml(l.name)}</td>
+        <td>${l.latitude}</td>
+        <td>${l.longitude}</td>
+        <td>${l.radiusMeters}</td>
+        <td>${l.active ? "Yes" : "No"}</td>
+      </tr>
+    `).join("");
+    const template = `<html><head><meta charset="UTF-8"/></head><body><table><thead>${headerHtml}</thead><tbody>${rowsHtml}</tbody></table></body></html>`;
+    const blob = new Blob([template], { type: "application/vnd.ms-excel" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `locations-${Date.now()}.xls`;
+    link.click();
+  };
+
+  const exportLocsPdf = () => {
+    const target = selectedLocIds.size > 0 ? locations.filter(l => selectedLocIds.has(l.id)) : locations;
+    const doc = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
+    doc.text("Locations Report", 40, 40);
+    const headers = [["Name", "Latitude", "Longitude", "Radius", "Active"]];
+    const body = target.map(l => [
+      l.name,
+      String(l.latitude),
+      String(l.longitude),
+      `${l.radiusMeters}m`,
+      l.active ? "Yes" : "No"
+    ]);
+    autoTable(doc, { head: headers, body, startY: 60 });
+    doc.save(`locations-${Date.now()}.pdf`);
+  };
+
   return (
     <>
       <div className="content">
-        <div className="d-md-flex d-block align-items-center justify-content-between page-breadcrumb mb-3">
-          <div className="my-auto mb-2">
-            <h2 className="mb-1">Schedule Timing</h2>
-            <nav>
-              <ol className="breadcrumb mb-0">
-                <li className="breadcrumb-item"><Link to="/admin-dashboard"><i className="ti ti-smart-home"></i></Link></li>
-                <li className="breadcrumb-item">Administration</li>
-                <li className="breadcrumb-item active" aria-current="page">Schedule Timing</li>
-              </ol>
-            </nav>
+        {/* White top header card */}
+        <div className="card border-0 shadow-sm mb-4 bg-white" style={{ borderRadius: 12 }}>
+          <div className="card-body p-4 d-flex justify-content-between align-items-center flex-wrap gap-3">
+            <div>
+              <h3 className="fw-bold mb-1 text-slate-800" style={{ fontSize: "1.3rem" }}>Schedule Timing</h3>
+              <nav aria-label="breadcrumb">
+                <ol className="breadcrumb mb-0" style={{ fontSize: "0.85rem" }}>
+                  <li className="breadcrumb-item">
+                    <Link to="/admin-dashboard" className="text-muted text-decoration-none">
+                      <i className="ti ti-smart-home" />
+                    </Link>
+                  </li>
+                  <li className="breadcrumb-item text-muted">Administration</li>
+                  <li className="breadcrumb-item active text-primary" aria-current="page">Schedule Timing</li>
+                </ol>
+              </nav>
+            </div>
           </div>
         </div>
 
-	{error && (
-		<div className="alert alert-danger alert-dismissible fade show" role="alert">
-			{error}
-			<button type="button" className="btn-close" onClick={() => setError('')}></button>
-		</div>
-	)}
+        {error && (
+          <div className="alert alert-danger alert-dismissible fade show" role="alert">
+            {error}
+            <button type="button" className="btn-close" onClick={() => setError('')}></button>
+          </div>
+        )}
 
-	{/* ── Tabs ── */}
-	<ul className="nav nav-tabs mb-4">
-		<li className="nav-item">
-			<button className={`nav-link ${activeTab === 'shifts' ? 'active' : ''}`} onClick={() => setActiveTab('shifts')}>
-				<i className="ti ti-clock me-1"></i>Shifts
-			</button>
-		</li>
-		<li className="nav-item">
-			<button className={`nav-link ${activeTab === 'locations' ? 'active' : ''}`} onClick={() => setActiveTab('locations')}>
-				<i className="ti ti-map-pin me-1"></i>Locations
-			</button>
-		</li>
-	</ul>
+        {/* Tabs */}
+        <ul className="nav nav-tabs mb-4">
+          <li className="nav-item">
+            <button className={`nav-link ${activeTab === 'shifts' ? 'active fw-bold' : ''}`} onClick={() => setActiveTab('shifts')}>
+              <i className="ti ti-clock me-1"></i>Shifts
+            </button>
+          </li>
+          <li className="nav-item">
+            <button className={`nav-link ${activeTab === 'locations' ? 'active fw-bold' : ''}`} onClick={() => setActiveTab('locations')}>
+              <i className="ti ti-map-pin me-1"></i>Locations
+            </button>
+          </li>
+        </ul>
 
-	{loading ? (
-		<div className="text-center py-5"><div className="spinner-border text-primary" role="status"><span className="visually-hidden">Loading...</span></div></div>
-	) : (
-	<>
-	{/* ┌─────────────────────────────────────────────── */}
-	{/* │         SHIFTS TAB                            */}
-	{/* └─────────────────────────────────────────────── */}
-	{activeTab === 'shifts' && (
-	<div className="row">
-		{/* Shift Form */}
-		<div className="col-lg-5">
-			<div className="card">
-				<div className="card-header">
-					<h5>{editingShiftId ? 'Edit Shift' : 'Add Shift'}</h5>
-				</div>
-				<div className="card-body">
-					<form onSubmit={handleShiftSave}>
-						<div className="mb-3">
-							<label className="form-label">Shift Name</label>
-							<input type="text" className="form-control" required value={shiftForm.name} onChange={e => setShiftForm(p => ({ ...p, name: e.target.value }))} />
-						</div>
-						<div className="row">
-							<div className="col-6 mb-3">
-								<label className="form-label">Start Time</label>
-								<input type="time" className="form-control" required value={shiftForm.startTime} onChange={e => setShiftForm(p => ({ ...p, startTime: e.target.value }))} />
-							</div>
-							<div className="col-6 mb-3">
-								<label className="form-label">End Time</label>
-								<input type="time" className="form-control" required value={shiftForm.endTime} onChange={e => setShiftForm(p => ({ ...p, endTime: e.target.value }))} />
-							</div>
-						</div>
-						<div className="row">
-							<div className="col-6 mb-3">
-								<label className="form-label">Break Allowed (min)</label>
-								<input type="number" className="form-control" value={shiftForm.breakAllowedMinutes} onChange={e => setShiftForm(p => ({ ...p, breakAllowedMinutes: parseInt(e.target.value, 10) || 0 }))} />
-							</div>
-							<div className="col-6 mb-3">
-								<label className="form-label">Break Grace (min)</label>
-								<input type="number" className="form-control" value={shiftForm.breakGraceMinutes} onChange={e => setShiftForm(p => ({ ...p, breakGraceMinutes: parseInt(e.target.value, 10) || 0 }))} />
-							</div>
-						</div>
-						<div className="row">
-							<div className="col-6 mb-3">
-								<label className="form-label">Lunch Allowed (min)</label>
-								<input type="number" className="form-control" value={shiftForm.lunchAllowedMinutes} onChange={e => setShiftForm(p => ({ ...p, lunchAllowedMinutes: parseInt(e.target.value, 10) || 0 }))} />
-							</div>
-							<div className="col-6 mb-3">
-								<label className="form-label">Lunch Grace (min)</label>
-								<input type="number" className="form-control" value={shiftForm.lunchGraceMinutes} onChange={e => setShiftForm(p => ({ ...p, lunchGraceMinutes: parseInt(e.target.value, 10) || 0 }))} />
-							</div>
-						</div>
-						<div className="mb-3">
-							<label className="form-label">Min Work (min)</label>
-							<input type="number" className="form-control" value={shiftForm.minWorkMinutes} onChange={e => setShiftForm(p => ({ ...p, minWorkMinutes: parseInt(e.target.value, 10) || 0 }))} />
-						</div>
-						<div className="mb-3">
-							<label className="form-label">Max Overtime (min)</label>
-							<input type="number" className="form-control" min="0" value={shiftForm.maxOvertimeMinutes} onChange={e => setShiftForm(p => ({ ...p, maxOvertimeMinutes: parseInt(e.target.value, 10) || 0 }))} />
-							<small className="form-text text-muted">Max overtime per day in minutes. 0 = none allowed. 120 = default 2 hours.</small>
-						</div>
-						<div className="row">
-							<div className="col-6 mb-3">
-								<label className="form-label">Early Check-In (min before start)</label>
-								<input type="number" className="form-control" value={shiftForm.earlyCheckinBufferMinutes} onChange={e => setShiftForm(p => ({ ...p, earlyCheckinBufferMinutes: parseInt(e.target.value, 10) || 0 }))} />
-							</div>
-							<div className="col-6 mb-3">
-								<label className="form-label">Late Check-In (min after start)</label>
-								<input type="number" className="form-control" value={shiftForm.lateCheckinBufferMinutes} onChange={e => setShiftForm(p => ({ ...p, lateCheckinBufferMinutes: parseInt(e.target.value, 10) || 0 }))} />
-							</div>
-						</div>
-						<div className="form-check mb-3">
-							<input className="form-check-input" type="checkbox" id="nightShift" checked={shiftForm.isNightShift} onChange={e => setShiftForm(p => ({ ...p, isNightShift: e.target.checked }))} />
-							<label className="form-check-label" htmlFor="nightShift">Night Shift</label>
-						</div>
-						<div className="d-flex gap-2">
-							<button type="submit" className="btn btn-primary">{editingShiftId ? 'Update' : 'Create'}</button>
-							{editingShiftId && (
-								<button type="button" className="btn btn-light" onClick={() => { setEditingShiftId(null); setShiftForm({ name: '', startTime: '09:00', endTime: '18:00', breakAllowedMinutes: 15, breakGraceMinutes: 5, lunchAllowedMinutes: 60, lunchGraceMinutes: 10, minWorkMinutes: 480, isNightShift: false, earlyCheckinBufferMinutes: 30, lateCheckinBufferMinutes: 15, maxOvertimeMinutes: 120 }); }}>Cancel</button>
-							)}
-						</div>
-					</form>
-				</div>
-			</div>
-		</div>
+        {loading ? (
+          <div className="text-center py-5"><div className="spinner-border text-primary" role="status"><span className="visually-hidden">Loading...</span></div></div>
+        ) : (
+          <>
+            {activeTab === 'shifts' && (
+              <div className="row g-4">
+                {/* Shift Form */}
+                <div className="col-lg-5">
+                  <div className="card border-0 shadow-sm bg-white" style={{ borderRadius: 12 }}>
+                    <div className="card-header bg-white border-bottom py-3">
+                      <h5 className="fw-bold text-slate-800 mb-0">{editingShiftId ? 'Edit Shift' : 'Add Shift'}</h5>
+                    </div>
+                    <div className="card-body">
+                      <form onSubmit={handleShiftSave}>
+                        <div className="mb-3">
+                          <label className="form-label">Shift Name</label>
+                          <input type="text" className="form-control" required value={shiftForm.name} onChange={e => setShiftForm(p => ({ ...p, name: e.target.value }))} />
+                        </div>
+                        <div className="row">
+                          <div className="col-6 mb-3">
+                            <label className="form-label">Start Time</label>
+                            <input type="time" className="form-control" required value={shiftForm.startTime} onChange={e => setShiftForm(p => ({ ...p, startTime: e.target.value }))} />
+                          </div>
+                          <div className="col-6 mb-3">
+                            <label className="form-label">End Time</label>
+                            <input type="time" className="form-control" required value={shiftForm.endTime} onChange={e => setShiftForm(p => ({ ...p, endTime: e.target.value }))} />
+                          </div>
+                        </div>
+                        <div className="row">
+                          <div className="col-6 mb-3">
+                            <label className="form-label">Break Allowed (min)</label>
+                            <input type="number" className="form-control" value={shiftForm.breakAllowedMinutes} onChange={e => setShiftForm(p => ({ ...p, breakAllowedMinutes: parseInt(e.target.value, 10) || 0 }))} />
+                          </div>
+                          <div className="col-6 mb-3">
+                            <label className="form-label">Break Grace (min)</label>
+                            <input type="number" className="form-control" value={shiftForm.breakGraceMinutes} onChange={e => setShiftForm(p => ({ ...p, breakGraceMinutes: parseInt(e.target.value, 10) || 0 }))} />
+                          </div>
+                        </div>
+                        <div className="row">
+                          <div className="col-6 mb-3">
+                            <label className="form-label">Lunch Allowed (min)</label>
+                            <input type="number" className="form-control" value={shiftForm.lunchAllowedMinutes} onChange={e => setShiftForm(p => ({ ...p, lunchAllowedMinutes: parseInt(e.target.value, 10) || 0 }))} />
+                          </div>
+                          <div className="col-6 mb-3">
+                            <label className="form-label">Lunch Grace (min)</label>
+                            <input type="number" className="form-control" value={shiftForm.lunchGraceMinutes} onChange={e => setShiftForm(p => ({ ...p, lunchGraceMinutes: parseInt(e.target.value, 10) || 0 }))} />
+                          </div>
+                        </div>
+                        <div className="mb-3">
+                          <label className="form-label">Min Work (min)</label>
+                          <input type="number" className="form-control" value={shiftForm.minWorkMinutes} onChange={e => setShiftForm(p => ({ ...p, minWorkMinutes: parseInt(e.target.value, 10) || 0 }))} />
+                        </div>
+                        <div className="mb-3">
+                          <label className="form-label">Max Overtime (min)</label>
+                          <input type="number" className="form-control" min="0" value={shiftForm.maxOvertimeMinutes} onChange={e => setShiftForm(p => ({ ...p, maxOvertimeMinutes: parseInt(e.target.value, 10) || 0 }))} />
+                        </div>
+                        <div className="row">
+                          <div className="col-6 mb-3">
+                            <label className="form-label">Early Check-In (min before start)</label>
+                            <input type="number" className="form-control" value={shiftForm.earlyCheckinBufferMinutes} onChange={e => setShiftForm(p => ({ ...p, earlyCheckinBufferMinutes: parseInt(e.target.value, 10) || 0 }))} />
+                          </div>
+                          <div className="col-6 mb-3">
+                            <label className="form-label">Late Check-In (min after start)</label>
+                            <input type="number" className="form-control" value={shiftForm.lateCheckinBufferMinutes} onChange={e => setShiftForm(p => ({ ...p, lateCheckinBufferMinutes: parseInt(e.target.value, 10) || 0 }))} />
+                          </div>
+                        </div>
+                        <div className="form-check mb-3">
+                          <input className="form-check-input" type="checkbox" id="nightShift" checked={shiftForm.isNightShift} onChange={e => setShiftForm(p => ({ ...p, isNightShift: e.target.checked }))} />
+                          <label className="form-check-label text-slate-800 fw-semibold" htmlFor="nightShift">Night Shift</label>
+                        </div>
+                        <div className="d-flex gap-2">
+                          <button type="submit" className="btn btn-primary">{editingShiftId ? 'Update' : 'Create'}</button>
+                          {editingShiftId && (
+                            <button type="button" className="btn btn-light" onClick={() => { setEditingShiftId(null); setShiftForm({ name: '', startTime: '09:00', endTime: '18:00', breakAllowedMinutes: 15, breakGraceMinutes: 5, lunchAllowedMinutes: 60, lunchGraceMinutes: 10, minWorkMinutes: 480, isNightShift: false, earlyCheckinBufferMinutes: 30, lateCheckinBufferMinutes: 15, maxOvertimeMinutes: 120 }); }}>Cancel</button>
+                          )}
+                        </div>
+                      </form>
+                    </div>
+                  </div>
+                </div>
 
-		{/* Shift List */}
-		<div className="col-lg-7">
-			<div className="card">
-				<div className="card-header"><h5>Shifts</h5></div>
-				<div className="card-body p-0">
-					<div className="table-responsive">
-						<table className="table mb-0">
-							<thead className="thead-light">
-								<tr>
-									<th>Name</th>
-									<th>Start</th>
-									<th>End</th>
-									<th>Break</th>
-									<th>Lunch</th>
-									<th>Min Work</th>
-									<th>Max OT</th>
-									<th>Check-In Window</th>
-									<th>Night</th>
-									<th>Actions</th>
-								</tr>
-							</thead>
-							<tbody>
-								{shifts.length === 0 ? (
-									<tr><td colSpan="10" className="text-center py-3 text-muted">No shifts configured.</td></tr>
-								) : shifts.map(s => (
-									<tr key={s.id}>
-										<td>{s.name}</td>
-										<td>{s.startTime}</td>
-										<td>{s.endTime}</td>
-										<td>{s.breakAllowedMinutes}+{s.breakGraceMinutes}m</td>
-										<td>{s.lunchAllowedMinutes}+{s.lunchGraceMinutes}m</td>
-										<td>{fmtDuration(s.minWorkMinutes)}</td>
-										<td>{s.maxOvertimeMinutes === 0 ? 'None' : fmtDuration(s.maxOvertimeMinutes)}</td>
-										<td><span className="text-muted small">-{s.earlyCheckinBufferMinutes}m to +{s.lateCheckinBufferMinutes}m</span></td>
-										<td>{s.isNightShift ? <span className="badge badge-dark">Yes</span> : 'No'}</td>
-										<td>
-											<div className="d-flex gap-1">
-												<button className="btn btn-sm btn-outline-primary" onClick={() => handleShiftEdit(s)}><i className="ti ti-edit"></i></button>
-												<button className="btn btn-sm btn-outline-danger" onClick={() => handleShiftDelete(s.id)}><i className="ti ti-trash"></i></button>
-											</div>
-										</td>
-									</tr>
-								))}
-							</tbody>
-						</table>
-					</div>
-				</div>
-			</div>
-		</div>
-	</div>
-	)}
+                {/* Shift List */}
+                <div className="col-lg-7">
+                  <div className="card border-0 shadow-sm bg-white" style={{ borderRadius: 12, overflow: "hidden" }}>
+                    {/* Controls Bar */}
+                    <div className="p-3 border-bottom d-flex flex-wrap align-items-center justify-content-between gap-3 bg-light">
+                      <div className="d-flex align-items-center gap-2 flex-grow-1" style={{ maxWidth: 250 }}>
+                        <div className="input-group">
+                          <span className="input-group-text bg-white border-end-0"><i className="ti ti-search text-muted" /></span>
+                          <input
+                            type="text"
+                            className="form-control border-start-0"
+                            placeholder="Search shifts..."
+                            value={searchQueryShifts}
+                            onChange={(e) => { setSearchQueryShifts(e.target.value); setPageShifts(1); }}
+                          />
+                        </div>
+                      </div>
+                      <div className="dropdown">
+                        <button className="btn btn-white border dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                          <i className="ti ti-download" /> Export
+                        </button>
+                        <ul className="dropdown-menu shadow border-0">
+                          <li><button className="dropdown-item" onClick={exportShiftsExcel}>Excel</button></li>
+                          <li><button className="dropdown-item" onClick={exportShiftsPdf}>PDF</button></li>
+                        </ul>
+                      </div>
+                    </div>
 
-	{/* ┌─────────────────────────────────────────────── */}
-	{/* │         LOCATIONS TAB                         */}
-	{/* └─────────────────────────────────────────────── */}
-	{activeTab === 'locations' && (
-	<div className="row">
-		{/* Location Form */}
-		<div className="col-lg-5">
-			<div className="card">
-				<div className="card-header">
-					<h5>{editingLocId ? 'Edit Location' : 'Add Location'}</h5>
-				</div>
-				<div className="card-body">
-					<form onSubmit={handleLocSave}>
-						<div className="mb-3">
-							<label className="form-label">Location Name</label>
-							<input type="text" className="form-control" required value={locForm.name} onChange={e => setLocForm(p => ({ ...p, name: e.target.value }))} />
-						</div>
+                    <div className="table-responsive">
+                      <table className="table table-hover align-middle mb-0">
+                        <thead className="table-light">
+                          <tr>
+                            <th style={{ width: 40 }}>
+                              <input
+                                type="checkbox"
+                                className="form-check-input"
+                                checked={pagedShifts.length > 0 && pagedShifts.every(s => selectedShiftIds.has(s.id))}
+                                onChange={(e) => handleSelectAllShifts(e.target.checked)}
+                              />
+                            </th>
+                            <th>Name</th>
+                            <th>Start</th>
+                            <th>End</th>
+                            <th>Break</th>
+                            <th>Lunch</th>
+                            <th>Min Work</th>
+                            <th>Max OT</th>
+                            <th>Night</th>
+                            <th style={{ width: 80 }} className="text-end">Action</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {pagedShifts.length === 0 ? (
+                            <tr><td colSpan="10" className="text-center py-4 text-muted">No shifts configured</td></tr>
+                          ) : (
+                            pagedShifts.map(s => (
+                              <tr key={s.id}>
+                                <td>
+                                  <input
+                                    type="checkbox"
+                                    className="form-check-input"
+                                    checked={selectedShiftIds.has(s.id)}
+                                    onChange={(e) => handleSelectShift(s.id, e.target.checked)}
+                                  />
+                                </td>
+                                <td className="fw-semibold text-slate-800">{s.name}</td>
+                                <td>{s.startTime}</td>
+                                <td>{s.endTime}</td>
+                                <td>{s.breakAllowedMinutes}+{s.breakGraceMinutes}m</td>
+                                <td>{s.lunchAllowedMinutes}+{s.lunchGraceMinutes}m</td>
+                                <td>{fmtDuration(s.minWorkMinutes)}</td>
+                                <td>{s.maxOvertimeMinutes === 0 ? 'None' : fmtDuration(s.maxOvertimeMinutes)}</td>
+                                <td>{s.isNightShift ? <span className="badge bg-dark">Yes</span> : 'No'}</td>
+                                <td className="text-end">
+                                  <div className="dropdown">
+                                    <button className="btn btn-light btn-sm btn-icon" data-bs-toggle="dropdown" aria-expanded="false">
+                                      <i className="ti ti-dots-vertical" />
+                                    </button>
+                                    <ul className="dropdown-menu dropdown-menu-end shadow border-0">
+                                      <li><button className="dropdown-item" onClick={() => handleShiftEdit(s)}>Edit</button></li>
+                                      <li><button className="dropdown-item text-danger" onClick={() => handleShiftDelete(s.id)}>Delete</button></li>
+                                    </ul>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
 
-						{/* Map Picker Button */}
-						<div className="mb-3">
-							<button
-								type="button"
-								className="btn btn-outline-primary w-100"
-								onClick={() => setLocationModalVisible(true)}
-							>
-								<i className="ti ti-map me-2"></i>
-								{locForm.latitude && locForm.longitude ? 'Change Location on Map' : 'Pick Location on Map'}
-							</button>
-						</div>
+                    {/* Pagination Footer */}
+                    {totalShifts > 0 && (
+                      <div className="p-3 border-top d-flex flex-wrap align-items-center justify-content-between gap-3 bg-light">
+                        <div className="text-muted small">
+                          Showing {offsetShifts + 1} to {Math.min(offsetShifts + pageSizeShifts, totalShifts)} of {totalShifts} entries
+                        </div>
+                        <div className="d-flex align-items-center gap-2">
+                          <button
+                            type="button"
+                            className="btn btn-light btn-sm"
+                            onClick={() => setPageShifts(p => Math.max(1, p - 1))}
+                            disabled={clampedShiftsPage === 1}
+                          >
+                            <i className="ti ti-chevron-left" />
+                          </button>
+                          <span className="small fw-semibold">{clampedShiftsPage} / {shiftsPageCount}</span>
+                          <button
+                            type="button"
+                            className="btn btn-light btn-sm"
+                            onClick={() => setPageShifts(p => Math.min(shiftsPageCount, p + 1))}
+                            disabled={clampedShiftsPage === shiftsPageCount}
+                          >
+                            <i className="ti ti-chevron-right" />
+                          </button>
+                          <PageSizeSelector
+                            pageSize={pageSizeShifts}
+                            setPageSize={setPageSizeShifts}
+                            setPage={setPageShifts}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
 
-						{/* Display Selected Coordinates */}
-						{locForm.latitude && locForm.longitude && (
-							<div className="row g-2 mb-3">
-								<div className="col-6">
-									<small className="text-muted">Latitude</small>
-									<div className="fw-bold">{parseFloat(locForm.latitude).toFixed(6)}</div>
-								</div>
-								<div className="col-6">
-									<small className="text-muted">Longitude</small>
-									<div className="fw-bold">{parseFloat(locForm.longitude).toFixed(6)}</div>
-								</div>
-							</div>
-						)}
+            {activeTab === 'locations' && (
+              <div className="row g-4">
+                {/* Location Form */}
+                <div className="col-lg-5">
+                  <div className="card border-0 shadow-sm bg-white" style={{ borderRadius: 12 }}>
+                    <div className="card-header bg-white border-bottom py-3">
+                      <h5 className="fw-bold text-slate-800 mb-0">{editingLocId ? 'Edit Location' : 'Add Location'}</h5>
+                    </div>
+                    <div className="card-body">
+                      <form onSubmit={handleLocSave}>
+                        <div className="mb-3">
+                          <label className="form-label">Location Name</label>
+                          <input type="text" className="form-control" required value={locForm.name} onChange={e => setLocForm(p => ({ ...p, name: e.target.value }))} />
+                        </div>
+                        <div className="mb-3">
+                          <button
+                            type="button"
+                            className="btn btn-outline-primary w-100"
+                            onClick={() => setLocationModalVisible(true)}
+                          >
+                            <i className="ti ti-map me-2"></i>
+                            {locForm.latitude && locForm.longitude ? 'Change Location on Map' : 'Pick Location on Map'}
+                          </button>
+                        </div>
+                        {locForm.latitude && locForm.longitude && (
+                          <div className="row g-2 mb-3">
+                            <div className="col-6">
+                              <small className="text-muted">Latitude</small>
+                              <div className="fw-bold">{parseFloat(locForm.latitude).toFixed(6)}</div>
+                            </div>
+                            <div className="col-6">
+                              <small className="text-muted">Longitude</small>
+                              <div className="fw-bold">{parseFloat(locForm.longitude).toFixed(6)}</div>
+                            </div>
+                          </div>
+                        )}
+                        <div className="mb-3">
+                          <label className="form-label">Radius (meters)</label>
+                          <input type="number" className="form-control" value={locForm.radiusMeters} onChange={e => setLocForm(p => ({ ...p, radiusMeters: e.target.value }))} />
+                        </div>
+                        <div className="d-flex gap-2">
+                          <button type="submit" className="btn btn-primary">{editingLocId ? 'Update' : 'Create'}</button>
+                          {editingLocId && (
+                            <button type="button" className="btn btn-light" onClick={() => { setEditingLocId(null); setLocForm({ name: '', latitude: '', longitude: '', radiusMeters: 50 }); }}>Cancel</button>
+                          )}
+                        </div>
+                      </form>
+                    </div>
+                  </div>
+                </div>
 
-						<div className="mb-3">
-							<label className="form-label">Radius (meters)</label>
-							<input type="number" className="form-control" value={locForm.radiusMeters} onChange={e => setLocForm(p => ({ ...p, radiusMeters: e.target.value }))} />
-						</div>
-						<div className="d-flex gap-2">
-							<button type="submit" className="btn btn-primary">{editingLocId ? 'Update' : 'Create'}</button>
-							{editingLocId && (
-								<button type="button" className="btn btn-light" onClick={() => { setEditingLocId(null); setLocForm({ name: '', latitude: '', longitude: '', radiusMeters: 50 }); }}>Cancel</button>
-							)}
-						</div>
-					</form>
-				</div>
-			</div>
-		</div>
+                {/* Location List */}
+                <div className="col-lg-7">
+                  <div className="card border-0 shadow-sm bg-white" style={{ borderRadius: 12, overflow: "hidden" }}>
+                    {/* Controls Bar */}
+                    <div className="p-3 border-bottom d-flex flex-wrap align-items-center justify-content-between gap-3 bg-light">
+                      <div className="d-flex align-items-center gap-2 flex-grow-1" style={{ maxWidth: 250 }}>
+                        <div className="input-group">
+                          <span className="input-group-text bg-white border-end-0"><i className="ti ti-search text-muted" /></span>
+                          <input
+                            type="text"
+                            className="form-control border-start-0"
+                            placeholder="Search locations..."
+                            value={searchQueryLocations}
+                            onChange={(e) => { setSearchQueryLocations(e.target.value); setPageLocations(1); }}
+                          />
+                        </div>
+                      </div>
+                      <div className="dropdown">
+                        <button className="btn btn-white border dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                          <i className="ti ti-download" /> Export
+                        </button>
+                        <ul className="dropdown-menu shadow border-0">
+                          <li><button className="dropdown-item" onClick={exportLocsExcel}>Excel</button></li>
+                          <li><button className="dropdown-item" onClick={exportLocsPdf}>PDF</button></li>
+                        </ul>
+                      </div>
+                    </div>
 
-		{/* Location List */}
-		<div className="col-lg-7">
-			<div className="card">
-				<div className="card-header"><h5>Company Locations</h5></div>
-				<div className="card-body p-0">
-					<div className="table-responsive">
-						<table className="table mb-0">
-							<thead className="thead-light">
-								<tr>
-									<th>Name</th>
-									<th>Latitude</th>
-									<th>Longitude</th>
-									<th>Radius (m)</th>
-									<th>Active</th>
-									<th>Actions</th>
-								</tr>
-							</thead>
-							<tbody>
-								{locations.length === 0 ? (
-									<tr><td colSpan="6" className="text-center py-3 text-muted">No locations configured.</td></tr>
-								) : locations.map(l => (
-									<tr key={l.id}>
-										<td>{l.name}</td>
-										<td>{l.latitude?.toFixed(6)}</td>
-										<td>{l.longitude?.toFixed(6)}</td>
-										<td>{l.radiusMeters}</td>
-										<td>{l.active ? <span className="badge badge-success">Yes</span> : <span className="badge badge-danger">No</span>}</td>
-										<td>
-											<div className="d-flex gap-1">
-												<button className="btn btn-sm btn-outline-primary" onClick={() => handleLocEdit(l)}><i className="ti ti-edit"></i></button>
-												<button className="btn btn-sm btn-outline-danger" onClick={() => handleLocDelete(l.id)}><i className="ti ti-trash"></i></button>
-											</div>
-										</td>
-									</tr>
-								))}
-							</tbody>
-						</table>
-					</div>
-				</div>
-			</div>
-		</div>
-	</div>
-	)}
-	
-	{/* Location Picker Modal */}
-	<LocationPickerModal
-		show={locationModalVisible}
-		onClose={() => setLocationModalVisible(false)}
-		radiusMeters={Number(locForm.radiusMeters) || 50}
-		onRadiusChange={(value) =>
-			setLocForm((p) => ({
-				...p,
-				radiusMeters: value,
-			}))
-		}
-		initialLocation={
-			locForm.latitude && locForm.longitude
-				? { latitude: parseFloat(locForm.latitude), longitude: parseFloat(locForm.longitude) }
-				: null
-		}
-		onSelectLocation={(location) => {
-			setLocForm((p) => ({
-				...p,
-				latitude: location.latitude,
-				longitude: location.longitude,
-			}));
-		}}
-	/>
-	</>
-	)}
-	</div>
+                    <div className="table-responsive">
+                      <table className="table table-hover align-middle mb-0">
+                        <thead className="table-light">
+                          <tr>
+                            <th style={{ width: 40 }}>
+                              <input
+                                type="checkbox"
+                                className="form-check-input"
+                                checked={pagedLocs.length > 0 && pagedLocs.every(l => selectedLocIds.has(l.id))}
+                                onChange={(e) => handleSelectAllLocs(e.target.checked)}
+                              />
+                            </th>
+                            <th>Name</th>
+                            <th>Latitude</th>
+                            <th>Longitude</th>
+                            <th>Radius</th>
+                            <th>Active</th>
+                            <th style={{ width: 80 }} className="text-end">Action</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {pagedLocs.length === 0 ? (
+                            <tr><td colSpan="7" className="text-center py-4 text-muted">No locations configured</td></tr>
+                          ) : (
+                            pagedLocs.map(l => (
+                              <tr key={l.id}>
+                                <td>
+                                  <input
+                                    type="checkbox"
+                                    className="form-check-input"
+                                    checked={selectedLocIds.has(l.id)}
+                                    onChange={(e) => handleSelectLoc(l.id, e.target.checked)}
+                                  />
+                                </td>
+                                <td className="fw-semibold text-slate-800">{l.name}</td>
+                                <td>{l.latitude?.toFixed(6)}</td>
+                                <td>{l.longitude?.toFixed(6)}</td>
+                                <td>{l.radiusMeters}m</td>
+                                <td>{l.active ? <span className="badge bg-success">Yes</span> : <span className="badge bg-danger">No</span>}</td>
+                                <td className="text-end">
+                                  <div className="dropdown">
+                                    <button className="btn btn-light btn-sm btn-icon" data-bs-toggle="dropdown" aria-expanded="false">
+                                      <i className="ti ti-dots-vertical" />
+                                    </button>
+                                    <ul className="dropdown-menu dropdown-menu-end shadow border-0">
+                                      <li><button className="dropdown-item" onClick={() => handleLocEdit(l)}>Edit</button></li>
+                                      <li><button className="dropdown-item text-danger" onClick={() => handleLocDelete(l.id)}>Delete</button></li>
+                                    </ul>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Pagination Footer */}
+                    {totalLocs > 0 && (
+                      <div className="p-3 border-top d-flex flex-wrap align-items-center justify-content-between gap-3 bg-light">
+                        <div className="text-muted small">
+                          Showing {offsetLocs + 1} to {Math.min(offsetLocs + pageSizeLocations, totalLocs)} of {totalLocs} entries
+                        </div>
+                        <div className="d-flex align-items-center gap-2">
+                          <button
+                            type="button"
+                            className="btn btn-light btn-sm"
+                            onClick={() => setPageLocations(p => Math.max(1, p - 1))}
+                            disabled={clampedLocsPage === 1}
+                          >
+                            <i className="ti ti-chevron-left" />
+                          </button>
+                          <span className="small fw-semibold">{clampedLocsPage} / {locsPageCount}</span>
+                          <button
+                            type="button"
+                            className="btn btn-light btn-sm"
+                            onClick={() => setPageLocations(p => Math.min(locsPageCount, p + 1))}
+                            disabled={clampedLocsPage === locsPageCount}
+                          >
+                            <i className="ti ti-chevron-right" />
+                          </button>
+                          <PageSizeSelector
+                            pageSize={pageSizeLocations}
+                            setPageSize={setPageSizeLocations}
+                            setPage={setPageLocations}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* Location Picker Modal */}
+      <LocationPickerModal
+        show={locationModalVisible}
+        onClose={() => setLocationModalVisible(false)}
+        radiusMeters={Number(locForm.radiusMeters) || 50}
+        onRadiusChange={(value) =>
+          setLocForm((p) => ({
+            ...p,
+            radiusMeters: value,
+          }))
+        }
+        initialLocation={
+          locForm.latitude && locForm.longitude
+            ? { latitude: parseFloat(locForm.latitude), longitude: parseFloat(locForm.longitude) }
+            : null
+        }
+        onSelectLocation={(location) => {
+          setLocForm((p) => ({
+            ...p,
+            latitude: location.latitude,
+            longitude: location.longitude,
+          }));
+        }}
+      />
+
+      {/* Floating Dark Bottom Actions Bar for Shifts */}
+      {activeTab === 'shifts' && selectedShiftIds.size > 0 && createPortal(
+        <div className="floating-bulk-bar" style={{
+          position: "fixed",
+          bottom: 24,
+          left: "50%",
+          transform: "translateX(-50%)",
+          backgroundColor: "#0f172a",
+          color: "#fff",
+          padding: "12px 24px",
+          borderRadius: 12,
+          display: "flex",
+          alignItems: "center",
+          gap: 16,
+          zIndex: 9999,
+          boxShadow: "0 10px 25px rgba(0,0,0,0.3)"
+        }}>
+          <span className="small">{selectedShiftIds.size} shift(s) selected</span>
+          <button className="btn btn-sm btn-outline-light" onClick={() => setSelectedShiftIds(new Set())}>Clear</button>
+          <button className="btn btn-sm btn-primary" onClick={exportShiftsPdf}>Export Selected PDF</button>
+        </div>,
+        document.body
+      )}
+
+      {/* Floating Dark Bottom Actions Bar for Locations */}
+      {activeTab === 'locations' && selectedLocIds.size > 0 && createPortal(
+        <div className="floating-bulk-bar" style={{
+          position: "fixed",
+          bottom: 24,
+          left: "50%",
+          transform: "translateX(-50%)",
+          backgroundColor: "#0f172a",
+          color: "#fff",
+          padding: "12px 24px",
+          borderRadius: 12,
+          display: "flex",
+          alignItems: "center",
+          gap: 16,
+          zIndex: 9999,
+          boxShadow: "0 10px 25px rgba(0,0,0,0.3)"
+        }}>
+          <span className="small">{selectedLocIds.size} location(s) selected</span>
+          <button className="btn btn-sm btn-outline-light" onClick={() => setSelectedLocIds(new Set())}>Clear</button>
+          <button className="btn btn-sm btn-primary" onClick={exportLocsPdf}>Export Selected PDF</button>
+        </div>,
+        document.body
+      )}
     </>
   );
 };

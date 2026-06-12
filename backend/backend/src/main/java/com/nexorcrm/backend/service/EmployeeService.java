@@ -109,11 +109,33 @@ public class EmployeeService {
             Long branchId,
             Long departmentId,
             Long designationId,
-            String profileStatus
+            String profileStatus,
+            String q,
+            String sortField,
+            String sortOrder
     ) {
         int safePage = Math.max(page == null ? 1 : page, 1);
         int safeSize = Math.max(size == null ? 25 : size, 1);
-        Pageable pageable = PageRequest.of(safePage - 1, safeSize, Sort.by(Sort.Direction.DESC, "id"));
+
+        Sort.Direction direction = "desc".equalsIgnoreCase(sortOrder) ? Sort.Direction.DESC : Sort.Direction.ASC;
+        String entitySortField = "id";
+        if ("name".equalsIgnoreCase(sortField)) {
+            entitySortField = "name";
+        } else if ("phone".equalsIgnoreCase(sortField)) {
+            entitySortField = "phone";
+        } else if ("dept".equalsIgnoreCase(sortField)) {
+            entitySortField = "dept";
+        } else if ("designation".equalsIgnoreCase(sortField)) {
+            entitySortField = "designation";
+        } else if ("joinDate".equalsIgnoreCase(sortField)) {
+            entitySortField = "joinDate";
+        } else if ("status".equalsIgnoreCase(sortField)) {
+            entitySortField = "status";
+        } else if ("employeeCode".equalsIgnoreCase(sortField)) {
+            entitySortField = "employeeCode";
+        }
+
+        Pageable pageable = PageRequest.of(safePage - 1, safeSize, Sort.by(direction, entitySortField));
 
         Specification<Employee> spec = Specification.where((root, query, cb) -> cb.isFalse(root.get("deleted")));
         if (headOfficeId != null) {
@@ -135,6 +157,15 @@ public class EmployeeService {
             } catch (IllegalArgumentException ignored) {
                 // Ignore invalid profile status values and return the unfiltered set.
             }
+        }
+        if (q != null && !q.isBlank()) {
+            String searchPattern = "%" + q.trim().toLowerCase() + "%";
+            spec = spec.and((root, query, cb) -> cb.or(
+                cb.like(cb.lower(root.get("name")), searchPattern),
+                cb.like(cb.lower(root.get("phone")), searchPattern),
+                cb.like(cb.lower(root.get("email")), searchPattern),
+                cb.like(cb.lower(root.get("employeeCode")), searchPattern)
+            ));
         }
 
         Page<Employee> employeePage = employeeRepository.findAll(spec, pageable);

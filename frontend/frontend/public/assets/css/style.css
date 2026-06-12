@@ -15077,6 +15077,75 @@ button.swal2-cancel {
 .sidebar .sidebar-menu > ul li .submenu.submenu-two.submenu-three ul li a {
   margin-left: 40px;
 }
+.sidebar .sidebar-menu > ul > li.leaf-active > a,
+.sidebar .sidebar-menu > ul > li.leaf-active > a.active,
+.sidebar .sidebar-menu > ul > li.leaf-active > a:hover {
+  background: transparent !important;
+  color: #F26522 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+.sidebar .sidebar-menu > ul > li.leaf-active > a i,
+.sidebar .sidebar-menu > ul > li.leaf-active > a svg,
+.sidebar .sidebar-menu > ul > li.leaf-active > a span,
+.sidebar .sidebar-menu > ul > li.leaf-active > a.active i,
+.sidebar .sidebar-menu > ul > li.leaf-active > a.active svg,
+.sidebar .sidebar-menu > ul > li.leaf-active > a.active span {
+  color: #F26522 !important;
+}
+.sidebar .sidebar-menu > ul > li.submenu.parent-active > a,
+.sidebar .sidebar-menu > ul > li.submenu.parent-active > a.active,
+.sidebar .sidebar-menu > ul > li.submenu > a.subdrop,
+.sidebar .sidebar-menu > ul > li.submenu > a.active {
+  background: #E8E9EA !important;
+  color: #F26522 !important;
+  border-radius: 5px !important;
+  box-shadow: none !important;
+}
+.sidebar .sidebar-menu > ul > li.submenu.parent-active > a i,
+.sidebar .sidebar-menu > ul > li.submenu.parent-active > a svg,
+.sidebar .sidebar-menu > ul > li.submenu.parent-active > a span,
+.sidebar .sidebar-menu > ul > li.submenu.parent-active > a.active i,
+.sidebar .sidebar-menu > ul > li.submenu.parent-active > a.active svg,
+.sidebar .sidebar-menu > ul > li.submenu.parent-active > a.active span,
+.sidebar .sidebar-menu > ul > li.submenu > a.subdrop i,
+.sidebar .sidebar-menu > ul > li.submenu > a.subdrop svg,
+.sidebar .sidebar-menu > ul > li.submenu > a.subdrop span,
+.sidebar .sidebar-menu > ul > li.submenu > a.active i,
+.sidebar .sidebar-menu > ul > li.submenu > a.active svg,
+.sidebar .sidebar-menu > ul > li.submenu > a.active span {
+  color: #F26522 !important;
+}
+.sidebar .sidebar-menu > ul > li.submenu.parent-active > a .menu-arrow::before,
+.sidebar .sidebar-menu > ul > li.submenu > a.subdrop .menu-arrow::before,
+.sidebar .sidebar-menu > ul > li.submenu > a.active .menu-arrow::before {
+  border-color: #F26522 !important;
+}
+.sidebar .sidebar-menu > ul > li.submenu > ul > li,
+.sidebar .sidebar-menu > ul > li.submenu > ul > li.active,
+.sidebar .sidebar-menu > ul > li.submenu > ul > li > a,
+.sidebar .sidebar-menu > ul > li.submenu > ul > li.active > a,
+.sidebar .sidebar-menu > ul > li.submenu > ul > li > a.active {
+  background: transparent !important;
+}
+.sidebar .sidebar-menu > ul > li.submenu > ul > li > a.active,
+.sidebar .sidebar-menu > ul > li.submenu > ul > li.active > a,
+.sidebar .sidebar-menu > ul > li.submenu > ul > li > a:hover {
+  color: #F26522 !important;
+  background: transparent !important;
+}
+.sidebar .sidebar-menu > ul > li.submenu > ul > li > a.active span,
+.sidebar .sidebar-menu > ul > li.submenu > ul > li.active > a span,
+.sidebar .sidebar-menu > ul > li.submenu > ul > li > a:hover span,
+.sidebar .sidebar-menu > ul > li.submenu > ul > li > a.active i,
+.sidebar .sidebar-menu > ul > li.submenu > ul > li.active > a i,
+.sidebar .sidebar-menu > ul > li.submenu > ul > li > a:hover i {
+  color: #F26522 !important;
+}
+.sidebar .sidebar-menu > ul > li.submenu > ul > li > a.active::before,
+.sidebar .sidebar-menu > ul > li.submenu > ul > li.active > a::before {
+  opacity: 1;
+}
 .sidebar .sidebar-menu .menu-arrow {
   display: -webkit-box;
   display: -ms-flexbox;
@@ -15126,6 +15195,54 @@ button.swal2-cancel {
 .sidebar .sidebar-menu.subdrop .menu-arrow {
   transform: translateY(-50%) rotate(90deg);
   background: #FFEDDC;
+}
+.sidebar .sidebar-menu > ul > li > a.active,
+.sidebar .sidebar-menu > ul > li.active > a {
+  background: transparent;
+  border-radius: 0;
+  color: #F26522;
+}
+.sidebar .sidebar-menu > ul > li > a.active i,
+.sidebar .sidebar-menu > ul > li.active > a i,
+.sidebar .sidebar-menu > ul > li > a.active svg,
+.sidebar .sidebar-menu > ul > li.active > a svg,
+.sidebar .sidebar-menu > ul > li > a.active span,
+.sidebar .sidebar-menu > ul > li.active > a span {
+  color: #F26522;
+}
+.sidebar .sidebar-menu > ul > li.submenu > a.subdrop,
+.sidebar .sidebar-menu > ul > li.submenu > a.active {
+  background: #E8E9EA !important;
+  border-radius: 5px !important;
+  color: #F26522;
+  box-shadow: none;
+}
+.sidebar .sidebar-menu > ul > li.submenu > a.subdrop i,
+.sidebar .sidebar-menu > ul > li.submenu > a.active i,
+.sidebar .sidebar-menu > ul > li.submenu > a.subdrop svg,
+.sidebar .sidebar-menu > ul > li.submenu > a.active svg,
+.sidebar .sidebar-menu > ul > li.submenu > a.subdrop span,
+.sidebar .sidebar-menu > ul > li.submenu > a.active span {
+  color: #F26522;
+}
+.sidebar .sidebar-menu > ul > li.submenu > a.subdrop .menu-arrow::before,
+.sidebar .sidebar-menu > ul > li.submenu > a.active .menu-arrow::before {
+  border-color: #F26522;
+}
+.sidebar .sidebar-menu > ul > li ul li.active > a,
+.sidebar .sidebar-menu > ul > li ul li > a.active {
+  background: transparent;
+  color: #F26522;
+}
+.sidebar .sidebar-menu > ul > li ul li.active > a span,
+.sidebar .sidebar-menu > ul > li ul li > a.active span,
+.sidebar .sidebar-menu > ul > li ul li.active > a i,
+.sidebar .sidebar-menu > ul > li ul li > a.active i {
+  color: #F26522;
+}
+.sidebar .sidebar-menu > ul > li ul li.active > a::before,
+.sidebar .sidebar-menu > ul > li ul li > a.active::before {
+  opacity: 1;
 }
 .sidebar .nav-link {
   display: -webkit-box;
@@ -28340,6 +28457,99 @@ span.flatpickr-weekday {
 
 .swiper-thumbs .swiper-slide img {
   border-radius: 5px;
+}
+
+/* Match the topbar to the dark sidebar theme */
+[data-sidebar=dark] .header {
+  background: #111827 !important;
+  border-bottom-color: #111827 !important;
+}
+[data-sidebar=dark] .header .bar-icon span,
+[data-sidebar=dark] .header #toggle_btn,
+[data-sidebar=dark] .header .header-user,
+[data-sidebar=dark] .header .header-user a,
+[data-sidebar=dark] .header .header-user i,
+[data-sidebar=dark] .header .nav-link,
+[data-sidebar=dark] .header .btn-menubar,
+[data-sidebar=dark] .header .btn-menubar i {
+  color: #FFF !important;
+}
+[data-sidebar=dark] .header .btn-menubar,
+[data-sidebar=dark] .header .btn-menubar:hover,
+[data-sidebar=dark] .header .btn-menubar:focus {
+  background: transparent !important;
+  border-color: transparent !important;
+}
+
+/* Sidebar active-state override:
+   - leaf items and open parents use the same light-grey pill
+   - active nested children stay text-only orange
+   - hover should not reintroduce the white pill look */
+#sidebar .sidebar-menu > ul > li.leaf-active > a,
+#sidebar .sidebar-menu > ul > li.leaf-active > a.active,
+#sidebar .sidebar-menu > ul > li.leaf-active > a:hover,
+#sidebar .sidebar-menu > ul > li.submenu.parent-active > a,
+#sidebar .sidebar-menu > ul > li.submenu.parent-active > a.active,
+#sidebar .sidebar-menu > ul > li.submenu > a.subdrop,
+#sidebar .sidebar-menu > ul > li.submenu > a.active,
+#sidebar .sidebar-menu > ul > li.submenu > a:hover {
+  background: #E8E9EA !important;
+  color: #F26522 !important;
+  border-radius: 5px !important;
+  box-shadow: none !important;
+}
+#sidebar .sidebar-menu > ul > li.leaf-active > a i,
+#sidebar .sidebar-menu > ul > li.leaf-active > a svg,
+#sidebar .sidebar-menu > ul > li.leaf-active > a span,
+#sidebar .sidebar-menu > ul > li.leaf-active > a.active i,
+#sidebar .sidebar-menu > ul > li.leaf-active > a.active svg,
+#sidebar .sidebar-menu > ul > li.leaf-active > a.active span,
+#sidebar .sidebar-menu > ul > li.submenu.parent-active > a i,
+#sidebar .sidebar-menu > ul > li.submenu.parent-active > a svg,
+#sidebar .sidebar-menu > ul > li.submenu.parent-active > a span,
+#sidebar .sidebar-menu > ul > li.submenu.parent-active > a.active i,
+#sidebar .sidebar-menu > ul > li.submenu.parent-active > a.active svg,
+#sidebar .sidebar-menu > ul > li.submenu.parent-active > a.active span,
+#sidebar .sidebar-menu > ul > li.submenu > a.subdrop i,
+#sidebar .sidebar-menu > ul > li.submenu > a.subdrop svg,
+#sidebar .sidebar-menu > ul > li.submenu > a.subdrop span,
+#sidebar .sidebar-menu > ul > li.submenu > a.active i,
+#sidebar .sidebar-menu > ul > li.submenu > a.active svg,
+#sidebar .sidebar-menu > ul > li.submenu > a.active span {
+  color: #F26522 !important;
+}
+#sidebar .sidebar-menu > ul > li.leaf-active > a .menu-arrow::before,
+#sidebar .sidebar-menu > ul > li.submenu.parent-active > a .menu-arrow::before,
+#sidebar .sidebar-menu > ul > li.submenu > a.subdrop .menu-arrow::before,
+#sidebar .sidebar-menu > ul > li.submenu > a.active .menu-arrow::before {
+  border-color: #F26522 !important;
+}
+#sidebar .sidebar-menu > ul > li.submenu > ul > li,
+#sidebar .sidebar-menu > ul > li.submenu > ul > li.active,
+#sidebar .sidebar-menu > ul > li.submenu > ul > li > a,
+#sidebar .sidebar-menu > ul > li.submenu > ul > li.active > a,
+#sidebar .sidebar-menu > ul > li.submenu > ul > li > a.active,
+#sidebar .sidebar-menu > ul > li.submenu > ul > li > a:hover {
+  background: transparent !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+}
+#sidebar .sidebar-menu > ul > li.submenu > ul > li > a.active,
+#sidebar .sidebar-menu > ul > li.submenu > ul > li.active > a,
+#sidebar .sidebar-menu > ul > li.submenu > ul > li > a:hover {
+  color: #F26522 !important;
+}
+#sidebar .sidebar-menu > ul > li.submenu > ul > li > a.active span,
+#sidebar .sidebar-menu > ul > li.submenu > ul > li.active > a span,
+#sidebar .sidebar-menu > ul > li.submenu > ul > li > a:hover span,
+#sidebar .sidebar-menu > ul > li.submenu > ul > li > a.active i,
+#sidebar .sidebar-menu > ul > li.submenu > ul > li.active > a i,
+#sidebar .sidebar-menu > ul > li.submenu > ul > li > a:hover i {
+  color: #F26522 !important;
+}
+#sidebar .sidebar-menu > ul > li.submenu > ul > li > a.active::before,
+#sidebar .sidebar-menu > ul > li.submenu > ul > li.active > a::before {
+  opacity: 1;
 }
 
 /* End:: swiper js */

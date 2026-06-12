@@ -48,7 +48,9 @@ public class JwtFilter extends OncePerRequestFilter {
 
         String token = authHeader.substring(7);
         if (!jwtUtil.validateAccessToken(token)) {
-            writeUnauthorized(response, "Invalid or expired access token");
+            // Allow the request to proceed. If it's a secured route, Spring Security will block it.
+            // If it's a public route (like login/refresh), it will succeed.
+            filterChain.doFilter(request, response);
             return;
         }
 

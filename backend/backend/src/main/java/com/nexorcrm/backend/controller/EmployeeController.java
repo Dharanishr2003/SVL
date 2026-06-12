@@ -31,15 +31,29 @@ public class EmployeeController {
             @RequestParam(required = false) Long branchId,
             @RequestParam(required = false) Long departmentId,
             @RequestParam(required = false) Long designationId,
-            @RequestParam(required = false) String profileStatus
+            @RequestParam(required = false) String profileStatus,
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) String sort
     ) {
         boolean pagedRequest = page != null || size != null
                 || headOfficeId != null || branchId != null || departmentId != null || designationId != null
-                || (profileStatus != null && !profileStatus.isBlank());
+                || (profileStatus != null && !profileStatus.isBlank())
+                || (q != null && !q.isBlank())
+                || (sort != null && !sort.isBlank());
         if (!pagedRequest) {
             return employeeService.list();
         }
-        return employeeService.list(page, size, headOfficeId, branchId, departmentId, designationId, profileStatus);
+
+        String sortField = "id";
+        String sortOrder = "desc";
+        if (sort != null && sort.contains(",")) {
+            String[] parts = sort.split(",");
+            sortField = parts[0];
+            if (parts.length > 1) {
+                sortOrder = parts[1];
+            }
+        }
+        return employeeService.list(page, size, headOfficeId, branchId, departmentId, designationId, profileStatus, q, sortField, sortOrder);
     }
 
     @GetMapping("/available")

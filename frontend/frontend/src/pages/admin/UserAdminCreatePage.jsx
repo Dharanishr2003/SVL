@@ -1,12 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { createUser } from "../../api/userAdminApi";
 import { getAvailableEmployees } from "../../api/employeesApi";
 import { getBranches } from "../../api/branchesApi";
 import { getDepartmentsMasterByBranch } from "../../api/departmentsApi";
 import { getDesignations } from "../../api/designationsApi";
 import { getHeadOffices } from "../../api/headOfficesApi";
-// NEW: Import the independent User Permissions Hierarchy API hooks
 import { getUserDepartments, getUserDesignations } from "../../api/userPermissionsApi";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../components/system/ToastProvider";
@@ -22,6 +21,7 @@ import {
 } from "../../utils/phoneUtils";
 import "../../../public/assets/css/addModalShared.css";
 import "./EmployeesPage.css";
+import "./LeadsPage.css";
 
 const FALLBACK_ROLES = ["SUPER_ADMIN", "ADMIN", "MANAGER", "TEAM_LEAD", "EMPLOYEE"];
 const ENV_ROLE_OPTIONS = String(import.meta.env.VITE_ROLE_OPTIONS || "").trim();
@@ -209,7 +209,7 @@ export default function UserAdminCreatePage() {
     };
   }, [createDepartmentId, showError]);
 
-  // NEW: Fetch User Departments dynamically using the selected physical branch anchor
+  // Fetch User Departments
   useEffect(() => {
     if (!createBranchId || !selectedEmployeeId) {
       setUserDepartments([]);
@@ -234,7 +234,7 @@ export default function UserAdminCreatePage() {
     };
   }, [createBranchId, selectedEmployeeId, showError]);
 
-  // NEW: Fetch User Designations dynamically using the selected user department parent
+  // Fetch User Designations
   useEffect(() => {
     if (!selectedUserDepartmentId || !selectedEmployeeId) {
       setUserDesignations([]);
@@ -259,7 +259,6 @@ export default function UserAdminCreatePage() {
     };
   }, [selectedUserDepartmentId, selectedEmployeeId, showError]);
 
-  // Build full physical scope matrix to look up targets inside HRM roster
   const createEmployeeScope = useMemo(() => {
     const headOfficeId = String(createHeadOfficeId || "").trim();
     const branchId = String(createBranchId || "").trim();
@@ -270,7 +269,7 @@ export default function UserAdminCreatePage() {
     return { headOfficeId, branchId, departmentId, designationId };
   }, [createHeadOfficeId, createBranchId, createDepartmentId, createTeamId]);
 
-  // Fetch employees matching the full physical scope layout
+  // Fetch employees matching the scope
   useEffect(() => {
     if (!createEmployeeScope) {
       setEmployees([]);
@@ -299,7 +298,6 @@ export default function UserAdminCreatePage() {
   const selectedDepartment = departments.find((item) => String(item.id) === String(createDepartmentId));
   const selectedDesignation = designations.find((item) => String(item.id) === String(createTeamId));
   
-  // Custom user track selection references
   const selectedUserDepartment = userDepartments.find((item) => String(item.id) === String(selectedUserDepartmentId));
   const selectedUserDesignation = userDesignations.find((item) => String(item.id) === String(selectedUserDesignationId));
   const selectedEmployee = employees.find((item) => String(item.id) === String(selectedEmployeeId));
@@ -322,7 +320,6 @@ export default function UserAdminCreatePage() {
     const nextRole = String(role || "EMPLOYEE").toUpperCase();
     setForm((prev) => ({ ...prev, role: nextRole }));
     
-    // Auto-sanitize trailing states on access level alteration
     if (nextRole === "ADMIN") {
       setSelectedUserDepartmentId("");
       setSelectedUserDesignationId("");
@@ -438,7 +435,6 @@ export default function UserAdminCreatePage() {
 
   const getFormattedPhone = () => (form.phone ? `${phoneCountryCode}${form.phone}` : "");
 
-  // Rigorous checking block balancing physical boundaries against digital permission rules
   const validateScopeStep = () => {
     if (!createHeadOfficeId) return "Please select a head office";
     if (!createBranchId) return "Please select a branch";
@@ -501,7 +497,6 @@ export default function UserAdminCreatePage() {
         role: String(form.role || "EMPLOYEE").toUpperCase(),
         headOfficeId: selectedHeadOffice?.id || null,
         branchId: selectedBranch?.id || null,
-        // Bind the new independent entity ids across core DTO fields
         departmentId: selectedUserDepartment?.id || null,
         designationId: selectedUserDesignation?.id || null,
         institution: selectedBranch?.name || "",
@@ -544,13 +539,13 @@ export default function UserAdminCreatePage() {
   const employeeScopeReady = Boolean(createHeadOfficeId && createBranchId && createDepartmentId && createTeamId);
 
   return (
-    <div className="container-fluid user-admin-create-page">
+    <div className="content user-admin-create-page">
       <style>{`
         .user-admin-create-page .wizard-steps {
           display: grid;
           grid-template-columns: repeat(2, minmax(0, 1fr));
           gap: 0.75rem;
-          margin-bottom: 1rem;
+          margin-bottom: 1.5rem;
         }
         .user-admin-create-page .wizard-step-button {
           display: flex;
@@ -564,8 +559,8 @@ export default function UserAdminCreatePage() {
           text-align: left;
         }
         .user-admin-create-page .wizard-step-button.is-active {
-          border-color: #45597a;
-          box-shadow: 0 10px 24px rgba(69, 89, 122, 0.08);
+          border-color: #3b82f6;
+          box-shadow: 0 10px 24px rgba(59, 130, 246, 0.08);
         }
         .user-admin-create-page .wizard-step-index {
           display: inline-flex;
@@ -575,12 +570,12 @@ export default function UserAdminCreatePage() {
           height: 2rem;
           border-radius: 999px;
           background: #e7edf4;
-          color: #45597a;
+          color: #3b82f6;
           font-weight: 700;
           flex: 0 0 auto;
         }
         .user-admin-create-page .wizard-step-button.is-active .wizard-step-index {
-          background: #45597a;
+          background: #3b82f6;
           color: #ffffff;
         }
         .user-admin-create-page .wizard-step-title {
@@ -600,11 +595,11 @@ export default function UserAdminCreatePage() {
           border: 1px solid #e7ecf2;
           border-radius: 1rem;
           background: #ffffff;
-          padding: 1rem;
+          padding: 1.5rem;
           height: 100%;
         }
         .user-admin-create-page .wizard-panel-title {
-          font-size: 0.95rem;
+          font-size: 1rem;
           font-weight: 700;
           color: #1f2937;
           margin-bottom: 0.2rem;
@@ -612,20 +607,20 @@ export default function UserAdminCreatePage() {
         .user-admin-create-page .wizard-panel-copy {
           color: #667085;
           font-size: 0.84rem;
-          margin-bottom: 1rem;
+          margin-bottom: 1.5rem;
         }
         .user-admin-create-page .wizard-section-divider {
           border-top: 2px dashed #e7edf4;
           margin: 1.5rem 0;
-          padding-top: 1rem;
+          padding-top: 1.5rem;
         }
         .user-admin-create-page .wizard-section-subtitle {
           font-size: 0.88rem;
           font-weight: 700;
-          color: #45597a;
+          color: #3b82f6;
           text-transform: uppercase;
           letter-spacing: 0.03em;
-          margin-bottom: 0.75rem;
+          margin-bottom: 1rem;
         }
         .user-admin-create-page .wizard-summary-item + .wizard-summary-item {
           margin-top: 0.75rem;
@@ -645,13 +640,31 @@ export default function UserAdminCreatePage() {
           font-weight: 600;
         }
         .user-admin-create-page .wizard-note {
-          margin-top: 1rem;
+          margin-top: 1.5rem;
           border: 1px dashed #d9e2ec;
           border-radius: 0.9rem;
           background: #f8fafc;
           padding: 0.85rem 0.95rem;
           color: #667085;
           font-size: 0.84rem;
+        }
+        .user-admin-create-page .form-control,
+        .user-admin-create-page .form-select {
+          border-radius: 8px;
+          border: 1px solid #d0d5dd;
+          padding: 0.6rem 1rem;
+          font-size: 0.95rem;
+        }
+        .user-admin-create-page .form-control:focus,
+        .user-admin-create-page .form-select:focus {
+          border-color: #3b82f6;
+          box-shadow: 0 0 0 0.2rem rgba(59, 130, 246, 0.15);
+        }
+        .user-admin-create-page .form-label {
+          color: #34393f;
+          font-weight: 600;
+          font-size: 0.88rem;
+          margin-bottom: 0.4rem;
         }
         @media (max-width: 767.98px) {
           .user-admin-create-page .wizard-steps {
@@ -660,23 +673,44 @@ export default function UserAdminCreatePage() {
         }
       `}</style>
 
-      <div className="card">
-        <div className="card-header d-flex align-items-center justify-content-between flex-wrap gap-2">
+      {/* Redesigned Custom Header Card */}
+      <div className="card border-0 shadow-sm mb-4 bg-white" style={{ borderRadius: 12 }}>
+        <div className="card-body p-4 d-flex justify-content-between align-items-center flex-wrap gap-3">
           <div>
-            <h5 className="mb-0">Create User</h5>
-            <small className="text-muted">Drill down employee context to discover profiles, then manage portal mapping boundaries.</small>
+            <h3 className="fw-bold mb-1 text-slate-800" style={{ fontSize: "1.3rem" }}>Create User</h3>
+            <nav aria-label="breadcrumb">
+              <ol className="breadcrumb mb-0" style={{ fontSize: "0.85rem" }}>
+                <li className="breadcrumb-item">
+                  <Link to="/admin-dashboard" className="text-muted text-decoration-none">
+                    <i className="ti ti-smart-home" />
+                  </Link>
+                </li>
+                <li className="breadcrumb-item">
+                  <Link to="/useradmin" className="text-muted text-decoration-none">
+                    User Admin
+                  </Link>
+                </li>
+                <li className="breadcrumb-item active text-primary" aria-current="page">Create User</li>
+              </ol>
+            </nav>
           </div>
-          <button
-            type="button"
-            className="btn btn-outline-secondary"
-            onClick={() => navigate("/useradmin")}
-            disabled={saving}
-          >
-            Back
-          </button>
+          <div className="d-flex align-items-center gap-2">
+            <button
+              type="button"
+              className="btn btn-outline-secondary d-flex align-items-center gap-2"
+              style={{ borderRadius: 8 }}
+              onClick={() => navigate("/useradmin")}
+              disabled={saving}
+            >
+              Back to List
+            </button>
+          </div>
         </div>
+      </div>
 
-        <div className="card-body">
+      {/* Form Card */}
+      <div className="card border-0 shadow-sm bg-white" style={{ borderRadius: 12, overflow: "hidden" }}>
+        <div className="card-body p-4">
           <div className="wizard-steps">
             {TABS.map((tab, i) => (
               <button
@@ -698,13 +732,12 @@ export default function UserAdminCreatePage() {
 
           {activeTab === 0 && (
             <div>
-              <div className="row g-3">
+              <div className="row g-4">
                 <div className="col-lg-8">
-                  <div className="wizard-panel">
+                  <div className="wizard-panel shadow-none border">
                     <div className="wizard-panel-title">Employee Scope Verification</div>
                     <div className="wizard-panel-copy">Fill the core corporate matrix to pull matching unlinked staff logs.</div>
                     
-                    {/* PHASE 1: CORE HRM LOOKUP FIELD REGION */}
                     <div className="row g-3">
                       <div className="col-md-6">
                         <label className="form-label">Head Office <span className="text-danger">*</span></label>
@@ -788,7 +821,6 @@ export default function UserAdminCreatePage() {
                       </div>
                     </div>
 
-                    {/* PHASE 2: SYSTEM ACCESS ASSIGNMENT (Reveals underneath upon choosing employee) */}
                     {selectedEmployeeId && (
                       <div className="wizard-section-divider">
                         <div className="wizard-section-subtitle">Portal Permissions Configuration</div>
@@ -859,9 +891,8 @@ export default function UserAdminCreatePage() {
                   </div>
                 </div>
 
-                {/* VISUAL MONITORING SIDEBAR PANEL */}
                 <div className="col-lg-4">
-                  <div className="wizard-summary-card">
+                  <div className="wizard-summary-card shadow-none border">
                     <div className="wizard-panel-title">Live Metadata Summary</div>
                     <div className="wizard-panel-copy">Tracks active selections across parallel layers.</div>
                     
@@ -902,9 +933,9 @@ export default function UserAdminCreatePage() {
               onKeyDown={handleWizardKeyDown}
               autoComplete="off"
             >
-              <div className="row g-3">
+              <div className="row g-4">
                 <div className="col-lg-8">
-                  <div className="wizard-panel">
+                  <div className="wizard-panel shadow-none border">
                     <div className="wizard-panel-title">Contact and credentials</div>
                     <div className="wizard-panel-copy">Verify extracted identity details and declare secure entry credentials.</div>
                     <div className="row g-3">
@@ -1029,7 +1060,7 @@ export default function UserAdminCreatePage() {
                 </div>
 
                 <div className="col-lg-4">
-                  <div className="wizard-summary-card">
+                  <div className="wizard-summary-card shadow-none border">
                     <div className="wizard-panel-title">Review Access Parameters</div>
                     <div className="wizard-panel-copy">Perform absolute visual verification before creating database credentials.</div>
                     <div className="wizard-summary-item">
@@ -1051,12 +1082,12 @@ export default function UserAdminCreatePage() {
           )}
         </div>
 
-        <div className="card-footer d-flex justify-content-end gap-2">
+        <div className="card-footer d-flex justify-content-end gap-2 bg-light p-3 border-top">
           {activeTab === 0 ? (
             <>
               <button
                 type="button"
-                className="btn btn-light"
+                className="btn btn-white border"
                 onClick={() => navigate("/useradmin")}
                 disabled={saving}
               >
@@ -1075,7 +1106,7 @@ export default function UserAdminCreatePage() {
             <>
               <button
                 type="button"
-                className="btn btn-light"
+                className="btn btn-white border"
                 onClick={() => setActiveTab(0)}
                 disabled={saving}
               >

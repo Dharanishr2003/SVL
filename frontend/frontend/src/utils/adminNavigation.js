@@ -129,99 +129,6 @@ export function attachAdminNavigationHandlers(container, navigate, options = {})
   }
   const { onLogout } = options;
 
-  const syncActiveSubmenus = () => {
-    const currentPath = normalizeRoutePath(window.location.pathname);
-    const links = container.querySelectorAll("a[href]");
-    const matchedLinks = [];
-
-    links.forEach((link) => {
-      if (!(link instanceof HTMLElement)) {
-        return;
-      }
-
-      link.classList.remove("active");
-      const routePath = resolveRoutePathFromHref(link.getAttribute("href"));
-      if (routePath && isSameRoute(currentPath, routePath)) {
-        matchedLinks.push(link);
-      }
-    });
-
-    const matchedWithDepth = matchedLinks.map((link) => ({
-      link,
-      depth: getSubmenuDepth(link, container),
-    }));
-    const maxDepth = Math.max(...matchedWithDepth.map((item) => item.depth));
-    const deepestLinks = matchedWithDepth
-      .filter((item) => item.depth === maxDepth)
-      .map((item) => item.link);
-
-    const visibleDeepestLinks = deepestLinks.filter((link) =>
-      isVisibleElement(link),
-    );
-    const candidateLinks = visibleDeepestLinks.length
-      ? visibleDeepestLinks
-      : deepestLinks;
-    if (!candidateLinks.length) {
-      return;
-    }
-
-    const activeAncestors = new Set();
-
-    // Find which top-level submenu each candidate belongs to, and only
-    // expand the first one so duplicate routes (e.g. /admin-dashboard in
-    // both Dashboard and Super Admin) don't open multiple trees.
-    let firstTopSubmenu = null;
-    candidateLinks.forEach((link) => {
-      // Determine the top-level li.submenu ancestor for this link
-      let topSubmenu = null;
-      let parent = link.parentElement;
-      while (parent && parent !== container) {
-        if (parent.matches && parent.matches("li.submenu")) {
-          topSubmenu = parent;
-        }
-        parent = parent.parentElement;
-      }
-
-      if (firstTopSubmenu === null) {
-        firstTopSubmenu = topSubmenu;
-      } else if (topSubmenu !== firstTopSubmenu) {
-        // This candidate belongs to a different top-level submenu; skip it
-        return;
-      }
-
-      link.classList.add("active");
-      // collect ancestor submenu items so they stay opened
-      parent = link.parentElement;
-      while (parent) {
-        if (parent.matches && parent.matches("li.submenu")) {
-          activeAncestors.add(parent);
-        }
-        parent = parent.parentElement;
-      }
-    });
-
-    container.querySelectorAll("li.submenu").forEach((submenuItem) => {
-      if (!(submenuItem instanceof HTMLElement)) {
-        return;
-      }
-
-      const trigger = submenuItem.querySelector(":scope > a");
-      const submenu = submenuItem.querySelector(":scope > ul");
-      const shouldOpen = activeAncestors.has(submenuItem);
-
-      if (shouldOpen && trigger instanceof HTMLElement) {
-        trigger.classList.add("subdrop");
-      }
-      if (shouldOpen && submenu instanceof HTMLElement) {
-        submenu.style.display = "block";
-      } else if (submenu instanceof HTMLElement) {
-        submenu.style.display = "none";
-      }
-    });
-  };
-
-  syncActiveSubmenus();
-
   const toggleSubmenu = (link) => {
     const submenuItem = link.closest("li.submenu");
     if (!submenuItem || !container.contains(submenuItem)) {
@@ -338,7 +245,6 @@ export function attachAdminNavigationHandlers(container, navigate, options = {})
 
     event.preventDefault();
     navigate(`/${routePath}`);
-    requestAnimationFrame(syncActiveSubmenus);
   };
 
   container.addEventListener("mouseover", warmup);

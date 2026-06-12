@@ -1,4 +1,5 @@
 import React, { Fragment, useEffect, useMemo, useState, useRef } from "react";
+import { Link } from "react-router-dom";
 import { useToast } from "../../components/system/ToastProvider";
 import useConfirmDialog from "../../components/system/useConfirmDialog";
 import PageHeader from "../../components/admin/PageHeader";
@@ -1009,15 +1010,28 @@ export default function ProductFieldConfigPage() {
 
   // ─── RENDER ─────────────────────────────────────────────────────────────────
   return (
-    <div className="products-shell">
-      <PageHeader
-        title="Product Field Configuration"
-        breadcrumb={[
-          { label: "Dashboard", path: "/admin-dashboard" },
-          { label: "Configuration", path: "" },
-          { label: "Product Fields", path: "" },
-        ]}
-      />
+    <div className="container-fluid content">
+      {/* Header Block */}
+      <div className="card border-0 shadow-sm p-4 mb-4 bg-white" style={{ borderRadius: 12 }}>
+        <div className="d-flex align-items-center justify-content-between flex-wrap gap-3">
+          <div>
+            <h2 className="leads-header-title mb-1" style={{ fontSize: "1.4rem", fontWeight: "700", color: "#0f172a" }}>Product Field Configuration</h2>
+            <nav aria-label="breadcrumb">
+              <ol className="breadcrumb mb-0" style={{ fontSize: "0.85rem" }}>
+                <li className="breadcrumb-item">
+                  <Link to="/admin-dashboard" className="text-decoration-none text-muted">
+                    <i className="ti ti-smart-home" />
+                  </Link>
+                </li>
+                <li className="breadcrumb-item text-muted">Configuration</li>
+                <li className="breadcrumb-item active text-primary" aria-current="page">
+                  Product Fields
+                </li>
+              </ol>
+            </nav>
+          </div>
+        </div>
+      </div>
 
       <div className="product-field-config-container">
 

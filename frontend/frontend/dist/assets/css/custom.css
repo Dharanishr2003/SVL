@@ -445,11 +445,32 @@ input.form-control.input-animate::placeholder {
     overflow-y: auto;
     overflow-x: hidden;
     padding: 8px 16px 16px;
+    scrollbar-width: thin;
+    scrollbar-color: #2419749d #e8e9ea;
 }
 
 .sidebar .sidebar-inner.slimscroll .sidebar-menu {
-    margin-top: 8px !important;
+    margin-top: 8px ;
     padding: 0 0 16px;
+}
+
+.sidebar .sidebar-inner.slimscroll::-webkit-scrollbar {
+    width: 10px;
+}
+
+.sidebar .sidebar-inner.slimscroll::-webkit-scrollbar-track {
+    background: #e8e9ea;
+    border-radius: 999px;
+}
+
+.sidebar .sidebar-inner.slimscroll::-webkit-scrollbar-thumb {
+    background: #f26522;
+    border-radius: 999px;
+    border: 2px solid #e8e9ea;
+}
+
+.sidebar .sidebar-inner.slimscroll::-webkit-scrollbar-thumb:hover {
+    background: #e85d13;
 }
 
 /* In modern layout the logo row is hidden, so no extra top gap is needed */
@@ -469,8 +490,8 @@ input.form-control.input-animate::placeholder {
 
 /* Hover column */
 .dt-button-collection .dt-button:hover {
-    background: #eef2ff !important;
-    color: #1e3a8a !important;
+    background: #eef2ff ;
+    color: #1e3a8a ;
 }
 
 /* Active column */
@@ -2591,11 +2612,30 @@ table.dataTable.dtr-inline.collapsed
 .sidebar .sidebar-menu a.subdrop,
 .sidebar .sidebar-menu a.subdrop span,
 .sidebar .sidebar-menu a.subdrop i {
-  background: #ffffff !important;
+    background: #ffffff !important;
+    color: #111827 !important;
+}
+
+.sidebar .sidebar-menu > ul > li > a:hover,
+.sidebar .sidebar-menu > ul > li.submenu > a:hover,
+.sidebar .sidebar-menu > ul > li.leaf-active > a:hover,
+.sidebar .sidebar-menu > ul > li.submenu.parent-active > a:hover {
+  background: #e8e9ea !important;
+  color: #111827 !important;
+  border-radius: 5px;
+}
+
+.sidebar .sidebar-menu > ul > li > a:hover span,
+.sidebar .sidebar-menu > ul > li > a:hover i,
+.sidebar .sidebar-menu > ul > li.submenu > a:hover span,
+.sidebar .sidebar-menu > ul > li.submenu > a:hover i,
+.sidebar .sidebar-menu > ul > li.leaf-active > a:hover span,
+.sidebar .sidebar-menu > ul > li.leaf-active > a:hover i,
+.sidebar .sidebar-menu > ul > li.submenu.parent-active > a:hover span,
+.sidebar .sidebar-menu > ul > li.submenu.parent-active > a:hover i {
   color: #111827 !important;
 }
 
-
-
+}
 
 

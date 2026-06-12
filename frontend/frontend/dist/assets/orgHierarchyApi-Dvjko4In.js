@@ -1,1 +1,0 @@
-import{w as a}from"./index-BR3vcIvB.js";async function s(){const t=await a.get("/api/org/institutions");return Array.isArray(t?.data)?t.data:[]}async function e(t){return t&&(await a.get(`/api/org/user/${t}`))?.data||null}export{s as a,e as g};

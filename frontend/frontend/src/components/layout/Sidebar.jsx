@@ -19,6 +19,19 @@ function hasExcludedRole(role, excludedRoles) {
   return excludedRoles.includes(role);
 }
 
+function normalizePath(pathname) {
+  return String(pathname || "").replace(/^\/+|\/+$/g, "");
+}
+
+function matchesRoute(pathname, href) {
+  const current = normalizePath(pathname);
+  const target = normalizePath(href);
+  if (!current || !target) {
+    return false;
+  }
+  return current === target || current.startsWith(`${target}/`);
+}
+
 export default function Sidebar() {
   const containerRef = useRef(null);
   const navigate = useNavigate();
@@ -58,30 +71,52 @@ export default function Sidebar() {
 
   useEffect(() => {
     return attachAdminNavigationHandlers(containerRef.current, navigate);
-  }, [navigate, location.pathname, visibleSections]);
+  }, [navigate, visibleSections]);
+
+  const isItemActive = (item) => matchesRoute(location.pathname, item?.href);
+
+  const hasActiveDescendant = (item) => {
+    if (!item || !Array.isArray(item.children)) {
+      return false;
+    }
+
+    return item.children.some((child) =>
+      isItemActive(child) || hasActiveDescendant(child),
+    );
+  };
 
   const renderItems = (items) =>
     items.map((item) => {
       const visibleChildren = Array.isArray(item.children)
         ? item.children.filter(isVisibleItem)
         : [];
+      const isActive = isItemActive(item);
+      const isOpen = visibleChildren.length > 0 && hasActiveDescendant(item);
 
       if (visibleChildren.length > 0) {
         return (
-          <li key={item.label} className="submenu">
-            <a href="javascript:void(0);">
+          <li key={item.label} className={`submenu${isOpen ? " parent-active" : ""}`}>
+            <a
+              href="javascript:void(0);"
+              className={isOpen ? "subdrop parent-link" : ""}
+            >
               {item.icon ? <i className={item.icon}></i> : null}
               <span>{item.label}</span>
               <span className="menu-arrow"></span>
             </a>
-            <ul>{renderItems(visibleChildren)}</ul>
+            <ul style={{ display: isOpen ? "block" : "none" }}>
+              {renderItems(visibleChildren)}
+            </ul>
           </li>
         );
       }
 
       return (
-        <li key={item.label}>
-          <a href={item.href}>
+        <li key={item.label} className={isActive ? "active leaf-active" : ""}>
+          <a
+            href={item.href}
+            className={isActive ? "active leaf-link" : ""}
+          >
             {item.icon ? <i className={item.icon}></i> : null}
             <span>{item.label}</span>
           </a>

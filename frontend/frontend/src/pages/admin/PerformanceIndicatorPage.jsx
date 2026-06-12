@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { createPortal } from "react-dom";
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
 import { getDepartmentsMaster } from "../../api/departmentsApi";
 import { getDesignations } from "../../api/designationsApi";
 import {
@@ -10,6 +13,9 @@ import {
 } from "../../api/performanceIndicatorApi";
 import { extractApiErrorMessage } from "../../utils/errorMessage";
 import { useToast } from "../../components/system/ToastProvider";
+import PageSizeSelector from "../../components/admin/PageSizeSelector";
+import "./LeadsPage.css";
+import "../../../public/assets/css/addModalShared.css";
 
 const initialForm = {
   designationId: "",
@@ -48,6 +54,31 @@ export default function PerformanceIndicatorPage() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
+
+  // Search/Filters and Pagination state
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+
+  // Selection state
+  const [selectedIds, setSelectedIds] = useState(new Set());
+
+  // Kebab row actions state
+  const [activeActionsRow, setActiveActionsRow] = useState(null);
+  const [actionsMenuPos, setActionsMenuPos] = useState({ top: 0, left: 0 });
+
+  // Close kebab action menu on outside scroll or click
+  useEffect(() => {
+    const handleOutsideClickOrScroll = () => {
+      setActiveActionsRow(null);
+    };
+    window.addEventListener("click", handleOutsideClickOrScroll);
+    window.addEventListener("scroll", handleOutsideClickOrScroll, true);
+    return () => {
+      window.removeEventListener("click", handleOutsideClickOrScroll);
+      window.removeEventListener("scroll", handleOutsideClickOrScroll, true);
+    };
+  }, []);
 
   const load = async () => {
     setLoading(true);
@@ -95,13 +126,68 @@ export default function PerformanceIndicatorPage() {
     [designations],
   );
 
+  // Filtered and sorted rows
+  const filteredRows = useMemo(() => {
+    let result = rows;
+    const q = search.toLowerCase().trim();
+    if (q) {
+      result = result.filter((r) =>
+        (r.designationName || "").toLowerCase().includes(q) ||
+        (r.departmentName || "").toLowerCase().includes(q) ||
+        (r.approvedBy || "").toLowerCase().includes(q)
+      );
+    }
+    return result;
+  }, [rows, search]);
+
   const orderedRows = useMemo(
     () =>
-      [...rows].sort((a, b) =>
-        String(b.createdDate || "").localeCompare(String(a.createdDate || "")),
+      [...filteredRows].sort((a, b) =>
+        String(b.createdDate || "").localeCompare(String(a.createdDate || ""))
       ),
-    [rows],
+    [filteredRows],
   );
+
+  // Pagination calculations
+  const totalRows = orderedRows.length;
+  const pageCount = Math.max(1, Math.ceil(totalRows / Math.max(1, pageSize)));
+  const clampedPage = Math.min(Math.max(1, page), pageCount);
+  const pageOffset = (clampedPage - 1) * pageSize;
+  const pagedRows = useMemo(
+    () => orderedRows.slice(pageOffset, pageOffset + pageSize),
+    [orderedRows, pageOffset, pageSize]
+  );
+
+  useEffect(() => {
+    if (page !== clampedPage) setPage(clampedPage);
+  }, [clampedPage]);
+
+  // Selection toggle handlers
+  const toggleSelectAll = () => {
+    const pageIds = pagedRows.map((r) => r.id);
+    const allSelectedOnPage = pageIds.every((id) => selectedIds.has(id));
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (allSelectedOnPage) {
+        pageIds.forEach((id) => next.delete(id));
+        return next;
+      }
+      pageIds.forEach((id) => next.add(id));
+      return next;
+    });
+  };
+
+  const toggleSelection = (id) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
 
   const openAdd = () => {
     setForm(initialForm);
@@ -205,84 +291,283 @@ export default function PerformanceIndicatorPage() {
     }
   };
 
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return;
+    if (window.confirm(`Are you sure you want to delete the selected ${selectedIds.size} indicators?`)) {
+      setSaving(true);
+      try {
+        await Promise.all(Array.from(selectedIds).map((id) => deletePerformanceIndicator(id)));
+        showSuccess(`${selectedIds.size} indicators deleted successfully`);
+        setSelectedIds(new Set());
+        await load();
+      } catch (e) {
+        showError("Failed to delete some indicators");
+      } finally {
+        setSaving(false);
+      }
+    }
+  };
+
+  // Export functions
+  const exportCsv = () => {
+    const targetRows = selectedIds.size > 0
+      ? orderedRows.filter((r) => selectedIds.has(r.id))
+      : orderedRows;
+
+    const headers = ["Designation", "Department", "Approved By", "Created Date", "Status"];
+    const body = targetRows.map((row) => [
+      row.designationName || "",
+      row.departmentName || "",
+      row.approvedBy || "",
+      row.createdDate ? new Date(row.createdDate).toLocaleDateString("en-GB") : "",
+      row.status || "Active",
+    ]);
+    const csv = [headers, ...body]
+      .map((line) =>
+        line
+          .map((cell) => `"${String(cell ?? "").replace(/"/g, '""')}"`)
+          .join(","),
+      )
+      .join("\n");
+    
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `performance-indicators-${Date.now()}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const exportExcel = () => {
+    const targetRows = selectedIds.size > 0
+      ? orderedRows.filter((r) => selectedIds.has(r.id))
+      : orderedRows;
+
+    const headers = ["Designation", "Department", "Approved By", "Created Date", "Status"];
+    const body = targetRows.map((row) => [
+      row.designationName || "",
+      row.departmentName || "",
+      row.approvedBy || "",
+      row.createdDate ? new Date(row.createdDate).toLocaleDateString("en-GB") : "",
+      row.status || "Active",
+    ]);
+    
+    let template = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">`;
+    template += `<head><!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>Indicators</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]--></head>`;
+    template += `<body><table><thead><tr>`;
+    headers.forEach((h) => {
+      template += `<th>${h}</th>`;
+    });
+    template += `</tr></thead><tbody>`;
+    body.forEach((r) => {
+      template += `<tr>`;
+      r.forEach((c) => {
+        template += `<td>${c}</td>`;
+      });
+      template += `</tr>`;
+    });
+    template += `</tbody></table></body></html>`;
+
+    const blob = new Blob([template], { type: "application/vnd.ms-excel;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `performance-indicators-${Date.now()}.xls`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const exportPdf = () => {
+    const targetRows = selectedIds.size > 0
+      ? orderedRows.filter((r) => selectedIds.has(r.id))
+      : orderedRows;
+
+    const doc = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
+    doc.setFontSize(14);
+    doc.text("Performance Indicators Export", 40, 40);
+    doc.setFontSize(10);
+    doc.text(`Generated: ${new Date().toLocaleString()}`, 40, 58);
+
+    const headers = [["Designation", "Department", "Approved By", "Created Date", "Status"]];
+    const body = targetRows.map((row) => [
+      row.designationName || "",
+      row.departmentName || "",
+      row.approvedBy || "",
+      row.createdDate ? new Date(row.createdDate).toLocaleDateString("en-GB") : "",
+      row.status || "Active",
+    ]);
+
+    autoTable(doc, {
+      head: headers,
+      body: body,
+      startY: 70,
+      styles: { fontSize: 8 },
+    });
+
+    doc.save(`performance-indicators-${Date.now()}.pdf`);
+  };
+
   return (
     <>
       <div className="content">
-        <div className="d-md-flex d-block align-items-center justify-content-between page-breadcrumb mb-3">
-          <div className="my-auto mb-2">
-            <h2 className="mb-1">Performance Indicator</h2>
-            <nav>
-              <ol className="breadcrumb mb-0">
-                <li className="breadcrumb-item">
-                  <Link to="/dashboard"><i className="ti ti-smart-home"></i></Link>
-                </li>
-                <li className="breadcrumb-item">Performance</li>
-                <li className="breadcrumb-item active" aria-current="page">Performance Indicator</li>
-              </ol>
-            </nav>
-          </div>
-          <div className="d-flex my-xl-auto right-content align-items-center flex-wrap ">
-            <div className="mb-2">
-              <button type="button" className="btn btn-primary d-flex align-items-center" onClick={openAdd}>
-                <i className="ti ti-circle-plus me-2"></i>Add Indicator
+        {/* Custom Header Card with breadcrumb and primary blue add button */}
+        <div className="card border-0 shadow-sm p-4 mb-4 bg-white" style={{ borderRadius: 12 }}>
+          <div className="d-flex align-items-center justify-content-between flex-wrap gap-3">
+            <div>
+              <h2 className="leads-header-title mb-1" style={{ fontSize: "1.4rem", fontWeight: "700", color: "#0f172a" }}>Performance Indicator</h2>
+              <nav className="mb-0">
+                <ol className="breadcrumb mb-0" style={{ fontSize: "0.9rem" }}>
+                  <li className="breadcrumb-item">
+                    <Link to="/dashboard" style={{ color: "#64748b", textDecoration: "none" }}>
+                      <i className="ti ti-smart-home"></i>
+                    </Link>
+                  </li>
+                  <li className="breadcrumb-item">
+                    <span style={{ color: "#64748b" }}>Performance</span>
+                  </li>
+                  <li className="breadcrumb-item active" style={{ color: "#0f172a", fontWeight: "500" }}>Performance Indicator</li>
+                </ol>
+              </nav>
+            </div>
+            
+            <div className="d-flex align-items-center gap-2">
+              <button
+                type="button"
+                className="btn btn-primary create-lead-btn d-flex align-items-center gap-2"
+                onClick={openAdd}
+                style={{ backgroundColor: "#3b82f6", borderColor: "#3b82f6", fontWeight: "600", padding: "10px 20px", borderRadius: "10px" }}
+              >
+                <i className="ti ti-plus" style={{ fontSize: "1.1rem" }}></i>
+                Add Indicator
               </button>
             </div>
           </div>
         </div>
 
-        <div className="card">
-          <div className="card-header d-flex align-items-center justify-content-between flex-wrap row-gap-3">
-            <h5>Performance Indicator List</h5>
+        {/* Table Card */}
+        <div className="card border-0 shadow-sm mb-4" style={{ borderRadius: 12 }}>
+          {/* Controls Bar inside the table card */}
+          <div className="d-flex flex-wrap align-items-center justify-content-between gap-3 p-3 border-bottom">
+            <div className="search-leads-container position-relative flex-grow-1 flex-md-grow-0" style={{ minWidth: "260px" }}>
+              <input
+                className="form-control search-leads-input"
+                style={{ height: 42, borderRadius: 10, paddingLeft: 38, fontSize: "0.95rem" }}
+                value={search}
+                placeholder="Search indicator..."
+                onChange={(e) => setSearch(e.target.value)}
+              />
+              <i className="ti ti-search position-absolute text-muted" style={{ left: 14, top: "50%", transform: "translateY(-50%)", fontSize: "1.1rem" }} />
+            </div>
+
+            <div className="d-flex align-items-center gap-2 flex-wrap">
+              <div className="dropdown">
+                <button
+                  className="btn btn-outline-export dropdown-toggle d-flex align-items-center gap-2"
+                  type="button"
+                  id="exportDropdown"
+                  data-bs-toggle="dropdown"
+                  aria-expanded="false"
+                  style={{ height: 42, padding: "0 18px", borderRadius: 10, fontWeight: "500", fontSize: "0.9rem" }}
+                >
+                  <i className="ti ti-download" style={{ fontSize: "1rem" }} />
+                  Export
+                </button>
+                <ul className="dropdown-menu shadow border-0" aria-labelledby="exportDropdown">
+                  <li>
+                    <button className="dropdown-item py-2 text-start" onClick={exportExcel}>
+                      Excel
+                    </button>
+                  </li>
+                  <li>
+                    <button className="dropdown-item py-2 text-start" onClick={exportCsv}>
+                      CSV
+                    </button>
+                  </li>
+                  <li>
+                    <button className="dropdown-item py-2 text-start" onClick={exportPdf}>
+                      PDF
+                    </button>
+                  </li>
+                </ul>
+              </div>
+            </div>
           </div>
+
           <div className="card-body p-0">
-            <div className="custom-datatable-filter table-responsive">
-              <table className="table">
+            <div className="custom-datatable-filter table-responsive" style={{ overflowX: "auto" }}>
+              <table className="table table-hover align-middle mb-0">
                 <thead className="thead-light">
                   <tr>
+                    <th style={{ width: "40px" }}>
+                      <input
+                        type="checkbox"
+                        className="form-check-input"
+                        checked={pagedRows.length > 0 && pagedRows.every((r) => selectedIds.has(r.id))}
+                        onChange={toggleSelectAll}
+                      />
+                    </th>
+                    <th style={{ width: "50px" }}>#</th>
                     <th>Designation</th>
                     <th>Department</th>
                     <th>Approved By</th>
                     <th>Created Date</th>
                     <th>Status</th>
-                    <th></th>
+                    <th style={{ width: "80px" }}>Action</th>
                   </tr>
                 </thead>
                 <tbody>
                   {loading ? (
                     <tr>
-                      <td colSpan={6}>Loading...</td>
+                      <td colSpan={8} className="text-center py-4">Loading...</td>
                     </tr>
-                  ) : orderedRows.length === 0 ? (
+                  ) : pagedRows.length === 0 ? (
                     <tr>
-                      <td colSpan={6}>No indicators found</td>
+                      <td colSpan={8} className="text-center py-4">No indicators found</td>
                     </tr>
                   ) : (
-                    orderedRows.map((row) => (
+                    pagedRows.map((row, idx) => (
                       <tr key={row.id || `${row.designationId}-${row.departmentId}`}>
-                        <td>{row.designationName || "-"}</td>
+                        <td>
+                          <input
+                            type="checkbox"
+                            className="form-check-input"
+                            checked={selectedIds.has(row.id)}
+                            onChange={() => toggleSelection(row.id)}
+                          />
+                        </td>
+                        <td>{pageOffset + idx + 1}</td>
+                        <td className="fw-semibold text-dark">{row.designationName || "-"}</td>
                         <td>{row.departmentName || "-"}</td>
                         <td>{row.approvedBy || "-"}</td>
                         <td>{row.createdDate ? new Date(row.createdDate).toLocaleDateString("en-GB") : "-"}</td>
                         <td>
                           {String(row.status || "Active").toLowerCase() === "inactive" ? (
-                            <span className="badge badge-danger d-inline-flex align-items-center badge-xs">
-                              <i className="ti ti-point-filled me-1"></i>Inactive
-                            </span>
+                            <span className="badge bg-danger">Inactive</span>
                           ) : (
-                            <span className="badge badge-success d-inline-flex align-items-center badge-xs">
-                              <i className="ti ti-point-filled me-1"></i>Active
-                            </span>
+                            <span className="badge bg-success">Active</span>
                           )}
                         </td>
                         <td>
-                          <div className="d-inline-flex gap-2">
-                            <button type="button" className="btn btn-sm btn-outline-primary" onClick={() => openEdit(row)}>
-                              Edit
-                            </button>
-                            <button type="button" className="btn btn-sm btn-outline-danger" onClick={() => confirmDelete(row)}>
-                              Delete
-                            </button>
-                          </div>
+                          <button
+                            className="btn btn-kebab-actions d-flex align-items-center justify-content-center"
+                            style={{ width: 32, height: 32, borderRadius: "50%", border: "none", backgroundColor: "transparent", color: "#64748b" }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (activeActionsRow?.id === row.id) {
+                                setActiveActionsRow(null);
+                              } else {
+                                const rect = e.currentTarget.getBoundingClientRect();
+                                setActionsMenuPos({
+                                  top: rect.top + window.scrollY,
+                                  left: rect.right + window.scrollX,
+                                });
+                                setActiveActionsRow(row);
+                              }
+                            }}
+                          >
+                            <i className="ti ti-dots-vertical" style={{ fontSize: "1.15rem" }} />
+                          </button>
                         </td>
                       </tr>
                     ))
@@ -290,6 +575,54 @@ export default function PerformanceIndicatorPage() {
                 </tbody>
               </table>
             </div>
+          </div>
+
+          {/* Custom Pagination Footer */}
+          <div className="leads-pagination-footer d-flex flex-wrap align-items-center justify-content-between gap-3 p-3 border-top">
+            <span className="entries-info text-muted small">
+              {totalRows === 0
+                ? "Showing 0 to 0 of 0 entries"
+                : `Showing ${pageOffset + 1} to ${Math.min(pageOffset + pageSize, totalRows)} of ${totalRows} entries`}
+            </span>
+
+            <div className="pagination-numbers-container d-flex align-items-center gap-1">
+              <button
+                type="button"
+                className="btn-pagination-arrow btn btn-sm btn-light border-0 d-flex align-items-center justify-content-center"
+                style={{ width: 32, height: 32, borderRadius: 6 }}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={clampedPage <= 1}
+              >
+                <i className="ti ti-chevron-left" />
+              </button>
+
+              {Array.from({ length: pageCount }).map((_, idx) => {
+                const pageNum = idx + 1;
+                return (
+                  <button
+                    key={pageNum}
+                    type="button"
+                    className={`btn-pagination-num btn btn-sm border-0 ${clampedPage === pageNum ? "active" : "btn-light"}`}
+                    style={{ width: 32, height: 32, borderRadius: 6 }}
+                    onClick={() => setPage(pageNum)}
+                  >
+                    {pageNum}
+                  </button>
+                );
+              })}
+
+              <button
+                type="button"
+                className="btn-pagination-arrow btn btn-sm btn-light border-0 d-flex align-items-center justify-content-center"
+                style={{ width: 32, height: 32, borderRadius: 6 }}
+                onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+                disabled={clampedPage >= pageCount}
+              >
+                <i className="ti ti-chevron-right" />
+              </button>
+            </div>
+
+            <PageSizeSelector pageSize={pageSize} setPageSize={setPageSize} setPage={setPage} />
           </div>
         </div>
       </div>
@@ -306,7 +639,7 @@ export default function PerformanceIndicatorPage() {
                   </button>
                 </div>
                 <form onSubmit={handleAdd}>
-                  <div className="modal-body pb-0">
+                  <div className="modal-body pb-0" style={{ maxHeight: "70vh", overflowY: "auto" }}>
                     <div className="row">
                       <div className="col-md-12">
                         <div className="mb-3">
@@ -429,13 +762,13 @@ export default function PerformanceIndicatorPage() {
             <div className="modal-dialog modal-dialog-centered modal-lg">
               <div className="modal-content">
                 <div className="modal-header">
-                  <h4 className="modal-title">Edit New Indicator</h4>
+                  <h4 className="modal-title">Edit Indicator</h4>
                   <button type="button" className="btn-close custom-btn-close" onClick={() => setShowEditModal(false)}>
                     <i className="ti ti-x"></i>
                   </button>
                 </div>
                 <form onSubmit={handleEdit}>
-                  <div className="modal-body pb-0">
+                  <div className="modal-body pb-0" style={{ maxHeight: "70vh", overflowY: "auto" }}>
                     <div className="row">
                       <div className="col-md-12">
                         <div className="mb-3">
@@ -562,6 +895,86 @@ export default function PerformanceIndicatorPage() {
           </div>
           <div className="modal-backdrop fade show" />
         </>
+      )}
+
+      {/* Floating Kebab Actions Portal */}
+      {activeActionsRow && createPortal(
+        <div
+          className="floating-actions-menu shadow-lg border"
+          style={{
+            position: "absolute",
+            top: actionsMenuPos.top,
+            left: actionsMenuPos.left,
+            transform: "translate(-100%, -100%) translateY(-5px)",
+            zIndex: 9999,
+            background: "#fff",
+            borderRadius: 8,
+            padding: "6px 0",
+            minWidth: 150
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            className="dropdown-item py-2 px-3 text-start d-flex align-items-center gap-2"
+            style={{ fontSize: "0.85rem" }}
+            onClick={() => {
+              openEdit(activeActionsRow);
+              setActiveActionsRow(null);
+            }}
+          >
+            <i className="ti ti-edit" style={{ fontSize: "1rem", color: "#64748b" }} /> Edit Indicator
+          </button>
+          <button
+            className="dropdown-item py-2 px-3 text-start d-flex align-items-center gap-2 text-danger"
+            style={{ fontSize: "0.85rem" }}
+            onClick={() => {
+              confirmDelete(activeActionsRow);
+              setActiveActionsRow(null);
+            }}
+          >
+            <i className="ti ti-trash" style={{ fontSize: "1rem", color: "#ef4444" }} /> Delete Indicator
+          </button>
+        </div>,
+        document.body
+      )}
+
+      {/* Floating Bulk Operations Bar */}
+      {selectedIds.size > 0 && (
+        <div
+          className="position-fixed start-50 translate-middle-x d-flex align-items-center justify-content-between gap-3 shadow-lg px-4 py-3 bg-dark text-white"
+          style={{
+            bottom: 24,
+            borderRadius: 16,
+            zIndex: 1040,
+            minWidth: 400,
+            border: "1px solid rgba(255, 255, 255, 0.15)",
+            animation: "fadeIn 0.2s ease"
+          }}
+        >
+          <div className="d-flex align-items-center gap-2">
+            <span className="badge bg-primary text-white" style={{ fontSize: "0.9rem", padding: "6px 10px" }}>
+              {selectedIds.size}
+            </span>
+            <span className="fw-medium text-white" style={{ color: "#ffffff" }}>indicators selected</span>
+          </div>
+          <div className="d-flex align-items-center gap-2">
+            <button
+              className="btn btn-sm btn-danger d-flex align-items-center gap-1"
+              style={{ borderRadius: 8, padding: "6px 12px", fontSize: "0.85rem", backgroundColor: "#dc2626", color: "#ffffff", border: "none" }}
+              onClick={handleBulkDelete}
+              disabled={saving}
+            >
+              <i className="ti ti-trash" /> Delete
+            </button>
+            <button
+              className="btn btn-sm btn-link p-0 ms-2 text-decoration-none"
+              style={{ fontSize: "0.85rem", color: "rgba(255, 255, 255, 0.7)" }}
+              onClick={() => setSelectedIds(new Set())}
+            >
+              Clear
+            </button>
+          </div>
+        </div>
       )}
     </>
   );

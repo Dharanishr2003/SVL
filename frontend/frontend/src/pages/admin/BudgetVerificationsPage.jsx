@@ -1,12 +1,17 @@
-import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate, Link } from "react-router-dom";
+import { createPortal } from "react-dom";
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
 import { useAuth } from "../../context/AuthContext";
 import { downloadLeadRequirementFile, getLeads, updateLeadDetails } from "../../api/leadsApi";
 import { getDesignRequirement } from "../../api/designRequirementApi";
 import { getUsers, getUserById } from "../../api/userAdminApi";
 import { extractApiErrorMessage } from "../../utils/errorMessage";
 import { useToast } from "../../components/system/ToastProvider";
+import PageSizeSelector from "../../components/admin/PageSizeSelector";
 import api from "../../utils/api";
+import "./LeadsPage.css";
 
 function formatDateTime(value) {
   if (!value) return "-";
@@ -64,6 +69,27 @@ export default function BudgetVerificationsPage() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailDesignRequirement, setDetailDesignRequirement] = useState(null);
 
+  // Search, pagination, selection, kebab states
+  const [search, setSearch] = useState("");
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  const [activeActionsRow, setActiveActionsRow] = useState(null);
+  const [actionsMenuPos, setActionsMenuPos] = useState({ top: 0, left: 0 });
+
+  // Close kebab action menu on outside scroll or click
+  useEffect(() => {
+    const handleOutsideClickOrScroll = () => {
+      setActiveActionsRow(null);
+    };
+    window.addEventListener("click", handleOutsideClickOrScroll);
+    window.addEventListener("scroll", handleOutsideClickOrScroll, true);
+    return () => {
+      window.removeEventListener("click", handleOutsideClickOrScroll);
+      window.removeEventListener("scroll", handleOutsideClickOrScroll, true);
+    };
+  }, []);
+
   const getAssignedDisplayName = (lead) => {
     const assignedUserId = lead?.budgetVerificationAssignedToUserId;
     if (!assignedUserId) return "Unassigned";
@@ -71,7 +97,6 @@ export default function BudgetVerificationsPage() {
     const directName =
       lead?.budgetVerificationAssignedToUserName ||
       lead?.budgetVerificationAssignedToUsername ||
-      lead?.budgetVerificationAssignedToUserFullName ||
       lead?.budgetVerificationAssignedToUserFullName ||
       lead?.budgetVerificationAssignedToUser?.name ||
       lead?.budgetVerificationAssignedToUser?.fullName ||
@@ -101,13 +126,8 @@ export default function BudgetVerificationsPage() {
           return true;
         }
         if (!user?.id) return false;
-        const isAssignedToUser = String(lead.budgetVerificationAssignedToUserId) === String(user.id);
-        if (isAssignedToUser) {
-          console.log("✓ Budget verification found for user");
-        }
-        return isAssignedToUser;
+        return String(lead.budgetVerificationAssignedToUserId) === String(user.id);
       });
-      console.log("Total leads:", leads.length, "Pending for user:", pending.length, "User ID:", user?.id);
       setPendingBudgets(pending);
     } catch (e) {
       showError(extractApiErrorMessage(e, "Failed to load budget verifications"));
@@ -138,7 +158,7 @@ export default function BudgetVerificationsPage() {
           if (!userData) return;
           const fullName = [userData.firstName, userData.lastName].filter(Boolean).join(" ").trim();
           map[userData.id] = fullName || userData.username || "";
-        }),
+        })
       );
 
       setUserNameMap(map);
@@ -196,6 +216,11 @@ export default function BudgetVerificationsPage() {
       });
       showSuccess("Budget verification rejected");
       setPendingBudgets((prev) => prev.filter((item) => item.id !== leadId));
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(leadId);
+        return next;
+      });
       setRejectingId(null);
       setRejectionReason("");
     } catch (e) {
@@ -205,23 +230,32 @@ export default function BudgetVerificationsPage() {
     }
   };
 
-  const downloadRequirementFile = async (lead) => {
+  const handleBulkReject = async () => {
+    if (selectedIds.size === 0) return;
+    const reason = window.prompt("Enter rejection reason for selected budget verifications:");
+    if (reason === null) return;
+    if (!reason.trim()) {
+      showError("Rejection reason is required");
+      return;
+    }
+
+    setLoading(true);
     try {
-      const { blob, contentDisposition } = await downloadLeadRequirementFile(lead.id);
-      if (!blob) return;
-      const match = /filename\*?=(?:UTF-8''|\")?([^\";]+)/i.exec(contentDisposition || "");
-      const fallback = lead.requirementFileName || `requirement-${lead.id}`;
-      const fileName = decodeURIComponent((match?.[1] || fallback).replace(/\"/g, "").trim());
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = fileName;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(url);
+      await Promise.all(
+        Array.from(selectedIds).map((id) =>
+          updateLeadDetails(id, {
+            budgetVerificationStatus: "REJECTED",
+            budgetVerificationRejectionReason: reason,
+          })
+        )
+      );
+      showSuccess(`${selectedIds.size} verifications rejected successfully`);
+      setPendingBudgets((prev) => prev.filter((item) => !selectedIds.has(item.id)));
+      setSelectedIds(new Set());
     } catch (e) {
-      showError(extractApiErrorMessage(e, "Failed to download requirement file"));
+      showError("Failed to reject some verifications");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -241,130 +275,512 @@ export default function BudgetVerificationsPage() {
     }
   };
 
+  // Search logic
+  const filteredRows = useMemo(() => {
+    let result = pendingBudgets;
+    const q = search.toLowerCase().trim();
+    if (q) {
+      result = result.filter((r) =>
+        (r.name || "").toLowerCase().includes(q) ||
+        String(r.leadId || r.id).toLowerCase().includes(q) ||
+        (r.requirementType || "").toLowerCase().includes(q) ||
+        getAssignedDisplayName(r).toLowerCase().includes(q)
+      );
+    }
+    return result;
+  }, [pendingBudgets, search, userNameMap]);
+
+  // Pagination logic
+  const totalRows = filteredRows.length;
+  const pageCount = Math.max(1, Math.ceil(totalRows / Math.max(1, pageSize)));
+  const clampedPage = Math.min(Math.max(1, page), pageCount);
+  const pageOffset = (clampedPage - 1) * pageSize;
+  const pagedRows = useMemo(
+    () => filteredRows.slice(pageOffset, pageOffset + pageSize),
+    [filteredRows, pageOffset, pageSize]
+  );
+
+  useEffect(() => {
+    if (page !== clampedPage) setPage(clampedPage);
+  }, [clampedPage]);
+
+  // Selection handlers
+  const toggleSelectAll = () => {
+    const pageIds = pagedRows.map((r) => r.id);
+    const allSelectedOnPage = pageIds.every((id) => selectedIds.has(id));
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (allSelectedOnPage) {
+        pageIds.forEach((id) => next.delete(id));
+      } else {
+        pageIds.forEach((id) => next.add(id));
+      }
+      return next;
+    });
+  };
+
+  const toggleRowSelection = (id) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  // Export handlers
+  const exportCsv = () => {
+    const targetRows = selectedIds.size > 0
+      ? filteredRows.filter((r) => selectedIds.has(r.id))
+      : filteredRows;
+
+    const headers = ["Lead ID", "Lead Name", "Requirement Type", "Assigned To", "Notes"];
+    const body = targetRows.map((row) => [
+      row.leadId || row.id,
+      row.name || "",
+      row.requirementType || "",
+      getAssignedDisplayName(row),
+      row.requirementNotes || "",
+    ]);
+
+    const csv = [headers, ...body]
+      .map((line) =>
+        line.map((cell) => `"${String(cell ?? "").replace(/"/g, '""')}"`).join(",")
+      )
+      .join("\n");
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `budget-verifications-${Date.now()}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const exportExcel = () => {
+    const targetRows = selectedIds.size > 0
+      ? filteredRows.filter((r) => selectedIds.has(r.id))
+      : filteredRows;
+
+    const headers = ["Lead ID", "Lead Name", "Requirement Type", "Assigned To", "Notes"];
+    const body = targetRows.map((row) => [
+      row.leadId || row.id,
+      row.name || "",
+      row.requirementType || "",
+      getAssignedDisplayName(row),
+      row.requirementNotes || "",
+    ]);
+
+    let template = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">`;
+    template += `<head><!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>Budget Verifications</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]--></head>`;
+    template += `<body><table><thead><tr>`;
+    headers.forEach((h) => {
+      template += `<th>${h}</th>`;
+    });
+    template += `</tr></thead><tbody>`;
+    body.forEach((r) => {
+      template += `<tr>`;
+      r.forEach((c) => {
+        template += `<td>${c}</td>`;
+      });
+      template += `</tr>`;
+    });
+    template += `</tbody></table></body></html>`;
+
+    const blob = new Blob([template], { type: "application/vnd.ms-excel;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `budget-verifications-${Date.now()}.xls`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const exportPdf = () => {
+    const targetRows = selectedIds.size > 0
+      ? filteredRows.filter((r) => selectedIds.has(r.id))
+      : filteredRows;
+
+    const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
+    doc.setFontSize(14);
+    doc.text("Budget Verifications Export", 40, 40);
+    doc.setFontSize(10);
+    doc.text(`Generated: ${new Date().toLocaleString()}`, 40, 58);
+
+    const headers = [["Lead ID", "Lead Name", "Requirement Type", "Assigned To", "Notes"]];
+    const body = targetRows.map((row) => [
+      row.leadId || row.id,
+      row.name || "",
+      row.requirementType || "",
+      getAssignedDisplayName(row),
+      row.requirementNotes || "",
+    ]);
+
+    autoTable(doc, {
+      head: headers,
+      body: body,
+      startY: 70,
+      styles: { fontSize: 9 },
+    });
+
+    doc.save(`budget-verifications-${Date.now()}.pdf`);
+  };
+
   return (
     <>
-      <div className="page-header">
-        <div className="page-title">
-          <h4>Budget Verifications</h4>
-          <p className="text-muted">Calculate and approve budgets for requirements</p>
-        </div>
-        <button
-          className="btn btn-primary"
-          onClick={fetchPendingBudgets}
-          disabled={loading}
-          style={{ height: "fit-content" }}
-        >
-          <i className="ti ti-refresh me-1"></i>Refresh
-        </button>
-      </div>
-
-      {loading ? (
-        <div className="text-center py-5">
-          <div className="spinner-border" role="status">
-            <span className="visually-hidden">Loading...</span>
+      <div className="content">
+        {/* Custom Header Card with breadcrumb and primary blue button */}
+        <div className="card border-0 shadow-sm p-4 mb-4 bg-white" style={{ borderRadius: 12 }}>
+          <div className="d-flex align-items-center justify-content-between flex-wrap gap-3">
+            <div>
+              <h2 className="leads-header-title mb-1" style={{ fontSize: "1.4rem", fontWeight: "700", color: "#0f172a" }}>Budget Verifications</h2>
+              <nav className="mb-0">
+                <ol className="breadcrumb mb-0" style={{ fontSize: "0.9rem" }}>
+                  <li className="breadcrumb-item">
+                    <Link to="/admin-dashboard" style={{ color: "#64748b", textDecoration: "none" }}>
+                      <i className="ti ti-smart-home"></i>
+                    </Link>
+                  </li>
+                  <li className="breadcrumb-item active" style={{ color: "#0f172a", fontWeight: "500" }}>Budget Verifications</li>
+                </ol>
+              </nav>
+            </div>
+            
+            <div className="d-flex align-items-center gap-2">
+              <button
+                type="button"
+                className="btn btn-primary d-flex align-items-center gap-2"
+                onClick={fetchPendingBudgets}
+                disabled={loading}
+                style={{ backgroundColor: "#3b82f6", borderColor: "#3b82f6", fontWeight: "600", padding: "10px 20px", borderRadius: "10px" }}
+              >
+                <i className="ti ti-refresh" style={{ fontSize: "1.1rem" }}></i>
+                Refresh List
+              </button>
+            </div>
           </div>
         </div>
-      ) : pendingBudgets.length === 0 ? (
-        <div className="alert alert-info">No pending budget verifications at this time.</div>
-      ) : (
-        <div className="card">
-          <div className="table-responsive">
-            <table className="table table-hover">
-              <thead>
-                <tr>
-                  <th>Lead ID</th>
-                  <th>Lead Name</th>
-                  <th>Requirement Type</th>
-                  <th>Assigned To</th>
-                  <th>Notes</th>
-              
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pendingBudgets.map((lead) => (
-                  <tr key={lead.id}>
-                    <td>
-                      <a
-                        href="#"
-                        onClick={(e) => { e.preventDefault(); navigate(`/leads/${lead.id}`); }}
-                        className="text-primary"
-                      >
-                        #{lead.leadId || lead.id}
-                      </a>
-                    </td>
-                    <td>{lead.name || "-"}</td>
-                    <td>
-                      {lead.requirementType ? (
-                        <div className="d-flex flex-column gap-2">
-                          <span className="badge bg-secondary align-self-start">{lead.requirementType}</span>
-                          <button
-                            className="btn btn-sm btn-outline-primary align-self-start"
-                            onClick={() => openRequirementDetails(lead)}
-                          >
-                            <i className="ti ti-eye me-1"></i>View
-                          </button>
-                        </div>
-                      ) : "-"}
-                    </td>
-                    <td>
-                      <span className={`badge ${lead.budgetVerificationAssignedToUserId ? "bg-info" : "bg-secondary"}`}>
-                        {getAssignedDisplayName(lead)}
-                      </span>
-                    </td>
-                    <td><small>{lead.requirementNotes || "-"}</small></td>
-                    
-                    <td>
-                      {rejectingId === lead.id ? (
-                        <div className="d-flex gap-1 flex-column">
-                          <textarea
-                            className="form-control form-control-sm"
-                            rows="2"
-                            placeholder="Rejection reason"
-                            value={rejectionReason}
-                            onChange={(e) => setRejectionReason(e.target.value)}
-                          />
-                          <div className="d-flex gap-1">
-                            <button
-                              className="btn btn-sm btn-danger"
-                              onClick={() => handleReject(lead.id)}
-                              disabled={rejecting === lead.id}
-                            >
-                              {rejecting === lead.id ? "Rejecting..." : "Confirm Reject"}
-                            </button>
-                            <button
-                              className="btn btn-sm btn-secondary"
-                              onClick={() => { setRejectingId(null); setRejectionReason(""); }}
-                            >
-                              Cancel
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="d-flex gap-1">
-                          <button
-                            className="btn btn-sm btn-success"
-                            onClick={() => handleCalculate(lead)}
-                          >
-                            <i className="ti ti-calculator me-1"></i>Calculate Budget
-                          </button>
-                          <button
-                            className="btn btn-sm btn-outline-danger"
-                            onClick={() => { setRejectingId(lead.id); setRejectionReason(""); }}
-                          >
-                            <i className="ti ti-x me-1"></i>Reject
-                          </button>
-                        </div>
-                      )}
-                    </td>
+
+        <div className="card border-0 shadow-sm mb-4" style={{ borderRadius: 12 }}>
+          {/* Search and Export controls inside card */}
+          <div className="d-flex flex-wrap align-items-center justify-content-between gap-3 p-3 border-bottom">
+            <div className="search-leads-container position-relative flex-grow-1 flex-md-grow-0" style={{ minWidth: "260px" }}>
+              <input
+                className="form-control search-leads-input"
+                style={{ height: 42, borderRadius: 10, paddingLeft: 38, fontSize: "0.95rem" }}
+                value={search}
+                placeholder="Search by ID, name, type..."
+                onChange={(e) => setSearch(e.target.value)}
+              />
+              <i className="ti ti-search position-absolute text-muted" style={{ left: 14, top: "50%", transform: "translateY(-50%)", fontSize: "1.1rem" }} />
+            </div>
+
+            <div className="d-flex align-items-center gap-2 flex-wrap">
+              <div className="dropdown">
+                <button
+                  className="btn btn-outline-export dropdown-toggle d-flex align-items-center gap-2"
+                  type="button"
+                  id="exportDropdown"
+                  data-bs-toggle="dropdown"
+                  aria-expanded="false"
+                  style={{ height: 42, padding: "0 18px", borderRadius: 10, fontWeight: "500", fontSize: "0.9rem" }}
+                >
+                  <i className="ti ti-download" style={{ fontSize: "1rem" }} />
+                  Export
+                </button>
+                <ul className="dropdown-menu shadow border-0" aria-labelledby="exportDropdown">
+                  <li>
+                    <button className="dropdown-item py-2 text-start" onClick={exportExcel}>
+                      Excel
+                    </button>
+                  </li>
+                  <li>
+                    <button className="dropdown-item py-2 text-start" onClick={exportCsv}>
+                      CSV
+                    </button>
+                  </li>
+                  <li>
+                    <button className="dropdown-item py-2 text-start" onClick={exportPdf}>
+                      PDF
+                    </button>
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <div className="card-body p-0">
+            <div className="custom-datatable-filter table-responsive" style={{ overflowX: "auto" }}>
+              <table className="table table-hover align-middle mb-0">
+                <thead className="thead-light">
+                  <tr>
+                    <th style={{ width: "40px" }}>
+                      <input
+                        type="checkbox"
+                        className="form-check-input"
+                        checked={pagedRows.length > 0 && pagedRows.every((r) => selectedIds.has(r.id))}
+                        onChange={toggleSelectAll}
+                      />
+                    </th>
+                    <th>Lead ID</th>
+                    <th>Lead Name</th>
+                    <th>Requirement Type</th>
+                    <th>Assigned To</th>
+                    <th>Notes</th>
+                    <th style={{ width: "80px" }}>Action</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {loading ? (
+                    <tr>
+                      <td colSpan={7} className="text-center py-4">
+                        <div className="spinner-border text-primary" role="status">
+                          <span className="visually-hidden">Loading...</span>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : pagedRows.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="text-center py-4 text-muted">No pending budget verifications found</td>
+                    </tr>
+                  ) : (
+                    pagedRows.map((lead) => (
+                      <tr key={lead.id}>
+                        <td>
+                          <input
+                            type="checkbox"
+                            className="form-check-input"
+                            checked={selectedIds.has(lead.id)}
+                            onChange={() => toggleRowSelection(lead.id)}
+                          />
+                        </td>
+                        <td>
+                          <Link to={`/leads/${lead.id}`} className="text-primary fw-semibold" style={{ textDecoration: "none" }}>
+                            #{lead.leadId || lead.id}
+                          </Link>
+                        </td>
+                        <td className="fw-semibold text-dark">{lead.name || "—"}</td>
+                        <td>
+                          {lead.requirementType ? (
+                            <span className="badge bg-secondary">{lead.requirementType}</span>
+                          ) : "—"}
+                        </td>
+                        <td>
+                          <span className={`badge ${lead.budgetVerificationAssignedToUserId ? "bg-info" : "bg-secondary"}`}>
+                            {getAssignedDisplayName(lead)}
+                          </span>
+                        </td>
+                        <td>
+                          <small className="text-muted">{lead.requirementNotes || "—"}</small>
+                        </td>
+                        <td>
+                          {rejectingId === lead.id ? (
+                            <div className="d-flex gap-1 flex-column" onClick={(e) => e.stopPropagation()}>
+                              <textarea
+                                className="form-control form-control-sm"
+                                rows="2"
+                                placeholder="Rejection reason"
+                                value={rejectionReason}
+                                onChange={(e) => setRejectionReason(e.target.value)}
+                                style={{ minWidth: 150 }}
+                              />
+                              <div className="d-flex gap-1">
+                                <button
+                                  className="btn btn-sm btn-danger"
+                                  onClick={() => handleReject(lead.id)}
+                                  disabled={rejecting === lead.id}
+                                  style={{ fontSize: "0.75rem" }}
+                                >
+                                  Confirm
+                                </button>
+                                <button
+                                  className="btn btn-sm btn-secondary"
+                                  onClick={() => {
+                                    setRejectingId(null);
+                                    setRejectionReason("");
+                                  }}
+                                  style={{ fontSize: "0.75rem" }}
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <button
+                              className="btn btn-kebab-actions d-flex align-items-center justify-content-center"
+                              style={{ width: 32, height: 32, borderRadius: "50%", border: "none", backgroundColor: "transparent", color: "#64748b" }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (activeActionsRow?.id === lead.id) {
+                                  setActiveActionsRow(null);
+                                } else {
+                                  const rect = e.currentTarget.getBoundingClientRect();
+                                  setActionsMenuPos({
+                                    top: rect.top + window.scrollY,
+                                    left: rect.right + window.scrollX,
+                                  });
+                                  setActiveActionsRow(lead);
+                                }
+                              }}
+                            >
+                              <i className="ti ti-dots-vertical" style={{ fontSize: "1.15rem" }} />
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Pagination Footer */}
+          <div className="leads-pagination-footer d-flex flex-wrap align-items-center justify-content-between gap-3 p-3 border-top">
+            <span className="entries-info text-muted small">
+              {totalRows === 0
+                ? "Showing 0 to 0 of 0 entries"
+                : `Showing ${pageOffset + 1} to ${Math.min(pageOffset + pageSize, totalRows)} of ${totalRows} entries`}
+            </span>
+
+            <div className="pagination-numbers-container d-flex align-items-center gap-1">
+              <button
+                type="button"
+                className="btn-pagination-arrow btn btn-sm btn-light border-0 d-flex align-items-center justify-content-center"
+                style={{ width: 32, height: 32, borderRadius: 6 }}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={clampedPage <= 1}
+              >
+                <i className="ti ti-chevron-left" />
+              </button>
+
+              {Array.from({ length: pageCount }).map((_, idx) => {
+                const pageNum = idx + 1;
+                return (
+                  <button
+                    key={pageNum}
+                    type="button"
+                    className={`btn-pagination-num btn btn-sm border-0 ${clampedPage === pageNum ? "active" : "btn-light"}`}
+                    style={{ width: 32, height: 32, borderRadius: 6 }}
+                    onClick={() => setPage(pageNum)}
+                  >
+                    {pageNum}
+                  </button>
+                );
+              })}
+
+              <button
+                type="button"
+                className="btn-pagination-arrow btn btn-sm btn-light border-0 d-flex align-items-center justify-content-center"
+                style={{ width: 32, height: 32, borderRadius: 6 }}
+                onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+                disabled={clampedPage >= pageCount}
+              >
+                <i className="ti ti-chevron-right" />
+              </button>
+            </div>
+
+            <PageSizeSelector pageSize={pageSize} setPageSize={setPageSize} setPage={setPage} />
+          </div>
+        </div>
+      </div>
+
+      {/* Floating Kebab Actions Portal */}
+      {activeActionsRow && createPortal(
+        <div
+          className="floating-actions-menu shadow-lg border"
+          style={{
+            position: "absolute",
+            top: actionsMenuPos.top,
+            left: actionsMenuPos.left,
+            transform: "translate(-100%, -100%) translateY(-5px)",
+            zIndex: 9999,
+            background: "#fff",
+            borderRadius: 8,
+            padding: "6px 0",
+            minWidth: 180
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            className="dropdown-item py-2 px-3 text-start d-flex align-items-center gap-2"
+            style={{ fontSize: "0.85rem" }}
+            onClick={() => {
+              openRequirementDetails(activeActionsRow);
+              setActiveActionsRow(null);
+            }}
+          >
+            <i className="ti ti-eye" style={{ fontSize: "1rem", color: "#64748b" }} /> View Requirement
+          </button>
+          <button
+            className="dropdown-item py-2 px-3 text-start d-flex align-items-center gap-2 text-success"
+            style={{ fontSize: "0.85rem" }}
+            onClick={() => {
+              handleCalculate(activeActionsRow);
+              setActiveActionsRow(null);
+            }}
+          >
+            <i className="ti ti-calculator" style={{ fontSize: "1rem", color: "#10b981" }} /> Calculate Budget
+          </button>
+          <button
+            className="dropdown-item py-2 px-3 text-start d-flex align-items-center gap-2 text-danger"
+            style={{ fontSize: "0.85rem" }}
+            onClick={() => {
+              setRejectingId(activeActionsRow.id);
+              setRejectionReason("");
+              setActiveActionsRow(null);
+            }}
+          >
+            <i className="ti ti-x" style={{ fontSize: "1rem", color: "#ef4444" }} /> Reject Verification
+          </button>
+        </div>,
+        document.body
+      )}
+
+      {/* Floating Bulk Operations Bar */}
+      {selectedIds.size > 0 && (
+        <div
+          className="position-fixed start-50 translate-middle-x d-flex align-items-center justify-content-between gap-3 shadow-lg px-4 py-3 bg-dark text-white"
+          style={{
+            bottom: 24,
+            borderRadius: 16,
+            zIndex: 1040,
+            minWidth: 400,
+            border: "1px solid rgba(255, 255, 255, 0.15)",
+            animation: "fadeIn 0.2s ease"
+          }}
+        >
+          <div className="d-flex align-items-center gap-2">
+            <span className="badge bg-primary text-white" style={{ fontSize: "0.9rem", padding: "6px 10px" }}>
+              {selectedIds.size}
+            </span>
+            <span className="fw-medium text-white">selected</span>
+          </div>
+          <div className="d-flex align-items-center gap-2">
+            <button
+              className="btn btn-sm btn-warning d-flex align-items-center gap-1"
+              style={{ borderRadius: 8, padding: "6px 12px", fontSize: "0.85rem", border: "none" }}
+              onClick={handleBulkReject}
+              disabled={loading}
+            >
+              <i className="ti ti-x" /> Reject Selected
+            </button>
+            <button
+              className="btn btn-sm btn-link p-0 ms-2 text-decoration-none"
+              style={{ fontSize: "0.85rem", color: "rgba(255, 255, 255, 0.7)" }}
+              onClick={() => setSelectedIds(new Set())}
+            >
+              Clear
+            </button>
           </div>
         </div>
       )}
 
+      {/* Modal for Details */}
       {detailLead && (
         <>
           <div className="modal fade show" style={{ display: "block" }} tabIndex="-1" aria-modal="true" role="dialog">
@@ -390,7 +806,7 @@ export default function BudgetVerificationsPage() {
 
                   {detailLoading ? (
                     <div className="text-center py-4">
-                      <div className="spinner-border" role="status">
+                      <div className="spinner-border text-primary" role="status">
                         <span className="visually-hidden">Loading...</span>
                       </div>
                     </div>

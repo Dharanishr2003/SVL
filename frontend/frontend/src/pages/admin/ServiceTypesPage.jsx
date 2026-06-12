@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { getServiceCategories } from "../../api/serviceCategoriesApi";
 import {
   getServiceTypes,
@@ -268,20 +269,36 @@ export default function ServiceTypesPage() {
   const pageOffset = (clampedPage - 1) * pageSize;
 
   return (
-    <div className="content service-types-shell">
-      <div className="container-fluid">
-        <div className="d-flex justify-content-between align-items-center mb-3">
-          <h4 className="mb-0">Service Types</h4>
-          <button className="btn btn-primary" onClick={handleOpenCreate}>
-            Add Service Type +
-          </button>
+    <div className="container-fluid content">
+      {/* Header Block */}
+      <div className="card border-0 shadow-sm p-4 mb-4 bg-white" style={{ borderRadius: 12 }}>
+        <div className="d-flex align-items-center justify-content-between flex-wrap gap-3">
+          <div>
+            <h2 className="leads-header-title mb-1" style={{ fontSize: "1.4rem", fontWeight: "700", color: "#0f172a" }}>Service Types</h2>
+            <nav aria-label="breadcrumb">
+              <ol className="breadcrumb mb-0" style={{ fontSize: "0.85rem" }}>
+                <li className="breadcrumb-item">
+                  <Link to="/admin-dashboard" className="text-decoration-none text-muted">
+                    <i className="ti ti-smart-home" />
+                  </Link>
+                </li>
+                <li className="breadcrumb-item text-muted">Services</li>
+                <li className="breadcrumb-item active text-primary" aria-current="page">
+                  Service Types
+                </li>
+              </ol>
+            </nav>
+          </div>
         </div>
+      </div>
 
-        {categories.length > 0 && (
-          <div className="service-types-tab-strip">
+      {categories.length > 0 && (
+        <ul className="nav nav-tabs mb-4 border-bottom-0 gap-2 flex-wrap">
+          <li className="nav-item">
             <button
               type="button"
-              className={`service-types-tab${selectedCategoryId === null ? " active" : ""}`}
+              className={`nav-link px-4 py-2 border-0 ${selectedCategoryId === null ? "active text-primary fw-bold bg-light" : "text-muted"}`}
+              style={{ borderRadius: 10, fontSize: "0.9rem", cursor: "pointer" }}
               onClick={() => {
                 setSelectedCategoryId(null);
                 setPage(1);
@@ -289,11 +306,13 @@ export default function ServiceTypesPage() {
             >
               All Categories
             </button>
-            {categories.map((cat) => (
+          </li>
+          {categories.map((cat) => (
+            <li className="nav-item" key={cat.id}>
               <button
-                key={cat.id}
                 type="button"
-                className={`service-types-tab${String(selectedCategoryId) === String(cat.id) ? " active" : ""}`}
+                className={`nav-link px-4 py-2 border-0 ${String(selectedCategoryId) === String(cat.id) ? "active text-primary fw-bold bg-light" : "text-muted"}`}
+                style={{ borderRadius: 10, fontSize: "0.9rem", cursor: "pointer" }}
                 onClick={() => {
                   setSelectedCategoryId(cat.id);
                   setPage(1);
@@ -301,24 +320,200 @@ export default function ServiceTypesPage() {
               >
                 {cat.name}
               </button>
-            ))}
-          </div>
-        )}
+            </li>
+          ))}
+        </ul>
+      )}
 
-        <div className="card">
-          <div className="card-header d-flex justify-content-between align-items-center">
-            <h5 className="mb-0">Service Type List</h5>
-            <span className="badge bg-primary">
-              {totalRows} type{totalRows !== 1 ? "s" : ""}
-            </span>
+      {/* Main Content Card */}
+      <div className="card table-list-card border-0 shadow-sm" style={{ borderRadius: 12 }}>
+        <div className="card-body">
+          {/* Controls Bar */}
+          <div className="leads-controls-bar d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4">
+            <div className="d-flex align-items-center gap-2">
+              <h5 className="mb-0 fw-bold" style={{ color: "#0f172a", fontSize: "1.1rem" }}>Service Type List</h5>
+              <span className="badge bg-primary-subtle text-primary border border-primary-subtle px-2.5 py-1" style={{ borderRadius: 8, fontSize: "0.8rem" }}>
+                {totalRows} type{totalRows !== 1 ? "s" : ""}
+              </span>
+            </div>
+            <div className="d-flex gap-2">
+              <button
+                className="btn btn-outline-primary d-flex align-items-center gap-2"
+                style={{ height: 42, padding: "0 18px", borderRadius: 10, fontWeight: "500", fontSize: "0.9rem" }}
+                onClick={handleOpenCreate}
+              >
+                <i className="ti ti-circle-plus" />
+                Add Service Type
+              </button>
+            </div>
           </div>
-          <div className="card-body p-0">
-            <div className="d-flex flex-wrap align-items-center justify-content-between gap-2 px-3 py-2 border-bottom">
+
+          <div className="table-responsive leads-table-wrap border-0 shadow-sm mb-4" style={{ borderRadius: 12 }}>
+            <table className="table table-hover align-middle leads-table mb-0">
+              <thead>
+                <tr>
+                  <th className="text-muted" style={{ width: "90px", fontWeight: "600", fontSize: "0.85rem" }}>Index</th>
+                  <th className="text-muted" style={{ fontWeight: "600", fontSize: "0.85rem" }}>Category</th>
+                  <th className="text-muted" style={{ fontWeight: "600", fontSize: "0.85rem" }}>Name</th>
+                  <th className="text-muted" style={{ fontWeight: "600", fontSize: "0.85rem" }}>Field Key</th>
+                  <th className="text-muted" style={{ width: "110px", fontWeight: "600", fontSize: "0.85rem" }}>Sub Types</th>
+                  <th className="text-muted text-end" style={{ width: "160px", fontWeight: "600", fontSize: "0.85rem" }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr>
+                    <td colSpan="6" className="text-center text-muted py-4">
+                      Loading...
+                    </td>
+                  </tr>
+                ) : serviceTypes.length > 0 ? (
+                  serviceTypes.map((serviceType, parentIndex) => {
+                    const children = Array.isArray(serviceType.children) ? serviceType.children.slice() : [];
+                    const isExpanded = expandedParents[serviceType.id?.toString()] ?? false;
+                    return (
+                      <Fragment key={serviceType.id}>
+                        <tr className="service-type-parent-row">
+                          <td className="fw-semibold" style={{ color: "#1e293b", fontSize: "0.9rem" }}>{pageOffset + parentIndex + 1}</td>
+                          <td className="fw-semibold" style={{ color: "#0f172a", fontSize: "0.9rem" }}>{getCategoryName(serviceType.categoryId)}</td>
+                          <td>
+                            <button
+                              type="button"
+                              className="service-type-toggle"
+                              onClick={() => toggleParent(serviceType.id)}
+                              aria-label={isExpanded ? "Collapse" : "Expand"}
+                            >
+                              <i className={`ti ${isExpanded ? "ti-chevron-down" : "ti-chevron-right"}`} />
+                            </button>
+                            <strong style={{ color: "#0f172a", fontSize: "0.9rem" }}>{serviceType.name}</strong>
+                          </td>
+                          <td>
+                            <code>{serviceType.fieldConfigKey || "-"}</code>
+                          </td>
+                          <td>
+                            <span className="service-types-count-badge">{children.length}</span>
+                          </td>
+                          <td className="text-end">
+                            <div className="d-flex justify-content-end gap-2">
+                              <button
+                                type="button"
+                                className="btn btn-sm btn-outline-success d-inline-flex align-items-center justify-content-center"
+                                style={{ borderRadius: 8, width: 32, height: 32, padding: 0 }}
+                                onClick={() => handleAddSubType(serviceType)}
+                                title="Add Sub Type"
+                              >
+                                <i className="ti ti-plus" />
+                              </button>
+                              <button
+                                type="button"
+                                className="btn btn-sm btn-outline-primary d-inline-flex align-items-center justify-content-center"
+                                style={{ borderRadius: 8, width: 32, height: 32, padding: 0 }}
+                                onClick={() => handleEdit(serviceType)}
+                                title="Edit"
+                              >
+                                <i className="ti ti-edit" />
+                              </button>
+                              <button
+                                type="button"
+                                className="btn btn-sm btn-outline-danger d-inline-flex align-items-center justify-content-center"
+                                style={{ borderRadius: 8, width: 32, height: 32, padding: 0 }}
+                                onClick={() => handleDelete(serviceType)}
+                                title="Delete"
+                              >
+                                <i className="ti ti-trash" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                        {isExpanded &&
+                          children.map((child, childIndex) => (
+                            <tr key={child.id} className="service-type-child-row">
+                              <td className="text-muted" style={{ fontSize: "0.85rem" }}>
+                                {pageOffset + parentIndex + 1}.{childIndex + 1}
+                              </td>
+                              <td className="text-muted" style={{ fontSize: "0.85rem" }}>{getCategoryName(child.categoryId)}</td>
+                              <td>
+                                <span className="service-type-child-label text-muted" style={{ fontSize: "0.85rem" }}>{child.name}</span>
+                              </td>
+                              <td>
+                                <code>{child.fieldConfigKey || "-"}</code>
+                              </td>
+                              <td></td>
+                              <td className="text-end">
+                                <div className="d-flex justify-content-end gap-2">
+                                  <button
+                                    type="button"
+                                    className="btn btn-sm btn-outline-primary d-inline-flex align-items-center justify-content-center"
+                                    style={{ borderRadius: 8, width: 32, height: 32, padding: 0 }}
+                                    onClick={() => handleEdit(child)}
+                                    title="Edit"
+                                  >
+                                    <i className="ti ti-edit" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="btn btn-sm btn-outline-danger d-inline-flex align-items-center justify-content-center"
+                                    style={{ borderRadius: 8, width: 32, height: 32, padding: 0 }}
+                                    onClick={() => handleDelete(child)}
+                                    title="Delete"
+                                  >
+                                    <i className="ti ti-trash" />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                      </Fragment>
+                    );
+                  })
+                ) : (
+                  <tr>
+                    <td colSpan="6" className="text-center text-muted py-4">
+                      No service types found
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {totalRows > 0 && (
+            <div className="leads-pagination-footer d-flex flex-wrap align-items-center justify-content-between gap-3 pt-3 border-top">
+              <span className="entries-info text-muted small">
+                Showing {pageOffset + 1} to {Math.min(pageOffset + pageSize, totalRows)} of {totalRows} entries
+              </span>
+
+              <div className="pagination-numbers-container d-flex align-items-center gap-1">
+                <button
+                  type="button"
+                  className="btn-pagination-arrow btn btn-sm btn-light border-0 d-flex align-items-center justify-content-center"
+                  style={{ width: 32, height: 32, borderRadius: 6 }}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={loading || clampedPage <= 1}
+                >
+                  <i className="ti ti-chevron-left" />
+                </button>
+
+                <span className="text-muted small px-2">
+                  Page {clampedPage} of {totalPages}
+                </span>
+
+                <button
+                  type="button"
+                  className="btn-pagination-arrow btn btn-sm btn-light border-0 d-flex align-items-center justify-content-center"
+                  style={{ width: 32, height: 32, borderRadius: 6 }}
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={loading || clampedPage >= totalPages}
+                >
+                  <i className="ti ti-chevron-right" />
+                </button>
+              </div>
+
               <div className="d-flex align-items-center gap-2">
                 <span className="text-muted small">Rows per page</span>
                 <select
                   className="form-select form-select-sm"
-                  style={{ width: 110 }}
+                  style={{ width: 80, borderRadius: 8, height: 36 }}
                   value={pageSize}
                   onChange={(e) => {
                     const next = Number(e.target.value);
@@ -333,197 +528,36 @@ export default function ServiceTypesPage() {
                     </option>
                   ))}
                 </select>
-                <span className="text-muted small">
-                  {totalRows === 0
-                    ? "0 rows"
-                    : `Showing ${pageOffset + 1}-${Math.min(pageOffset + pageSize, totalRows)} of ${totalRows}`}
-                </span>
-              </div>
-              <div className="d-flex align-items-center gap-2">
-                <button
-                  type="button"
-                  className="btn btn-sm btn-light"
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  disabled={loading || clampedPage <= 1}
-                >
-                  Prev
-                </button>
-                <span className="text-muted small">
-                  Page {clampedPage} of {totalPages}
-                </span>
-                <button
-                  type="button"
-                  className="btn btn-sm btn-light"
-                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={loading || clampedPage >= totalPages}
-                >
-                  Next
-                </button>
               </div>
             </div>
-            <div className="service-types-table-wrap table-responsive">
-              <table className="table table-striped table-hover mb-0">
-                <thead>
-                  <tr>
-                    <th style={{ width: "90px" }}>Index</th>
-                    <th>Category</th>
-                    <th>Name</th>
-                    <th>Field Key</th>
-                    <th style={{ width: "110px" }}>Sub Types</th>
-                    <th style={{ width: "140px" }}>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {loading ? (
-                    <tr>
-                      <td colSpan="6" className="text-center text-muted py-4">
-                        Loading...
-                      </td>
-                    </tr>
-                  ) : serviceTypes.length > 0 ? (
-                    serviceTypes.map((serviceType, parentIndex) => {
-                      const children = Array.isArray(serviceType.children) ? serviceType.children.slice() : [];
-                      const isExpanded = expandedParents[serviceType.id?.toString()] ?? false;
-                      return (
-                        <Fragment key={serviceType.id}>
-                          <tr className="service-type-parent-row">
-                            <td>{pageOffset + parentIndex + 1}</td>
-                            <td>{getCategoryName(serviceType.categoryId)}</td>
-                            <td>
-                              <button
-                                type="button"
-                                className="service-type-toggle"
-                                onClick={() => toggleParent(serviceType.id)}
-                                aria-label={isExpanded ? "Collapse" : "Expand"}
-                              >
-                                <i className={`ti ${isExpanded ? "ti-chevron-down" : "ti-chevron-right"}`} />
-                              </button>
-                              <strong>{serviceType.name}</strong>
-                            </td>
-                            <td>
-                              <code>{serviceType.fieldConfigKey || "-"}</code>
-                            </td>
-                            <td>
-                              <span className="service-types-count-badge">{children.length}</span>
-                            </td>
-                            <td>
-                              <div className="d-inline-flex align-items-center gap-2">
-                                <button
-                                  type="button"
-                                  className="btn btn-sm btn-success d-inline-flex align-items-center justify-content-center"
-                                  onClick={() => handleAddSubType(serviceType)}
-                                  title="Add Sub Type"
-                                  style={{ width: 32, height: 32, padding: 0 }}
-                                >
-                                  <i className="ti ti-plus" />
-                                </button>
-                                <button
-                                  type="button"
-                                  className="btn btn-sm btn-primary d-inline-flex align-items-center justify-content-center"
-                                  onClick={() => handleEdit(serviceType)}
-                                  title="Edit"
-                                  style={{ width: 32, height: 32, padding: 0 }}
-                                >
-                                  <i className="ti ti-edit" />
-                                </button>
-                                <button
-                                  type="button"
-                                  className="btn btn-sm btn-danger d-inline-flex align-items-center justify-content-center"
-                                  onClick={() => handleDelete(serviceType)}
-                                  title="Delete"
-                                  style={{ width: 32, height: 32, padding: 0 }}
-                                >
-                                  <i className="ti ti-trash" />
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                          {isExpanded &&
-                            children.map((child, childIndex) => (
-                              <tr key={child.id} className="service-type-child-row">
-                                <td>
-                                  {pageOffset + parentIndex + 1}.{childIndex + 1}
-                                </td>
-                                <td>{getCategoryName(child.categoryId)}</td>
-                                <td>
-                                  <span className="service-type-child-label">{child.name}</span>
-                                </td>
-                                <td>
-                                  <code>{child.fieldConfigKey || "-"}</code>
-                                </td>
-                                <td></td>
-                                <td>
-                                  <div className="d-inline-flex align-items-center gap-2">
-                                    <button
-                                      type="button"
-                                      className="btn btn-sm btn-primary d-inline-flex align-items-center justify-content-center"
-                                      onClick={() => handleEdit(child)}
-                                      title="Edit"
-                                      style={{ width: 32, height: 32, padding: 0 }}
-                                    >
-                                      <i className="ti ti-edit" />
-                                    </button>
-                                    <button
-                                      type="button"
-                                      className="btn btn-sm btn-danger d-inline-flex align-items-center justify-content-center"
-                                      onClick={() => handleDelete(child)}
-                                      title="Delete"
-                                      style={{ width: 32, height: 32, padding: 0 }}
-                                    >
-                                      <i className="ti ti-trash" />
-                                    </button>
-                                  </div>
-                                </td>
-                              </tr>
-                            ))}
-                        </Fragment>
-                      );
-                    })
-                  ) : (
-                    <tr>
-                      <td colSpan="6" className="text-center text-muted py-4">
-                        No service types found
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
+          )}
         </div>
       </div>
 
       {showCreate && (
         <>
-          <div className="avm-backdrop" role="presentation">
-            <div
-              className="avm-modal"
-              style={{ maxWidth: "640px" }}
-              onClick={(e) => e.stopPropagation()}
-              role="dialog"
-              aria-modal="true"
-            >
-              <div className="avm-modal-header">
-                <h2 className="avm-modal-title">{wizardTitle}</h2>
-                <button
-                  type="button"
-                  className="avm-modal-close"
-                  onClick={() => setShowCreate(false)}
-                  aria-label="Close"
-                >
-                  X
-                </button>
-              </div>
-
-              <div className="avm-body">
-                <div className="avm-grid">
-                  <div className="avm-field">
-                    <label className="avm-label">Category</label>
+          <div className="modal fade show" style={{ display: "block", backgroundColor: "rgba(0, 0, 0, 0.5)" }} tabIndex="-1">
+            <div className="modal-dialog modal-dialog-centered" style={{ maxWidth: "520px" }}>
+              <div className="modal-content border-0 shadow-lg" style={{ borderRadius: 16 }}>
+                <div className="modal-header border-0 pb-0">
+                  <h5 className="modal-title fw-bold" style={{ color: "#0f172a" }}>
+                    {wizardTitle}
+                  </h5>
+                  <button
+                    type="button"
+                    className="btn-close"
+                    onClick={() => setShowCreate(false)}
+                  />
+                </div>
+                <div className="modal-body p-4 pb-0">
+                  <div className="mb-3">
+                    <label className="form-label fw-semibold text-muted" style={{ fontSize: "0.85rem" }}>Category</label>
                     <select
-                      className="avm-select"
+                      className="form-select"
                       value={form.categoryId}
                       onChange={(e) => handleCategoryChange(e.target.value)}
                       disabled={Boolean(form.parentId) && !editingId}
+                      style={{ borderRadius: 10, height: 42 }}
                     >
                       <option value="">-- Select Category --</option>
                       {categories.map((cat) => (
@@ -535,13 +569,14 @@ export default function ServiceTypesPage() {
                   </div>
 
                   {form.parentId && (
-                    <div className="avm-field">
-                      <label className="avm-label">Parent Type</label>
+                    <div className="mb-3">
+                      <label className="form-label fw-semibold text-muted" style={{ fontSize: "0.85rem" }}>Parent Type</label>
                       <select
-                        className="avm-select"
+                        className="form-select"
                         value={form.parentId}
                         onChange={(e) => handleParentChange(e.target.value)}
                         disabled={!editingId}
+                        style={{ borderRadius: 10, height: 42 }}
                       >
                         <option value="">Top Level Type</option>
                         {parentOptions.map((parent) => (
@@ -553,11 +588,11 @@ export default function ServiceTypesPage() {
                     </div>
                   )}
 
-                  <div className="avm-field full">
-                    <label className="avm-label">Service Type Name</label>
+                  <div className="mb-3">
+                    <label className="form-label fw-semibold text-muted" style={{ fontSize: "0.85rem" }}>Service Type Name</label>
                     <input
                       type="text"
-                      className="avm-input"
+                      className="form-control"
                       value={form.name}
                       onChange={(e) => {
                         const name = e.target.value;
@@ -570,15 +605,16 @@ export default function ServiceTypesPage() {
                         });
                       }}
                       placeholder="Enter service type name"
+                      style={{ borderRadius: 10, height: 42 }}
                       autoFocus
                     />
                   </div>
 
-                  <div className="avm-field full">
-                    <label className="avm-label">Field Config Key</label>
+                  <div className="mb-3">
+                    <label className="form-label fw-semibold text-muted" style={{ fontSize: "0.85rem" }}>Field Config Key</label>
                     <input
                       type="text"
-                      className="avm-input"
+                      className="form-control"
                       value={form.fieldConfigKey}
                       onChange={(e) => {
                         const value = slugifyFieldKey(e.target.value);
@@ -587,22 +623,24 @@ export default function ServiceTypesPage() {
                       }}
                       placeholder="e.g. visiting_card"
                       disabled={Boolean(editingId)}
+                      style={{ borderRadius: 10, height: 42 }}
                     />
-                    {editingId && (
-                      <small className="text-muted">
+                    {editingId ? (
+                      <small className="text-muted mt-1 d-block" style={{ fontSize: "0.75rem" }}>
                         Field config key is locked after creation so renaming does not change field matching.
+                      </small>
+                    ) : (
+                      <small className="text-muted mt-1 d-block" style={{ fontSize: "0.75rem" }}>
+                        Field config key auto-generates from the name and can be edited.
                       </small>
                     )}
                   </div>
                 </div>
-              </div>
-
-              <div className="avm-footer">
-                <div className="text-muted small">Field config key auto-generates from the name and can be edited.</div>
-                <div className="avm-footer-right">
+                <div className="modal-footer border-0 pt-0 p-4">
                   <button
                     type="button"
-                    className="avm-btn light"
+                    className="btn btn-light px-4 py-2"
+                    style={{ borderRadius: 10 }}
                     onClick={() => setShowCreate(false)}
                     disabled={saving}
                   >
@@ -610,7 +648,8 @@ export default function ServiceTypesPage() {
                   </button>
                   <button
                     type="button"
-                    className="avm-btn primary"
+                    className="btn btn-primary px-4 py-2"
+                    style={{ borderRadius: 10, backgroundColor: "#3b82f6", borderColor: "#3b82f6" }}
                     onClick={handleSave}
                     disabled={saving}
                   >

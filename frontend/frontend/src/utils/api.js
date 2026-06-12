@@ -9,14 +9,20 @@ let onTokenRefreshed = null
 
 export function setAccessToken(token) {
   accessToken = token || null
+  if (token) {
+    localStorage.setItem("accessToken", token)
+  } else {
+    localStorage.removeItem("accessToken")
+  }
 }
 
 export function getAccessToken() {
-  return accessToken
+  return accessToken || localStorage.getItem("accessToken")
 }
 
 export function clearTokens() {
   accessToken = null
+  localStorage.removeItem("accessToken")
 }
 
 export function attachAuthHandlers({ handleAuthFailure, handleTokenRefreshed } = {}) {

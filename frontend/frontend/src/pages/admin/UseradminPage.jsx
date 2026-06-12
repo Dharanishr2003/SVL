@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
+import { createPortal } from "react-dom";
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
 import {
   changeUserRole,
   deleteSelectedSessions,
@@ -10,12 +13,13 @@ import {
   getUsers,
   setUserActive,
 } from "../../api/userAdminApi";
-// NEW: Import the independent User Permissions Hierarchy API hooks
 import { getUserDepartments, getUserDesignations } from "../../api/userPermissionsApi";
 import { getInstitutions, getUserOrgSelection } from "../../api/orgHierarchyApi";
 import { extractApiErrorMessage } from "../../utils/errorMessage";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../components/system/ToastProvider";
+import "./LeadsPage.css";
+import PageSizeSelector from "../../components/admin/PageSizeSelector";
 import ConfirmDialog from "../../components/system/ConfirmDialog";
 
 const FALLBACK_ROLES = ["SUPER_ADMIN", "ADMIN", "MANAGER", "TEAM_LEAD", "EMPLOYEE"];
@@ -35,9 +39,9 @@ const INITIAL_FILTERS = {
   search: "",
   role: "",
   status: "",
-  institution: "",      // Branch text filter
-  department: "",       // User Department text filter
-  team: "",             // User Designation text filter
+  institution: "",      
+  department: "",       
+  team: "",             
 };
 
 const normalizeText = (value) => String(value || "").trim().toLowerCase();
@@ -53,6 +57,7 @@ function UseradminPage() {
   const [page, setPage] = useState(0);
   const [size, setSize] = useState(10);
   const [totalPages, setTotalPages] = useState(0);
+  const [totalElements, setTotalElements] = useState(0);
   const [loading, setLoading] = useState(false);
 
   const [saving, setSaving] = useState(false);
@@ -64,15 +69,19 @@ function UseradminPage() {
   const [pendingPage, setPendingPage] = useState(0);
   const [pendingSize, setPendingSize] = useState(10);
   const [pendingTotalPages, setPendingTotalPages] = useState(0);
+  const [pendingTotalElements, setPendingTotalElements] = useState(0);
   const [pendingLoading, setPendingLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("users");
 
+  // Selection states
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
+
   // Filter Panel States
   const [filters, setFilters] = useState(INITIAL_FILTERS);
-  const [isFilterOpen, setIsFilterOpen] = useState(false); // Controls Sidebar Toggle
+  const [isFilterOpen, setIsFilterOpen] = useState(false); 
   const [orgLoading, setOrgLoading] = useState(false);
   
-  // Scoping matching IDs for cascading calls
   const [institutionId, setInstitutionId] = useState("");
   const [userDepartmentId, setUserDepartmentId] = useState("");
 
@@ -91,6 +100,8 @@ function UseradminPage() {
       setPage(payload.page ?? nextPage);
       setSize(payload.size ?? nextSize);
       setTotalPages(payload.totalPages ?? 0);
+      setTotalElements(payload.totalElements ?? 0);
+      setSelectedIds(new Set());
     } catch (e) {
       showError(extractApiErrorMessage(e, "Failed to load users"));
       setRows([]);
@@ -108,6 +119,8 @@ function UseradminPage() {
       setPendingPage(payload.page ?? nextPage);
       setPendingSize(payload.size ?? nextSize);
       setPendingTotalPages(payload.totalPages ?? 0);
+      setPendingTotalElements(payload.totalElements ?? 0);
+      setSelectedIds(new Set());
     } catch (e) {
       showError(extractApiErrorMessage(e, "Failed to load pending users"));
       setPendingRows([]);
@@ -121,7 +134,7 @@ function UseradminPage() {
     loadPending(0, pendingSize);
   }, []);
 
-  // Load Physical Branches (Institutions Pool)
+  // Load Physical Branches
   useEffect(() => {
     let isMounted = true;
     const loadInstitutions = async () => {
@@ -171,7 +184,7 @@ function UseradminPage() {
     };
   }, [currentUser?.id]);
 
-  // NEW: Cascading Trigger 1 - Fetch independent User Departments when Branch changes
+  // Fetch departments when branch changes
   useEffect(() => {
     let isMounted = true;
     const loadUserDepartments = async () => {
@@ -202,7 +215,7 @@ function UseradminPage() {
     };
   }, [institutionId, currentUser?.departmentName, currentRole]);
 
-  // NEW: Cascading Trigger 2 - Fetch independent User Designations when User Department changes
+  // Fetch designations when department changes
   useEffect(() => {
     let isMounted = true;
     const loadUserDesignations = async () => {
@@ -347,6 +360,159 @@ function UseradminPage() {
     }
   };
 
+  // Selection Checkbox Logic
+  const handleSelectAll = (checked) => {
+    const list = activeTab === "users" ? filteredRows : filteredPending;
+    if (checked) {
+      setSelectedIds(new Set(list.map(r => r.id)));
+    } else {
+      setSelectedIds(new Set());
+    }
+  };
+
+  const handleSelectRow = (id, checked) => {
+    const next = new Set(selectedIds);
+    if (checked) {
+      next.add(id);
+    } else {
+      next.delete(id);
+    }
+    setSelectedIds(next);
+  };
+
+  // Bulk Actions
+  const handleBulkToggleActive = async (active) => {
+    setSaving(true);
+    try {
+      await Promise.all(Array.from(selectedIds).map(id => setUserActive(id, active)));
+      showSuccess(active ? "Selected users activated" : "Selected users deactivated");
+      setSelectedIds(new Set());
+      await load();
+      await loadPending();
+    } catch (e) {
+      showError(extractApiErrorMessage(e, "Failed to update selected users"));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    setSaving(true);
+    try {
+      await Promise.all(Array.from(selectedIds).map(id => deleteUser(id)));
+      showSuccess("Selected users deleted");
+      setSelectedIds(new Set());
+      await load();
+      await loadPending();
+    } catch (e) {
+      showError(extractApiErrorMessage(e, "Failed to delete selected users"));
+    } finally {
+      setSaving(false);
+      setShowBulkDeleteConfirm(false);
+    }
+  };
+
+  // Export methods
+  const getTargetRows = () => {
+    const all = activeTab === "users" ? filteredRows : filteredPending;
+    return selectedIds.size > 0
+      ? all.filter(r => selectedIds.has(r.id))
+      : all;
+  };
+
+  const exportExcel = () => {
+    const targetRows = getTargetRows();
+    const headers = activeTab === "users"
+      ? ["Username", "System Role", "E-mail", "User Department", "User Designation"]
+      : ["Username", "Status", "E-mail", "Registered"];
+    const escapeXml = (unsafe) => String(unsafe ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const headerHtml = `<tr>${headers.map(h => `<th>${escapeXml(h)}</th>`).join("")}</tr>`;
+    const rowsHtml = targetRows.map(r => activeTab === "users" ? `
+      <tr>
+        <td>${escapeXml(r.username)}</td>
+        <td>${escapeXml(r.role)}</td>
+        <td>${escapeXml(r.email)}</td>
+        <td>${escapeXml(r.departmentName)}</td>
+        <td>${escapeXml(r.team)}</td>
+      </tr>
+    ` : `
+      <tr>
+        <td>${escapeXml(r.username)}</td>
+        <td>Pending</td>
+        <td>${escapeXml(r.email)}</td>
+        <td>${escapeXml(r.registeredAt)}</td>
+      </tr>
+    `).join("");
+    const template = `<html><head><meta charset="UTF-8"/></head><body><table><thead>${headerHtml}</thead><tbody>${rowsHtml}</tbody></table></body></html>`;
+    const blob = new Blob([template], { type: "application/vnd.ms-excel" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `users-${activeTab}-${Date.now()}.xls`;
+    link.click();
+  };
+
+  const exportCsv = () => {
+    const targetRows = getTargetRows();
+    const headers = activeTab === "users"
+      ? ["Username", "System Role", "E-mail", "User Department", "User Designation"]
+      : ["Username", "Status", "E-mail", "Registered"];
+    const csvContent = [
+      headers.join(","),
+      ...targetRows.map(r => activeTab === "users" ? [
+        `"${(r.username || '').replace(/"/g, '""')}"`,
+        `"${(r.role || '').replace(/"/g, '""')}"`,
+        `"${(r.email || '').replace(/"/g, '""')}"`,
+        `"${(r.departmentName || '').replace(/"/g, '""')}"`,
+        `"${(r.team || '').replace(/"/g, '""')}"`
+      ].join(",") : [
+        `"${(r.username || '').replace(/"/g, '""')}"`,
+        `"Pending"`,
+        `"${(r.email || '').replace(/"/g, '""')}"`,
+        `"${(r.registeredAt || '').replace(/"/g, '""')}"`
+      ].join(","))
+    ].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `users-${activeTab}-${Date.now()}.csv`;
+    link.click();
+  };
+
+  const exportPdf = () => {
+    const targetRows = getTargetRows();
+    const doc = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
+    doc.setFontSize(14);
+    doc.text(activeTab === "users" ? "Users Report" : "Pending Users Report", 40, 40);
+    doc.setFontSize(10);
+    doc.text(`Generated: ${new Date().toLocaleString()}`, 40, 58);
+    const headers = activeTab === "users"
+      ? [["Username", "System Role", "E-mail", "User Department", "User Designation"]]
+      : [["Username", "Status", "E-mail", "Registered"]];
+    const body = targetRows.map(r => activeTab === "users" ? [
+      r.username || '',
+      r.role || '',
+      r.email || '',
+      r.departmentName || '',
+      r.team || ''
+    ] : [
+      r.username || '',
+      'Pending',
+      r.email || '',
+      r.registeredAt || ''
+    ]);
+    autoTable(doc, {
+      head: headers,
+      body,
+      startY: 72,
+      styles: { fontSize: 9, cellPadding: 4 },
+      headStyles: { fillColor: [59, 130, 246] },
+      margin: { left: 40, right: 40 }
+    });
+    doc.save(`users-${activeTab}-${Date.now()}.pdf`);
+  };
+
   const loadUserDetails = async (row) => {
     if (!row?.id) return;
     setSelectedUser(row);
@@ -388,9 +554,6 @@ function UseradminPage() {
     }
   };
 
-  const totalLabel = totalPages ? `Page ${page + 1} of ${totalPages}` : "Page 1";
-  const pendingLabel = pendingTotalPages ? `Page ${pendingPage + 1} of ${pendingTotalPages}` : "Page 1";
-
   // Compute active badge counter for filters button indicator
   const activeFilterCount = useMemo(() => {
     return Object.keys(filters).filter(k => k !== "search" && filters[k] !== "").length;
@@ -412,29 +575,23 @@ function UseradminPage() {
   return (
     <div className="content user-admin-page">
       <style>{`
-        .user-admin-page .btn-primary {
-          background-color: #45597a;
-          border-color: #45597a;
-          border-radius: 2rem;
-          padding: 0.6rem 1.5rem;
-          font-weight: 500;
-          transition: all 0.3s ease;
-        }
-        .user-admin-page .btn-primary:hover {
-          background-color: #354560;
-          border-color: #354560;
-        }
         .user-admin-page .form-control,
         .user-admin-page .form-select {
-          border-radius: 1.5rem;
+          border-radius: 8px;
           border: 1px solid #d0d5dd;
           padding: 0.6rem 1rem;
           font-size: 0.95rem;
         }
         .user-admin-page .form-control:focus,
         .user-admin-page .form-select:focus {
-          border-color: #45597a;
-          box-shadow: 0 0 0 0.2rem rgba(69, 89, 122, 0.15);
+          border-color: #3b82f6;
+          box-shadow: 0 0 0 0.2rem rgba(59, 130, 246, 0.15);
+        }
+        .user-admin-page .show-entries-select {
+          padding: 0 8px !important;
+          border-radius: 8px !important;
+          height: 32px !important;
+          font-size: 0.85rem !important;
         }
         .user-admin-page .form-label {
           color: #34393f;
@@ -442,25 +599,29 @@ function UseradminPage() {
           font-size: 0.88rem;
           margin-bottom: 0.4rem;
         }
-        .user-admin-page .nav-underline .nav-link {
-          color: #34393f;
-          border-bottom: 2px solid transparent;
+        .user-admin-page .nav-tabs .nav-link {
+          color: #64748b;
           font-weight: 500;
-          padding: 0.8rem 1.2rem;
+          padding: 0.75rem 1.25rem;
         }
-        .user-admin-page .nav-underline .nav-link.active {
-          color: #45597a;
-          border-bottom-color: #45597a;
-        }
-        .user-admin-page .table tbody td {
-          padding: 1rem;
-          border-color: #e9ecef;
-          vertical-align: middle;
+        .user-admin-page .nav-tabs .nav-link.active {
+          color: #2563eb;
+          border-color: #e2e8f0 #e2e8f0 #fff;
+          font-weight: 600;
         }
         .user-admin-page .badge {
           border-radius: 1.5rem;
           padding: 0.4rem 0.8rem;
           font-weight: 500;
+        }
+        .user-admin-page .btn-icon {
+          width: 32px;
+          height: 32px;
+          padding: 0;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 8px;
         }
         
         /* PREMIUM SLIDE SIDEBAR FILTER PANEL */
@@ -652,59 +813,51 @@ function UseradminPage() {
         </div>
       </div>
 
-      {/* Main Panel Content Window */}
-      <div>
-        <div className="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-4">
+      {/* Custom Header Card */}
+      <div className="card border-0 shadow-sm mb-4 bg-white" style={{ borderRadius: 12 }}>
+        <div className="card-body p-4 d-flex justify-content-between align-items-center flex-wrap gap-3">
           <div>
-            <h4 className="mb-1">User Admin</h4>
-            <p className="mb-0 text-muted">Manage your users permissions boundary tables and credentials access scopes.</p>
+            <h3 className="fw-bold mb-1 text-slate-800" style={{ fontSize: "1.3rem" }}>User Admin</h3>
+            <nav aria-label="breadcrumb">
+              <ol className="breadcrumb mb-0" style={{ fontSize: "0.85rem" }}>
+                <li className="breadcrumb-item">
+                  <Link to="/admin-dashboard" className="text-muted text-decoration-none">
+                    <i className="ti ti-smart-home" />
+                  </Link>
+                </li>
+                <li className="breadcrumb-item text-muted">Admin</li>
+                <li className="breadcrumb-item active text-primary" aria-current="page">User Admin</li>
+              </ol>
+            </nav>
           </div>
-          <button className="btn btn-primary" onClick={openCreate}>
-            + Add User
-          </button>
-        </div>
-
-        {/* Dynamic Navigation and Searching Section */}
-        <div className="card mb-4">
-          <div className="card-body p-3 d-flex align-items-center justify-content-between flex-wrap gap-3">
-            <div className="position-relative" style={{ minWidth: "300px", maxWidth: "450px", flex: "1" }}>
-              <input
-                className="form-control"
-                value={filters.search}
-                onChange={(e) => setFilters((prev) => ({ ...prev, search: e.target.value }))}
-                placeholder="Search by username or email profile..."
-                style={{ paddingLeft: "1.25rem" }}
-              />
-            </div>
-            
-            <div className="d-flex align-items-center gap-2">
-              <button 
-                type="button" 
-                className={`btn d-flex align-items-center gap-2 ${activeFilterCount > 0 ? "btn-light" : "btn-outline-secondary"}`}
-                style={{ borderRadius: "2rem", padding: "0.6rem 1.25rem" }}
-                onClick={() => setIsFilterOpen(true)}
-              >
-                <i className="ti ti-adjustments-horizontal" style={{ fontSize: "1.1rem" }} />
-                <span>Filters</span>
-                {activeFilterCount > 0 && (
-                  <span className="badge bg-dark text-white p-1 px-2" style={{ fontSize: "0.75rem" }}>
-                    {activeFilterCount}
-                  </span>
-                )}
-              </button>
-            </div>
+          <div className="d-flex align-items-center gap-2">
+            <button
+              type="button"
+              className="btn btn-primary d-flex align-items-center gap-2"
+              style={{ borderRadius: 8 }}
+              onClick={openCreate}
+            >
+              <i className="ti ti-circle-plus"></i>Add User
+            </button>
           </div>
         </div>
+      </div>
 
+      {/* Main Table Card */}
+      <div className="card border-0 shadow-sm bg-white" style={{ borderRadius: 12, overflow: "hidden" }}>
         {/* Category Tabs Interface */}
-        <div className="contact-grids-tab">
-          <ul className="nav nav-underline" role="tablist">
+        <div className="border-bottom bg-light px-3 pt-2">
+          <ul className="nav nav-tabs border-0" role="tablist">
             {["users", "pending", "sessions", "logs"].map((tab) => (
               <li className="nav-item" key={tab}>
                 <button
-                  className={`nav-link text-capitalize ${activeTab === tab ? "active" : ""}`}
+                  className={`nav-link border-0 text-capitalize ${activeTab === tab ? "active bg-white fw-bold text-primary" : "text-muted"}`}
                   type="button"
-                  onClick={() => setActiveTab(tab)}
+                  style={{ borderBottomLeftRadius: 0, borderBottomRightRadius: 0 }}
+                  onClick={() => {
+                    setActiveTab(tab);
+                    setSelectedIds(new Set());
+                  }}
                 >
                   {tab === "users" ? "User Table" : tab === "pending" ? "Awaiting Activation" : tab}
                 </button>
@@ -713,38 +866,84 @@ function UseradminPage() {
           </ul>
         </div>
 
-        {/* Operational Grid Panes Container */}
-        <div className="tab-content pt-4">
+        {/* Search & Export Controls Inside Card */}
+        <div className="p-3 border-bottom d-flex flex-wrap align-items-center justify-content-between gap-3 bg-light">
+          <div className="d-flex align-items-center gap-2 flex-grow-1" style={{ maxWidth: 350 }}>
+            <div className="input-group">
+              <span className="input-group-text bg-white border-end-0" style={{ borderRadius: "8px 0 0 8px" }}>
+                <i className="ti ti-search text-muted" />
+              </span>
+              <input
+                type="text"
+                className="form-control border-start-0"
+                style={{ borderRadius: "0 8px 8px 0", height: 38 }}
+                placeholder="Search by username or email..."
+                value={filters.search}
+                onChange={(e) => setFilters((prev) => ({ ...prev, search: e.target.value }))}
+              />
+            </div>
+          </div>
+
+          <div className="d-flex align-items-center gap-2">
+            <button 
+              type="button" 
+              className={`btn border d-flex align-items-center gap-2 ${activeFilterCount > 0 ? "btn-light" : "btn-white"}`}
+              style={{ height: 38, borderRadius: 8, fontSize: "0.85rem" }}
+              onClick={() => setIsFilterOpen(true)}
+            >
+              <i className="ti ti-adjustments-horizontal" />
+              <span>Filters</span>
+              {activeFilterCount > 0 && (
+                <span className="badge bg-dark text-white p-1 px-2" style={{ fontSize: "0.75rem" }}>
+                  {activeFilterCount}
+                </span>
+              )}
+            </button>
+
+            {(activeTab === "users" || activeTab === "pending") && (
+              <div className="dropdown">
+                <button
+                  className="btn btn-white border d-flex align-items-center gap-2 dropdown-toggle"
+                  type="button"
+                  id="usersExportDropdown"
+                  data-bs-toggle="dropdown"
+                  aria-expanded="false"
+                  style={{ height: 38, borderRadius: 8, fontSize: "0.85rem" }}
+                >
+                  <i className="ti ti-download" /> Export
+                </button>
+                <ul className="dropdown-menu shadow border-0" aria-labelledby="usersExportDropdown">
+                  <li><button className="dropdown-item" onClick={exportExcel}>Excel</button></li>
+                  <li><button className="dropdown-item" onClick={exportCsv}>CSV</button></li>
+                  <li><button className="dropdown-item" onClick={exportPdf}>PDF</button></li>
+                </ul>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Tab Content Panes Container */}
+        <div className="tab-content">
           {activeTab === "users" && (
             <div className="tab-pane fade show active">
-              <div className="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
-                <div>{totalLabel}</div>
-                <div className="d-flex align-items-center gap-2">
-                  <label className="me-1">Rows</label>
-                  <select
-                    className="form-select"
-                    style={{ width: 100, borderRadius: "1.5rem" }}
-                    value={size}
-                    onChange={(e) => load(0, Number(e.target.value))}
-                  >
-                    {[10, 20, 30, 50].map((n) => <option key={n} value={n}>{n}</option>)}
-                  </select>
-                  <button className="btn btn-outline-secondary btn-sm ms-2" disabled={page <= 0 || loading} onClick={() => load(page - 1, size)}>Prev</button>
-                  <button className="btn btn-outline-secondary btn-sm" disabled={page + 1 >= totalPages || loading} onClick={() => load(page + 1, size)}>Next</button>
-                </div>
-              </div>
-              
-              <div className="table-responsive card border shadow-none" style={{ borderRadius: "1rem" }}>
-                <table className="table mb-0">
+              <div className="table-responsive">
+                <table className="table table-hover align-middle mb-0">
                   <thead className="table-light">
                     <tr>
-                      <th className="ps-4">#</th>
+                      <th style={{ width: 40 }} className="ps-4">
+                        <input
+                          type="checkbox"
+                          className="form-check-input"
+                          checked={filteredRows.length > 0 && filteredRows.every(r => selectedIds.has(r.id))}
+                          onChange={(e) => handleSelectAll(e.target.checked)}
+                        />
+                      </th>
                       <th>Username</th>
                       <th>System Role</th>
                       <th>E-mail</th>
                       <th>User Department</th>
                       <th>User Designation</th>
-                      <th className="pe-4 text-end">Actions</th>
+                      <th style={{ width: 80 }} className="pe-4 text-end">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -753,25 +952,53 @@ function UseradminPage() {
                     ) : filteredRows.length === 0 ? (
                       <tr><td colSpan={7} className="text-center py-4 text-muted">No users found matching selections</td></tr>
                     ) : (
-                      filteredRows.map((row, idx) => (
+                      filteredRows.map((row) => (
                         <tr key={row.id}>
-                          <td className="ps-4">{idx + 1 + page * size}</td>
-                          <td className="fw-semibold">{row.username || "-"}</td>
+                          <td className="ps-4">
+                            <input
+                              type="checkbox"
+                              className="form-check-input"
+                              checked={selectedIds.has(row.id)}
+                              onChange={(e) => handleSelectRow(row.id, e.target.checked)}
+                            />
+                          </td>
+                          <td className="fw-semibold text-slate-800">{row.username || "-"}</td>
                           <td>
                             <span className={`badge ${row.active ? "bg-success-subtle text-success" : "bg-danger-subtle text-danger"}`}>
                               {row.role || "User"}
                             </span>
                           </td>
                           <td>{row.email || "-"}</td>
-                          {/* UPDATED: Fields render corresponding dynamic permission text payloads */}
                           <td>{row.departmentName || "-"}</td>
                           <td>{row.team || "-"}</td>
                           <td className="pe-4 text-end">
-                            <div className="d-inline-flex gap-2">
-                              <button className="btn btn-sm btn-outline-primary" onClick={() => openEdit(row)}>Edit</button>
-                              <button className="btn btn-sm btn-outline-secondary" onClick={() => { loadUserDetails(row); setActiveTab("sessions"); }}>Sessions</button>
-                              <button className="btn btn-sm btn-outline-warning" onClick={() => handleToggleActive(row)} disabled={saving}>{row.active ? "Deactivate" : "Activate"}</button>
-                              <button className="btn btn-sm btn-danger" onClick={() => handleDelete(row)} disabled={saving}>Delete</button>
+                            <div className="dropdown">
+                              <button className="btn btn-light btn-sm btn-icon" data-bs-toggle="dropdown" aria-expanded="false">
+                                <i className="ti ti-dots-vertical" />
+                              </button>
+                              <ul className="dropdown-menu dropdown-menu-end shadow border-0">
+                                <li>
+                                  <button className="dropdown-item" onClick={() => openEdit(row)}>
+                                    Edit Details
+                                  </button>
+                                </li>
+                                <li>
+                                  <button className="dropdown-item" onClick={() => { loadUserDetails(row); setActiveTab("sessions"); }}>
+                                    View Sessions
+                                  </button>
+                                </li>
+                                <li>
+                                  <button className="dropdown-item" onClick={() => handleToggleActive(row)} disabled={saving}>
+                                    {row.active ? "Deactivate" : "Activate"}
+                                  </button>
+                                </li>
+                                <li><hr className="dropdown-divider" /></li>
+                                <li>
+                                  <button className="dropdown-item text-danger" onClick={() => handleDelete(row)} disabled={saving}>
+                                    Delete User
+                                  </button>
+                                </li>
+                              </ul>
                             </div>
                           </td>
                         </tr>
@@ -780,39 +1007,86 @@ function UseradminPage() {
                   </tbody>
                 </table>
               </div>
+
+              {/* Custom Pagination Footer */}
+              {!loading && filteredRows.length > 0 && (
+                <div className="p-3 border-top d-flex flex-wrap align-items-center justify-content-between gap-3 bg-light">
+                  <div className="text-muted small">
+                    Showing {totalElements > 0 ? page * size + 1 : 0} to {Math.min((page + 1) * size, totalElements)} of {totalElements} entries
+                  </div>
+                  <div className="d-flex align-items-center gap-2">
+                    <button
+                      type="button"
+                      className="btn-pagination-arrow btn btn-sm btn-light border-0 d-flex align-items-center justify-content-center"
+                      style={{ width: 32, height: 32, borderRadius: 6 }}
+                      onClick={() => load(page - 1, size)}
+                      disabled={page <= 0 || loading}
+                    >
+                      <i className="ti ti-chevron-left" />
+                    </button>
+                    {(() => {
+                      const buttons = [];
+                      for (let i = 0; i < totalPages; i++) {
+                        if (i === 0 || i === totalPages - 1 || (i >= page - 2 && i <= page + 2)) {
+                          buttons.push(
+                            <button
+                              key={i}
+                              className={`btn-pagination-num btn btn-sm border-0 ${page === i ? 'btn-primary text-white' : 'btn-light'}`}
+                              style={{ width: 32, height: 32, borderRadius: 6, fontWeight: "500", backgroundColor: page === i ? "#3b82f6" : undefined }}
+                              onClick={() => load(i, size)}
+                            >
+                              {i + 1}
+                            </button>
+                          );
+                        } else if (i === page - 3 || i === page + 3) {
+                          buttons.push(<span key={`dots-${i}`} className="px-1 text-muted">...</span>);
+                        }
+                      }
+                      return buttons;
+                    })()}
+                    <button
+                      type="button"
+                      className="btn-pagination-arrow btn btn-sm btn-light border-0 d-flex align-items-center justify-content-center"
+                      style={{ width: 32, height: 32, borderRadius: 6 }}
+                      onClick={() => load(page + 1, size)}
+                      disabled={page + 1 >= totalPages || loading}
+                    >
+                      <i className="ti ti-chevron-right" />
+                    </button>
+                    <PageSizeSelector
+                      pageSize={size}
+                      setPageSize={(newSize) => {
+                        setSize(newSize);
+                        load(0, newSize);
+                      }}
+                      setPage={(p) => setPage(p - 1)}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
           {activeTab === "pending" && (
             <div className="tab-pane fade show active">
-              <div className="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
-                <div>{pendingLabel}</div>
-                <div className="d-flex align-items-center gap-2">
-                  <label className="me-1">Rows</label>
-                  <select
-                    className="form-select"
-                    style={{ width: 100, borderRadius: "1.5rem" }}
-                    value={pendingSize}
-                    onChange={(e) => loadPending(0, Number(e.target.value))}
-                  >
-                    {[10, 20, 30, 50].map((n) => <option key={n} value={n}>{n}</option>)}
-                  </select>
-                  <button className="btn btn-outline-secondary btn-sm ms-2" disabled={pendingPage <= 0 || pendingLoading} onClick={() => loadPending(pendingPage - 1, pendingSize)}>Prev</button>
-                  <button className="btn btn-outline-secondary btn-sm" disabled={pendingPage + 1 >= pendingTotalPages || pendingLoading} onClick={() => loadPending(pendingPage + 1, pendingSize)}>Next</button>
-                </div>
-              </div>
-
-              <div className="table-responsive card border shadow-none" style={{ borderRadius: "1rem" }}>
-                <table className="table mb-0">
+              <div className="table-responsive">
+                <table className="table table-hover align-middle mb-0">
                   <thead className="table-light">
                     <tr>
-                      <th className="ps-4">#</th>
+                      <th style={{ width: 40 }} className="ps-4">
+                        <input
+                          type="checkbox"
+                          className="form-check-input"
+                          checked={filteredPending.length > 0 && filteredPending.every(r => selectedIds.has(r.id))}
+                          onChange={(e) => handleSelectAll(e.target.checked)}
+                        />
+                      </th>
                       <th>Username</th>
                       <th>Status</th>
                       <th>E-mail</th>
                       <th>Registered</th>
                       <th>Assign Security Role</th>
-                      <th className="pe-4 text-end">Actions</th>
+                      <th style={{ width: 80 }} className="pe-4 text-end">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -821,17 +1095,24 @@ function UseradminPage() {
                     ) : filteredPending.length === 0 ? (
                       <tr><td colSpan={7} className="text-center py-4 text-muted">No pending user profiles found</td></tr>
                     ) : (
-                      filteredPending.map((row, idx) => (
+                      filteredPending.map((row) => (
                         <tr key={row.id}>
-                          <td className="ps-4">{idx + 1 + pendingPage * pendingSize}</td>
-                          <td className="fw-semibold">{row.username || "-"}</td>
+                          <td className="ps-4">
+                            <input
+                              type="checkbox"
+                              className="form-check-input"
+                              checked={selectedIds.has(row.id)}
+                              onChange={(e) => handleSelectRow(row.id, e.target.checked)}
+                            />
+                          </td>
+                          <td className="fw-semibold text-slate-800">{row.username || "-"}</td>
                           <td><span className="badge bg-warning-subtle text-warning">Pending</span></td>
                           <td>{row.email || "-"}</td>
                           <td>{row.registeredAt || "-"}</td>
                           <td>
                             <select
                               className="form-select form-select-sm"
-                              style={{ maxWidth: "180px" }}
+                              style={{ maxWidth: "180px", borderRadius: "6px" }}
                               value={allowedAssignRoles.includes(row.role) ? row.role : allowedAssignRoles[allowedAssignRoles.length - 1] || "EMPLOYEE"}
                               onChange={(e) => handleRoleChange(row, e.target.value)}
                               disabled={saving}
@@ -842,10 +1123,28 @@ function UseradminPage() {
                             </select>
                           </td>
                           <td className="pe-4 text-end">
-                            <div className="d-inline-flex gap-2">
-                              <button className="btn btn-sm btn-outline-primary" onClick={() => openEdit(row)}>Edit</button>
-                              <button className="btn btn-sm btn-success" onClick={() => handleToggleActive(row)} disabled={saving}>Activate</button>
-                              <button className="btn btn-sm btn-danger" onClick={() => handleDelete(row)} disabled={saving}>Delete</button>
+                            <div className="dropdown">
+                              <button className="btn btn-light btn-sm btn-icon" data-bs-toggle="dropdown" aria-expanded="false">
+                                <i className="ti ti-dots-vertical" />
+                              </button>
+                              <ul className="dropdown-menu dropdown-menu-end shadow border-0">
+                                <li>
+                                  <button className="dropdown-item" onClick={() => openEdit(row)}>
+                                    Edit Details
+                                  </button>
+                                </li>
+                                <li>
+                                  <button className="dropdown-item text-success" onClick={() => handleToggleActive(row)} disabled={saving}>
+                                    Activate Account
+                                  </button>
+                                </li>
+                                <li><hr className="dropdown-divider" /></li>
+                                <li>
+                                  <button className="dropdown-item text-danger" onClick={() => handleDelete(row)} disabled={saving}>
+                                    Delete User
+                                  </button>
+                                </li>
+                              </ul>
                             </div>
                           </td>
                         </tr>
@@ -854,11 +1153,68 @@ function UseradminPage() {
                   </tbody>
                 </table>
               </div>
+
+              {/* Custom Pagination Footer for Pending */}
+              {!pendingLoading && filteredPending.length > 0 && (
+                <div className="p-3 border-top d-flex flex-wrap align-items-center justify-content-between gap-3 bg-light">
+                  <div className="text-muted small">
+                    Showing {pendingTotalElements > 0 ? pendingPage * pendingSize + 1 : 0} to {Math.min((pendingPage + 1) * pendingSize, pendingTotalElements)} of {pendingTotalElements} entries
+                  </div>
+                  <div className="d-flex align-items-center gap-2">
+                    <button
+                      type="button"
+                      className="btn-pagination-arrow btn btn-sm btn-light border-0 d-flex align-items-center justify-content-center"
+                      style={{ width: 32, height: 32, borderRadius: 6 }}
+                      onClick={() => loadPending(pendingPage - 1, pendingSize)}
+                      disabled={pendingPage <= 0 || pendingLoading}
+                    >
+                      <i className="ti ti-chevron-left" />
+                    </button>
+                    {(() => {
+                      const buttons = [];
+                      for (let i = 0; i < pendingTotalPages; i++) {
+                        if (i === 0 || i === pendingTotalPages - 1 || (i >= pendingPage - 2 && i <= pendingPage + 2)) {
+                          buttons.push(
+                            <button
+                              key={i}
+                              className={`btn-pagination-num btn btn-sm border-0 ${pendingPage === i ? 'btn-primary text-white' : 'btn-light'}`}
+                              style={{ width: 32, height: 32, borderRadius: 6, fontWeight: "500", backgroundColor: pendingPage === i ? "#3b82f6" : undefined }}
+                              onClick={() => loadPending(i, pendingSize)}
+                            >
+                              {i + 1}
+                            </button>
+                          );
+                        } else if (i === pendingPage - 3 || i === pendingPage + 3) {
+                          buttons.push(<span key={`dots-${i}`} className="px-1 text-muted">...</span>);
+                        }
+                      }
+                      return buttons;
+                    })()}
+                    <button
+                      type="button"
+                      className="btn-pagination-arrow btn btn-sm btn-light border-0 d-flex align-items-center justify-content-center"
+                      style={{ width: 32, height: 32, borderRadius: 6 }}
+                      onClick={() => loadPending(pendingPage + 1, pendingSize)}
+                      disabled={pendingPage + 1 >= pendingTotalPages || pendingLoading}
+                    >
+                      <i className="ti ti-chevron-right" />
+                    </button>
+                    <PageSizeSelector
+                      pageSize={pendingSize}
+                      setPageSize={(newSize) => {
+                        setPendingSize(newSize);
+                        loadPending(0, newSize);
+                      }}
+                      setPage={(p) => setPendingPage(p - 1)}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
           {activeTab === "sessions" && (
-            <div className="tab-pane fade show active">
+            <div className="tab-pane fade show active p-4">
               {!selectedUser ? (
                 <div className="text-muted p-2">Select a user target from the Primary User Table above to track sessions.</div>
               ) : (
@@ -867,7 +1223,7 @@ function UseradminPage() {
                     <h5 className="mb-0">Active System Connections: <span className="text-primary">{selectedUser.username}</span></h5>
                     <button type="button" className="btn btn-light btn-sm" onClick={() => setSelectedUser(null)}>Clear View</button>
                   </div>
-                  <div className="table-responsive card border shadow-none mb-3" style={{ borderRadius: "1rem" }}>
+                  <div className="table-responsive card border shadow-none mb-3" style={{ borderRadius: "10px" }}>
                     <table className="table mb-0 table-striped">
                       <thead className="table-light">
                         <tr>
@@ -904,7 +1260,7 @@ function UseradminPage() {
                   </div>
                   <button
                     className="btn btn-sm btn-danger px-3"
-                    style={{ borderRadius: "2rem" }}
+                    style={{ borderRadius: "8px" }}
                     onClick={handleDeleteSessions}
                     disabled={sessionSelection.size === 0 || saving}
                   >
@@ -916,11 +1272,11 @@ function UseradminPage() {
           )}
 
           {activeTab === "logs" && (
-            <div className="tab-pane fade show active">
+            <div className="tab-pane fade show active p-4">
               {!selectedUser ? (
                 <div className="text-muted p-2">Select a user target from the Primary User Table above to fetch audit logs.</div>
               ) : (
-                <div className="table-responsive card border shadow-none" style={{ borderRadius: "1rem" }}>
+                <div className="table-responsive card border shadow-none" style={{ borderRadius: "10px" }}>
                   <table className="table mb-0 table-striped">
                     <thead className="table-light">
                       <tr>
@@ -950,6 +1306,43 @@ function UseradminPage() {
         </div>
       </div>
 
+      {/* Floating Dark Bottom Actions Bar */}
+      {selectedIds.size > 0 && (activeTab === "users" || activeTab === "pending") && createPortal(
+        <div className="floating-bulk-bar" style={{
+          position: "fixed",
+          bottom: 24,
+          left: "50%",
+          transform: "translateX(-50%)",
+          backgroundColor: "#0f172a",
+          color: "#fff",
+          padding: "12px 24px",
+          borderRadius: 12,
+          display: "flex",
+          alignItems: "center",
+          gap: 16,
+          zIndex: 9999,
+          boxShadow: "0 10px 25px rgba(0,0,0,0.3)"
+        }}>
+          <span className="small">{selectedIds.size} user(s) selected</span>
+          <button className="btn btn-sm btn-outline-light" onClick={() => setSelectedIds(new Set())}>Clear</button>
+          
+          {activeTab === "users" && (
+            <>
+              <button className="btn btn-sm btn-success" onClick={() => handleBulkToggleActive(true)} disabled={saving}>Bulk Activate</button>
+              <button className="btn btn-sm btn-warning" onClick={() => handleBulkToggleActive(false)} disabled={saving}>Bulk Deactivate</button>
+            </>
+          )}
+
+          {activeTab === "pending" && (
+            <button className="btn btn-sm btn-success" onClick={() => handleBulkToggleActive(true)} disabled={saving}>Bulk Activate</button>
+          )}
+
+          <button className="btn btn-sm btn-danger" onClick={() => setShowBulkDeleteConfirm(true)} disabled={saving}>Bulk Delete</button>
+        </div>,
+        document.body
+      )}
+
+      {/* Individual Delete Confirm Dialog */}
       <ConfirmDialog
         open={showDeleteConfirm}
         title="Delete User Account"
@@ -957,6 +1350,17 @@ function UseradminPage() {
         onConfirm={handleConfirmDelete}
         onCancel={() => { setShowDeleteConfirm(false); setUserToDelete(null); }}
         confirmLabel="Confirm Delete"
+        cancelLabel="Cancel"
+      />
+
+      {/* Bulk Delete Confirm Dialog */}
+      <ConfirmDialog
+        open={showBulkDeleteConfirm}
+        title="Bulk Delete Users"
+        message={`Are you completely sure you want to delete the ${selectedIds.size} selected user accounts? This action is irreversible.`}
+        onConfirm={handleBulkDelete}
+        onCancel={() => setShowBulkDeleteConfirm(false)}
+        confirmLabel="Confirm Bulk Delete"
         cancelLabel="Cancel"
       />
     </div>

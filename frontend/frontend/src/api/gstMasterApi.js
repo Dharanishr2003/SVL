@@ -19,3 +19,8 @@ export async function updateGstMaster(id, payload) {
   const response = await api.put(`/api/gst-master/${id}`, payload);
   return response.data;
 }
+
+export async function deleteGstMaster(id) {
+  const response = await api.delete(`/api/gst-master/${id}`);
+  return response.data;
+}

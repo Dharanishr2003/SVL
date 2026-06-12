@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { createPortal } from "react-dom";
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
 import { getEmployees } from "../../api/employeesApi";
 import {
   createTimesheet,
@@ -9,6 +12,8 @@ import {
 } from "../../api/timesheetsApi";
 import { extractApiErrorMessage } from "../../utils/errorMessage";
 import { useToast } from "../../components/system/ToastProvider";
+import PageSizeSelector from "../../components/admin/PageSizeSelector";
+import "./LeadsPage.css";
 import "../../../public/assets/css/addModalShared.css";
 
 const initialForm = {
@@ -35,11 +40,18 @@ export default function TimesheetsPage() {
   const [selectedId, setSelectedId] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
 
+  // Selection, search and pagination states
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [searchQuery, setSearchQuery] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+
   const load = async () => {
     setLoading(true);
     try {
       const data = await getTimesheets();
       setRows(Array.isArray(data) ? data : []);
+      setSelectedIds(new Set());
     } catch (e) {
       setRows([]);
       showError(extractApiErrorMessage(e, "Failed to load timesheets"));
@@ -80,6 +92,135 @@ export default function TimesheetsPage() {
         .sort((a, b) => a.name.localeCompare(b.name)),
     [employees],
   );
+
+  const resolveEmployee = (row) => {
+    if (row?.employeeName) return { name: row.employeeName, dept: row.employeeDept || row.employeeDesignation || "" };
+    const match = employeeOptions.find((e) => e.id === row?.employeeId);
+    return match || { name: "-", dept: "" };
+  };
+
+  // Search & Filter
+  const filteredRows = orderedRows.filter((r) => {
+    const emp = resolveEmployee(r);
+    const empName = (emp.name || "").toLowerCase();
+    const dept = (emp.dept || "").toLowerCase();
+    const project = (r.projectName || "").toLowerCase();
+    const date = (r.workDate || "").toLowerCase();
+    const q = searchQuery.toLowerCase();
+    return empName.includes(q) || dept.includes(q) || project.includes(q) || date.includes(q);
+  });
+
+  const totalRows = filteredRows.length;
+  const pageCount = Math.max(1, Math.ceil(totalRows / pageSize));
+  const clampedPage = Math.min(Math.max(1, page), pageCount);
+  const pageOffset = (clampedPage - 1) * pageSize;
+  const pagedRows = filteredRows.slice(pageOffset, pageOffset + pageSize);
+
+  const handleSelectAll = (checked) => {
+    if (checked) {
+      setSelectedIds(new Set(pagedRows.map(r => r.id)));
+    } else {
+      setSelectedIds(new Set());
+    }
+  };
+
+  const handleSelectRow = (id, checked) => {
+    const next = new Set(selectedIds);
+    if (checked) {
+      next.add(id);
+    } else {
+      next.delete(id);
+    }
+    setSelectedIds(next);
+  };
+
+  const exportExcel = () => {
+    const targetRows = selectedIds.size > 0
+      ? rows.filter(r => selectedIds.has(r.id))
+      : rows;
+    const headers = ["Employee", "Department", "Date", "Project", "Assigned Hours", "Worked Hours"];
+    const escapeXml = (unsafe) => String(unsafe ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const headerHtml = `<tr>${headers.map(h => `<th>${escapeXml(h)}</th>`).join("")}</tr>`;
+    const rowsHtml = targetRows.map(r => {
+      const emp = resolveEmployee(r);
+      return `
+        <tr>
+          <td>${escapeXml(emp.name)}</td>
+          <td>${escapeXml(emp.dept)}</td>
+          <td>${escapeXml(r.workDate)}</td>
+          <td>${escapeXml(r.projectName)}</td>
+          <td>${escapeXml(r.totalHours ?? '')}</td>
+          <td>${escapeXml(r.workedHours ?? '')}</td>
+        </tr>
+      `;
+    }).join("");
+    const template = `<html><head><meta charset="UTF-8"/></head><body><table><thead>${headerHtml}</thead><tbody>${rowsHtml}</tbody></table></body></html>`;
+    const blob = new Blob([template], { type: "application/vnd.ms-excel" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `timesheets-${Date.now()}.xls`;
+    link.click();
+  };
+
+  const exportCsv = () => {
+    const targetRows = selectedIds.size > 0
+      ? rows.filter(r => selectedIds.has(r.id))
+      : rows;
+    const headers = ["Employee", "Department", "Date", "Project", "Assigned Hours", "Worked Hours"];
+    const csvContent = [
+      headers.join(","),
+      ...targetRows.map(r => {
+        const emp = resolveEmployee(r);
+        return [
+          `"${(emp.name || '').replace(/"/g, '""')}"`,
+          `"${(emp.dept || '').replace(/"/g, '""')}"`,
+          `"${(r.workDate || '')}"`,
+          `"${(r.projectName || '').replace(/"/g, '""')}"`,
+          `"${r.totalHours ?? ''}"`,
+          `"${r.workedHours ?? ''}"`
+        ].join(",");
+      })
+    ].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `timesheets-${Date.now()}.csv`;
+    link.click();
+  };
+
+  const exportPdf = () => {
+    const targetRows = selectedIds.size > 0
+      ? rows.filter(r => selectedIds.has(r.id))
+      : rows;
+    const doc = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
+    doc.setFontSize(14);
+    doc.text("Timesheet Report", 40, 40);
+    doc.setFontSize(10);
+    doc.text(`Generated: ${new Date().toLocaleString()}`, 40, 58);
+    const headers = [["Employee", "Department", "Date", "Project", "Assigned Hrs", "Worked Hrs"]];
+    const body = targetRows.map(r => {
+      const emp = resolveEmployee(r);
+      return [
+        emp.name,
+        emp.dept,
+        r.workDate || '',
+        r.projectName || '',
+        String(r.totalHours ?? ''),
+        String(r.workedHours ?? '')
+      ];
+    });
+    autoTable(doc, {
+      head: headers,
+      body,
+      startY: 72,
+      styles: { fontSize: 9, cellPadding: 4 },
+      headStyles: { fillColor: [59, 130, 246] },
+      margin: { left: 40, right: 40 }
+    });
+    doc.save(`timesheets-${Date.now()}.pdf`);
+  };
 
   const openAdd = () => {
     setForm(initialForm);
@@ -180,101 +321,227 @@ export default function TimesheetsPage() {
     }
   };
 
-  const resolveEmployee = (row) => {
-    if (row?.employeeName) return { name: row.employeeName, dept: row.employeeDept || row.employeeDesignation || "" };
-    const match = employeeOptions.find((e) => e.id === row?.employeeId);
-    return match || { name: "-", dept: "" };
-  };
-
   return (
     <>
       <div className="content">
-
-        <div className="d-md-flex d-block align-items-center justify-content-between page-breadcrumb mb-3">
-          <div className="my-auto mb-2">
-            <h2 className="mb-1">Timesheets</h2>
-            <nav>
-              <ol className="breadcrumb mb-0">
-                <li className="breadcrumb-item">
-                  <Link to="/admin-dashboard"><i className="ti ti-smart-home"></i></Link>
-                </li>
-                <li className="breadcrumb-item">Employee</li>
-                <li className="breadcrumb-item active" aria-current="page">Timesheets</li>
-              </ol>
-            </nav>
-          </div>
-          <div className="d-flex my-xl-auto right-content align-items-center flex-wrap ">
-            <div className="mb-2">
-              <button type="button" className="btn btn-primary d-flex align-items-center" onClick={openAdd}>
-                <i className="ti ti-circle-plus me-2"></i>Add Today&#39;s Work
+        {/* White top header card */}
+        <div className="card border-0 shadow-sm mb-4 bg-white" style={{ borderRadius: 12 }}>
+          <div className="card-body p-4 d-flex justify-content-between align-items-center flex-wrap gap-3">
+            <div>
+              <h3 className="fw-bold mb-1 text-slate-800" style={{ fontSize: "1.3rem" }}>Timesheets</h3>
+              <nav aria-label="breadcrumb">
+                <ol className="breadcrumb mb-0" style={{ fontSize: "0.85rem" }}>
+                  <li className="breadcrumb-item">
+                    <Link to="/admin-dashboard" className="text-muted text-decoration-none">
+                      <i className="ti ti-smart-home" />
+                    </Link>
+                  </li>
+                  <li className="breadcrumb-item text-muted">Employee</li>
+                  <li className="breadcrumb-item active text-primary" aria-current="page">Timesheets</li>
+                </ol>
+              </nav>
+            </div>
+            <div className="d-flex align-items-center gap-2">
+              <button type="button" className="btn btn-primary d-flex align-items-center gap-2" style={{ borderRadius: 8 }} onClick={openAdd}>
+                <i className="ti ti-circle-plus"></i>Add Today&#39;s Work
               </button>
             </div>
           </div>
         </div>
 
-        <div className="card">
-          <div className="card-header d-flex align-items-center justify-content-between flex-wrap row-gap-3">
-            <h5>Timesheet</h5>
-          </div>
-          <div className="card-body p-0">
-            <div className="custom-datatable-filter table-responsive">
-              <table className="table">
-                <thead className="thead-light">
-                  <tr>
-                    <th>Employee</th>
-                    <th>Date</th>
-                    <th>Project</th>
-                    <th>Assigned Hours</th>
-                    <th>Worked Hours</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {loading ? (
-                    <tr>
-                      <td colSpan={6}>Loading...</td>
-                    </tr>
-                  ) : orderedRows.length === 0 ? (
-                    <tr>
-                      <td colSpan={6}>No timesheets found</td>
-                    </tr>
-                  ) : (
-                    orderedRows.map((row) => {
-                      const emp = resolveEmployee(row);
-                      return (
-                        <tr key={row.id || `${row.employeeId || "emp"}-${row.workDate || "date"}`}>
-                          <td>
-                            <div className="d-flex align-items-center file-name-icon">
-                              <div className="ms-2">
-                                <h6 className="fw-medium">{emp.name || "-"}</h6>
-                                <span className="fs-12 fw-normal ">{emp.dept || ""}</span>
-                              </div>
-                            </div>
-                          </td>
-                          <td>{row.workDate || "-"}</td>
-                          <td>{row.projectName || "-"}</td>
-                          <td>{row.totalHours ?? "-"}</td>
-                          <td>{row.workedHours ?? "-"}</td>
-                          <td>
-                            <div className="d-inline-flex gap-2">
-                              <button type="button" className="btn btn-sm btn-outline-primary" onClick={() => openEdit(row)}>
-                                Edit
-                              </button>
-                              <button type="button" className="btn btn-sm btn-outline-danger" onClick={() => confirmDelete(row)}>
-                                Delete
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
+        {/* Timesheet card */}
+        <div className="card border-0 shadow-sm bg-white" style={{ borderRadius: 12, overflow: "hidden" }}>
+          {/* Table Controls Bar */}
+          <div className="p-3 border-bottom d-flex flex-wrap align-items-center justify-content-between gap-3 bg-light">
+            <div className="d-flex align-items-center gap-2 flex-grow-1" style={{ maxWidth: 350 }}>
+              <div className="input-group">
+                <span className="input-group-text bg-white border-end-0" style={{ borderRadius: "8px 0 0 8px" }}><i className="ti ti-search text-muted" /></span>
+                <input
+                  type="text"
+                  className="form-control border-start-0"
+                  style={{ borderRadius: "0 8px 8px 0", height: 38 }}
+                  placeholder="Search timesheets..."
+                  value={searchQuery}
+                  onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
+                />
+              </div>
+            </div>
+
+            <div className="d-flex align-items-center gap-2">
+              <div className="dropdown">
+                <button
+                  className="btn btn-white border d-flex align-items-center gap-2 dropdown-toggle"
+                  type="button"
+                  id="timesheetsExportDropdown"
+                  data-bs-toggle="dropdown"
+                  aria-expanded="false"
+                  style={{ height: 38, borderRadius: 8, fontSize: "0.85rem" }}
+                >
+                  <i className="ti ti-download" /> Export
+                </button>
+                <ul className="dropdown-menu shadow border-0" aria-labelledby="timesheetsExportDropdown">
+                  <li><button className="dropdown-item" onClick={exportExcel}>Excel</button></li>
+                  <li><button className="dropdown-item" onClick={exportCsv}>CSV</button></li>
+                  <li><button className="dropdown-item" onClick={exportPdf}>PDF</button></li>
+                </ul>
+              </div>
             </div>
           </div>
+
+          <div className="table-responsive">
+            <table className="table table-hover align-middle mb-0">
+              <thead className="table-light">
+                <tr>
+                  <th style={{ width: 40 }}>
+                    <input
+                      type="checkbox"
+                      className="form-check-input"
+                      checked={pagedRows.length > 0 && pagedRows.every(r => selectedIds.has(r.id))}
+                      onChange={(e) => handleSelectAll(e.target.checked)}
+                    />
+                  </th>
+                  <th>Employee</th>
+                  <th>Date</th>
+                  <th>Project</th>
+                  <th>Assigned Hours</th>
+                  <th>Worked Hours</th>
+                  <th style={{ width: 80 }} className="text-end">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr><td colSpan="7" className="text-center py-4">Loading...</td></tr>
+                ) : pagedRows.length === 0 ? (
+                  <tr><td colSpan="7" className="text-center py-4 text-muted">No timesheets found</td></tr>
+                ) : (
+                  pagedRows.map((row) => {
+                    const emp = resolveEmployee(row);
+                    return (
+                      <tr key={row.id || `${row.employeeId || "emp"}-${row.workDate || "date"}`}>
+                        <td>
+                          <input
+                            type="checkbox"
+                            className="form-check-input"
+                            checked={selectedIds.has(row.id)}
+                            onChange={(e) => handleSelectRow(row.id, e.target.checked)}
+                          />
+                        </td>
+                        <td>
+                          <div>
+                            <h6 className="fw-semibold text-slate-800 mb-0">{emp.name || "-"}</h6>
+                            <small className="text-muted">{emp.dept || ""}</small>
+                          </div>
+                        </td>
+                        <td>{row.workDate || "-"}</td>
+                        <td className="fw-semibold text-slate-800">{row.projectName || "-"}</td>
+                        <td>{row.totalHours ?? "-"}</td>
+                        <td>{row.workedHours ?? "-"}</td>
+                        <td className="text-end">
+                          <div className="dropdown">
+                            <button className="btn btn-light btn-sm btn-icon" data-bs-toggle="dropdown" aria-expanded="false">
+                              <i className="ti ti-dots-vertical" />
+                            </button>
+                            <ul className="dropdown-menu dropdown-menu-end shadow border-0">
+                              <li>
+                                <button className="dropdown-item" onClick={() => openEdit(row)}>
+                                  Edit
+                                </button>
+                              </li>
+                              <li>
+                                <button className="dropdown-item text-danger" onClick={() => confirmDelete(row)}>
+                                  Delete
+                                </button>
+                              </li>
+                            </ul>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Custom Pagination Footer */}
+          {!loading && rows.length > 0 && (
+            <div className="p-3 border-top d-flex flex-wrap align-items-center justify-content-between gap-3 bg-light">
+              <div className="text-muted small">
+                Showing {totalRows > 0 ? pageOffset + 1 : 0} to {Math.min(pageOffset + pageSize, totalRows)} of {totalRows} entries
+              </div>
+              <div className="d-flex align-items-center gap-2">
+                <button
+                  type="button"
+                  className="btn-pagination-arrow btn btn-sm btn-light border-0 d-flex align-items-center justify-content-center"
+                  style={{ width: 32, height: 32, borderRadius: 6 }}
+                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                  disabled={clampedPage === 1}
+                >
+                  <i className="ti ti-chevron-left" />
+                </button>
+                {(() => {
+                  const buttons = [];
+                  for (let i = 1; i <= pageCount; i++) {
+                    if (i === 1 || i === pageCount || (i >= clampedPage - 2 && i <= clampedPage + 2)) {
+                      buttons.push(
+                        <button
+                          key={i}
+                          className={`btn-pagination-num btn btn-sm border-0 ${clampedPage === i ? 'btn-primary text-white' : 'btn-light'}`}
+                          style={{ width: 32, height: 32, borderRadius: 6, fontWeight: "500", backgroundColor: clampedPage === i ? "#3b82f6" : undefined }}
+                          onClick={() => setPage(i)}
+                        >
+                          {i}
+                        </button>
+                      );
+                    } else if (i === clampedPage - 3 || i === clampedPage + 3) {
+                      buttons.push(<span key={`dots-${i}`} className="px-1 text-muted">...</span>);
+                    }
+                  }
+                  return buttons;
+                })()}
+                <button
+                  type="button"
+                  className="btn-pagination-arrow btn btn-sm btn-light border-0 d-flex align-items-center justify-content-center"
+                  style={{ width: 32, height: 32, borderRadius: 6 }}
+                  onClick={() => setPage(p => Math.min(pageCount, p + 1))}
+                  disabled={clampedPage === pageCount}
+                >
+                  <i className="ti ti-chevron-right" />
+                </button>
+                <PageSizeSelector
+                  pageSize={pageSize}
+                  setPageSize={setPageSize}
+                  setPage={setPage}
+                />
+              </div>
+            </div>
+          )}
         </div>
       </div>
+
+      {/* Floating Dark Bottom Actions Bar */}
+      {selectedIds.size > 0 && createPortal(
+        <div className="floating-bulk-bar" style={{
+          position: "fixed",
+          bottom: 24,
+          left: "50%",
+          transform: "translateX(-50%)",
+          backgroundColor: "#0f172a",
+          color: "#fff",
+          padding: "12px 24px",
+          borderRadius: 12,
+          display: "flex",
+          alignItems: "center",
+          gap: 16,
+          zIndex: 9999,
+          boxShadow: "0 10px 25px rgba(0,0,0,0.3)"
+        }}>
+          <span className="small">{selectedIds.size} row(s) selected</span>
+          <button className="btn btn-sm btn-outline-light" onClick={() => setSelectedIds(new Set())}>Clear</button>
+          <button className="btn btn-sm btn-primary" onClick={exportPdf}>Export Selected PDF</button>
+        </div>,
+        document.body
+      )}
 
       {showAddModal && (
         <div className="avm-backdrop" role="presentation">
