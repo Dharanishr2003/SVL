@@ -1,1 +1,0 @@
-import{x as t}from"./index-B_bSUx-b.js";async function d(s,e){const a=`/api/v1/leads/${s}/addresses?type=${e}`;return(await t.get(a))?.data||[]}async function o(s,e){const a=`/api/v1/leads/${s}/addresses/${e}`;return(await t.get(a))?.data}async function p(s,e){const a=`/api/v1/leads/${s}/addresses`;return(await t.post(a,e))?.data}export{o as a,p as c,d as g};

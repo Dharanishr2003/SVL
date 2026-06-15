@@ -392,6 +392,28 @@ export default function QuotationPage() {
   const [editingItem, setEditingItem] = useState(null);
   const [configError, setConfigError] = useState("");
   const [lineItems, setLineItems] = useState([]);
+  const [draggedIndex, setDraggedIndex] = useState(null);
+
+  const handleDragStart = (e, index) => {
+    setDraggedIndex(index);
+    e.dataTransfer.effectAllowed = "move";
+  };
+
+  const handleDragOver = (e, index) => {
+    e.preventDefault();
+    if (draggedIndex === null || draggedIndex === index) return;
+    const newItems = [...lineItems];
+    const draggedItem = newItems[draggedIndex];
+    newItems.splice(draggedIndex, 1);
+    newItems.splice(index, 0, draggedItem);
+    setDraggedIndex(index);
+    setLineItems(newItems);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedIndex(null);
+  };
+
   const [editingPrices, setEditingPrices] = useState({});
   const [discountPct, setDiscountPct] = useState("0");
   const [includeDesignFee, setIncludeDesignFee] = useState(false);
@@ -1473,16 +1495,38 @@ export default function QuotationPage() {
                     "Cutting Charge",
                     "Scoring / Greasing Charge"
                   ].map((chargeName) => {
-                    const isChecked = lineItems.some(item => 
+                    const currentCount = lineItems.filter(item => 
                       (item.productName === chargeName) && 
                       (item.isAdditionalCharge || item.specs?.isAdditionalCharge || false)
-                    );
+                    ).length;
+
+                    const handleAddCharge = (e) => {
+                      e.stopPropagation();
+                      const newChargeItem = normalizeLineItem({
+                        id: `additional-charge-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+                        productName: chargeName,
+                        quantity: 1,
+                        unitPrice: 0,
+                        discountPct: 0,
+                        gstPct: Number(gstPct || 0),
+                        isAdditionalCharge: true,
+                        specs: { isAdditionalCharge: true },
+                      }, {
+                        isTamilNadu,
+                        defaultDiscountPct: 0,
+                        defaultGstPct: parseNonNegativeNumber(gstPct, 0),
+                        defaultGstMasterId,
+                      });
+                      setLineItems(prev => [...prev, newChargeItem]);
+                    };
+
                     return (
-                      <label
+                      <div
                         key={chargeName}
                         style={{
                           display: "flex",
                           alignItems: "center",
+                          justifyContent: "space-between",
                           gap: 10,
                           padding: "8px 16px",
                           fontSize: 13,
@@ -1494,49 +1538,48 @@ export default function QuotationPage() {
                         }}
                         onMouseEnter={(e) => { e.currentTarget.style.background = "#f3f4f6"; }}
                         onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                        }}
+                        onClick={handleAddCharge}
                       >
-                        <input
-                          type="checkbox"
-                          checked={isChecked}
-                          onChange={(e) => {
-                            const checked = e.target.checked;
-                            if (checked) {
-                              // Add to lineItems
-                              const newChargeItem = normalizeLineItem({
-                                id: `additional-charge-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
-                                productName: chargeName,
-                                quantity: 1,
-                                unitPrice: 0,
-                                discountPct: 0,
-                                gstPct: Number(gstPct || 0),
-                                isAdditionalCharge: true,
-                                specs: { isAdditionalCharge: true },
-                              }, {
-                                isTamilNadu,
-                                defaultDiscountPct: 0,
-                                defaultGstPct: parseNonNegativeNumber(gstPct, 0),
-                                defaultGstMasterId,
-                              });
-                              setLineItems(prev => [...prev, newChargeItem]);
-                            } else {
-                              // Remove from lineItems
-                              setLineItems(prev => prev.filter(item => 
-                                !(item.productName === chargeName && (item.isAdditionalCharge || item.specs?.isAdditionalCharge || false))
-                              ));
-                            }
-                          }}
+                        <span style={{ flex: 1, display: "flex", alignItems: "center" }}>
+                          {(chargeName === "Die Charge" || chargeName === "Screen Charge") ? `${chargeName} (OneTime Investment)` : chargeName}
+                          {currentCount > 0 && (
+                            <span style={{
+                              marginLeft: 8,
+                              background: "#e0e7ff",
+                              color: "#4f46e5",
+                              fontSize: 10,
+                              fontWeight: 700,
+                              padding: "2px 6px",
+                              borderRadius: 12,
+                              display: "inline-block"
+                            }}>
+                              x{currentCount}
+                            </span>
+                          )}
+                        </span>
+                        <button
+                          type="button"
                           style={{
-                            width: 16,
-                            height: 16,
-                            accentColor: "#7c3aed",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            width: 22,
+                            height: 22,
+                            borderRadius: "50%",
+                            border: "1px solid #ddd6fe",
+                            background: "#faf5ff",
+                            color: "#7c3aed",
                             cursor: "pointer",
+                            fontSize: 14,
+                            fontWeight: 700,
+                            padding: 0,
+                            lineHeight: 1,
                           }}
-                        />
-                        {(chargeName === "Die Charge" || chargeName === "Screen Charge") ? `${chargeName} (OneTime Investment)` : chargeName}
-                      </label>
+                          onClick={handleAddCharge}
+                        >
+                          +
+                        </button>
+                      </div>
                     );
                   })}
                 </div>
@@ -1614,120 +1657,80 @@ export default function QuotationPage() {
                 </thead>
 
                 <tbody>
-                  {/* Render standard items first */}
+                  {/* Render all items in unified draggable loop */}
                   {(() => {
-                    const normalItems = lineItems.filter(item => {
-                      const specs = item.specs || {};
-                      return !(specs.isAdditionalCharge || item.isAdditionalCharge || false);
-                    });
-                    return normalItems.map((item, index) => {
-                      const isDesignOnly  = item.designStatus === "design_only";
-                      const isUnpriced    = String(item.pricingStatus || "").toUpperCase() === "UNPRICED";
-                      const noSlabWarning = !isDesignOnly && isUnpriced;
-                      const specText      = fullSpecsSummary(item.specs);
+                    return lineItems.map((item, index) => {
+                      const isAddCharge = item.isAdditionalCharge || item.specs?.isAdditionalCharge || false;
 
-                      const inBase = {
-                        borderWidth: "1.5px",
-                        borderStyle: "solid",
-                        borderColor: "#e5e7eb",
-                        borderRadius: 6,
-                        padding: "5px 7px",
-                        fontSize: 13,
-                        fontFamily: "'DM Mono', monospace",
-                        background: "#fafafa",
-                        color: "#0f172a",
-                        outline: "none",
-                        width: "100%",
-                        textAlign: "right",
-                        display: "block",
-                      };
-                      const inWarn   = { ...inBase, borderColor: "#fca5a5", background: "#fff8f8" };
+                      if (isAddCharge) {
+                        const discountAmount = Number(item.discountAmount || 0);
 
-                      const rowBg = noSlabWarning
-                        ? { background: "#fffcf5", borderLeft: "3px solid #f0ad4e" }
-                        : {};
-
-                      return (
-                        <tr key={item.id} style={rowBg}>
-
-                          {/* # */}
-                          <td style={{ ...lineItemCellBase, textAlign: "center" }}>
-                            <span style={{
-                              fontSize: 12, fontWeight: 700,
-                              color: "#d1d5db",
-                              fontFamily: "'DM Mono', monospace",
-                            }}>
-                              {index + 1}
-                            </span>
-                          </td>
-
-                          {/* Product + specs + badges */}
-                          <td style={{ ...lineItemCellBase }}>
-                            <div style={{ fontSize: 13, fontWeight: 600, color: "#0f172a" }}>
-                              {(() => {
-                                const name = item.productName || "";
-                                const lower = name.toLowerCase();
-                                if ((lower === "die charge" || lower === "screen charge") && !lower.includes("onetime investment")) {
-                                  return `${name} (OneTime Investment)`;
-                                }
-                                return name;
-                              })()}
-                            </div>
-                            {specText && (
-                              <div style={{
-                                fontSize: 11, color: "#6b7280",
-                                marginTop: 3, lineHeight: 1.5,
-                                fontFamily: "'DM Mono', monospace",
-                                wordBreak: "break-word",
-                              }}>
-                                {specText}
+                        return (
+                          <tr
+                            key={item.id}
+                            style={{
+                              background: "#faf5ff",
+                              opacity: draggedIndex === index ? 0.5 : 1,
+                              cursor: isViewOnly ? "default" : "move"
+                            }}
+                            draggable={!isViewOnly}
+                            onDragStart={(e) => handleDragStart(e, index)}
+                            onDragOver={(e) => handleDragOver(e, index)}
+                            onDragEnd={handleDragEnd}
+                          >
+                            <td style={{ ...lineItemCellBase, textAlign: "center", cursor: (!isViewOnly) ? "grab" : "default" }}>
+                              {!isViewOnly && <span style={{ fontSize: 11, color: "#9ca3af", marginRight: 4 }}>⋮⋮</span>}
+                              <span style={{ fontSize: 12, color: "#7c3aed", fontFamily: "'DM Mono', monospace", fontWeight: 700 }}>
+                                {index + 1}
+                              </span>
+                            </td>
+                            <td style={{ ...lineItemCellBase }}>
+                              <div style={{ fontSize: 13, fontWeight: 600, color: "#7c3aed" }}>
+                                {(() => {
+                                  const name = item.productName || "";
+                                  const lower = name.toLowerCase();
+                                  if ((lower === "die charge" || lower === "screen charge") && !lower.includes("onetime investment")) {
+                                    return `${name} (OneTime Investment)`;
+                                  }
+                                  return name;
+                                })()}
                               </div>
-                            )}
-                            <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 5 }}>
-                              {(() => {
-                                const d = designLabel(item.designStatus);
-                                if (!d) return null;
-                                return (
-                                  <span style={{
-                                    fontSize: 10, fontWeight: 700,
-                                    background: d.bg, color: d.color,
-                                    border: `1px solid ${d.color}44`,
-                                    borderRadius: 4, padding: "2px 5px",
-                                    display: "inline-block", whiteSpace: "nowrap",
-                                  }}>
-                                    {d.label}
-                                  </span>
-                                );
-                              })()}
-                              {noSlabWarning && (
-                                <span style={{ fontSize: 10, fontWeight: 600, color: "#b45309" }}>
-                                  No slab match — enter price manually
-                                </span>
+                              {discountAmount > 0 && (
+                                <div style={{
+                                  fontSize: 11,
+                                  color: "#059669",
+                                  marginTop: 3,
+                                  lineHeight: 1.4,
+                                  fontFamily: "'DM Mono', monospace",
+                                  wordBreak: "break-word",
+                                  fontWeight: 600,
+                                }}>
+                                  Discounted Amount: ₹{discountAmount.toFixed(2)}
+                                </div>
                               )}
-                            </div>
-                          </td>
-
-                          {showHsnSacColumn && (
-                            <td style={{ ...lineItemCellBase, textAlign: "left" }}>
-                              <div style={{
-                                fontSize: 12,
-                                color: "#0f172a",
-                                fontFamily: "'DM Mono', monospace",
-                                wordBreak: "break-word",
-                              }}>
-                                {extractTaxGroupCode(item) || "—"}
+                              <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 2 }}>
+                                Additional charge
                               </div>
                             </td>
-                          )}
-
-                          {/* Qty */}
-                          <td style={{ ...lineItemCellBase, textAlign: "right" }}>
-                            {isDesignOnly ? (
-                              <span style={{ color: "#d1d5db" }}>—</span>
-                            ) : (
+                            {showHsnSacColumn && (
+                              <td style={{ ...lineItemCellBase, textAlign: "left" }}>
+                                <span style={{ fontSize: 12, color: "#d1d5db", fontFamily: "'DM Mono', monospace" }}>
+                                  —
+                                </span>
+                              </td>
+                            )}
+                            <td style={{ ...lineItemCellBase, textAlign: "right" }}>
                               <input
                                 type="number" min="1"
-                                style={inBase}
+                                disabled={isViewOnly}
+                                style={{
+                                  border: "1.5px solid #ddd6fe",
+                                  borderRadius: 6, padding: "5px 7px",
+                                  fontSize: 13, fontFamily: "'DM Mono', monospace",
+                                  background: "#faf5ff", color: "#7c3aed",
+                                  fontWeight: 600, outline: "none",
+                                  width: "100%", textAlign: "right",
+                                }}
                                 value={getEditVal(editingPrices, item.id, "quantity", item)}
                                 onChange={e => {
                                   setEditingPrices(prev => ({
@@ -1742,18 +1745,19 @@ export default function QuotationPage() {
                                 }}
                                 onFocus={e => e.target.select()}
                               />
-                            )}
-                          </td>
-
-                          {/* Unit price */}
-                          <td style={{ ...lineItemCellBase, textAlign: "right" }}>
-                            {isDesignOnly ? (
-                              <span style={{ color: "#d1d5db" }}>—</span>
-                            ) : (
+                            </td>
+                            <td style={{ ...lineItemCellBase, textAlign: "right" }}>
                               <input
                                 type="number" min="0" step="0.01"
-                                style={noSlabWarning && !getEditVal(editingPrices, item.id, "unitPrice", item)
-                                  ? inWarn : inBase}
+                                disabled={isViewOnly}
+                                style={{
+                                  border: "1.5px solid #ddd6fe",
+                                  borderRadius: 6, padding: "5px 7px",
+                                  fontSize: 13, fontFamily: "'DM Mono', monospace",
+                                  background: "#faf5ff", color: "#7c3aed",
+                                  fontWeight: 600, outline: "none",
+                                  width: "100%", textAlign: "right",
+                                }}
                                 value={getEditVal(editingPrices, item.id, "unitPrice", item)}
                                 onChange={e => {
                                   setEditingPrices(prev => ({
@@ -1767,79 +1771,91 @@ export default function QuotationPage() {
                                   });
                                 }}
                                 onFocus={e => e.target.select()}
-                                placeholder="₹"
+                                placeholder="₹ charge"
                               />
-                            )}
-                          </td>
-
-                          {/* Discount */}
-                          <td style={{ ...lineItemCellBase, textAlign: "right" }}>
-                            {isDesignOnly ? (
-                              <span style={{ color: "#d1d5db" }}>—</span>
-                            ) : (
+                            </td>
+                            <td style={{ ...lineItemCellBase, textAlign: "right" }}>
                               <input
                                 type="number" min="0" step="0.01"
-                                style={inBase}
+                                disabled={isViewOnly}
+                                style={{
+                                  border: "1.5px solid #ddd6fe",
+                                  borderRadius: 6, padding: "5px 7px",
+                                  fontSize: 13, fontFamily: "'DM Mono', monospace",
+                                  background: "#faf5ff", color: "#7c3aed",
+                                  fontWeight: 600, outline: "none",
+                                  width: "100%", textAlign: "right",
+                                }}
                                 value={getEditVal(editingPrices, item.id, "discountPct", item)}
                                 onChange={e => {
                                   setEditingPrices(prev => ({
                                     ...prev,
                                     [item.id]: { ...prev[item.id], discountPct: e.target.value },
                                   }));
-                                  applyEdit(
-                                    item.id,
-                                    "discountPct",
-                                    e.target.value,
-                                    setLineItems,
-                                    setEditingPrices,
-                                    { isTamilNadu, defaultGstPct: parseNonNegativeNumber(gstPct, 0), defaultGstMasterId }
-                                  );
+                                  applyEdit(item.id, "discountPct", e.target.value, setLineItems, setEditingPrices, {
+                                    isTamilNadu,
+                                    defaultGstPct: parseNonNegativeNumber(gstPct, 0),
+                                    defaultGstMasterId,
+                                  });
                                 }}
                                 onFocus={e => e.target.select()}
+                                placeholder="0"
                               />
-                            )}
-                          </td>
-
-                          {/* GST master */}
-                          <td style={{ ...lineItemCellBase, textAlign: "right" }}>
-                            {isDesignOnly ? (
-                              <span style={{ color: "#d1d5db" }}>—</span>
-                            ) : (
-                              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                            </td>
+                            <td style={{ ...lineItemCellBase, textAlign: "left" }}>
+                              <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
                                 <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                                   <select
-                                    className="qp-field-input"
+                                    disabled={gstMastersLoading || isViewOnly}
                                     style={{
-                                      ...inBase,
-                                      flex: 1,
-                                      minWidth: 0,
-                                      textAlign: "left",
+                                      border: "1.5px solid #ddd6fe",
+                                      borderRadius: 6, padding: "5px 7px",
+                                      fontSize: 13, fontFamily: "'DM Mono', monospace",
+                                      background: "#faf5ff", color: "#7c3aed",
+                                      fontWeight: 600, outline: "none",
+                                      flex: 1, minWidth: 0, textAlign: "left",
                                       appearance: "auto",
-                                      fontFamily: "'DM Sans', sans-serif",
-                                      padding: "5px 7px",
                                     }}
                                     value={item.gstMasterId ? String(item.gstMasterId) : ""}
-                                    onChange={(e) => handleLineItemGstMasterChange(item.id, e.target.value)}
-                                    disabled={gstMastersLoading}
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      const selectedMaster = gstMasters.find((g) => String(g.id) === String(val));
+                                      
+                                      setLineItems((prev) =>
+                                        prev.map((li) => {
+                                          if (li.id !== item.id) return li;
+                                          return normalizeLineItem({
+                                            ...li,
+                                            gstMasterId: selectedMaster?.id ?? null,
+                                            gstPct: Number(selectedMaster?.taxPercent ?? 0),
+                                            gstPercent: Number(selectedMaster?.taxPercent ?? 0),
+                                          }, {
+                                            isTamilNadu,
+                                            defaultDiscountPct: 0,
+                                            defaultGstPct: parseNonNegativeNumber(gstPct, 0),
+                                            defaultGstMasterId,
+                                          });
+                                        })
+                                      );
+                                    }}
                                   >
                                     <option value="">{gstMastersLoading ? "Loading..." : "Select GST master"}</option>
                                     {gstMasters.map((option) => (
                                       <option key={option.id} value={option.id}>
-                                        {option.taxName
-                                          ? `GST ${Number(option.taxPercent || 0)}%`
-                                          : `GST ${Number(option.taxPercent || 0)}%`}
+                                        GST {Number(option.taxPercent || 0)}%
                                       </option>
                                     ))}
                                   </select>
                                   <button
                                     type="button"
                                     className="qp-item-btn"
+                                    disabled={isViewOnly}
                                     onClick={() => handleOpenGstAddPopup({
                                       mode: "line-item",
                                       itemId: item.id,
                                       prefillPercent: Number(item.gstPct ?? 0),
                                     })}
-                                    title="Add GST master for this product"
+                                    title="Add GST master"
                                   >
                                     <i className="ti ti-plus" style={{ fontSize: 13 }} />
                                   </button>
@@ -1848,260 +1864,301 @@ export default function QuotationPage() {
                                   GST {Number(item.gstPct ?? 0).toFixed(2)}%
                                 </span>
                               </div>
-                            )}
-                          </td>
-
-                          {/* Total */}
-                          <td style={{ ...lineItemCellBase, textAlign: "right" }}>
-                            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 }}>
-                              <span style={{
-                                fontSize: 13, fontWeight: 700,
-                                fontFamily: "'DM Mono', monospace",
-                                color: isUnpriced ? "#dc2626" : "#0f172a",
-                              }}>
+                            </td>
+                            <td style={{ ...lineItemCellBase, textAlign: "right" }}>
+                              <span style={{ fontSize: 13, fontWeight: 700, fontFamily: "'DM Mono', monospace", color: "#7c3aed" }}>
                                 ₹{Number(item.lineTotal || 0).toFixed(2)}
                               </span>
-                              <span style={{ fontSize: 10, color: "#9ca3af", fontFamily: "'DM Mono', monospace" }}>
-                                Base ₹{Number(item.baseAmount || 0).toFixed(2)}
-                              </span>
-                            </div>
-                          </td>
+                            </td>
+                            <td style={{ ...lineItemCellBase, textAlign: "right" }}>
+                              <div style={{ display: "flex", gap: 4, justifyContent: "flex-end" }}>
+                                <button
+                                  type="button"
+                                  className="qp-item-btn danger"
+                                  disabled={isViewOnly}
+                                  onClick={() => handleRemoveItem(item.id)}
+                                  title="Remove"
+                                >
+                                  <i className="ti ti-trash" style={{ fontSize: 13 }} />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      } else {
+                        const isDesignOnly  = item.designStatus === "design_only";
+                        const isUnpriced    = String(item.pricingStatus || "").toUpperCase() === "UNPRICED";
+                        const noSlabWarning = !isDesignOnly && isUnpriced;
+                        const specText      = fullSpecsSummary(item.specs);
 
-                          {/* Actions */}
-                          <td style={{ ...lineItemCellBase, textAlign: "right" }}>
-                            <div style={{ display: "flex", gap: 4, justifyContent: "flex-end" }}>
-                              <button
-                                type="button"
-                                className="qp-item-btn"
-                                onClick={() => openAddModal(item)}
-                                title="Edit"
-                              >
-                                <i className="ti ti-edit" style={{ fontSize: 13 }} />
-                              </button>
-                              <button
-                                type="button"
-                                className="qp-item-btn danger"
-                                onClick={() => handleRemoveItem(item.id)}
-                                title="Remove"
-                              >
-                                <i className="ti ti-trash" style={{ fontSize: 13 }} />
-                              </button>
-                            </div>
-                          </td>
+                        const inBase = {
+                          borderWidth: "1.5px",
+                          borderStyle: "solid",
+                          borderColor: "#e5e7eb",
+                          borderRadius: 6,
+                          padding: "5px 7px",
+                          fontSize: 13,
+                          fontFamily: "'DM Mono', monospace",
+                          background: "#fafafa",
+                          color: "#0f172a",
+                          outline: "none",
+                          width: "100%",
+                          textAlign: "right",
+                          display: "block",
+                        };
+                        const inWarn   = { ...inBase, borderColor: "#fca5a5", background: "#fff8f8" };
 
-                        </tr>
-                      );
-                    });
-                  })()}
+                        const rowBg = noSlabWarning
+                          ? { background: "#fffcf5", borderLeft: "3px solid #f0ad4e" }
+                          : {};
 
-                  {/* Render additional charge rows next */}
-                  {(() => {
-                    const normalCount = lineItems.filter(item => {
-                      const specs = item.specs || {};
-                      return !(specs.isAdditionalCharge || item.isAdditionalCharge || false);
-                    }).length;
-
-                    const addCharges = lineItems.filter(item => {
-                      const specs = item.specs || {};
-                      return specs.isAdditionalCharge || item.isAdditionalCharge || false;
-                    });
-
-                    return addCharges.map((item, index) => {
-                      const finalIndex = normalCount + index + 1;
-                      return (
-                        <tr key={item.id} style={{ background: "#faf5ff" }}>
-                          <td style={{ ...lineItemCellBase, textAlign: "center" }}>
-                            <span style={{ fontSize: 12, color: "#7c3aed", fontFamily: "'DM Mono', monospace", fontWeight: 700 }}>
-                              {finalIndex}
-                            </span>
-                          </td>
-                          <td style={{ ...lineItemCellBase }}>
-                            <div style={{ fontSize: 13, fontWeight: 600, color: "#7c3aed" }}>
-                              {(() => {
-                                const name = item.productName || "";
-                                const lower = name.toLowerCase();
-                                if ((lower === "die charge" || lower === "screen charge") && !lower.includes("onetime investment")) {
-                                  return `${name} (OneTime Investment)`;
-                                }
-                                return name;
-                              })()}
-                            </div>
-                            <div style={{ fontSize: 11, color: "#9ca3af", marginTop: 2 }}>
-                              Additional charge
-                            </div>
-                          </td>
-                          {showHsnSacColumn && (
-                            <td style={{ ...lineItemCellBase, textAlign: "left" }}>
-                              <span style={{ fontSize: 12, color: "#d1d5db", fontFamily: "'DM Mono', monospace" }}>
-                                —
+                        return (
+                          <tr
+                            key={item.id}
+                            style={{
+                              ...rowBg,
+                              opacity: draggedIndex === index ? 0.5 : 1,
+                              cursor: isViewOnly ? "default" : "move"
+                            }}
+                            draggable={!isViewOnly}
+                            onDragStart={(e) => handleDragStart(e, index)}
+                            onDragOver={(e) => handleDragOver(e, index)}
+                            onDragEnd={handleDragEnd}
+                          >
+                            <td style={{ ...lineItemCellBase, textAlign: "center", cursor: (!isViewOnly) ? "grab" : "default" }}>
+                              {!isViewOnly && <span style={{ fontSize: 11, color: "#9ca3af", marginRight: 4 }}>⋮⋮</span>}
+                              <span style={{
+                                fontSize: 12, fontWeight: 700,
+                                color: "#d1d5db",
+                                fontFamily: "'DM Mono', monospace",
+                              }}>
+                                {index + 1}
                               </span>
                             </td>
-                          )}
-                          <td style={{ ...lineItemCellBase, textAlign: "right" }}>
-                            <input
-                              type="number" min="1"
-                              disabled={!canEditQuotation}
-                              style={{
-                                border: "1.5px solid #ddd6fe",
-                                borderRadius: 6, padding: "5px 7px",
-                                fontSize: 13, fontFamily: "'DM Mono', monospace",
-                                background: "#faf5ff", color: "#7c3aed",
-                                fontWeight: 600, outline: "none",
-                                width: "100%", textAlign: "right",
-                              }}
-                              value={getEditVal(editingPrices, item.id, "quantity", item)}
-                              onChange={e => {
-                                setEditingPrices(prev => ({
-                                  ...prev,
-                                  [item.id]: { ...prev[item.id], quantity: e.target.value },
-                                }));
-                                applyEdit(item.id, "quantity", e.target.value, setLineItems, setEditingPrices, {
-                                  isTamilNadu,
-                                  defaultGstPct: parseNonNegativeNumber(gstPct, 0),
-                                  defaultGstMasterId,
-                                });
-                              }}
-                              onFocus={e => e.target.select()}
-                            />
-                          </td>
-                          <td style={{ ...lineItemCellBase, textAlign: "right" }}>
-                            <input
-                              type="number" min="0" step="0.01"
-                              disabled={!canEditQuotation}
-                              style={{
-                                border: "1.5px solid #ddd6fe",
-                                borderRadius: 6, padding: "5px 7px",
-                                fontSize: 13, fontFamily: "'DM Mono', monospace",
-                                background: "#faf5ff", color: "#7c3aed",
-                                fontWeight: 600, outline: "none",
-                                width: "100%", textAlign: "right",
-                              }}
-                              value={getEditVal(editingPrices, item.id, "unitPrice", item)}
-                              onChange={e => {
-                                setEditingPrices(prev => ({
-                                  ...prev,
-                                  [item.id]: { ...prev[item.id], unitPrice: e.target.value },
-                                }));
-                                applyEdit(item.id, "unitPrice", e.target.value, setLineItems, setEditingPrices, {
-                                  isTamilNadu,
-                                  defaultGstPct: parseNonNegativeNumber(gstPct, 0),
-                                  defaultGstMasterId,
-                                });
-                              }}
-                              onFocus={e => e.target.select()}
-                              placeholder="₹ charge"
-                            />
-                          </td>
-                          <td style={{ ...lineItemCellBase, textAlign: "right" }}>
-                            <input
-                              type="number" min="0" step="0.01"
-                              disabled={!canEditQuotation}
-                              style={{
-                                border: "1.5px solid #ddd6fe",
-                                borderRadius: 6, padding: "5px 7px",
-                                fontSize: 13, fontFamily: "'DM Mono', monospace",
-                                background: "#faf5ff", color: "#7c3aed",
-                                fontWeight: 600, outline: "none",
-                                width: "100%", textAlign: "right",
-                              }}
-                              value={getEditVal(editingPrices, item.id, "discountPct", item)}
-                              onChange={e => {
-                                setEditingPrices(prev => ({
-                                  ...prev,
-                                  [item.id]: { ...prev[item.id], discountPct: e.target.value },
-                                }));
-                                applyEdit(item.id, "discountPct", e.target.value, setLineItems, setEditingPrices, {
-                                  isTamilNadu,
-                                  defaultGstPct: parseNonNegativeNumber(gstPct, 0),
-                                  defaultGstMasterId,
-                                });
-                              }}
-                              onFocus={e => e.target.select()}
-                              placeholder="0"
-                            />
-                          </td>
-                          <td style={{ ...lineItemCellBase, textAlign: "left" }}>
-                            <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                                <select
-                                  disabled={gstMastersLoading || !canEditQuotation}
-                                  style={{
-                                    border: "1.5px solid #ddd6fe",
-                                    borderRadius: 6, padding: "5px 7px",
-                                    fontSize: 13, fontFamily: "'DM Mono', monospace",
-                                    background: "#faf5ff", color: "#7c3aed",
-                                    fontWeight: 600, outline: "none",
-                                    flex: 1, minWidth: 0, textAlign: "left",
-                                    appearance: "auto",
+                            <td style={{ ...lineItemCellBase }}>
+                              <div style={{ fontSize: 13, fontWeight: 600, color: "#0f172a" }}>
+                                {(() => {
+                                  const name = item.productName || "";
+                                  const lower = name.toLowerCase();
+                                  if ((lower === "die charge" || lower === "screen charge") && !lower.includes("onetime investment")) {
+                                    return `${name} (OneTime Investment)`;
+                                  }
+                                  return name;
+                                })()}
+                              </div>
+                              {specText && (
+                                <div style={{
+                                  fontSize: 11, color: "#6b7280",
+                                  marginTop: 3, lineHeight: 1.5,
+                                  fontFamily: "'DM Mono', monospace",
+                                  wordBreak: "break-word",
+                                }}>
+                                  {specText}
+                                </div>
+                              )}
+                              {Number(item.discountAmount || 0) > 0 && !isDesignOnly && (
+                                <div style={{
+                                  fontSize: 11,
+                                  color: "#059669",
+                                  marginTop: 3,
+                                  lineHeight: 1.4,
+                                  fontFamily: "'DM Mono', monospace",
+                                  wordBreak: "break-word",
+                                  fontWeight: 600,
+                                }}>
+                                  Discounted Amount: ₹{Number(item.discountAmount || 0).toFixed(2)}
+                                </div>
+                              )}
+                              <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 5 }}>
+                                {(() => {
+                                  const d = designLabel(item.designStatus);
+                                  if (!d) return null;
+                                  return (
+                                    <span style={{
+                                      fontSize: 10, fontWeight: 700,
+                                      background: d.bg, color: d.color,
+                                      border: `1px solid ${d.color}44`,
+                                      borderRadius: 4, padding: "2px 5px",
+                                      display: "inline-block", whiteSpace: "nowrap",
+                                    }}>
+                                      {d.label}
+                                    </span>
+                                  );
+                                })()}
+                              </div>
+                            </td>
+                            {showHsnSacColumn && (
+                              <td style={{ ...lineItemCellBase }}>
+                                <span style={{ fontSize: 13, fontFamily: "'DM Mono', monospace", color: "#374151" }}>
+                                  {isDesignOnly ? <span style={{ color: "#d1d5db" }}>—</span> : (extractTaxGroupCode(item) || <span style={{ color: "#d1d5db" }}>—</span>)}
+                                </span>
+                              </td>
+                            )}
+                            <td style={{ ...lineItemCellBase, textAlign: "right" }}>
+                              {isDesignOnly ? (
+                                <span style={{ color: "#d1d5db" }}>—</span>
+                              ) : (
+                                <input
+                                  type="number" min="1"
+                                  disabled={isViewOnly}
+                                  style={inBase}
+                                  value={getEditVal(editingPrices, item.id, "quantity", item)}
+                                  onChange={e => {
+                                    setEditingPrices(prev => ({
+                                      ...prev,
+                                      [item.id]: { ...prev[item.id], quantity: e.target.value },
+                                    }));
+                                    applyEdit(item.id, "quantity", e.target.value, setLineItems, setEditingPrices, {
+                                      isTamilNadu,
+                                      defaultGstPct: parseNonNegativeNumber(gstPct, 0),
+                                      defaultGstMasterId,
+                                    });
                                   }}
-                                  value={item.gstMasterId ? String(item.gstMasterId) : ""}
-                                  onChange={(e) => {
-                                    const val = e.target.value;
-                                    const selectedMaster = gstMasters.find((g) => String(g.id) === String(val));
-                                    
-                                    setLineItems((prev) =>
-                                      prev.map((li) => {
-                                        if (li.id !== item.id) return li;
-                                        return normalizeLineItem({
-                                          ...li,
-                                          gstMasterId: selectedMaster?.id ?? null,
-                                          gstPct: Number(selectedMaster?.taxPercent ?? 0),
-                                          gstPercent: Number(selectedMaster?.taxPercent ?? 0),
-                                        }, {
-                                          isTamilNadu,
-                                          defaultDiscountPct: 0,
-                                          defaultGstPct: parseNonNegativeNumber(gstPct, 0),
-                                          defaultGstMasterId,
-                                        });
-                                      })
+                                  onFocus={e => e.target.select()}
+                                />
+                              )}
+                            </td>
+                            <td style={{ ...lineItemCellBase, textAlign: "right" }}>
+                              {isDesignOnly ? (
+                                <span style={{ color: "#d1d5db" }}>—</span>
+                              ) : (
+                                <input
+                                  type="number" min="0" step="0.01"
+                                  disabled={isViewOnly}
+                                  style={noSlabWarning && !getEditVal(editingPrices, item.id, "unitPrice", item)
+                                    ? inWarn : inBase}
+                                  value={getEditVal(editingPrices, item.id, "unitPrice", item)}
+                                  onChange={e => {
+                                    setEditingPrices(prev => ({
+                                      ...prev,
+                                      [item.id]: { ...prev[item.id], unitPrice: e.target.value },
+                                    }));
+                                    applyEdit(item.id, "unitPrice", e.target.value, setLineItems, setEditingPrices, {
+                                      isTamilNadu,
+                                      defaultGstPct: parseNonNegativeNumber(gstPct, 0),
+                                      defaultGstMasterId,
+                                    });
+                                  }}
+                                  onFocus={e => e.target.select()}
+                                  placeholder="₹"
+                                />
+                              )}
+                            </td>
+                            <td style={{ ...lineItemCellBase, textAlign: "right" }}>
+                              {isDesignOnly ? (
+                                <span style={{ color: "#d1d5db" }}>—</span>
+                              ) : (
+                                <input
+                                  type="number" min="0" step="0.01"
+                                  disabled={isViewOnly}
+                                  style={inBase}
+                                  value={getEditVal(editingPrices, item.id, "discountPct", item)}
+                                  onChange={e => {
+                                    setEditingPrices(prev => ({
+                                      ...prev,
+                                      [item.id]: { ...prev[item.id], discountPct: e.target.value },
+                                    }));
+                                    applyEdit(
+                                      item.id,
+                                      "discountPct",
+                                      e.target.value,
+                                      setLineItems,
+                                      setEditingPrices,
+                                      { isTamilNadu, defaultGstPct: parseNonNegativeNumber(gstPct, 0), defaultGstMasterId }
                                     );
                                   }}
-                                >
-                                  <option value="">{gstMastersLoading ? "Loading..." : "Select GST master"}</option>
-                                  {gstMasters.map((option) => (
-                                    <option key={option.id} value={option.id}>
-                                      GST {Number(option.taxPercent || 0)}%
-                                    </option>
-                                  ))}
-                                </select>
+                                  onFocus={e => e.target.select()}
+                                />
+                              )}
+                            </td>
+                            <td style={{ ...lineItemCellBase, textAlign: "right" }}>
+                              {isDesignOnly ? (
+                                <span style={{ color: "#d1d5db" }}>—</span>
+                              ) : (
+                                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                    <select
+                                      className="qp-field-input"
+                                      disabled={isViewOnly}
+                                      style={{
+                                        ...inBase,
+                                        flex: 1,
+                                        minWidth: 0,
+                                        textAlign: "left",
+                                        appearance: "auto",
+                                        fontFamily: "'DM Sans', sans-serif",
+                                        padding: "5px 7px",
+                                      }}
+                                      value={item.gstMasterId ? String(item.gstMasterId) : ""}
+                                      onChange={(e) => handleLineItemGstMasterChange(item.id, e.target.value)}
+                                      disabled={gstMastersLoading || isViewOnly}
+                                    >
+                                      <option value="">{gstMastersLoading ? "Loading..." : "Select GST master"}</option>
+                                      {gstMasters.map((option) => (
+                                        <option key={option.id} value={option.id}>
+                                          GST {Number(option.taxPercent || 0)}%
+                                        </option>
+                                      ))}
+                                    </select>
+                                    <button
+                                      type="button"
+                                      className="qp-item-btn"
+                                      disabled={isViewOnly}
+                                      onClick={() => handleOpenGstAddPopup({
+                                        mode: "line-item",
+                                        itemId: item.id,
+                                        prefillPercent: Number(item.gstPct ?? 0),
+                                      })}
+                                      title="Add GST master for this product"
+                                    >
+                                      <i className="ti ti-plus" style={{ fontSize: 13 }} />
+                                    </button>
+                                  </div>
+                                  <span style={{ fontSize: 10, color: "#6b7280", fontFamily: "'DM Mono', monospace" }}>
+                                    GST {Number(item.gstPct ?? 0).toFixed(2)}%
+                                  </span>
+                                </div>
+                              )}
+                            </td>
+                            <td style={{ ...lineItemCellBase, textAlign: "right" }}>
+                              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 }}>
+                                <span style={{
+                                  fontSize: 13, fontWeight: 700,
+                                  fontFamily: "'DM Mono', monospace",
+                                  color: isUnpriced ? "#dc2626" : "#0f172a",
+                                }}>
+                                  ₹{Number(item.lineTotal || 0).toFixed(2)}
+                                </span>
+                                <span style={{ fontSize: 10, color: "#9ca3af", fontFamily: "'DM Mono', monospace" }}>
+                                  Base ₹{Number(item.baseAmount || 0).toFixed(2)}
+                                </span>
+                              </div>
+                            </td>
+                            <td style={{ ...lineItemCellBase, textAlign: "right" }}>
+                              <div style={{ display: "flex", gap: 4, justifyContent: "flex-end" }}>
                                 <button
                                   type="button"
                                   className="qp-item-btn"
-                                  disabled={!canEditQuotation}
-                                  onClick={() => handleOpenGstAddPopup({
-                                    mode: "line-item",
-                                    itemId: item.id,
-                                    prefillPercent: Number(item.gstPct ?? 0),
-                                  })}
-                                  title="Add GST master"
+                                  onClick={() => openAddModal(item)}
+                                  disabled={isViewOnly}
+                                  title="Edit"
                                 >
-                                  <i className="ti ti-plus" style={{ fontSize: 13 }} />
+                                  <i className="ti ti-edit" style={{ fontSize: 13 }} />
+                                </button>
+                                <button
+                                  type="button"
+                                  className="qp-item-btn danger"
+                                  onClick={() => handleRemoveItem(item.id)}
+                                  disabled={isViewOnly}
+                                  title="Remove"
+                                >
+                                  <i className="ti ti-trash" style={{ fontSize: 13 }} />
                                 </button>
                               </div>
-                              <span style={{ fontSize: 10, color: "#6b7280", fontFamily: "'DM Mono', monospace" }}>
-                                GST {Number(item.gstPct ?? 0).toFixed(2)}%
-                              </span>
-                            </div>
-                          </td>
-                          <td style={{ ...lineItemCellBase, textAlign: "right" }}>
-                            <span style={{ fontSize: 13, fontWeight: 700, fontFamily: "'DM Mono', monospace", color: "#7c3aed" }}>
-                              ₹{Number(item.lineTotal || 0).toFixed(2)}
-                            </span>
-                          </td>
-                          <td style={{ ...lineItemCellBase, textAlign: "right" }}>
-                            <div style={{ display: "flex", gap: 4, justifyContent: "flex-end" }}>
-                              <button
-                                type="button"
-                                className="qp-item-btn danger"
-                                onClick={() => handleRemoveItem(item.id)}
-                                title="Remove"
-                              >
-                                <i className="ti ti-trash" style={{ fontSize: 13 }} />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
+                            </td>
+                          </tr>
+                        );
+                      }
                     });
                   })()}
                   {includeDesignFee && (

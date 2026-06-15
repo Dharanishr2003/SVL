@@ -1,1 +1,0 @@
-import{j as s}from"./index-B_bSUx-b.js";function r(){return s.jsx("div",{className:"card",children:s.jsxs("div",{className:"card-body",children:[s.jsx("h4",{className:"mb-2",children:"Ban Ip Address"}),s.jsx("p",{className:"mb-0",children:"Layout working confirmation."})]})})}export{r as default};

@@ -1581,7 +1581,7 @@ export async function buildQuotationPdf({
   const tableBody = [];
   let rowNum = 1;
 
-  // Render normal products first
+  // Render all items in their exact custom order
   normalizedLineItems.forEach((item) => {
     const specs = (() => {
       if (item.specs && typeof item.specs === "object") return item.specs;
@@ -1591,71 +1591,59 @@ export async function buildQuotationPdf({
       try { return JSON.parse(raw); } catch { return {}; }
     })();
     const isAddCharge = specs?.isAdditionalCharge || item.isAdditionalCharge || false;
-    if (isAddCharge) return; // Skip additional charges for now
 
-    const isDesignOnly = String(item?.designStatus || "").toLowerCase() === "design_only";
-    const specsText = fullSpecsSummary(item?.specs || item?.specsJson || {}) || item?.specsSummary || "";
-    let productName = asText(item?.productName, "-");
-    const lowerName = productName.toLowerCase();
-    if ((lowerName === "die charge" || lowerName === "screen charge") && !lowerName.includes("onetime investment")) {
-      productName = `${productName} (OneTime Investment)`;
+    if (isAddCharge) {
+      const discountAmount = Number(item?.discountAmount || 0);
+      const discountText = "";
+      let productName = item.productName || "";
+      const lowerName = productName.toLowerCase();
+      if ((lowerName === "die charge" || lowerName === "screen charge") && !lowerName.includes("onetime investment")) {
+        productName = `${productName} (OneTime Investment)`;
+      }
+      const description = [productName, discountText].filter(Boolean).join("\n");
+
+      tableBody.push({
+        rowType: "designFee", // Styled purple like designFee
+        cells: [
+          String(rowNum++),
+          description,
+          ...(showHsnSacColumn ? ["—"] : []),
+          `${Number(item.discountPct || 0).toFixed(2)}%`,
+          `${Number(item.gstPct || 0).toFixed(2)}%`,
+          String(Number(item.quantity || 0)),
+          "Job",
+          Number(item.unitPrice || 0).toFixed(2),
+          Number(item.lineTotal || 0).toFixed(2),
+        ],
+      });
+    } else {
+      const isDesignOnly = String(item?.designStatus || "").toLowerCase() === "design_only";
+      const specsText = fullSpecsSummary(item?.specs || item?.specsJson || {}) || item?.specsSummary || "";
+      let productName = asText(item?.productName, "-");
+      const lowerName = productName.toLowerCase();
+      if ((lowerName === "die charge" || lowerName === "screen charge") && !lowerName.includes("onetime investment")) {
+        productName = `${productName} (OneTime Investment)`;
+      }
+      const discountAmount = Number(item?.discountAmount || 0);
+      const discountText = "";
+      const description = [productName, specsText, discountText].filter(Boolean).join("\n");
+      const hsnSac = extractTaxGroupCode(item);
+
+      tableBody.push({
+        rowType: "product",
+        cells: [
+          String(rowNum++),
+          description,
+          ...(showHsnSacColumn ? [isDesignOnly ? "—" : (hsnSac || "—")] : []),
+          isDesignOnly ? "—" : `${Number(item.discountPct || 0).toFixed(2)}%`,
+          isDesignOnly ? "—" : `${Number(item.gstPct || 0).toFixed(2)}%`,
+          isDesignOnly ? "—" : (Number(item.quantity || 0) > 0 ? String(Number(item.quantity || 0)) : "—"),
+          isDesignOnly ? "—" : (Number(item.quantity || 0) > 0 ? "Nos" : "—"),
+          isDesignOnly ? "—" : (Number(item.unitPrice || 0) > 0 ? Number(item.unitPrice || 0).toFixed(2) : "—"),
+          Number(item.lineTotal || 0).toFixed(2),
+        ],
+      });
     }
-    const discountAmount = Number(item?.discountAmount || 0);
-    const discountText = "";
-    const description = [productName, specsText, discountText].filter(Boolean).join("\n");
-    const hsnSac = extractTaxGroupCode(item);
-
-    tableBody.push({
-      rowType: "product",
-      cells: [
-        String(rowNum++),
-        description,
-        ...(showHsnSacColumn ? [isDesignOnly ? "—" : (hsnSac || "—")] : []),
-        isDesignOnly ? "—" : `${Number(item.discountPct || 0).toFixed(2)}%`,
-        isDesignOnly ? "—" : `${Number(item.gstPct || 0).toFixed(2)}%`,
-        isDesignOnly ? "—" : (Number(item.quantity || 0) > 0 ? String(Number(item.quantity || 0)) : "—"),
-        isDesignOnly ? "—" : (Number(item.quantity || 0) > 0 ? "Nos" : "—"),
-        isDesignOnly ? "—" : (Number(item.unitPrice || 0) > 0 ? Number(item.unitPrice || 0).toFixed(2) : "—"),
-        Number(item.lineTotal || 0).toFixed(2),
-      ],
-    });
-  });
-
-  // Render additional charges next
-  normalizedLineItems.forEach((item) => {
-    const specs = (() => {
-      if (item.specs && typeof item.specs === "object") return item.specs;
-      const raw = item.specs || item.specsJson || item.variantFields;
-      if (!raw) return {};
-      if (typeof raw === "object") return raw;
-      try { return JSON.parse(raw); } catch { return {}; }
-    })();
-    const isAddCharge = specs?.isAdditionalCharge || item.isAdditionalCharge || false;
-    if (!isAddCharge) return;
-
-    const discountAmount = Number(item?.discountAmount || 0);
-    const discountText = "";
-    let productName = item.productName || "";
-    const lowerName = productName.toLowerCase();
-    if ((lowerName === "die charge" || lowerName === "screen charge") && !lowerName.includes("onetime investment")) {
-      productName = `${productName} (OneTime Investment)`;
-    }
-    const description = [productName, discountText].filter(Boolean).join("\n");
-
-    tableBody.push({
-      rowType: "designFee", // Styled purple like designFee
-      cells: [
-        String(rowNum++),
-        description,
-        ...(showHsnSacColumn ? ["—"] : []),
-        `${Number(item.discountPct || 0).toFixed(2)}%`,
-        `${Number(item.gstPct || 0).toFixed(2)}%`,
-        String(Number(item.quantity || 0)),
-        "Job",
-        Number(item.unitPrice || 0).toFixed(2),
-        Number(item.lineTotal || 0).toFixed(2),
-      ],
-    });
   });
 
   if (includeDesignFee && Number(designFeeAmount || 0) > 0) {
