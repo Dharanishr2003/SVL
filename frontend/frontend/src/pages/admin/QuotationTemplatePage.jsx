@@ -28,6 +28,10 @@ const EMPTY_FORM = {
   preparedByDefault: "",
   approvedByDefault: "",
   policyText: "",
+  letterheadMode: "separate",
+  singleBgImageBase64: null,
+  topImageBase64: null,
+  bottomImageBase64: null,
 };
 
 function ImageUploadBlock({ label, helperLabel, maxPreviewHeight, value, onChange, onClear }) {
@@ -94,6 +98,7 @@ export default function QuotationTemplatePage() {
           setForm({
             ...EMPTY_FORM,
             ...data,
+            letterheadMode: data.letterheadMode || "separate",
             validityDays: Number(data.validityDays) || 30,
           });
         }
@@ -251,20 +256,6 @@ export default function QuotationTemplatePage() {
       </div>
 
       <div className="qp-card">
-        <div className="qp-card-label">Company Logo</div>
-        <div className="qt-upload-sections qt-upload-sections-single">
-          <ImageUploadBlock
-            label="Company Logo"
-            helperLabel="Logo shown in PDF header"
-            maxPreviewHeight={120}
-            value={form.logoBase64}
-            onChange={(e) => handleImageChange("logoBase64", e)}
-            onClear={() => handleChange("logoBase64", null)}
-          />
-        </div>
-      </div>
-
-      <div className="qp-card">
         <div className="qp-card-label">Authorised Signature</div>
         <div className="qt-upload-sections qt-upload-sections-single">
           <ImageUploadBlock
@@ -279,15 +270,31 @@ export default function QuotationTemplatePage() {
       </div>
 
       <div className="qp-card">
-        <div className="qp-card-label">Watermark</div>
-        <div className="qt-upload-sections qt-upload-sections-single">
+        <div className="qp-card-label">Letterhead Banners &amp; Watermark</div>
+        <div className="qt-upload-sections" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "20px" }}>
           <ImageUploadBlock
-            label="Quotation Watermark"
-            helperLabel="Faint background image repeated on every PDF page. Use a transparent PNG for best results."
-            maxPreviewHeight={180}
+            label="Top Image (Header Banner)"
+            helperLabel="Full-width header image printed at the top of every page. Recommended aspect ratio: 6:1 (e.g. 1200x200 px)."
+            maxPreviewHeight={120}
+            value={form.topImageBase64}
+            onChange={(e) => handleImageChange("topImageBase64", e)}
+            onClear={() => handleChange("topImageBase64", null)}
+          />
+          <ImageUploadBlock
+            label="Center Image (Watermark)"
+            helperLabel="Faint background image repeated in the center of every PDF page. Use a transparent PNG for best results."
+            maxPreviewHeight={120}
             value={form.watermarkBase64}
             onChange={(e) => handleImageChange("watermarkBase64", e)}
             onClear={() => handleChange("watermarkBase64", null)}
+          />
+          <ImageUploadBlock
+            label="Bottom Image (Footer Banner)"
+            helperLabel="Full-width footer image printed at the bottom of every page. Recommended aspect ratio: 8:1 (e.g. 1200x150 px)."
+            maxPreviewHeight={120}
+            value={form.bottomImageBase64}
+            onChange={(e) => handleImageChange("bottomImageBase64", e)}
+            onClear={() => handleChange("bottomImageBase64", null)}
           />
         </div>
       </div>

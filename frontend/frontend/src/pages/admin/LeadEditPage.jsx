@@ -2078,12 +2078,12 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
   return (
     <div className="container-fluid lead-edit-page">
 
-      <div className="d-flex align-items-center justify-content-between mb-3">
+      <div className="d-flex flex-column flex-md-row align-items-start align-items-md-center justify-content-between gap-3 mb-3">
         <div>
           <h3 className="mb-1">Edit Lead</h3>
           <p className="text-muted mb-0">View lead details and status</p>
         </div>
-        <div className="d-flex gap-2 align-items-center">
+        <div className="d-flex flex-wrap gap-2 align-items-center w-100 w-md-auto justify-content-start justify-content-md-end">
           <div className="lead-current-status-box">
             <span className="lead-current-status-label">Current Status</span>
             <strong>{lead?.isDuplicate ? "Duplicate" : (lead?.status || "-")}</strong>

@@ -2536,6 +2536,93 @@ table.dataTable.dtr-inline.collapsed
     padding: 8px 0 !important;
   }
 
+  /* Checkboxes, Sno, Actions on the same row on mobile */
+  .table:not(.calendar-table) tbody tr:has(input[type="checkbox"]),
+  .vod-table tbody tr:has(input[type="checkbox"]) {
+    display: grid !important;
+    grid-template-columns: auto auto 1fr auto !important;
+    align-items: center !important;
+  }
+
+  .table:not(.calendar-table) tbody tr:has(input[type="checkbox"])::before,
+  .vod-table tbody tr:has(input[type="checkbox"])::before {
+    content: "" !important;
+    grid-column: 1 / -1 !important;
+    grid-row: 1 !important;
+    background: #f1f5f9 !important;
+    height: 48px !important;
+    margin: -16px -16px 12px -16px !important;
+    border-top-left-radius: 14px !important;
+    border-top-right-radius: 14px !important;
+    border-bottom: 1px solid rgba(226, 232, 240, 0.8) !important;
+    z-index: 1 !important;
+  }
+
+  /* Target the Checkbox cell */
+  .table:not(.calendar-table) tbody tr:has(input[type="checkbox"]) td:has(input[type="checkbox"]),
+  .table:not(.calendar-table) tbody tr:has(input[type="checkbox"]) td.col-select,
+  .vod-table tbody tr:has(input[type="checkbox"]) td:has(input[type="checkbox"]),
+  .vod-table tbody tr:has(input[type="checkbox"]) td.col-select {
+    grid-column: 1 !important;
+    grid-row: 1 !important;
+    z-index: 2 !important;
+    border-bottom: none !important;
+    margin: 0 !important;
+    padding: 0 8px !important;
+    background: transparent !important;
+    min-height: 48px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    margin-top: -16px !important;
+  }
+
+  /* Target the S.No / Index cell */
+  .table:not(.calendar-table) tbody tr:has(input[type="checkbox"]) td.col-index,
+  .table:not(.calendar-table) tbody tr:has(input[type="checkbox"]) td:nth-child(2),
+  .vod-table tbody tr:has(input[type="checkbox"]) td.col-index,
+  .vod-table tbody tr:has(input[type="checkbox"]) td:nth-child(2) {
+    grid-column: 2 !important;
+    grid-row: 1 !important;
+    z-index: 2 !important;
+    border-bottom: none !important;
+    margin: 0 !important;
+    padding: 0 8px !important;
+    background: transparent !important;
+    min-height: 48px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    font-weight: 600 !important;
+    color: #475569 !important;
+    margin-top: -16px !important;
+  }
+
+  /* Target the Action kebab cell */
+  .table:not(.calendar-table) tbody tr:has(input[type="checkbox"]) td.col-actions,
+  .table:not(.calendar-table) tbody tr:has(input[type="checkbox"]) td:last-child,
+  .vod-table tbody tr:has(input[type="checkbox"]) td.col-actions,
+  .vod-table tbody tr:has(input[type="checkbox"]) td:last-child {
+    grid-column: 4 !important;
+    grid-row: 1 !important;
+    z-index: 2 !important;
+    border-bottom: none !important;
+    margin: 0 !important;
+    padding: 0 12px !important;
+    background: transparent !important;
+    min-height: 48px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    margin-top: -16px !important;
+  }
+
+  /* All other body cells span full width and fall into row 2, 3, etc. */
+  .table:not(.calendar-table) tbody tr:has(input[type="checkbox"]) td:not(:first-child):not(:nth-child(2)):not(:last-child),
+  .vod-table tbody tr:has(input[type="checkbox"]) td:not(:first-child):not(:nth-child(2)):not(:last-child) {
+    grid-column: 1 / -1 !important;
+  }
+
   /* General mobile layout adjustments */
   .page-wrapper {
     padding-bottom: 90px !important;

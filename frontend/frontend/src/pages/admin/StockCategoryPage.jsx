@@ -1,4 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
+import { createPortal } from "react-dom";
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
 import {
   getStockCategories,
   createStockCategory,
@@ -6,91 +10,105 @@ import {
   deleteStockCategory,
 } from "../../api/stocksApi";
 import { getVendorTypes } from "../../api/vendorTypesApi";
-import PageHeader from "../../components/admin/PageHeader";
-import { extractApiErrorMessage } from "../../utils/errorMessage";
 import { useToast } from "../../components/system/ToastProvider";
 import useConfirmDialog from "../../components/system/useConfirmDialog";
+import PageSizeSelector from "../../components/admin/PageSizeSelector";
+import { extractApiErrorMessage } from "../../utils/errorMessage";
+import "./LeadsPage.css";
+
 export default function StockCategoryPage() {
   const { showSuccess, showError } = useToast();
-  const [categories, setCategories] = useState([]);
-  const [vendorTypes, setVendorTypes] = useState([]);
-  const [editing, setEditing] = useState(null);
-  const [form, setForm] = useState({ name: "", fields: [], allowedVendorTypeIds: [] });
-  const [saving, setSaving] = useState(false);
-  const [notification, setNotification] = useState(null);
   const { showConfirm, confirmDialog } = useConfirmDialog();
 
-  const notifySuccess = (message) => {
-    const payload = { type: "success", message, title: "Stock Categories" };
-    setNotification(payload);
-    showSuccess(message, { title: payload.title });
-  };
+  const [categories, setCategories] = useState([]);
+  const [vendorTypes, setVendorTypes] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const notifyError = (message) => {
-    const payload = { type: "error", message, title: "Stock Categories" };
-    setNotification(payload);
-    showError(message, { title: payload.title });
-  };
+  // Search, Selection, Pagination, Kebab
+  const [search, setSearch] = useState("");
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  const [activeActionsRow, setActiveActionsRow] = useState(null);
+  const [actionsMenuPos, setActionsMenuPos] = useState({ top: 0, left: 0 });
 
-  useEffect(() => {
-    if (!notification) return undefined;
-    const timeout = window.setTimeout(() => setNotification(null), 5000);
-    return () => window.clearTimeout(timeout);
-  }, [notification]);
+  // Modal controls
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingCategory, setEditingCategory] = useState(null);
+  const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    load();
-    loadVendorTypes();
-  }, []);
+  // Form states
+  const [form, setForm] = useState({ name: "", fields: [], allowedVendorTypeIds: [] });
 
-  const loadVendorTypes = async () => {
-    try {
-      const types = await getVendorTypes();
-      setVendorTypes(Array.isArray(types) ? types : []);
-    } catch (e) {
-      console.warn("failed to load vendor types", e);
-    }
-  };
-  const load = async () => {
+  const loadData = async () => {
+    setLoading(true);
     try {
       const cats = await getStockCategories();
+      const types = await getVendorTypes();
       setCategories(cats);
+      setVendorTypes(Array.isArray(types) ? types : []);
     } catch (e) {
-      const message = extractApiErrorMessage(e, "Failed to load categories");
-      const payload = e?.response?.data;
-      const actual = typeof payload?.message === "string" && payload?.message.trim()
-        ? payload.message.trim()
-        : message;
-      notifyError(actual);
+      showError(extractApiErrorMessage(e, "Failed to load categories"));
+    } finally {
+      setLoading(false);
     }
   };
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  // Close kebab menu on click/scroll outside
+  useEffect(() => {
+    const handleOutsideClickOrScroll = () => {
+      setActiveActionsRow(null);
+    };
+    window.addEventListener("click", handleOutsideClickOrScroll);
+    window.addEventListener("scroll", handleOutsideClickOrScroll, true);
+    return () => {
+      window.removeEventListener("click", handleOutsideClickOrScroll);
+      window.removeEventListener("scroll", handleOutsideClickOrScroll, true);
+    };
+  }, []);
 
   const resetForm = () => setForm({ name: "", fields: [], allowedVendorTypeIds: [] });
 
-  const handleSave = async () => {
+  const handleOpenAddModal = () => {
+    resetForm();
+    setShowAddModal(true);
+  };
+
+  const handleOpenEditModal = (cat) => {
+    setEditingCategory(cat);
+    setForm({
+      name: cat.name || "",
+      fields: Array.isArray(cat.fields) ? cat.fields : [],
+      allowedVendorTypeIds: Array.isArray(cat.allowedVendorTypeIds) ? cat.allowedVendorTypeIds : [],
+    });
+    setShowEditModal(true);
+  };
+
+  const handleSave = async (e) => {
+    if (e) e.preventDefault();
     if (!form.name.trim()) {
-      notifyError("Name required");
+      showError("Name is required");
       return;
     }
     setSaving(true);
     try {
-      if (editing) {
-        await updateStockCategory(editing.id, form);
-        notifySuccess("Category updated");
+      if (showEditModal && editingCategory) {
+        await updateStockCategory(editingCategory.id, form);
+        showSuccess("Category updated successfully");
+        setShowEditModal(false);
       } else {
         await createStockCategory(form);
-        notifySuccess("Category created");
+        showSuccess("Category created successfully");
+        setShowAddModal(false);
       }
-      resetForm();
-      setEditing(null);
-      await load();
+      loadData();
     } catch (e) {
-      const message = extractApiErrorMessage(e, "Failed to save");
-      const payload = e?.response?.data;
-      const actual = typeof payload?.message === "string" && payload?.message.trim()
-        ? payload.message.trim()
-        : message;
-      notifyError(actual);
+      showError(extractApiErrorMessage(e, "Failed to save category"));
     } finally {
       setSaving(false);
     }
@@ -119,15 +137,6 @@ export default function StockCategoryPage() {
     });
   };
 
-  const startEdit = (cat) => {
-    setEditing(cat);
-    setForm({
-      name: cat.name,
-      fields: cat.fields || [],
-      allowedVendorTypeIds: Array.isArray(cat.allowedVendorTypeIds) ? cat.allowedVendorTypeIds : [],
-    });
-  };
-
   const handleDelete = (cat) => {
     showConfirm({
       title: "Delete Stock Category",
@@ -136,189 +145,602 @@ export default function StockCategoryPage() {
       cancelLabel: "Cancel",
       onConfirm: async () => {
         try {
-        await deleteStockCategory(cat.id);
-        notifySuccess("Category deleted");
-        await load();
-      } catch (e) {
-        const message = extractApiErrorMessage(e, "Failed to delete");
-        const payload = e?.response?.data;
-        const actual = typeof payload?.message === "string" && payload?.message.trim()
-          ? payload.message.trim()
-          : message;
-          notifyError(actual);
+          await deleteStockCategory(cat.id);
+          showSuccess("Category deleted successfully");
+          setSelectedIds((prev) => {
+            const next = new Set(prev);
+            next.delete(cat.id);
+            return next;
+          });
+          loadData();
+        } catch (e) {
+          showError(extractApiErrorMessage(e, "Failed to delete category"));
         }
       },
     });
   };
 
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return;
+    showConfirm({
+      title: "Delete Selected Categories",
+      message: `Are you sure you want to delete ${selectedIds.size} stock categories? This action cannot be undone.`,
+      confirmLabel: "Delete All",
+      cancelLabel: "Cancel",
+      onConfirm: async () => {
+        try {
+          await Promise.all(Array.from(selectedIds).map((id) => deleteStockCategory(id)));
+          showSuccess(`Successfully deleted ${selectedIds.size} categories`);
+          setSelectedIds(new Set());
+          loadData();
+        } catch (e) {
+          showError("Failed to delete some categories");
+        }
+      },
+    });
+  };
+
+  // Export handlers
+  const exportExcel = () => {
+    const csvContent = [
+      ["ID", "Name", "Allowed Vendor Type", "Fields Count"],
+      ...filteredRows.map((r) => {
+        const vtId = r.allowedVendorTypeIds?.[0];
+        const vt = vendorTypes.find((v) => v.id === vtId);
+        return [
+          r.id,
+          r.name,
+          vt ? vt.typeName : "None",
+          r.fields?.length || 0,
+        ];
+      }),
+    ]
+      .map((e) => e.join(","))
+      .join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `stock-categories-${Date.now()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const exportCsv = exportExcel;
+
+  const exportPdf = () => {
+    const doc = new jsPDF();
+    doc.text("Stock Categories List", 14, 15);
+    const headers = [["ID", "Name", "Allowed Vendor Type", "Fields Count"]];
+    const data = filteredRows.map((r) => {
+      const vtId = r.allowedVendorTypeIds?.[0];
+      const vt = vendorTypes.find((v) => v.id === vtId);
+      return [
+        r.id,
+        r.name,
+        vt ? vt.typeName : "None",
+        r.fields?.length || 0,
+      ];
+    });
+
+    autoTable(doc, {
+      head: headers,
+      body: data,
+      startY: 20,
+      styles: { fontSize: 9 },
+    });
+    doc.save(`stock-categories-${Date.now()}.pdf`);
+  };
+
+  // Search & filter
+  const filteredRows = useMemo(() => {
+    let result = categories;
+    const q = search.toLowerCase().trim();
+    if (q) {
+      result = result.filter(
+        (r) =>
+          (r.name || "").toLowerCase().includes(q) ||
+          String(r.id).includes(q)
+      );
+    }
+    return result;
+  }, [categories, search]);
+
+  // Pagination
+  const totalRows = filteredRows.length;
+  const pageCount = Math.max(1, Math.ceil(totalRows / Math.max(1, pageSize)));
+  const clampedPage = Math.min(Math.max(1, page), pageCount);
+  const pageOffset = (clampedPage - 1) * pageSize;
+  const pagedRows = useMemo(
+    () => filteredRows.slice(pageOffset, pageOffset + pageSize),
+    [filteredRows, pageOffset, pageSize]
+  );
+
+  useEffect(() => {
+    if (page !== clampedPage) setPage(clampedPage);
+  }, [clampedPage]);
+
+  // Selection
+  const toggleSelectAll = () => {
+    const pageIds = pagedRows.map((r) => r.id);
+    const allSelectedOnPage = pageIds.every((id) => selectedIds.has(id));
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (allSelectedOnPage) {
+        pageIds.forEach((id) => next.delete(id));
+      } else {
+        pageIds.forEach((id) => next.add(id));
+      }
+      return next;
+    });
+  };
+
+  const toggleRowSelection = (id) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
   return (
     <>
-      <div className="container-fluid">
-      <PageHeader
-        title="Stock Categories"
-        breadcrumb={[
-          { label: "Dashboard", path: "/admin-dashboard" },
-          { label: "Stocks", path: "/stocks" },
-          { label: "Categories", path: "" },
-        ]}
-      />
-      <div className="row">
-        <div className="col-md-6">
-          <div className="card mb-4">
-            <div className="card-body">
-              <h5>{editing ? "Edit" : "Add"} Category</h5>
-              <div className="mb-3">
-                <label className="form-label">Name</label>
-                <input
-                  type="text"
-                  className="form-control"
-                  value={form.name}
-                  onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
+      <div className="content">
+        {/* Custom White Header Card */}
+        <div className="card border-0 shadow-sm p-4 mb-4 bg-white" style={{ borderRadius: 12 }}>
+          <div className="d-flex align-items-center justify-content-between flex-wrap gap-3">
+            <div>
+              <h2 className="leads-header-title mb-1" style={{ fontSize: "1.4rem", fontWeight: "700", color: "#0f172a" }}>Stock Categories</h2>
+              <nav className="mb-0">
+                <ol className="breadcrumb mb-0" style={{ fontSize: "0.9rem" }}>
+                  <li className="breadcrumb-item">
+                    <Link to="/admin-dashboard" style={{ color: "#64748b", textDecoration: "none" }}>
+                      Home
+                    </Link>
+                  </li>
+                  <li className="breadcrumb-item" style={{ color: "#64748b" }}>Stocks</li>
+                  <li className="breadcrumb-item active" style={{ color: "#0f172a", fontWeight: "500" }}>Categories</li>
+                </ol>
+              </nav>
+            </div>
+
+            <div className="d-flex align-items-center gap-2">
+              <button
+                type="button"
+                className="btn btn-primary d-flex align-items-center gap-2"
+                onClick={handleOpenAddModal}
+                style={{ backgroundColor: "#3b82f6", borderColor: "#3b82f6", fontWeight: "600", padding: "10px 20px", borderRadius: "10px" }}
+              >
+                <i className="ti ti-plus" style={{ fontSize: "1.1rem" }}></i>
+                Add Category
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Main Categories Table Card */}
+        <div className="card border-0 shadow-sm mb-4" style={{ borderRadius: 12 }}>
+          {/* Controls Bar */}
+          <div className="d-flex flex-wrap align-items-center justify-content-between gap-3 p-3 border-bottom">
+            <div className="position-relative" style={{ minWidth: "260px" }}>
+              <input
+                className="form-control"
+                style={{ height: 42, borderRadius: 10, paddingLeft: 38, fontSize: "0.95rem" }}
+                value={search}
+                placeholder="Search categories..."
+                onChange={(e) => setSearch(e.target.value)}
+              />
+              <i className="ti ti-search position-absolute text-muted" style={{ left: 14, top: "50%", transform: "translateY(-50%)", fontSize: "1.1rem" }} />
+            </div>
+
+            <div className="d-flex align-items-center gap-2 flex-wrap">
+              <div className="dropdown">
+                <button
+                  className="btn btn-outline-export dropdown-toggle d-flex align-items-center gap-2"
+                  type="button"
+                  id="exportDropdown"
+                  data-bs-toggle="dropdown"
+                  aria-expanded="false"
+                  style={{ height: 42, padding: "0 18px", borderRadius: 10, fontWeight: "500", fontSize: "0.9rem" }}
+                >
+                  <i className="ti ti-download" style={{ fontSize: "1rem" }} />
+                  Export
+                </button>
+                <ul className="dropdown-menu shadow border-0" aria-labelledby="exportDropdown">
+                  <li>
+                    <button className="dropdown-item py-2 text-start" onClick={exportExcel}>
+                      Excel
+                    </button>
+                  </li>
+                  <li>
+                    <button className="dropdown-item py-2 text-start" onClick={exportCsv}>
+                      CSV
+                    </button>
+                  </li>
+                  <li>
+                    <button className="dropdown-item py-2 text-start" onClick={exportPdf}>
+                      PDF
+                    </button>
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          {/* Table Container */}
+          <div className="card-body p-0">
+            <div className="table-responsive" style={{ overflowX: "auto" }}>
+              <table className="table table-hover align-middle mb-0">
+                <thead className="thead-light">
+                  <tr>
+                    <th style={{ width: "40px" }}>
+                      <input
+                        type="checkbox"
+                        className="form-check-input"
+                        checked={pagedRows.length > 0 && pagedRows.every((r) => selectedIds.has(r.id))}
+                        onChange={toggleSelectAll}
+                      />
+                    </th>
+                    <th>Name</th>
+                    <th>Allowed Vendor Type</th>
+                    <th>Fields Count</th>
+                    <th style={{ width: "80px" }}>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loading ? (
+                    <tr>
+                      <td colSpan={5} className="text-center py-4">
+                        <div className="spinner-border text-primary" role="status">
+                          <span className="visually-hidden">Loading...</span>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : pagedRows.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="text-center py-4 text-muted">No stock categories found</td>
+                    </tr>
+                  ) : (
+                    pagedRows.map((cat) => {
+                      const vtId = cat.allowedVendorTypeIds?.[0];
+                      const vt = vendorTypes.find((v) => v.id === vtId);
+                      return (
+                        <tr key={cat.id}>
+                          <td>
+                            <input
+                              type="checkbox"
+                              className="form-check-input"
+                              checked={selectedIds.has(cat.id)}
+                              onChange={() => toggleRowSelection(cat.id)}
+                            />
+                          </td>
+                          <td className="fw-semibold text-dark">{cat.name}</td>
+                          <td>{vt ? vt.typeName : "None"}</td>
+                          <td>{cat.fields?.length || 0} fields</td>
+                          <td>
+                            <button
+                              className="btn btn-kebab-actions d-flex align-items-center justify-content-center"
+                              style={{ width: 32, height: 32, borderRadius: "50%", border: "none", backgroundColor: "transparent", color: "#64748b" }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (activeActionsRow?.id === cat.id) {
+                                  setActiveActionsRow(null);
+                                } else {
+                                  const rect = e.currentTarget.getBoundingClientRect();
+                                  setActionsMenuPos({
+                                    top: rect.top + window.scrollY,
+                                    left: rect.right + window.scrollX,
+                                  });
+                                  setActiveActionsRow(cat);
+                                }
+                              }}
+                            >
+                              <i className="ti ti-dots-vertical" style={{ fontSize: "1.15rem" }} />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination Footer */}
+            <div className="d-flex flex-wrap align-items-center justify-content-between p-3 gap-3 border-top">
+              <span className="entries-info text-muted small">
+                {totalRows === 0
+                  ? "Showing 0 to 0 of 0 entries"
+                  : `Showing ${pageOffset + 1} to ${Math.min(pageOffset + pageSize, totalRows)} of ${totalRows} entries`}
+              </span>
+
+              <div className="pagination-numbers-container d-flex align-items-center gap-1">
+                <button
+                  type="button"
+                  className="btn-pagination-arrow btn btn-sm btn-light border-0 d-flex align-items-center justify-content-center"
+                  style={{ width: 32, height: 32, borderRadius: 6 }}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={clampedPage <= 1}
+                >
+                  <i className="ti ti-chevron-left" />
+                </button>
+
+                {Array.from({ length: pageCount }).map((_, idx) => {
+                  const pageNum = idx + 1;
+                  return (
+                    <button
+                      key={pageNum}
+                      type="button"
+                      className={`btn-pagination-num btn btn-sm border-0 ${clampedPage === pageNum ? "active" : "btn-light"}`}
+                      style={{ width: 32, height: 32, borderRadius: 6 }}
+                      onClick={() => setPage(pageNum)}
+                    >
+                      {pageNum}
+                    </button>
+                  );
+                })}
+
+                <button
+                  type="button"
+                  className="btn-pagination-arrow btn btn-sm btn-light border-0 d-flex align-items-center justify-content-center"
+                  style={{ width: 32, height: 32, borderRadius: 6 }}
+                  onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+                  disabled={clampedPage >= pageCount}
+                >
+                  <i className="ti ti-chevron-right" />
+                </button>
+              </div>
+
+              <PageSizeSelector pageSize={pageSize} setPageSize={setPageSize} setPage={setPage} />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Floating Kebab Actions Portal */}
+      {activeActionsRow && createPortal(
+        <div
+          className="floating-actions-menu shadow-lg border"
+          style={{
+            position: "absolute",
+            top: actionsMenuPos.top,
+            left: actionsMenuPos.left,
+            transform: "translate(-100%, -100%) translateY(-5px)",
+            zIndex: 9999,
+            background: "#fff",
+            borderRadius: 8,
+            padding: "6px 0",
+            minWidth: 140
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            className="dropdown-item py-2 px-3 text-start d-flex align-items-center gap-2"
+            style={{ fontSize: "0.85rem" }}
+            onClick={() => {
+              handleOpenEditModal(activeActionsRow);
+              setActiveActionsRow(null);
+            }}
+          >
+            <i className="ti ti-edit" style={{ fontSize: "1rem", color: "#64748b" }} /> Edit Category
+          </button>
+          <button
+            className="dropdown-item py-2 px-3 text-start d-flex align-items-center gap-2 text-danger"
+            style={{ fontSize: "0.85rem" }}
+            onClick={() => {
+              handleDelete(activeActionsRow);
+              setActiveActionsRow(null);
+            }}
+          >
+            <i className="ti ti-trash" style={{ fontSize: "1rem", color: "#ef4444" }} /> Delete Category
+          </button>
+        </div>,
+        document.body
+      )}
+
+      {/* Floating Bulk Operations Bar */}
+      {selectedIds.size > 0 && (
+        <div
+          className="position-fixed start-50 translate-middle-x d-flex align-items-center justify-content-between gap-3 shadow-lg px-4 py-3 bg-dark text-white"
+          style={{
+            bottom: 24,
+            borderRadius: 16,
+            zIndex: 1040,
+            minWidth: 400,
+            border: "1px solid rgba(255, 255, 255, 0.15)",
+            animation: "fadeIn 0.2s ease"
+          }}
+        >
+          <div className="d-flex align-items-center gap-2">
+            <span className="badge bg-primary text-white" style={{ fontSize: "0.9rem", padding: "6px 10px" }}>
+              {selectedIds.size}
+            </span>
+            <span className="fw-medium text-white">selected</span>
+          </div>
+          <div className="d-flex align-items-center gap-2">
+            <button
+              className="btn btn-sm btn-danger d-flex align-items-center gap-1"
+              style={{ borderRadius: 8, padding: "6px 12px", fontSize: "0.85rem", border: "none" }}
+              onClick={handleBulkDelete}
+            >
+              <i className="ti ti-trash" /> Delete Selected
+            </button>
+            <button
+              className="btn btn-sm btn-link p-0 ms-2 text-decoration-none"
+              style={{ fontSize: "0.85rem", color: "rgba(255, 255, 255, 0.7)" }}
+              onClick={() => setSelectedIds(new Set())}
+            >
+              Clear
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Add/Edit Modal */}
+      {(showAddModal || showEditModal) && (
+        <div className="modal fade show" style={{ display: "block" }} tabIndex="-1" role="dialog">
+          <div className="modal-dialog modal-dialog-centered modal-lg">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h4 className="modal-title">{showEditModal ? "Edit" : "Add"} Stock Category</h4>
+                <button
+                  type="button"
+                  className="btn-close"
+                  onClick={() => {
+                    setShowAddModal(false);
+                    setShowEditModal(false);
+                  }}
                 />
               </div>
-              <div className="mb-3">
-                <label className="form-label">Allowed Vendor Type</label>
-                <select
-                  className="form-select"
-                  value={form.allowedVendorTypeIds[0] || ""}
-                  onChange={(e) => {
-                    const val = e.target.value ? Number(e.target.value) : null;
-                    setForm(p => ({ ...p, allowedVendorTypeIds: val ? [val] : [] }));
-                  }}
-                >
-                  <option value="">-- select --</option>
-                  {vendorTypes.map((vt) => (
-                    <option key={vt.id} value={vt.id}>{vt.typeName}</option>
-                  ))}
-                </select>
-              </div>
-              <h6>Fields</h6>
-              {(form.fields || []).map((f, idx) => (
-                <div key={idx} className="border p-2 mb-2">
-                  <div className="mb-2">
-                    <label className="form-label">Field Name</label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      value={f.name}
-                      onChange={(e) => updateField(idx, "name", e.target.value)}
-                    />
-                  </div>
-                  <div className="mb-2">
-                    <label className="form-label">Type</label>
-                    <select
-                      className="form-select"
-                      value={f.type}
-                      onChange={(e) => updateField(idx, "type", e.target.value)}
-                    >
-                      <option value="text">Text</option>
-                      <option value="number">Number</option>
-                      <option value="number-unit">Number with unit</option>
-                      <option value="dropdown">Dropdown</option>
-                    </select>
-                  </div>
-                  {f.type === "number-unit" && (
-                    <div className="mb-2">
-                      <label className="form-label">Unit</label>
+              <form onSubmit={handleSave}>
+                <div className="modal-body">
+                  <div className="row">
+                    <div className="col-md-6 mb-3">
+                      <label className="form-label">Category Name</label>
                       <input
                         type="text"
                         className="form-control"
-                        value={f.unit}
-                        onChange={(e) => updateField(idx, "unit", e.target.value)}
-                        placeholder="e.g. gsm, mm, kg"
+                        value={form.name}
+                        onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
+                        placeholder="Enter category name"
+                        required
                       />
                     </div>
-                  )}
-                  {f.type === "dropdown" && (
-                    <div className="mb-2">
-                      <label className="form-label">Options (comma separated)</label>
-                      <input
-                        type="text"
-                        className="form-control"
-                        value={(f.options || []).join(",")}
-                        onChange={(e) =>
-                          updateField(idx, "options", e.target.value.split(",").map((o) => o.trim()))
-                        }
-                      />
+
+                    <div className="col-md-6 mb-3">
+                      <label className="form-label">Allowed Vendor Type</label>
+                      <select
+                        className="form-select"
+                        value={form.allowedVendorTypeIds[0] || ""}
+                        onChange={(e) => {
+                          const val = e.target.value ? Number(e.target.value) : null;
+                          setForm((p) => ({ ...p, allowedVendorTypeIds: val ? [val] : [] }));
+                        }}
+                      >
+                        <option value="">Select Vendor Type</option>
+                        {vendorTypes.map((vt) => (
+                          <option key={vt.id} value={vt.id}>
+                            {vt.typeName}
+                          </option>
+                        ))}
+                      </select>
                     </div>
-                  )}
+
+                    <div className="col-12 mt-3">
+                      <div className="d-flex justify-content-between align-items-center mb-3">
+                        <h5 className="mb-0">Fields</h5>
+                        <button type="button" className="btn btn-sm btn-outline-secondary" onClick={addField}>
+                          + Add Field
+                        </button>
+                      </div>
+
+                      {(form.fields || []).map((f, idx) => (
+                        <div key={idx} className="card p-3 mb-3 border bg-light">
+                          <div className="row g-2">
+                            <div className="col-md-4">
+                              <label className="form-label">Field Name</label>
+                              <input
+                                type="text"
+                                className="form-control"
+                                value={f.name}
+                                onChange={(e) => updateField(idx, "name", e.target.value)}
+                                placeholder="e.g. Width, Thickness"
+                                required
+                              />
+                            </div>
+
+                            <div className="col-md-3">
+                              <label className="form-label">Type</label>
+                              <select
+                                className="form-select"
+                                value={f.type}
+                                onChange={(e) => updateField(idx, "type", e.target.value)}
+                              >
+                                <option value="text">Text</option>
+                                <option value="number">Number</option>
+                                <option value="number-unit">Number with unit</option>
+                                <option value="dropdown">Dropdown</option>
+                              </select>
+                            </div>
+
+                            {f.type === "number-unit" && (
+                              <div className="col-md-3">
+                                <label className="form-label">Unit</label>
+                                <input
+                                  type="text"
+                                  className="form-control"
+                                  value={f.unit}
+                                  onChange={(e) => updateField(idx, "unit", e.target.value)}
+                                  placeholder="e.g. mm, kg, gsm"
+                                  required
+                                />
+                              </div>
+                            )}
+
+                            {f.type === "dropdown" && (
+                              <div className="col-md-3">
+                                <label className="form-label">Options (comma separated)</label>
+                                <input
+                                  type="text"
+                                  className="form-control"
+                                  value={(f.options || []).join(",")}
+                                  onChange={(e) =>
+                                    updateField(
+                                      idx,
+                                      "options",
+                                      e.target.value.split(",").map((o) => o.trim())
+                                    )
+                                  }
+                                  placeholder="e.g. High, Medium, Low"
+                                  required
+                                />
+                              </div>
+                            )}
+
+                            <div className="col-md-2 d-flex align-items-end justify-content-end">
+                              <button
+                                type="button"
+                                className="btn btn-danger btn-sm"
+                                onClick={() => removeField(idx)}
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                <div className="modal-footer">
                   <button
                     type="button"
-                    className="btn btn-sm btn-danger"
-                    onClick={() => removeField(idx)}
-                  >
-                    Remove field
-                  </button>
-                </div>
-              ))}
-              <button className="btn btn-sm btn-secondary" onClick={addField}>
-                + Add Field
-              </button>
-              <div className="mt-3">
-                <button
-                  className="btn btn-primary"
-                  onClick={handleSave}
-                  disabled={saving}
-                >
-                  {saving ? "Saving..." : editing ? "Update" : "Create"}
-                </button>
-                {editing && (
-                  <button
-                    className="btn btn-link"
+                    className="btn btn-light"
                     onClick={() => {
-                      resetForm();
-                      setEditing(null);
+                      setShowAddModal(false);
+                      setShowEditModal(false);
                     }}
                   >
                     Cancel
                   </button>
-                )}
-              </div>
+                  <button type="submit" className="btn btn-primary" disabled={saving}>
+                    {saving ? "Saving..." : "Save Category"}
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         </div>
-        <div className="col-md-6">
-          <div className="card">
-            <div className="card-body">
-              <h5>Existing Categories</h5>
-              <ul className="list-group">
-                {categories.map((c) => (
-                  <li key={c.id} className="list-group-item d-flex justify-content-between align-items-center">
-                    <div>
-                      {c.name}
-                      {c.allowedVendorTypeIds && c.allowedVendorTypeIds.length > 0 && (
-                        <div className="small text-muted">
-                          {(() => {
-                            const id = c.allowedVendorTypeIds[0];
-                            const vt = vendorTypes.find(v => v.id === id);
-                            return vt ? vt.typeName : null;
-                          })()}
-                        </div>
-                      )}
-                    </div>
-                    <span>
-                      <button
-                        className="btn btn-sm btn-outline-primary me-2"
-                        onClick={() => startEdit(c)}
-                      >
-                        Edit
-                      </button>
-                      <button
-                        className="btn btn-sm btn-outline-danger"
-                        onClick={() => handleDelete(c)}
-                      >
-                        Delete
-                      </button>
-                    </span>
-                  </li>
-                ))}
-                {categories.length === 0 && <li className="list-group-item text-muted">No categories</li>}
-              </ul>
-            </div>
-          </div>
-        </div>
-      </div>
-      </div>
+      )}
+
+      {/* Backdrops */}
+      {(showAddModal || showEditModal) && <div className="modal-backdrop fade show" />}
+
       {confirmDialog}
     </>
   );

@@ -459,8 +459,8 @@ export default function LeavesPage() {
               </nav>
             </div>
             <div className="d-flex align-items-center gap-2">
-              <button type="button" className="btn btn-primary d-flex align-items-center gap-2" style={{ borderRadius: 8 }} onClick={openAdd}>
-                <i className="ti ti-circle-plus"></i>Add Leave
+              <button type="button" className="btn btn-primary create-lead-btn d-flex align-items-center gap-2" style={{ backgroundColor: "#3b82f6", borderColor: "#3b82f6", fontWeight: "600", padding: "10px 20px", borderRadius: "10px" }} onClick={openAdd}>
+                <i className="ti ti-plus" style={{ fontSize: "1.1rem" }}></i>Add Leave
               </button>
             </div>
           </div>

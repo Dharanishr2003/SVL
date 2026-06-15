@@ -1,1 +1,0 @@
-import{j as a}from"./index-BISnimv6.js";function r(){return a.jsx("div",{className:"card",children:a.jsxs("div",{className:"card-body",children:[a.jsx("h4",{className:"mb-2",children:"Ui Sortable"}),a.jsx("p",{className:"mb-0",children:"Layout working confirmation."})]})})}export{r as default};

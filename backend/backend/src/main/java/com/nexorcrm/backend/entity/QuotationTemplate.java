@@ -56,6 +56,12 @@ public class QuotationTemplate {
     @Column(name = "watermark_base64", columnDefinition = "TEXT")
     private String watermarkBase64;
 
+    @Column(name = "top_image_base64", columnDefinition = "TEXT")
+    private String topImageBase64;
+
+    @Column(name = "bottom_image_base64", columnDefinition = "TEXT")
+    private String bottomImageBase64;
+
     @Column(name = "bank_name", length = 200)
     private String bankName;
 
@@ -145,6 +151,12 @@ public class QuotationTemplate {
 
     public String getWatermarkBase64() { return watermarkBase64; }
     public void setWatermarkBase64(String watermarkBase64) { this.watermarkBase64 = watermarkBase64; }
+
+    public String getTopImageBase64() { return topImageBase64; }
+    public void setTopImageBase64(String topImageBase64) { this.topImageBase64 = topImageBase64; }
+
+    public String getBottomImageBase64() { return bottomImageBase64; }
+    public void setBottomImageBase64(String bottomImageBase64) { this.bottomImageBase64 = bottomImageBase64; }
 
     public String getBankName() { return bankName; }
     public void setBankName(String bankName) { this.bankName = bankName; }

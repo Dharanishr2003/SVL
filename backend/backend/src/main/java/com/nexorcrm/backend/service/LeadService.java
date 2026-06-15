@@ -558,6 +558,7 @@ public class LeadService {
         row.setLeadState(normalizeNullable(request.getLeadState()));
         row.setLeadCity(normalizeNullable(request.getLeadCity()));
         row.setLeadPincode(normalizeNullable(request.getLeadPincode()));
+        row.setStreetAddress(normalizeNullable(request.getStreetAddress()));
         row.setStatus("New Lead");
         row.setSvStatus(null);
         row.setAssignedGroupId(selectedGroup.getId());

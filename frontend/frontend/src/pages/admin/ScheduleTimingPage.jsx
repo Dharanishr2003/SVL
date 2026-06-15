@@ -384,10 +384,7 @@ const ScheduleTimingPage = () => {
                             <input type="number" className="form-control" value={shiftForm.lateCheckinBufferMinutes} onChange={e => setShiftForm(p => ({ ...p, lateCheckinBufferMinutes: parseInt(e.target.value, 10) || 0 }))} />
                           </div>
                         </div>
-                        <div className="form-check mb-3">
-                          <input className="form-check-input" type="checkbox" id="nightShift" checked={shiftForm.isNightShift} onChange={e => setShiftForm(p => ({ ...p, isNightShift: e.target.checked }))} />
-                          <label className="form-check-label text-slate-800 fw-semibold" htmlFor="nightShift">Night Shift</label>
-                        </div>
+
                         <div className="d-flex gap-2">
                           <button type="submit" className="btn btn-primary">{editingShiftId ? 'Update' : 'Create'}</button>
                           {editingShiftId && (

@@ -834,10 +834,18 @@ function UseradminPage() {
             <button
               type="button"
               className="btn btn-primary d-flex align-items-center gap-2"
-              style={{ borderRadius: 8 }}
+              style={{
+                backgroundColor: "#3b82f6",
+                borderColor: "#3b82f6",
+                fontWeight: "600",
+                padding: "10px 20px",
+                borderRadius: "10px",
+                fontSize: "0.9rem"
+              }}
               onClick={openCreate}
             >
-              <i className="ti ti-circle-plus"></i>Add User
+              <i className="ti ti-plus" style={{ fontSize: "1.1rem" }} />
+              Add User
             </button>
           </div>
         </div>

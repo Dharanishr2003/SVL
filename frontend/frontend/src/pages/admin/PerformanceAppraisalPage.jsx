@@ -588,26 +588,24 @@ export default function PerformanceAppraisalPage() {
                             <span className="badge bg-success">Active</span>
                           )}
                         </td>
-                        <td>
-                          <button
-                            className="btn btn-kebab-actions d-flex align-items-center justify-content-center"
-                            style={{ width: 32, height: 32, borderRadius: "50%", border: "none", backgroundColor: "transparent", color: "#64748b" }}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (activeActionsRow?.id === row.id) {
-                                setActiveActionsRow(null);
-                              } else {
-                                const rect = e.currentTarget.getBoundingClientRect();
-                                setActionsMenuPos({
-                                  top: rect.top + window.scrollY,
-                                  left: rect.right + window.scrollX,
-                                });
-                                setActiveActionsRow(row);
-                              }
-                            }}
-                          >
-                            <i className="ti ti-dots-vertical" style={{ fontSize: "1.15rem" }} />
-                          </button>
+                        <td className="text-end">
+                          <div className="dropdown">
+                            <button className="btn btn-light btn-sm btn-icon" data-bs-toggle="dropdown" aria-expanded="false">
+                              <i className="ti ti-dots-vertical" />
+                            </button>
+                            <ul className="dropdown-menu dropdown-menu-end shadow border-0">
+                              <li>
+                                <button className="dropdown-item" onClick={() => openEdit(row)}>
+                                  Edit
+                                </button>
+                              </li>
+                              <li>
+                                <button className="dropdown-item text-danger" onClick={() => confirmDelete(row)}>
+                                  Delete
+                                </button>
+                              </li>
+                            </ul>
+                          </div>
                         </td>
                       </tr>
                     ))
@@ -848,46 +846,7 @@ export default function PerformanceAppraisalPage() {
         </div>
       )}
 
-      {/* Floating Kebab Actions Portal */}
-      {activeActionsRow && createPortal(
-        <div
-          className="floating-actions-menu shadow-lg border"
-          style={{
-            position: "absolute",
-            top: actionsMenuPos.top,
-            left: actionsMenuPos.left,
-            transform: "translate(-100%, -100%) translateY(-5px)",
-            zIndex: 9999,
-            background: "#fff",
-            borderRadius: 8,
-            padding: "6px 0",
-            minWidth: 150
-          }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <button
-            className="dropdown-item py-2 px-3 text-start d-flex align-items-center gap-2"
-            style={{ fontSize: "0.85rem" }}
-            onClick={() => {
-              openEdit(activeActionsRow);
-              setActiveActionsRow(null);
-            }}
-          >
-            <i className="ti ti-edit" style={{ fontSize: "1rem", color: "#64748b" }} /> Edit Appraisal
-          </button>
-          <button
-            className="dropdown-item py-2 px-3 text-start d-flex align-items-center gap-2 text-danger"
-            style={{ fontSize: "0.85rem" }}
-            onClick={() => {
-              confirmDelete(activeActionsRow);
-              setActiveActionsRow(null);
-            }}
-          >
-            <i className="ti ti-trash" style={{ fontSize: "1rem", color: "#ef4444" }} /> Delete Appraisal
-          </button>
-        </div>,
-        document.body
-      )}
+
 
       {/* Floating Bulk Operations Bar */}
       {selectedIds.size > 0 && (

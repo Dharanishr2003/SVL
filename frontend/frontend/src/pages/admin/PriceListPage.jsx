@@ -1410,77 +1410,103 @@ export default function PriceListPage() {
 
   return (
     <div className="products-shell">
-      <PageHeader
-        title="Price List"
-        breadcrumb={[
-          { label: "Dashboard", path: "/admin-dashboard" },
-          { label: "Services", path: "" },
-          { label: "Price List", path: "" },
-        ]}
-      />
-
-      <div className="leads-page-body">
-        {/* Toolbar */}
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: "0.5rem", marginBottom: "1rem" }}>
-          <button
-            className="btn btn-outline-info leads-toolbar-btn"
-            onClick={() => navigate("/services/price-list/import")}
-          >
-            <i className="ti ti-upload me-1" />
-            Import Price List
-          </button>
-          <button
-            className="btn btn-success leads-toolbar-btn leads-primary-action"
-            onClick={() => {
-              setAddForm(emptyForm());
-              setAddStep(0);
-              setAddError("");
-              setShowAdd(true);
-            }}
-          >
-            <i className="ti ti-plus me-1" />
-            Add Price
-          </button>
-        </div>
-
-        {/* Search */}
-        <div className="leads-search-row">
-          <div className="leads-search-box">
-            <label className="mb-0 leads-search-label">Search</label>
-            <input
-              className="form-control leads-search-input"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search product or variant..."
-            />
+      {/* Custom Header Card */}
+      <div className="card border-0 shadow-sm p-4 mb-4 bg-white" style={{ borderRadius: 12 }}>
+        <div className="d-flex align-items-center justify-content-between flex-wrap gap-3">
+          <div>
+            <h2 className="mb-1" style={{ fontSize: "1.4rem", fontWeight: "700", color: "#0f172a" }}>Price List</h2>
+            <nav aria-label="breadcrumb">
+              <ol className="breadcrumb mb-0" style={{ fontSize: "0.85rem" }}>
+                <li className="breadcrumb-item">
+                  <a href="/admin-dashboard" className="text-decoration-none text-muted">
+                    <i className="ti ti-smart-home" />
+                  </a>
+                </li>
+                <li className="breadcrumb-item text-muted">Services</li>
+                <li className="breadcrumb-item active text-primary" aria-current="page">Price List</li>
+              </ol>
+            </nav>
+          </div>
+          <div className="d-flex align-items-center gap-2">
+            <button
+              className="btn btn-outline-info d-flex align-items-center gap-2"
+              style={{
+                fontWeight: "600",
+                padding: "10px 20px",
+                borderRadius: "10px",
+                fontSize: "0.9rem",
+                height: 42
+              }}
+              onClick={() => navigate("/services/price-list/import")}
+            >
+              <i className="ti ti-upload" style={{ fontSize: "1.1rem" }} />
+              Import Price List
+            </button>
+            <button
+              className="btn btn-primary d-flex align-items-center gap-2"
+              style={{
+                backgroundColor: "#3b82f6",
+                borderColor: "#3b82f6",
+                fontWeight: "600",
+                padding: "10px 20px",
+                borderRadius: "10px",
+                fontSize: "0.9rem",
+                height: 42
+              }}
+              onClick={() => {
+                setAddForm(emptyForm());
+                setAddStep(0);
+                setAddError("");
+                setShowAdd(true);
+              }}
+            >
+              <i className="ti ti-plus" style={{ fontSize: "1.1rem" }} />
+              Add Price
+            </button>
           </div>
         </div>
+      </div>
 
-        {/* Category tabs */}
-        {categories.length > 0 && (
-          <div style={{ marginBottom: "1.5rem", borderBottom: "1px solid #e6edf5" }}>
-            <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+      <div className="leads-page-body">
+        {/* Category tabs & Search option */}
+        <div className="d-flex align-items-center justify-content-between flex-wrap gap-3 mb-4" style={{ borderBottom: "1px solid #e6edf5" }}>
+          {categories.length > 0 ? (
+            <div className="d-flex gap-1" style={{ marginBottom: "-1px" }}>
               {categories.map((cat) => (
                 <button
                   key={cat.id}
                   onClick={() => { setSelectedCategoryId(cat.id); setSelectedTypeId(null); setSelectedSubtypeId(null); setPage(1); }}
                   style={{
-                    padding: "0.75rem 1rem",
-                    backgroundColor: selectedCategoryId === cat.id ? "#45597a" : "transparent",
-                    color: selectedCategoryId === cat.id ? "#fff" : "#666",
+                    padding: "0.75rem 1.25rem",
+                    backgroundColor: selectedCategoryId === cat.id ? "#3b82f6" : "transparent",
+                    color: selectedCategoryId === cat.id ? "#fff" : "#64748b",
                     border: "none",
-                    borderBottom: selectedCategoryId === cat.id ? "3px solid #45597a" : "3px solid transparent",
+                    borderBottom: selectedCategoryId === cat.id ? "3px solid #3b82f6" : "3px solid transparent",
                     cursor: "pointer",
-                    fontWeight: selectedCategoryId === cat.id ? "600" : "400",
+                    fontWeight: selectedCategoryId === cat.id ? "600" : "500",
                     transition: "all 0.2s",
+                    borderRadius: "8px 8px 0 0",
+                    fontSize: "0.95rem"
                   }}
                 >
                   {cat.name}
                 </button>
               ))}
             </div>
+          ) : <div />}
+
+          <div className="d-flex align-items-center gap-2 mb-2 p-1 border" style={{ borderRadius: 12, backgroundColor: "#f8fafc", width: "100%", maxWidth: 300 }}>
+            <i className="ti ti-search text-muted ms-2" style={{ fontSize: "1.1rem" }} />
+            <input
+              type="text"
+              className="form-control border-0 bg-transparent shadow-none"
+              placeholder="Search product or variant..."
+              style={{ height: 36, fontSize: "0.9rem" }}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
           </div>
-        )}
+        </div>
 
         {/* Breadcrumb nav */}
         {selectedTypeId && (

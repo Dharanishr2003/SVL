@@ -5,53 +5,45 @@ const PayslipPage = () => {
   return (
     <>
       <div className="content">
-        {/* Breadcrumb */}
-        <div className="d-md-flex d-block align-items-center justify-content-between page-breadcrumb mb-3">
-          <div className="my-auto mb-2">
-            <h2 className="mb-1">Payslip</h2>
-            <nav>
-              <ol className="breadcrumb mb-0">
-                <li className="breadcrumb-item">
-                  <Link to="/dashboard">
-                    <i className="ti ti-smart-home"></i>
-                  </Link>
-                </li>
-                <li className="breadcrumb-item">HR</li>
-                <li className="breadcrumb-item active" aria-current="page">
-                  Payslip
-                </li>
-              </ol>
-            </nav>
-          </div>
-          <div className="d-flex my-xl-auto right-content align-items-center flex-wrap ">
-            <div className="mb-2">
-              <Link to="#" className="btn btn-dark d-flex align-items-center">
-                <i className="ti ti-download me-2"></i>Download
-              </Link>
+        {/* Custom White Header Card */}
+        <div className="card border-0 shadow-sm p-4 mb-4 bg-white" style={{ borderRadius: 12 }}>
+          <div className="d-flex align-items-center justify-content-between flex-wrap gap-3">
+            <div>
+              <h2 className="mb-1" style={{ fontSize: "1.4rem", fontWeight: "700", color: "#0f172a" }}>Payslip</h2>
+              <nav className="mb-0">
+                <ol className="breadcrumb mb-0" style={{ fontSize: "0.9rem" }}>
+                  <li className="breadcrumb-item">
+                    <Link to="/dashboard" style={{ color: "#64748b", textDecoration: "none" }}>
+                      <i className="ti ti-smart-home"></i>
+                    </Link>
+                  </li>
+                  <li className="breadcrumb-item" style={{ color: "#64748b" }}>HR</li>
+                  <li className="breadcrumb-item active" style={{ color: "#0f172a", fontWeight: "500" }}>Payslip</li>
+                </ol>
+              </nav>
             </div>
-            <div className="head-icons ms-2">
-              <Link
-                to="#"
-                className=""
-                data-bs-toggle="tooltip"
-                data-bs-placement="top"
-                data-bs-original-title="Collapse"
-                id="collapse-header"
+            
+            <div className="d-flex align-items-center gap-2">
+              <button
+                type="button"
+                className="btn btn-primary d-flex align-items-center gap-2"
+                onClick={() => window.print()}
+                style={{ backgroundColor: "#3b82f6", borderColor: "#3b82f6", fontWeight: "600", padding: "10px 20px", borderRadius: "10px" }}
               >
-                <i className="ti ti-chevrons-up"></i>
-              </Link>
+                <i className="ti ti-download" style={{ fontSize: "1.1rem" }}></i>
+                Download
+              </button>
             </div>
           </div>
         </div>
-        {/* /Breadcrumb */}
 
         {/* Invoices */}
         <div>
           <div className="row">
             <div className="col-sm-12">
-              <div className="card">
-                <div className="card-body">
-                  <div className="row justify-content-between align-items-center border-bottom mb-3">
+              <div className="card border-0 shadow-sm" style={{ borderRadius: 12 }}>
+                <div className="card-body p-4">
+                  <div className="row justify-content-between align-items-center border-bottom pb-3 mb-3">
                     <div className="col-md-6">
                       <div className="mb-3">
                         <div className="mb-2">
@@ -61,166 +53,154 @@ const PayslipPage = () => {
                             alt="logo"
                           />
                         </div>
-                        <p>3099 Kennedy Court Framingham, MA 01702</p>
+                        <p className="text-muted mb-0">3099 Kennedy Court Framingham, MA 01702</p>
                       </div>
                     </div>
                     <div className="col-md-6">
-                      <div className=" text-end mb-3">
+                      <div className="text-md-end mb-3">
                         <h5 className="text-gray mb-1">
                           Payslip No{" "}
-                          <span className="text-primary"> #PS4283</span>
+                          <span className="text-primary fw-bold"> #PS4283</span>
                         </h5>
-                        <p className="fw-medium">
+                        <p className="fw-medium text-muted">
                           Salary Month :{" "}
-                          <span className="text-dark">October 2024</span>{" "}
+                          <span className="text-dark fw-semibold">October 2024</span>{" "}
                         </p>
                       </div>
                     </div>
                   </div>
-                  <div className="row border-bottom align-items-center mb-3">
-                    <div className="col-md-5">
+                  <div className="row border-bottom pb-3 mb-3">
+                    <div className="col-md-6">
                       <div className="mb-3">
                         <p className="text-dark mb-2 fw-semibold">From</p>
                         <div>
-                          <h4 className="mb-1">XYZ Technologies</h4>
-                          <p className="mb-1">
+                          <h4 className="mb-1fw-bold text-dark">XYZ Technologies</h4>
+                          <p className="mb-1 text-muted">
                             2077 Chicago Avenue Orosi, CA 93647
                           </p>
-                          <p className="mb-1">
+                          <p className="mb-1 text-muted">
                             Email :{" "}
-                            <span className="text-dark">
-                              <Link
-                                to="cdn-cgi/l/email-protection"
-                                className="__cf_email__"
-                                data-cfemail="95edecefe1f0f6fdd5f0edf4f8e5f9f0bbf6faf8"
-                              >
-                                [email&#160;protected]
-                              </Link>
+                            <span className="text-dark fw-medium">
+                              xyz@example.com
                             </span>
                           </p>
-                          <p>
+                          <p className="text-muted mb-0">
                             Phone :{" "}
-                            <span className="text-dark">+1 987 654 3210</span>
+                            <span className="text-dark fw-medium">+1 987 654 3210</span>
                           </p>
                         </div>
                       </div>
                     </div>
-                    <div className="col-md-5">
+                    <div className="col-md-6">
                       <div className="mb-3">
                         <p className="text-dark mb-2 fw-semibold">To</p>
                         <div>
-                          <h4 className="mb-1">Anthony Lewis</h4>
-                          <p className="mb-1">Web Designer</p>
-                          <p className="mb-1">
+                          <h4 className="mb-1 fw-bold text-dark">Anthony Lewis</h4>
+                          <p className="mb-1 text-muted">Web Designer</p>
+                          <p className="mb-1 text-muted">
                             Email :{" "}
-                            <span className="text-dark">
-                              <Link
-                                to="cdn-cgi/l/email-protection"
-                                className="__cf_email__"
-                                data-cfemail="73121d071b1c1d0a33160b121e031f165d101c1e"
-                              >
-                                [email&#160;protected]
-                              </Link>
+                            <span className="text-dark fw-medium">
+                              anthony@example.com
                             </span>
                           </p>
-                          <p>
+                          <p className="text-muted mb-0">
                             Phone :{" "}
-                            <span className="text-dark">+1 458 268 4738</span>
+                            <span className="text-dark fw-medium">+1 458 268 4738</span>
                           </p>
                         </div>
                       </div>
                     </div>
                   </div>
                   <div>
-                    <h5 className="text-center mb-4">
-                      Payslip for the moth of October 2024
+                    <h5 className="text-center mb-4 fw-bold text-dark">
+                      Payslip for the month of October 2024
                     </h5>
                     <div className="row">
                       <div className="col-md-6">
-                        <div className="list-group mb-3">
-                          <div className="list-group-item bg-light p-3 border-bottom-0">
-                            <h6>Earnings</h6>
+                        <div className="list-group mb-3 shadow-sm" style={{ borderRadius: 8, overflow: "hidden" }}>
+                          <div className="list-group-item bg-light p-3 border-0">
+                            <h6 className="mb-0 fw-bold text-dark">Earnings</h6>
                           </div>
-                          <div className="list-group-item">
+                          <div className="list-group-item border-start-0 border-end-0">
                             <div className="d-flex align-items-center justify-content-between">
-                              <p className="mb-0">Basic Salary</p>
-                              <h6 className="fw-medium">$3000</h6>
+                              <p className="mb-0 text-muted">Basic Salary</p>
+                              <h6 className="fw-semibold text-dark mb-0">$3000</h6>
                             </div>
                           </div>
-                          <div className="list-group-item">
+                          <div className="list-group-item border-start-0 border-end-0">
                             <div className="d-flex align-items-center justify-content-between">
-                              <p className="mb-0">
+                              <p className="mb-0 text-muted">
                                 House Rent Allowance (H.R.A.)
                               </p>
-                              <h6 className="fw-medium">$1000</h6>
+                              <h6 className="fw-semibold text-dark mb-0">$1000</h6>
                             </div>
                           </div>
-                          <div className="list-group-item">
+                          <div className="list-group-item border-start-0 border-end-0">
                             <div className="d-flex align-items-center justify-content-between">
-                              <p className="mb-0">Conveyance</p>
-                              <h6 className="fw-medium">$200</h6>
+                              <p className="mb-0 text-muted">Conveyance</p>
+                              <h6 className="fw-semibold text-dark mb-0">$200</h6>
                             </div>
                           </div>
-                          <div className="list-group-item">
+                          <div className="list-group-item border-start-0 border-end-0">
                             <div className="d-flex align-items-center justify-content-between">
-                              <p className="mb-0">Other Allowance</p>
-                              <h6 className="fw-medium">$100</h6>
+                              <p className="mb-0 text-muted">Other Allowance</p>
+                              <h6 className="fw-semibold text-dark mb-0">$100</h6>
                             </div>
                           </div>
-                          <div className="list-group-item">
+                          <div className="list-group-item border-start-0 border-end-0 bg-light-blue" style={{ backgroundColor: "#f0f7ff" }}>
                             <div className="d-flex align-items-center justify-content-between">
-                              <p className="mb-0">Total Earnings</p>
-                              <h6 className="fw-medium">$4300</h6>
+                              <p className="mb-0 fw-bold text-primary">Total Earnings</p>
+                              <h6 className="fw-bold text-primary mb-0">$4300</h6>
                             </div>
                           </div>
                         </div>
                       </div>
                       <div className="col-md-6">
-                        <div className="list-group mb-3">
-                          <div className="list-group-item bg-light p-3 border-bottom-0">
-                            <h6>Deductions</h6>
+                        <div className="list-group mb-3 shadow-sm" style={{ borderRadius: 8, overflow: "hidden" }}>
+                          <div className="list-group-item bg-light p-3 border-0">
+                            <h6 className="mb-0 fw-bold text-dark">Deductions</h6>
                           </div>
-                          <div className="list-group-item">
+                          <div className="list-group-item border-start-0 border-end-0">
                             <div className="d-flex align-items-center justify-content-between">
-                              <p className="mb-0">
+                              <p className="mb-0 text-muted">
                                 Tax Deducted at Source (T.D.S.)
                               </p>
-                              <h6 className="fw-medium">$200</h6>
+                              <h6 className="fw-semibold text-dark mb-0">$200</h6>
                             </div>
                           </div>
-                          <div className="list-group-item">
+                          <div className="list-group-item border-start-0 border-end-0">
                             <div className="d-flex align-items-center justify-content-between">
-                              <p className="mb-0">Provident Fund</p>
-                              <h6 className="fw-medium">$300</h6>
+                              <p className="mb-0 text-muted">Provident Fund</p>
+                              <h6 className="fw-semibold text-dark mb-0">$300</h6>
                             </div>
                           </div>
-                          <div className="list-group-item">
+                          <div className="list-group-item border-start-0 border-end-0">
                             <div className="d-flex align-items-center justify-content-between">
-                              <p className="mb-0">ESI</p>
-                              <h6 className="fw-medium">$150</h6>
+                              <p className="mb-0 text-muted">ESI</p>
+                              <h6 className="fw-semibold text-dark mb-0">$150</h6>
                             </div>
                           </div>
-                          <div className="list-group-item">
+                          <div className="list-group-item border-start-0 border-end-0">
                             <div className="d-flex align-items-center justify-content-between">
-                              <p className="mb-0">Loan</p>
-                              <h6 className="fw-medium">$50</h6>
+                              <p className="mb-0 text-muted">Loan</p>
+                              <h6 className="fw-semibold text-dark mb-0">$50</h6>
                             </div>
                           </div>
-                          <div className="list-group-item">
+                          <div className="list-group-item border-start-0 border-end-0 bg-light-red" style={{ backgroundColor: "#fff5f5" }}>
                             <div className="d-flex align-items-center justify-content-between">
-                              <p className="mb-0">Total Earnings</p>
-                              <h6 className="fw-medium">$700</h6>
+                              <p className="mb-0 fw-bold text-danger">Total Deductions</p>
+                              <h6 className="fw-bold text-danger mb-0">$700</h6>
                             </div>
                           </div>
                         </div>
                       </div>
                     </div>
-                    <div>
-                      <p>
+                    <div className="mt-3 p-3 bg-light rounded-3 d-inline-block">
+                      <p className="mb-0 text-dark">
                         Net Salary :{" "}
-                        <span className="text-gray-9 fw-medium">
+                        <span className="fw-bold text-success" style={{ fontSize: "1.1rem" }}>
                           {" "}
-                          $3600(Three thousand six hundred only)
+                          $3600 (Three thousand six hundred only)
                         </span>
                       </p>
                     </div>
@@ -230,10 +210,7 @@ const PayslipPage = () => {
             </div>
           </div>
         </div>
-        {/* /Invoices */}
       </div>
-
-      {/* /Page Wrapper */}
     </>
   );
 };

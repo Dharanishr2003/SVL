@@ -366,11 +366,11 @@ export default function LeaveSettingsPage() {
             <div className="d-flex align-items-center gap-2">
               <button
                 type="button"
-                className="btn btn-primary d-flex align-items-center gap-2"
-                style={{ borderRadius: 8 }}
+                className="btn btn-primary create-lead-btn d-flex align-items-center gap-2"
+                style={{ backgroundColor: "#3b82f6", borderColor: "#3b82f6", fontWeight: "600", padding: "10px 20px", borderRadius: "10px" }}
                 onClick={openAdd}
               >
-                <i className="ti ti-circle-plus"></i>Add Policy
+                <i className="ti ti-plus" style={{ fontSize: "1.1rem" }}></i>Add Policy
               </button>
             </div>
           </div>

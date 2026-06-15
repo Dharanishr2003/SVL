@@ -53,6 +53,9 @@ public class LeadCreateRequest {
     @Size(max = 20, message = "Lead Pincode must be at most 20 characters")
     private String leadPincode;
 
+    @Size(max = 500, message = "Street Address must be at most 500 characters")
+    private String streetAddress;
+
     private Long leadGroupId;
 
     private Long assignedUserId;
@@ -183,6 +186,14 @@ public class LeadCreateRequest {
 
     public void setLeadGroupId(Long leadGroupId) {
         this.leadGroupId = leadGroupId;
+    }
+
+    public String getStreetAddress() {
+        return streetAddress;
+    }
+
+    public void setStreetAddress(String streetAddress) {
+        this.streetAddress = streetAddress;
     }
 
     public Long getAssignedUserId() { return assignedUserId; }

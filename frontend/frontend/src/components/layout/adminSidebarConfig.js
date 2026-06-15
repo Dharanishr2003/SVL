@@ -419,16 +419,16 @@ export const adminSidebarSections = [
       },
     ],
   },
-  {
-    key: "super-admin",
-    title: "Super Admin",
-    rolesAny: ["SUPER_ADMIN"],
-    items: [
-      { label: "Companies", href: "/companies", icon: "ti ti-building-community" },
-      { label: "Subscriptions", href: "/subscription", icon: "ti ti-credit-card" },
-      { label: "Packages", href: "/packages", icon: "ti ti-package-import" },
-      { label: "Domain", href: "/domain", icon: "ti ti-world" },
-      { label: "Purchase Transactions", href: "/purchase-transaction", icon: "ti ti-shopping-cart" },
-    ],
-  },
+  // {
+  //   key: "super-admin",
+  //   title: "Super Admin",
+  //   rolesAny: ["SUPER_ADMIN"],
+  //   items: [
+  //     { label: "Companies", href: "/companies", icon: "ti ti-building-community" },
+  //     { label: "Subscriptions", href: "/subscription", icon: "ti ti-credit-card" },
+  //     { label: "Packages", href: "/packages", icon: "ti ti-package-import" },
+  //     { label: "Domain", href: "/domain", icon: "ti ti-world" },
+  //     { label: "Purchase Transactions", href: "/purchase-transaction", icon: "ti ti-shopping-cart" },
+  //   ],
+  // },
 ];

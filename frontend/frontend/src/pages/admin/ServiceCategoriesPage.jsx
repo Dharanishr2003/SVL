@@ -147,6 +147,23 @@ export default function ServiceCategoriesPage() {
               </ol>
             </nav>
           </div>
+          <div className="d-flex align-items-center gap-2">
+            <button
+              className="btn btn-primary d-flex align-items-center gap-2"
+              style={{
+                backgroundColor: "#3b82f6",
+                borderColor: "#3b82f6",
+                fontWeight: "600",
+                padding: "10px 20px",
+                borderRadius: "10px",
+                fontSize: "0.9rem"
+              }}
+              onClick={handleOpenCreate}
+            >
+              <i className="ti ti-plus" style={{ fontSize: "1.1rem" }} />
+              Add Category
+            </button>
+          </div>
         </div>
       </div>
 
@@ -165,16 +182,6 @@ export default function ServiceCategoriesPage() {
                 value={searchText}
                 onChange={(e) => setSearchText(e.target.value)}
               />
-            </div>
-            <div className="d-flex gap-2">
-              <button
-                className="btn btn-outline-primary d-flex align-items-center gap-2"
-                style={{ height: 42, padding: "0 18px", borderRadius: 10, fontWeight: "500", fontSize: "0.9rem" }}
-                onClick={handleOpenCreate}
-              >
-                <i className="ti ti-circle-plus" />
-                Add Category
-              </button>
             </div>
           </div>
 
