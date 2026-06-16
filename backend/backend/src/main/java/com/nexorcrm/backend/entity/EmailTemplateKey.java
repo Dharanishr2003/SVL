@@ -4,7 +4,11 @@ import java.util.Locale;
 
 public enum EmailTemplateKey {
     OFFER_LETTER_TEMPLATE("Offer Letter Template"),
-    PROFILE_COMPLETION_TEMPLATE("Profile Completion Template");
+    PROFILE_COMPLETION_TEMPLATE("Profile Completion Template"),
+    LEAD_ASSIGNED_EMPLOYEE_TEMPLATE("New Lead Assigned (To Employee)"),
+    LEAD_ASSIGNED_CUSTOMER_TEMPLATE("Lead Assigned to Customer Template"),
+    LEAD_STATUS_UPDATED_TEMPLATE("Lead Status Updated Template"),
+    LEAD_CREATED_SELF_TEMPLATE("New Lead Created by Employee (To Reporting Person)");
 
     private final String label;
 

@@ -91,6 +91,9 @@ public class Lead {
     @Column(name = "street_address", length = 500)
     private String streetAddress;
 
+    @Column(name = "gstin", length = 50)
+    private String gstin;
+
     @Column(name = "project_id")
     private Long projectId;
 
@@ -485,4 +488,6 @@ public class Lead {
     public void setDeleted(boolean deleted) { this.deleted = deleted; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }
+    public String getGstin() { return gstin; }
+    public void setGstin(String gstin) { this.gstin = gstin; }
 }

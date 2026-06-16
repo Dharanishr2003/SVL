@@ -183,6 +183,7 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
   const [leadState, setLeadState] = useState("");
   const [leadCity, setLeadCity] = useState("");
   const [leadPincode, setLeadPincode] = useState("");
+  const [leadGstin, setLeadGstin] = useState("");
   const [statusValue, setStatusValue] = useState("");
   const [flowRules, setFlowRules] = useState([]);
   const [attemptedOpenReason, setAttemptedOpenReason] = useState("");
@@ -434,6 +435,7 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
         );
         setLeadCity(pickText(leadData, ["leadCity", "city"]) || "");
         setLeadPincode(pickText(leadData, ["leadPincode", "lead_pincode", "pincode", "pinCode"]) || "");
+        setLeadGstin(pickText(leadData, ["gstin"]) || "");
         setStreetAddress(
           pickText(leadData, ["streetAddress", "street_address", "addressLine1", "address_line1"]) ||
             "",
@@ -1997,6 +1999,7 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
         leadCity: leadCity || null,
         leadPincode: leadPincode || null,
         streetAddress: streetAddress || null,
+        gstin: leadGstin || null,
         attemptedOpenReason: isAttempted ? attemptedOpenReason || null : null,
         attemptedCallStatus: null,
         attemptedCallRemarks: isAttempted ? attemptedCallRemarks || null : null,
@@ -2034,6 +2037,7 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
         leadCity: leadCity || null,
         leadPincode: leadPincode || null,
         streetAddress: streetAddress || null,
+        gstin: leadGstin || null,
         // Preserve the current status here; save details should not move the lead.
         // The dedicated status workflow handles status transitions.
         status: prev?.status ?? updated?.status ?? null,
@@ -2471,6 +2475,15 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
                                     className="form-control"
                                     value={companyName}
                                     onChange={(e) => setCompanyName(e.target.value)}
+                                    readOnly={isGeneralInfoReadOnly}
+                                  />
+                                </div>
+                                <div>
+                                  <label className="form-label">GSTIN Number</label>
+                                  <input
+                                    className="form-control"
+                                    value={leadGstin}
+                                    onChange={(e) => setLeadGstin(e.target.value)}
                                     readOnly={isGeneralInfoReadOnly}
                                   />
                                 </div>

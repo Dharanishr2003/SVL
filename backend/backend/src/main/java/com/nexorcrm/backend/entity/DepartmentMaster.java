@@ -14,8 +14,13 @@ public class DepartmentMaster {
     @Column(nullable = false, length = 120)
     private String name;
 
-    @Column(name = "branch_id")
-    private Long branchId;
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+        name = "department_branches",
+        joinColumns = @JoinColumn(name = "department_id"),
+        inverseJoinColumns = @JoinColumn(name = "branch_id")
+    )
+    private java.util.Set<BranchMaster> branches = new java.util.HashSet<>();
 
     @Column(nullable = false, length = 20)
     private String status; // ACTIVE / INACTIVE
@@ -48,8 +53,8 @@ public class DepartmentMaster {
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
 
-    public Long getBranchId() { return branchId; }
-    public void setBranchId(Long branchId) { this.branchId = branchId; }
+    public java.util.Set<BranchMaster> getBranches() { return branches; }
+    public void setBranches(java.util.Set<BranchMaster> branches) { this.branches = branches; }
 
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }

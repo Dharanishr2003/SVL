@@ -2355,6 +2355,53 @@ table.dataTable.dtr-inline.collapsed
     }
 }
 
+/* ── Topbar (Header) styling: dark blue background ── */
+.header {
+  background: #0f172a !important;
+  border-bottom: 1px solid #1e293b !important;
+}
+
+.header .btn-menubar {
+  color: #94a3b8 !important;
+  background: transparent !important;
+}
+
+.header .btn-menubar:hover,
+.header .btn-menubar:active,
+.header .btn-menubar.active {
+  background-color: #1e293b !important;
+  color: #ffffff !important;
+}
+
+/* ── Sidebar hover: text-only highlight (no background fill) ── */
+.sidebar .sidebar-menu ul li a:hover,
+.sidebar .sidebar-menu > ul > li > a:hover,
+.sidebar .sidebar-menu > ul > li.submenu > a:hover,
+.sidebar .sidebar-menu > ul > li.leaf-active > a:hover,
+.sidebar .sidebar-menu > ul > li.submenu.parent-active > a:hover,
+.sidebar .sidebar-menu > ul > li.submenu ul li a:hover,
+.sidebar .sidebar-menu > ul li .submenu > ul li a:hover {
+  background: transparent !important;
+  color: #F26522 !important;
+}
+
+.sidebar .sidebar-menu ul li a:hover span,
+.sidebar .sidebar-menu ul li a:hover i,
+.sidebar .sidebar-menu > ul > li > a:hover span,
+.sidebar .sidebar-menu > ul > li > a:hover i,
+.sidebar .sidebar-menu > ul > li.submenu > a:hover span,
+.sidebar .sidebar-menu > ul > li.submenu > a:hover i,
+.sidebar .sidebar-menu > ul > li.leaf-active > a:hover span,
+.sidebar .sidebar-menu > ul > li.leaf-active > a:hover i,
+.sidebar .sidebar-menu > ul > li.submenu.parent-active > a:hover span,
+.sidebar .sidebar-menu > ul > li.submenu.parent-active > a:hover i,
+.sidebar .sidebar-menu > ul > li.submenu ul li a:hover span,
+.sidebar .sidebar-menu > ul > li.submenu ul li a:hover i,
+.sidebar .sidebar-menu > ul li .submenu > ul li a:hover span,
+.sidebar .sidebar-menu > ul li .submenu > ul li a:hover i {
+  color: #F26522 !important;
+}
+
 /* ===================================================================
    MOBILE STYLING (max-width: 991.98px)
    Does NOT affect webview/desktop layout
@@ -2702,27 +2749,7 @@ table.dataTable.dtr-inline.collapsed
     background: #ffffff !important;
     color: #111827 !important;
 }
-
-.sidebar .sidebar-menu > ul > li > a:hover,
-.sidebar .sidebar-menu > ul > li.submenu > a:hover,
-.sidebar .sidebar-menu > ul > li.leaf-active > a:hover,
-.sidebar .sidebar-menu > ul > li.submenu.parent-active > a:hover {
-  background: #e8e9ea !important;
-  color: #111827 !important;
-  border-radius: 5px;
 }
 
-.sidebar .sidebar-menu > ul > li > a:hover span,
-.sidebar .sidebar-menu > ul > li > a:hover i,
-.sidebar .sidebar-menu > ul > li.submenu > a:hover span,
-.sidebar .sidebar-menu > ul > li.submenu > a:hover i,
-.sidebar .sidebar-menu > ul > li.leaf-active > a:hover span,
-.sidebar .sidebar-menu > ul > li.leaf-active > a:hover i,
-.sidebar .sidebar-menu > ul > li.submenu.parent-active > a:hover span,
-.sidebar .sidebar-menu > ul > li.submenu.parent-active > a:hover i {
-  color: #111827 !important;
-}
-
-}
 
 

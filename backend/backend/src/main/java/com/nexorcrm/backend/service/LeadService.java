@@ -35,6 +35,8 @@ import com.nexorcrm.backend.entity.Role;
 import com.nexorcrm.backend.entity.User;
 import com.nexorcrm.backend.entity.UserGroup;
 import com.nexorcrm.backend.entity.UserGroupMember;
+import com.nexorcrm.backend.entity.EmailTemplate;
+import com.nexorcrm.backend.entity.EmailTemplateKey;
 import com.nexorcrm.backend.repo.BranchMasterRepository;
 import com.nexorcrm.backend.repo.DealRepository;
 import com.nexorcrm.backend.repo.DepartmentMasterRepository;
@@ -50,6 +52,7 @@ import com.nexorcrm.backend.repo.SecondarySourceRepository;
 import com.nexorcrm.backend.repo.UserGroupMemberRepository;
 import com.nexorcrm.backend.repo.UserGroupRepository;
 import com.nexorcrm.backend.repo.UserRepository;
+import com.nexorcrm.backend.repo.EmailTemplateRepository;
 import com.nexorcrm.backend.security.RolePermissionUtil;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.security.access.AccessDeniedException;
@@ -132,6 +135,8 @@ public class LeadService {
     private final ProductionRequirementService productionRequirementService;
     private final PrimarySourceRepository primarySourceRepository;
     private final SecondarySourceRepository secondarySourceRepository;
+    private final EmailNotificationService emailNotificationService;
+    private final EmailTemplateRepository emailTemplateRepository;
     private static final String DEFAULT_CUSTOMER_PASSWORD = "Customer@123";
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
     private static final Logger logger = LoggerFactory.getLogger(LeadService.class);
@@ -161,7 +166,9 @@ public class LeadService {
                        DesignRequirementService designRequirementService,
                        ProductionRequirementService productionRequirementService,
                        PrimarySourceRepository primarySourceRepository,
-                       SecondarySourceRepository secondarySourceRepository) {
+                       SecondarySourceRepository secondarySourceRepository,
+                       EmailNotificationService emailNotificationService,
+                       EmailTemplateRepository emailTemplateRepository) {
         this.leadRepository = leadRepository;
         this.leadLogRepository = leadLogRepository;
         this.dealRepository = dealRepository;
@@ -185,6 +192,8 @@ public class LeadService {
         this.productionRequirementService = productionRequirementService;
         this.primarySourceRepository = primarySourceRepository;
         this.secondarySourceRepository = secondarySourceRepository;
+        this.emailNotificationService = emailNotificationService;
+        this.emailTemplateRepository = emailTemplateRepository;
     }
 
     /**
@@ -559,6 +568,7 @@ public class LeadService {
         row.setLeadCity(normalizeNullable(request.getLeadCity()));
         row.setLeadPincode(normalizeNullable(request.getLeadPincode()));
         row.setStreetAddress(normalizeNullable(request.getStreetAddress()));
+        row.setGstin(normalizeNullable(request.getGstin()));
         row.setStatus("New Lead");
         row.setSvStatus(null);
         row.setAssignedGroupId(selectedGroup.getId());
@@ -575,6 +585,9 @@ public class LeadService {
         });
 
         Lead saved = leadRepository.save(row);
+        if (isHigherOfficial(actor.getRole()) && ownerUser.getRole() == Role.EMPLOYEE) {
+            sendLeadAssignmentEmails(saved, ownerUser, actor);
+        }
         auditService.log("LEAD_CREATE", "Created lead with status " + saved.getStatus(), actor.getEmail());
         createLeadLog(saved.getId(), "Call Log Created", actor);
 
@@ -629,6 +642,7 @@ public class LeadService {
             row.setPaymentOwnerId(null);
         }
         Lead saved = leadRepository.save(row);
+        sendLeadStatusUpdateEmail(saved);
         auditService.log("LEAD_STATUS_UPDATE", "Updated lead status", actor.getEmail());
         createLeadLog(saved.getId(), "Status changed to " + saved.getStatus(), actor);
 
@@ -939,7 +953,13 @@ public class LeadService {
 
         row.setOwnerUserId(ownerUser.getId());
         row.setOwner(ownerUser.getUsername());
+        if (isHigherOfficial(actor.getRole())) {
+            row.setAllocatorUserId(actor.getId());
+        }
         Lead saved = leadRepository.save(row);
+        if (isHigherOfficial(actor.getRole()) && ownerUser.getRole() == Role.EMPLOYEE) {
+            sendLeadAssignmentEmails(saved, ownerUser, actor);
+        }
         auditService.log("LEAD_ALLOCATOR_UPDATE", "Updated lead allocator", actor.getEmail());
         createLeadLog(saved.getId(), "Owner changed to " + ownerUser.getUsername(), actor);
 
@@ -1021,6 +1041,9 @@ public class LeadService {
         }
         if (request.getStreetAddress() != null) {
             row.setStreetAddress(normalizeNullable(request.getStreetAddress()));
+        }
+        if (request.getGstin() != null) {
+            row.setGstin(normalizeNullable(request.getGstin()));
         }
         validateSecondarySourceForPrimary(row.getPrimarySource(), row.getSecondarySource());
         if (request.getLeadType() != null) {
@@ -1684,6 +1707,7 @@ public class LeadService {
             lead.setRejectedReasonSubtype(null);
         }
         Lead saved = leadRepository.save(lead);
+        sendLeadStatusUpdateEmail(saved);
         auditService.log("LEAD_STATUS_UPDATE", "Customer updated lead status to " + status, actor.getEmail());
         createLeadLog(saved.getId(), "Status changed to " + saved.getStatus(), actor);
 
@@ -3173,6 +3197,7 @@ public class LeadService {
         res.setBudgetInvoiceSent(row.isBudgetInvoiceSent());
         res.setPaymentInvoiceSent(row.isPaymentInvoiceSent());
         res.setCreatedAt(row.getCreatedAt());
+        res.setGstin(row.getGstin());
         // payment details & invoice
         res.setPaymentNotes(row.getPaymentNotes());
         res.setRejectionNotes(row.getRejectionNotes());
@@ -3561,5 +3586,160 @@ public class LeadService {
                 .distinct()
                 .sorted(Comparator.comparing(String::toLowerCase))
                 .toList();
+    }
+
+    private boolean isHigherOfficial(Role role) {
+        return role == Role.SUPER_ADMIN || role == Role.ADMIN || role == Role.MANAGER || role == Role.TEAM_LEAD;
+    }
+
+    private void sendLeadAssignmentEmails(Lead lead, User employee, User actor) {
+        if (lead == null || employee == null || actor == null) {
+            return;
+        }
+
+        if (employee.getId().equals(actor.getId())) {
+            // Self-assignment: look up reporting officials
+            java.util.List<User> candidates = userRepository.findByRoleInAndActivationStatusAndIsDeletedFalseOrderByUsernameAsc(
+                java.util.List.of(Role.MANAGER, Role.TEAM_LEAD, Role.ADMIN, Role.SUPER_ADMIN),
+                ActivationStatus.ACTIVE
+            ).stream()
+            .filter(User::isActive)
+            .toList();
+
+            java.util.List<User> reportingPersons = candidates.stream()
+                .filter(u -> !u.getId().equals(employee.getId()))
+                .filter(u -> isSameTeamScope(employee, u) || isSameDepartmentScope(employee, u))
+                .toList();
+
+            if (reportingPersons.isEmpty()) {
+                // Fallback to global Admins and Super Admins
+                reportingPersons = candidates.stream()
+                    .filter(u -> !u.getId().equals(employee.getId()))
+                    .filter(u -> u.getRole() == Role.ADMIN || u.getRole() == Role.SUPER_ADMIN)
+                    .toList();
+            }
+
+            for (User official : reportingPersons) {
+                if (StringUtils.hasText(official.getEmail())) {
+                    emailTemplateRepository.findByTemplateKey(EmailTemplateKey.LEAD_CREATED_SELF_TEMPLATE.getKey()).ifPresent(template -> {
+                        if (!template.isActive()) {
+                            return;
+                        }
+                        java.util.Map<String, String> tokens = new java.util.HashMap<>();
+                        tokens.put("Reporting Person Name", official.getUsername());
+                        tokens.put("Employee Name", employee.getUsername());
+                        tokens.put("Lead ID", lead.getLeadId() == null ? "" : lead.getLeadId());
+                        tokens.put("Customer Name", lead.getName() == null ? "" : lead.getName());
+                        tokens.put("Company Name", lead.getCompanyName() == null ? "" : lead.getCompanyName());
+                        tokens.put("Phone Number", lead.getMobile() == null ? "" : lead.getMobile());
+                        tokens.put("Customer Email", lead.getEmail() == null ? "" : lead.getEmail());
+                        
+                        String reqType = lead.getRequirementType() == null ? "" : lead.getRequirementType();
+                        String reqNotes = lead.getRequirementNotes() == null ? "" : lead.getRequirementNotes();
+                        String req = reqType;
+                        if (org.springframework.util.StringUtils.hasText(reqNotes)) {
+                            req = org.springframework.util.StringUtils.hasText(req) ? req + " (" + reqNotes + ")" : reqNotes;
+                        }
+                        tokens.put("Requirement", req);
+                        tokens.put("Priority", "NORMAL");
+                        
+                        java.time.format.DateTimeFormatter dtf = java.time.format.DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm:ss");
+                        tokens.put("Created Date", lead.getCreatedAt() == null ? java.time.LocalDateTime.now().format(dtf) : lead.getCreatedAt().format(dtf));
+
+                        String subject = renderTemplate(template.getSubject(), tokens);
+                        String body = renderTemplate(template.getBody(), tokens);
+                        emailNotificationService.notifyNowIfEnabled(official.getEmail(), subject, body);
+                    });
+                }
+            }
+            return; // Exit early so standard creator/recipient flow is skipped
+        }
+
+        // Send email to Employee
+        if (StringUtils.hasText(employee.getEmail())) {
+            emailTemplateRepository.findByTemplateKey(EmailTemplateKey.LEAD_ASSIGNED_EMPLOYEE_TEMPLATE.getKey()).ifPresent(template -> {
+                if (!template.isActive()) {
+                    return;
+                }
+                java.util.Map<String, String> tokens = new java.util.HashMap<>();
+                tokens.put("employee_name", employee.getUsername());
+                tokens.put("lead_id", lead.getLeadId() == null ? "" : lead.getLeadId());
+                tokens.put("lead_name", lead.getName() == null ? "" : lead.getName());
+                tokens.put("actor_name", actor.getUsername());
+
+                tokens.put("Employee Name", employee.getUsername());
+                tokens.put("Lead Name", lead.getName() == null ? "" : lead.getName());
+                tokens.put("Lead ID", lead.getLeadId() == null ? "" : lead.getLeadId());
+                tokens.put("Customer Name", lead.getName() == null ? "" : lead.getName());
+                tokens.put("Company Name", lead.getCompanyName() == null ? "" : lead.getCompanyName());
+                tokens.put("Phone", lead.getMobile() == null ? "" : lead.getMobile());
+                tokens.put("Customer Email", lead.getEmail() == null ? "" : lead.getEmail());
+                
+                String reqType = lead.getRequirementType() == null ? "" : lead.getRequirementType();
+                String reqNotes = lead.getRequirementNotes() == null ? "" : lead.getRequirementNotes();
+                String req = reqType;
+                if (org.springframework.util.StringUtils.hasText(reqNotes)) {
+                    req = org.springframework.util.StringUtils.hasText(req) ? req + " (" + reqNotes + ")" : reqNotes;
+                }
+                tokens.put("Requirement", req);
+                tokens.put("Assigned By", actor.getUsername());
+                
+                java.time.format.DateTimeFormatter dtf = java.time.format.DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm:ss");
+                tokens.put("Assigned Date", java.time.LocalDateTime.now().format(dtf));
+                String subject = renderTemplate(template.getSubject(), tokens);
+                String body = renderTemplate(template.getBody(), tokens);
+                emailNotificationService.notifyNowIfEnabled(employee.getEmail(), subject, body);
+            });
+        }
+
+        // Send email to Lead
+        if (StringUtils.hasText(lead.getEmail())) {
+            emailTemplateRepository.findByTemplateKey(EmailTemplateKey.LEAD_ASSIGNED_CUSTOMER_TEMPLATE.getKey()).ifPresent(template -> {
+                if (!template.isActive()) {
+                    return;
+                }
+                Map<String, String> tokens = Map.of(
+                    "lead_name", lead.getName() == null ? "" : lead.getName(),
+                    "employee_name", employee.getUsername()
+                );
+                String subject = renderTemplate(template.getSubject(), tokens);
+                String body = renderTemplate(template.getBody(), tokens);
+                emailNotificationService.notifyNowIfEnabled(lead.getEmail(), subject, body);
+            });
+        }
+    }
+
+    private void sendLeadStatusUpdateEmail(Lead lead) {
+        if (lead == null || lead.getAllocatorUserId() == null) {
+            return;
+        }
+        userRepository.findByIdAndIsDeletedFalse(lead.getAllocatorUserId()).ifPresent(allocator -> {
+            if (StringUtils.hasText(allocator.getEmail())) {
+                emailTemplateRepository.findByTemplateKey(EmailTemplateKey.LEAD_STATUS_UPDATED_TEMPLATE.getKey()).ifPresent(template -> {
+                    if (!template.isActive()) {
+                        return;
+                    }
+                    Map<String, String> tokens = Map.of(
+                        "official_name", allocator.getUsername(),
+                        "lead_id", lead.getLeadId() == null ? "" : lead.getLeadId(),
+                        "lead_name", lead.getName() == null ? "" : lead.getName(),
+                        "status", lead.getStatus() == null ? "" : lead.getStatus()
+                    );
+                    String subject = renderTemplate(template.getSubject(), tokens);
+                    String body = renderTemplate(template.getBody(), tokens);
+                    emailNotificationService.notifyNowIfEnabled(allocator.getEmail(), subject, body);
+                });
+            }
+        });
+    }
+
+    private String renderTemplate(String template, Map<String, String> tokens) {
+        if (template == null) return "";
+        String result = template;
+        for (Map.Entry<String, String> entry : tokens.entrySet()) {
+            String val = entry.getValue() == null ? "" : entry.getValue();
+            result = result.replace("{{" + entry.getKey() + "}}", val);
+        }
+        return result;
     }
 }

@@ -1557,18 +1557,6 @@ ${rowsHtml}
                             </div>
                           </div>
                           <div className="d-flex align-items-center mb-3">
-                            <img
-                              src={
-                                emp._raw?.candidatePhotoPath
-                                  ? `http://localhost:8082/${emp._raw.candidatePhotoPath}`
-                                  : "assets/img/users/user-32.jpg"
-                              }
-                              alt={emp.name}
-                              className="rounded-circle me-2"
-                              width="42"
-                              height="42"
-                              onError={(e) => (e.target.src = "assets/img/users/user-32.jpg")}
-                            />
                             <div>
                               <h6 className="mb-0 fw-semibold" style={{ color: "#0f172a" }}>{emp.name || "-"}</h6>
                               <small className="text-muted">{emp.role}</small>
@@ -1695,18 +1683,6 @@ ${rowsHtml}
                           <td className="fw-semibold" style={{ color: "#1e293b", fontSize: "0.9rem" }}>{pageOffset + idx + 1}</td>
                           <td>
                             <div className="d-flex align-items-center">
-                              <img
-                                src={
-                                  emp._raw?.candidatePhotoPath
-                                    ? `http://localhost:8082/${emp._raw.candidatePhotoPath}`
-                                    : "assets/img/users/user-32.jpg"
-                                }
-                                alt={emp.name}
-                                className="rounded-circle me-2"
-                                width="34"
-                                height="34"
-                                onError={(e) => (e.target.src = "assets/img/users/user-32.jpg")}
-                              />
                               <span className="fw-semibold" style={{ color: "#0f172a", fontSize: "0.9rem" }}>{emp.name}</span>
                             </div>
                           </td>

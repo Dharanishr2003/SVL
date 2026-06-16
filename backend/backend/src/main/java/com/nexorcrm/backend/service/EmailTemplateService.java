@@ -86,6 +86,9 @@ public class EmailTemplateService {
         }
         template.setSubject(trimToNull(request == null ? null : request.getSubject()));
         template.setBody(trimToNull(request == null ? null : request.getBody()));
+        if (request != null && request.getActive() != null) {
+            template.setActive(request.getActive());
+        }
     }
 
     private EmailTemplate getOrCreateTemplate(String templateKey) {
@@ -163,6 +166,7 @@ public class EmailTemplateService {
         response.setSubject(template.getSubject());
         response.setBody(template.getBody());
         response.setBuiltIn(template.isBuiltIn());
+        response.setActive(template.isActive());
         response.setCreatedAt(template.getCreatedAt());
         response.setUpdatedAt(template.getUpdatedAt());
         return response;
@@ -172,6 +176,10 @@ public class EmailTemplateService {
         return switch (key) {
             case OFFER_LETTER_TEMPLATE -> "Offer Letter - {{employee_name}}";
             case PROFILE_COMPLETION_TEMPLATE -> "Complete Your Profile - {{employee_name}}";
+            case LEAD_ASSIGNED_EMPLOYEE_TEMPLATE -> "New Lead Assigned – {{Lead Name}}";
+            case LEAD_ASSIGNED_CUSTOMER_TEMPLATE -> "SVL ERP - Lead Representative Assigned";
+            case LEAD_STATUS_UPDATED_TEMPLATE -> "Lead Status Updated: {{lead_id}} - {{lead_name}}";
+            case LEAD_CREATED_SELF_TEMPLATE -> "New Lead Created by {{Employee Name}}";
         };
     }
 
@@ -179,6 +187,10 @@ public class EmailTemplateService {
         return switch (key) {
             case OFFER_LETTER_TEMPLATE -> "Dear {{employee_name}},\n\nWe are pleased to offer you the position of **{{designation}}** at **{{company_name}}**.\n\n### 1. Employment Details\n\n* **Employee ID**: [Auto-generated]\n* **Department**: [Department Name]\n* **Designation**: [Designation]\n* **Work Location**: [Branch Name]\n\n### 2. Compensation\n\nYour compensation details are as follows:\n\n* **CTC**: ₹[Amount] per annum\n* Detailed salary structure will be shared separately.\n\n### 3. Profile Completion (Mandatory Step)\n\nAs part of onboarding, you are required to complete your profile by providing additional details such as:\n\n* Address & Personal Information\n* Bank Details\n* Identity Proof Documents\n* Educational & Experience Details\n\nPlease use the secure link below to complete your profile:\n\n👉 **Complete Your Profile**: [Profile Completion Link]\n\n**Note:**\n\n* This link is secure and valid until [Expiry Date].\n* You can access it without login.\n* Please ensure all details and documents are accurate.\n\n### 4. Verification & Approval\n\n* Your submitted details will be reviewed by our HR team.\n* In case of any discrepancies, you will receive a new link to update specific fields.\n* Final confirmation of employment is subject to successful verification.\n\n### 5. Terms & Conditions\n\n* You are required to join on or before the mentioned joining date.\n* All submitted documents must be genuine.\n* The company reserves the right to withdraw this offer if any information is found incorrect.\n\n### 6. Acceptance\n\nPlease confirm your acceptance of this offer by replying to this email.\n\nWe look forward to welcoming you to our organization.\n\nBest Regards,\n**[HR Name]**\n[Company Name]\n[Contact Details]";
             case PROFILE_COMPLETION_TEMPLATE -> "Hello {{employee_name}},\n\nPlease complete your profile using the secure link shared with you. Submit all required details and documents so we can continue the verification process.\n\nRegards,\nHR Team";
+            case LEAD_ASSIGNED_EMPLOYEE_TEMPLATE -> "Dear {{Employee Name}},\n\nA new lead has been assigned to you for follow-up.\n\nLead Details\nLead ID: {{Lead ID}}\nCustomer Name: {{Customer Name}}\nCompany: {{Company Name}}\nContact Number: {{Phone}}\nEmail: {{Customer Email}}\nRequirement: {{Requirement}}\nAssigned By: {{Assigned By}}\nAssigned Date: {{Assigned Date}}\n\nPlease review the lead and update the status regularly in the system.\n\nRegards,\n{{Company Name}}";
+            case LEAD_ASSIGNED_CUSTOMER_TEMPLATE -> "Dear {{lead_name}},\n\nAn executive from SVL, {{employee_name}}, has been assigned to assist you with your request. They will contact you shortly.\n\nBest regards,\nSVL Team";
+            case LEAD_STATUS_UPDATED_TEMPLATE -> "Hello {{official_name}},\n\nThe status of the lead {{lead_id}} ({{lead_name}}) has been updated to \"{{status}}\".\n\nBest regards,\nSVL ERP";
+            case LEAD_CREATED_SELF_TEMPLATE -> "Dear {{Reporting Person Name}},\n\nA new lead has been created by {{Employee Name}} and has been automatically assigned to them for follow-up.\n\nLead Details\nLead ID: {{Lead ID}}\nCustomer Name: {{Customer Name}}\nCompany: {{Company Name}}\nContact Number: {{Phone Number}}\nEmail: {{Customer Email}}\nRequirement: {{Requirement}}\nPriority: {{Priority}}\nEmployee Details\nCreated By: {{Employee Name}}\nAssigned To: {{Employee Name}}\nCreated On: {{Created Date}}\n\nThis notification is for your information and tracking purposes.\n\nRegards,\n{{Company Name}}\nCRM System";
         };
     }
 

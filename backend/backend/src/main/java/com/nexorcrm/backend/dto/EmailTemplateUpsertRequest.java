@@ -5,6 +5,7 @@ public class EmailTemplateUpsertRequest {
     private String templateName;
     private String subject;
     private String body;
+    private Boolean active;
 
     public String getTemplateKey() {
         return templateKey;
@@ -36,5 +37,13 @@ public class EmailTemplateUpsertRequest {
 
     public void setBody(String body) {
         this.body = body;
+    }
+
+    public Boolean getActive() {
+        return active;
+    }
+
+    public void setActive(Boolean active) {
+        this.active = active;
     }
 }

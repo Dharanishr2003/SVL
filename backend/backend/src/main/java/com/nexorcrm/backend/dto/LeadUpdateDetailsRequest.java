@@ -85,6 +85,7 @@ public class LeadUpdateDetailsRequest {
     private String leadCity;
     private String leadPincode;
     private String streetAddress;
+    private String gstin;
 
     // production requirement - JSON serialized production brief
     private String productionBrief;
@@ -497,4 +498,7 @@ public class LeadUpdateDetailsRequest {
     public void setLeadPincode(String leadPincode) { this.leadPincode = leadPincode; }
     public String getStreetAddress() { return streetAddress; }
     public void setStreetAddress(String streetAddress) { this.streetAddress = streetAddress; }
+
+    public String getGstin() { return gstin; }
+    public void setGstin(String gstin) { this.gstin = gstin; }
 }

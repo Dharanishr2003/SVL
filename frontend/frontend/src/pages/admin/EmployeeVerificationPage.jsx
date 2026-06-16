@@ -441,7 +441,7 @@ export default function EmployeeVerificationPage() {
                         </thead>
                         <tbody>
                           {(data?.documents || []).map((d) => (
-                            <tr key={d.id}>
+                            <tr key={d.id || d.docType}>
                               <td>{d.docType}</td>
                               <td>
                                 {d.fileUrl ? (
@@ -469,56 +469,64 @@ export default function EmployeeVerificationPage() {
                                     </button>
                                   </div>
                                 ) : (
-                                  "-"
+                                  <span className="text-danger">Not Uploaded</span>
                                 )}
                               </td>
                               <td>
                                 <span className={`badge ${statusBadge(d.status)}`}>{d.status || "N/A"}</span>
                               </td>
                               <td style={{ minWidth: 180 }}>
-                                <div className="d-flex gap-2">
-                                  <button
-                                    type="button"
-                                    className={`btn btn-sm ${
-                                      docDecisions[d.id] === "APPROVE" ? "btn-success" : "btn-outline-success"
-                                    }`}
-                                    onClick={() => setDocDecisions((p) => ({ ...p, [d.id]: "APPROVE" }))}
-                                  >
-                                    Approve
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className={`btn btn-sm ${
-                                      docDecisions[d.id] === "REJECT" ? "btn-danger" : "btn-outline-danger"
-                                    }`}
-                                    onClick={() => setDocDecisions((p) => ({ ...p, [d.id]: "REJECT" }))}
-                                  >
-                                    Reject
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className="btn btn-sm btn-outline-secondary"
-                                    onClick={() =>
-                                      setDocDecisions((p) => {
-                                        const next = { ...p };
-                                        delete next[d.id];
-                                        return next;
-                                      })
-                                    }
-                                    title="Clear decision"
-                                  >
-                                    Clear
-                                  </button>
-                                </div>
+                                {d.id ? (
+                                  <div className="d-flex gap-2">
+                                    <button
+                                      type="button"
+                                      className={`btn btn-sm ${
+                                        docDecisions[d.id] === "APPROVE" ? "btn-success" : "btn-outline-success"
+                                      }`}
+                                      onClick={() => setDocDecisions((p) => ({ ...p, [d.id]: "APPROVE" }))}
+                                    >
+                                      Approve
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className={`btn btn-sm ${
+                                        docDecisions[d.id] === "REJECT" ? "btn-danger" : "btn-outline-danger"
+                                      }`}
+                                      onClick={() => setDocDecisions((p) => ({ ...p, [d.id]: "REJECT" }))}
+                                    >
+                                      Reject
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="btn btn-sm btn-outline-secondary"
+                                      onClick={() =>
+                                        setDocDecisions((p) => {
+                                          const next = { ...p };
+                                          delete next[d.id];
+                                          return next;
+                                        })
+                                      }
+                                      title="Clear decision"
+                                    >
+                                      Clear
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <span className="text-muted small">-</span>
+                                )}
                               </td>
                               <td style={{ minWidth: 260 }}>
-                                <input
-                                  className="form-control form-control-sm"
-                                  value={docRemarks[d.id] || ""}
-                                  onChange={(e) => setDocRemarks((p) => ({ ...p, [d.id]: e.target.value }))}
-                                  disabled={docDecisions[d.id] !== "REJECT"}
-                                  placeholder={d.remarks || "Add remarks"}
-                                />
+                                {d.id ? (
+                                  <input
+                                    className="form-control form-control-sm"
+                                    value={docRemarks[d.id] || ""}
+                                    onChange={(e) => setDocRemarks((p) => ({ ...p, [d.id]: e.target.value }))}
+                                    disabled={docDecisions[d.id] !== "REJECT"}
+                                    placeholder={d.remarks || "Add remarks"}
+                                  />
+                                ) : (
+                                  <span className="text-muted small">Required document missing</span>
+                                )}
                               </td>
                             </tr>
                           ))}

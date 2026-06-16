@@ -8,10 +8,7 @@ import java.util.Optional;
 
 public interface DepartmentMasterRepository extends JpaRepository<DepartmentMaster, Long> {
     List<DepartmentMaster> findByDeletedFalseOrderByIdDesc();
-    List<DepartmentMaster> findByBranchIdAndDeletedFalseOrderByIdDesc(Long branchId);
+    List<DepartmentMaster> findByBranchesIdAndDeletedFalseOrderByIdDesc(Long branchId);
     boolean existsByNameIgnoreCaseAndDeletedFalse(String name);
-    boolean existsByBranchIdAndNameIgnoreCaseAndDeletedFalse(Long branchId, String name);
     Optional<DepartmentMaster> findByIdAndDeletedFalse(Long id);
-    Optional<DepartmentMaster> findByBranchIdAndNameIgnoreCaseAndDeletedFalse(Long branchId, String name);
-    Optional<DepartmentMaster> findFirstByBranchIdAndNameIgnoreCaseAndDeletedFalseOrderByIdAsc(Long branchId, String name);
 }

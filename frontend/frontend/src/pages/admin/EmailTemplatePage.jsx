@@ -19,6 +19,7 @@ const EMPTY_FORM = {
   templateKey: "",
   subject: "",
   body: "",
+  active: true,
 };
 
 export default function EmailTemplatePage() {
@@ -147,6 +148,7 @@ export default function EmailTemplatePage() {
       templateKey: row?.templateKey || "",
       subject: row?.subject || "",
       body: row?.body || "",
+      active: row?.active !== false,
     });
     setEditorMode("view");
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -159,6 +161,7 @@ export default function EmailTemplatePage() {
       templateKey: row?.templateKey || "",
       subject: row?.subject || "",
       body: row?.body || "",
+      active: row?.active !== false,
     });
     setEditorMode("edit");
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -187,6 +190,7 @@ export default function EmailTemplatePage() {
         templateKey: form.templateKey.trim() || null,
         subject: form.subject,
         body: form.body,
+        active: form.active,
       };
 
       if (editorMode === "add") {
@@ -203,6 +207,23 @@ export default function EmailTemplatePage() {
       showError(extractApiErrorMessage(error, "Failed to save template"));
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleToggleActive = async (row, isChecked) => {
+    try {
+      const payload = {
+        templateName: row.templateName,
+        templateKey: row.templateKey,
+        subject: row.subject,
+        body: row.body,
+        active: isChecked,
+      };
+      await saveEmailTemplate(row.templateKey, payload);
+      showSuccess(`Template "${row.templateName}" ${isChecked ? "activated" : "deactivated"}`);
+      await loadTemplates();
+    } catch (error) {
+      showError(extractApiErrorMessage(error, "Failed to update template status"));
     }
   };
 
@@ -252,11 +273,12 @@ export default function EmailTemplatePage() {
       ? filteredRows.filter((r) => selectedTemplateKeys.has(r.templateKey))
       : filteredRows;
 
-    const headers = ["Template Name", "Template Key", "Type", "Subject", "Updated At"];
+    const headers = ["Template Name", "Template Key", "Type", "Status", "Subject", "Updated At"];
     const body = targetRows.map((row) => [
       row.templateName || "",
       row.templateKey || "",
       row.builtIn ? "Default" : "Custom",
+      row.active !== false ? "Active" : "Inactive",
       row.subject || "",
       row.updatedAt ? new Date(row.updatedAt).toLocaleString() : "-",
     ]);
@@ -282,11 +304,12 @@ export default function EmailTemplatePage() {
       ? filteredRows.filter((r) => selectedTemplateKeys.has(r.templateKey))
       : filteredRows;
 
-    const headers = ["Template Name", "Template Key", "Type", "Subject", "Updated At"];
+    const headers = ["Template Name", "Template Key", "Type", "Status", "Subject", "Updated At"];
     const body = targetRows.map((row) => [
       row.templateName || "",
       row.templateKey || "",
       row.builtIn ? "Default" : "Custom",
+      row.active !== false ? "Active" : "Inactive",
       row.subject || "",
       row.updatedAt ? new Date(row.updatedAt).toLocaleString() : "-",
     ]);
@@ -327,11 +350,12 @@ export default function EmailTemplatePage() {
     doc.setFontSize(10);
     doc.text(`Generated: ${new Date().toLocaleString()}`, 40, 58);
 
-    const headers = [["Template Name", "Template Key", "Type", "Subject", "Updated At"]];
+    const headers = [["Template Name", "Template Key", "Type", "Status", "Subject", "Updated At"]];
     const body = targetRows.map((row) => [
       row.templateName || "",
       row.templateKey || "",
       row.builtIn ? "Default" : "Custom",
+      row.active !== false ? "Active" : "Inactive",
       row.subject || "",
       row.updatedAt ? new Date(row.updatedAt).toLocaleString() : "-",
     ]);
@@ -452,6 +476,22 @@ export default function EmailTemplatePage() {
                   style={{ minHeight: 220, borderRadius: 8 }}
                 />
               </div>
+              <div className="col-12">
+                <div className="form-check form-switch mt-2">
+                  <input
+                    className="form-check-input animate-focus"
+                    type="checkbox"
+                    id="templateActiveToggle"
+                    checked={!!form.active}
+                    onChange={(e) => updateField("active", e.target.checked)}
+                    disabled={editorMode === "view"}
+                    style={{ cursor: "pointer", width: "40px", height: "20px" }}
+                  />
+                  <label className="form-check-label fw-semibold text-dark ms-2" htmlFor="templateActiveToggle" style={{ fontSize: "0.95rem", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "6px" }}>
+                    Active Status: <span style={{ color: "#ffffff", backgroundColor: form.active ? "#16a34a" : "#dc2626", padding: "3px 8px", borderRadius: "6px", fontSize: "0.8rem", fontWeight: "600", display: "inline-block" }}>{form.active ? "Active" : "Inactive"}</span>
+                  </label>
+                </div>
+              </div>
             </div>
 
             <div className="text-muted small mt-3">
@@ -545,6 +585,7 @@ export default function EmailTemplatePage() {
                   <th>Template Name / Subject</th>
                   <th>Template Key</th>
                   <th>Type</th>
+                  <th>Status</th>
                   <th>Updated</th>
                   <th style={{ width: "80px" }}>Action</th>
                 </tr>
@@ -552,11 +593,11 @@ export default function EmailTemplatePage() {
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan={7} className="text-center py-4">Loading templates...</td>
+                    <td colSpan={8} className="text-center py-4">Loading templates...</td>
                   </tr>
                 ) : pagedRows.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="text-center py-4">No templates found</td>
+                    <td colSpan={8} className="text-center py-4">No templates found</td>
                   </tr>
                 ) : (
                   pagedRows.map((row, idx) => (
@@ -582,6 +623,30 @@ export default function EmailTemplatePage() {
                         <span className={`badge ${row.builtIn ? "bg-secondary" : "bg-info"}`} style={{ color: "#fff", padding: "4px 8px" }}>
                           {row.builtIn ? "Default" : "Custom"}
                         </span>
+                      </td>
+                      <td>
+                        <div className="form-check form-switch mb-0 d-flex align-items-center gap-2">
+                          <input
+                            className="form-check-input"
+                            type="checkbox"
+                            role="switch"
+                            id={`status-toggle-${row.templateKey}`}
+                            checked={row.active !== false}
+                            onChange={(e) => handleToggleActive(row, e.target.checked)}
+                            style={{ cursor: "pointer", width: "36px", height: "18px" }}
+                          />
+                          <label 
+                            className="form-check-label mb-0 small fw-semibold" 
+                            htmlFor={`status-toggle-${row.templateKey}`}
+                            style={{ 
+                              cursor: "pointer", 
+                              color: row.active !== false ? "#16a34a" : "#dc2626",
+                              fontSize: "0.85rem" 
+                            }}
+                          >
+                            {row.active !== false ? "Active" : "Inactive"}
+                          </label>
+                        </div>
                       </td>
                       <td className="text-muted small">
                         {row.updatedAt ? new Date(row.updatedAt).toLocaleString() : "-"}

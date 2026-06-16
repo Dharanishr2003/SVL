@@ -436,6 +436,8 @@ export default function QuotationPage() {
   const [gstPct, setGstPct] = useState("0");
   const [gstRows, setGstRows] = useState([]);
   const [gstAddPopupOpen, setGstAddPopupOpen] = useState(false);
+  const [unfilledPricesPopupOpen, setUnfilledPricesPopupOpen] = useState(false);
+  const [unfilledPricesList, setUnfilledPricesList] = useState([]);
   const [gstAddPercent, setGstAddPercent] = useState("");
   const [gstAddSaving, setGstAddSaving] = useState(false);
   const [gstAddError, setGstAddError] = useState("");
@@ -704,10 +706,6 @@ export default function QuotationPage() {
   useEffect(() => {
     const leadId = selectedLead?.id;
     if (!leadId) return;
-
-    const hasAddress = Boolean(String(selectedLead?.address || selectedLead?.streetAddress || "").trim());
-    const hasState = Boolean(String(selectedLead?.leadState || selectedLead?.state || "").trim());
-    if (hasAddress && hasState) return;
     if (hydratedLeadIdRef.current === leadId) return;
 
     let ignore = false;
@@ -724,7 +722,7 @@ export default function QuotationPage() {
     return () => {
       ignore = true;
     };
-  }, [selectedLead?.address, selectedLead?.id, selectedLead?.leadState, selectedLead?.state, selectedLead?.streetAddress]);
+  }, [selectedLead?.id]);
 
   useEffect(() => {
     setPriceListLoading(true);
@@ -1114,22 +1112,7 @@ export default function QuotationPage() {
       createdAt: quotationCreatedAt || undefined,
     });
 
-  const handleSaveQuotation = async () => {
-    if (!customerName.trim()) {
-      setConfigError("Please select a lead first.");
-      return;
-    }
-
-    if (!selectedLead?.id) {
-      setConfigError("No lead selected. Cannot create quotation.");
-      return;
-    }
-
-    if (!lineItems.length) {
-      setConfigError("Please add at least one item before saving.");
-      return;
-    }
-
+  const executeSaveQuotation = async () => {
     console.log("Creating quotation with leadId:", selectedLead?.id);
     setIsSaving(true);
     try {
@@ -1164,6 +1147,33 @@ export default function QuotationPage() {
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handleSaveQuotation = async () => {
+    if (!customerName.trim()) {
+      setConfigError("Please select a lead first.");
+      return;
+    }
+
+    if (!selectedLead?.id) {
+      setConfigError("No lead selected. Cannot create quotation.");
+      return;
+    }
+
+    if (!lineItems.length) {
+      setConfigError("Please add at least one item before saving.");
+      return;
+    }
+
+    const unfilledItems = lineItems.filter(item => Number(item.unitPrice || 0) === 0);
+    if (unfilledItems.length > 0) {
+      const names = unfilledItems.map(item => item.productName || "Unnamed item");
+      setUnfilledPricesList(names);
+      setUnfilledPricesPopupOpen(true);
+      return;
+    }
+
+    await executeSaveQuotation();
   };
 
   const handleDownloadPdf = async () => {
@@ -1357,6 +1367,10 @@ export default function QuotationPage() {
                   <div className="qp-field-label">State</div>
                   <div className="qp-field-readonly">{leadStateDisplay || "—"}</div>
                 </div>
+                <div className="qp-field-group">
+                  <div className="qp-field-label">GSTIN</div>
+                  <div className="qp-field-readonly">{selectedLead?.gstin || "—"}</div>
+                </div>
               </div>
               <div className="qp-meta-row">
                 <div className="qp-meta-chip">
@@ -1493,7 +1507,8 @@ export default function QuotationPage() {
                     "Die Charge",
                     "Screen Charge",
                     "Cutting Charge",
-                    "Scoring / Greasing Charge"
+                    "Scoring / Greasing Charge",
+                    "Screen Printing Charge"
                   ].map((chargeName) => {
                     const currentCount = lineItems.filter(item => 
                       (item.productName === chargeName) && 
@@ -2576,6 +2591,41 @@ export default function QuotationPage() {
                 onClick={() => handleApproveFromEdit(approveDialogNotes)}
               >
                 Approve
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* ── Unfilled Prices warning popup ── */}
+      {unfilledPricesPopupOpen && (
+        <div className="qp-modal-overlay">
+          <div className="qp-modal" style={{ maxWidth: 450 }}>
+            <div className="qp-modal-title" style={{ color: "#ef4444" }}>Unfilled Prices Warning</div>
+            <div style={{ fontSize: 13, color: "#374151", marginBottom: 16, lineHeight: "1.5" }}>
+              Price is not filled for these products: <strong>{unfilledPricesList.join(", ")}</strong>.<br />
+              These items will <strong>not</strong> reflect on the quotation PDF.
+            </div>
+            <div style={{ fontSize: 13, color: "#374151", marginBottom: 20 }}>
+              Do you want to continue anyway?
+            </div>
+            <div className="qp-modal-actions">
+              <button
+                type="button"
+                className="qp-btn-ghost"
+                onClick={() => setUnfilledPricesPopupOpen(false)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="qp-btn-primary"
+                style={{ background: "#ef4444", borderColor: "#ef4444", color: "#ffffff" }}
+                onClick={() => {
+                  setUnfilledPricesPopupOpen(false);
+                  executeSaveQuotation();
+                }}
+              >
+                Continue Anyway
               </button>
             </div>
           </div>

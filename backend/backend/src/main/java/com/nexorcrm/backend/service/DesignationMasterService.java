@@ -14,49 +14,45 @@ import java.util.List;
 public class DesignationMasterService {
 
     private final DesignationMasterRepository repository;
+    private final com.nexorcrm.backend.repo.DepartmentMasterRepository departmentMasterRepository;
 
-    public DesignationMasterService(DesignationMasterRepository repository) {
+    public DesignationMasterService(DesignationMasterRepository repository, com.nexorcrm.backend.repo.DepartmentMasterRepository departmentMasterRepository) {
         this.repository = repository;
+        this.departmentMasterRepository = departmentMasterRepository;
     }
 
     public List<DesignationMasterResponse> list(Long departmentMasterId) {
         var items = departmentMasterId == null
                 ? repository.findByDeletedFalseOrderByIdDesc()
-                : repository.findByDepartmentMasterIdAndDeletedFalseOrderByIdDesc(departmentMasterId);
+                : repository.findByDepartmentsIdAndDeletedFalseOrderByIdDesc(departmentMasterId);
         return items
                 .stream()
                 .map(this::toResponse)
                 .toList();
     }
 
+    @org.springframework.transaction.annotation.Transactional
     public DesignationMasterResponse create(DesignationMasterRequest request) {
         String name = normalize(request.getName());
-        String dept = normalize(request.getDepartment());
-        Long departmentMasterId = request.getDepartmentMasterId();
-
-        if (departmentMasterId == null && dept.isBlank()) {
-            throw new IllegalArgumentException("Department is required");
-        }
-
-        if (departmentMasterId != null) {
-            if (repository.existsByNameIgnoreCaseAndDepartmentMasterIdAndDeletedFalse(name, departmentMasterId)) {
-                throw new IllegalArgumentException("Designation already exists in this department");
-            }
-        } else {
-            if (repository.existsByNameIgnoreCaseAndDepartmentIgnoreCaseAndDeletedFalse(name, dept)) {
-                throw new IllegalArgumentException("Designation already exists in this department");
-            }
+        if (repository.existsByNameIgnoreCaseAndDeletedFalse(name)) {
+            throw new IllegalArgumentException("Designation already exists");
         }
 
         DesignationMaster d = new DesignationMaster();
         d.setName(name);
-        d.setDepartment(dept);
-        d.setDepartmentMasterId(departmentMasterId);
+        d.setDepartment(""); // Legacy column
         d.setStatus(normalizeStatus(request.getStatus()));
+        
+        if (request.getDepartmentMasterIds() != null && !request.getDepartmentMasterIds().isEmpty()) {
+            var depts = departmentMasterRepository.findAllById(request.getDepartmentMasterIds());
+            d.getDepartments().addAll(depts);
+        }
+
         d = repository.save(d);
         return toResponse(d);
     }
 
+    @org.springframework.transaction.annotation.Transactional
     public DesignationMasterResponse update(Long id, DesignationMasterRequest request) {
         DesignationMaster d = repository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Designation not found"));
@@ -66,33 +62,20 @@ public class DesignationMasterService {
         }
 
         String nextName = normalize(request.getName());
-        String nextDept = normalize(request.getDepartment());
-        Long nextDepartmentMasterId = request.getDepartmentMasterId();
-        if (nextDepartmentMasterId == null && nextDept.isBlank()) {
-            throw new IllegalArgumentException("Department is required");
-        }
-
-        boolean changedName = !nextName.equalsIgnoreCase(d.getName());
-        boolean changedDeptId = (d.getDepartmentMasterId() == null && nextDepartmentMasterId != null)
-                || (d.getDepartmentMasterId() != null && !d.getDepartmentMasterId().equals(nextDepartmentMasterId));
-        boolean changedDeptText = !nextDept.equalsIgnoreCase(d.getDepartment());
-
-        if (nextDepartmentMasterId != null) {
-            if ((changedName || changedDeptId)
-                    && repository.existsByNameIgnoreCaseAndDepartmentMasterIdAndDeletedFalse(nextName, nextDepartmentMasterId)) {
-                throw new IllegalArgumentException("Designation already exists in this department");
-            }
-        } else {
-            if ((changedName || changedDeptText)
-                    && repository.existsByNameIgnoreCaseAndDepartmentIgnoreCaseAndDeletedFalse(nextName, nextDept)) {
-                throw new IllegalArgumentException("Designation already exists in this department");
-            }
+        if (!nextName.equalsIgnoreCase(d.getName())
+                && repository.existsByNameIgnoreCaseAndDeletedFalse(nextName)) {
+            throw new IllegalArgumentException("Designation already exists");
         }
 
         d.setName(nextName);
-        d.setDepartment(nextDept);
-        d.setDepartmentMasterId(nextDepartmentMasterId);
         d.setStatus(normalizeStatus(request.getStatus()));
+        
+        d.getDepartments().clear();
+        if (request.getDepartmentMasterIds() != null && !request.getDepartmentMasterIds().isEmpty()) {
+            var depts = departmentMasterRepository.findAllById(request.getDepartmentMasterIds());
+            d.getDepartments().addAll(depts);
+        }
+
         d = repository.save(d);
         return toResponse(d);
     }
@@ -118,10 +101,16 @@ public class DesignationMasterService {
         DesignationMasterResponse r = new DesignationMasterResponse();
         r.setId(d.getId());
         r.setName(d.getName());
-        r.setDepartment(d.getDepartment());
-        r.setDepartmentMasterId(d.getDepartmentMasterId());
         r.setStatus(d.getStatus());
         r.setEmployeeCount(0L);
+        
+        if (d.getDepartments() != null) {
+            r.setDepartmentMasterIds(d.getDepartments().stream().map(com.nexorcrm.backend.entity.DepartmentMaster::getId).collect(java.util.stream.Collectors.toList()));
+            r.setDepartmentMasterNames(d.getDepartments().stream().map(com.nexorcrm.backend.entity.DepartmentMaster::getName).collect(java.util.stream.Collectors.toList()));
+        } else {
+            r.setDepartmentMasterIds(java.util.List.of());
+            r.setDepartmentMasterNames(java.util.List.of());
+        }
         return r;
     }
 }

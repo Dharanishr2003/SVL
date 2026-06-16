@@ -1,0 +1,1 @@
+import{j as e}from"./index-Bs95Trpv.js";function s(){return e.jsx("div",{className:"card",children:e.jsxs("div",{className:"card-body",children:[e.jsx("h4",{className:"mb-2",children:"Leave Report"}),e.jsx("p",{className:"mb-0",children:"Layout working confirmation."})]})})}export{s as default};

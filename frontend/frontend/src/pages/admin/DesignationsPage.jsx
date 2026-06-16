@@ -17,8 +17,7 @@ import "../../../public/assets/css/addModalShared.css";
 
 const initialForm = {
   name: "",
-  departmentId: "",
-  department: "",
+  departmentMasterIds: [],
   status: "ACTIVE",
 };
 
@@ -237,14 +236,14 @@ export default function DesignationsPage() {
       const searchOk =
         !search ||
         String(row?.name || "").toLowerCase().includes(search) ||
-        String(row?.department || "").toLowerCase().includes(search);
+        (row.departmentMasterNames && row.departmentMasterNames.some(name => String(name).toLowerCase().includes(search)));
       const deptOk =
         !filters.departmentId ||
-        String(row?.departmentMasterId || "") === String(filters.departmentId);
+        (row.departmentMasterIds && row.departmentMasterIds.map(String).includes(String(filters.departmentId)));
       const branchOk =
         !filters.branchId ||
         !!filters.departmentId ||
-        deptIdSet.has(String(row?.departmentMasterId || ""));
+        (row.departmentMasterIds && row.departmentMasterIds.some(id => deptIdSet.has(String(id))));
       return statusOk && searchOk && deptOk && branchOk;
     });
   }, [rows, searchText, filters.status, filters.departmentId, filters.branchId, departments]);
@@ -281,18 +280,11 @@ export default function DesignationsPage() {
       showError("Designation name is required");
       return;
     }
-    if (!form.departmentId) {
-      showError("Department is required");
-      return;
-    }
     setSaving(true);
     try {
-      const deptSource = (modalDepartments && modalDepartments.length > 0) ? modalDepartments : orderedDepartments;
-      const dept = deptSource.find((d) => String(d.id) === String(form.departmentId));
       await createDesignation({
         name: form.name.trim(),
-        departmentMasterId: Number(form.departmentId),
-        department: dept?.name || form.department || "",
+        departmentMasterIds: [],
         status: form.status,
       });
       setForm(initialForm);
@@ -307,14 +299,9 @@ export default function DesignationsPage() {
   };
 
   const openEdit = (row) => {
-    setModalHeadOfficeId("");
-    setModalBranchId("");
-    setModalBranches([]);
-    setModalDepartments([]);
     setEditForm({
       name: row?.name || "",
-      departmentId: String(row?.departmentMasterId || ""),
-      department: row?.department || "",
+      departmentMasterIds: row?.departmentMasterIds ? row.departmentMasterIds.map(Number) : [],
       status: String(row?.status || "ACTIVE").toUpperCase(),
     });
     setSelectedId(row?.id || null);
@@ -328,18 +315,11 @@ export default function DesignationsPage() {
       showError("Designation name is required");
       return;
     }
-    if (!editForm.departmentId) {
-      showError("Department is required");
-      return;
-    }
     setSaving(true);
     try {
-      const deptSource = (modalDepartments && modalDepartments.length > 0) ? modalDepartments : orderedDepartments;
-      const dept = deptSource.find((d) => String(d.id) === String(editForm.departmentId));
       await updateDesignation(selectedId, {
         name: editForm.name.trim(),
-        departmentMasterId: Number(editForm.departmentId),
-        department: dept?.name || editForm.department || "",
+        departmentMasterIds: editForm.departmentMasterIds || [],
         status: editForm.status,
       });
       showSuccess("Designation updated");
@@ -597,7 +577,7 @@ export default function DesignationsPage() {
                       <tr>
                         <th className="text-muted" style={{ width: 100, fontWeight: "600", fontSize: "0.85rem" }}>#</th>
                         <th className="text-muted" style={{ fontWeight: "600", fontSize: "0.85rem" }}>Designation</th>
-                        <th className="text-muted" style={{ fontWeight: "600", fontSize: "0.85rem" }}>Department</th>
+                        <th className="text-muted" style={{ fontWeight: "600", fontSize: "0.85rem" }}>Departments</th>
                         <th className="text-muted" style={{ fontWeight: "600", fontSize: "0.85rem" }}>No of Employees</th>
                         <th className="text-muted" style={{ fontWeight: "600", fontSize: "0.85rem" }}>Status</th>
                         <th className="text-muted text-end" style={{ width: 180, fontWeight: "600", fontSize: "0.85rem" }}>Action</th>
@@ -614,10 +594,22 @@ export default function DesignationsPage() {
                         pagedRows.map((row, idx) => {
                           const active = String(row?.status || "ACTIVE").toUpperCase() !== "INACTIVE";
                           return (
-                            <tr key={row.id || `${row.name}-${row.department}`}>
+                            <tr key={row.id || `${row.name}`}>
                               <td className="fw-semibold" style={{ color: "#1e293b", fontSize: "0.9rem" }}>{(page - 1) * pageSize + idx + 1}</td>
                               <td className="fw-semibold" style={{ color: "#0f172a", fontSize: "0.9rem" }}>{row.name || "-"}</td>
-                              <td style={{ color: "#475569", fontSize: "0.9rem" }}>{row.department || "-"}</td>
+                              <td>
+                                {row.departmentMasterNames && row.departmentMasterNames.length > 0 ? (
+                                  <div className="d-flex flex-wrap gap-1">
+                                    {row.departmentMasterNames.map((name, i) => (
+                                      <span key={i} className="badge bg-light text-dark border" style={{ fontSize: "0.75rem" }}>
+                                        {name}
+                                      </span>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <span className="text-muted small">No Departments</span>
+                                )}
+                              </td>
                               <td style={{ color: "#475569", fontSize: "0.9rem" }}>
                                 {designationCounts.get(String(row.name || "").trim().toLowerCase()) ??
                                   row.employeeCount ??
@@ -775,75 +767,6 @@ export default function DesignationsPage() {
                 <div className="row g-3">
                   <div className="col-md-12">
                     <div className="avm-field">
-                      <label className="avm-label">Head Office</label>
-                      <select
-                        className="avm-select"
-                        value={modalHeadOfficeId}
-                        onChange={(e) => setModalHeadOfficeId(e.target.value)}
-                        disabled={metaLoading}
-                      >
-                        <option value="">Select</option>
-                        {[...withInactiveSelected(headOffices, modalHeadOfficeId)]
-                          .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))
-                          .map((h) => (
-                            <option key={h.id} value={h.id}>
-                              {h.name}
-                            </option>
-                          ))}
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className="col-md-12">
-                    <div className="avm-field">
-                      <label className="avm-label">Branch</label>
-                      <select
-                        className="avm-select"
-                        value={modalBranchId}
-                        onChange={(e) => setModalBranchId(e.target.value)}
-                        disabled={!modalHeadOfficeId}
-                      >
-                        <option value="">
-                          {modalHeadOfficeId ? "Select" : "Select Head Office first"}
-                        </option>
-                        {[...withInactiveSelected(modalBranches, modalBranchId)]
-                          .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))
-                          .map((b) => (
-                            <option key={b.id} value={b.id}>
-                              {b.name}
-                            </option>
-                          ))}
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className="col-md-12">
-                    <div className="avm-field">
-                      <label className="avm-label">Department <span className="req">*</span></label>
-                      <select
-                        className="avm-select"
-                        value={form.departmentId}
-                        onChange={(e) =>
-                          setForm((prev) => ({ ...prev, departmentId: e.target.value }))
-                        }
-                        disabled={!modalBranchId}
-                        required
-                      >
-                        <option value="">Select</option>
-                        {[...modalDepartments]
-                          .filter(isActiveMaster)
-                          .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))
-                          .map((d) => (
-                            <option key={d.id} value={d.id}>
-                              {d.name}
-                            </option>
-                          ))}
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className="col-md-12">
-                    <div className="avm-field">
                       <label className="avm-label">Designation Name <span className="req">*</span></label>
                       <input
                         type="text"
@@ -892,7 +815,7 @@ export default function DesignationsPage() {
 
       {showEditModal && (
         <div className="avm-backdrop" role="presentation">
-          <div className="avm-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+          <div className="avm-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" style={{ maxWidth: "550px" }}>
             <div className="avm-modal-header">
               <h2 className="avm-modal-title">Edit Designation</h2>
               <button type="button" className="avm-modal-close" onClick={() => setShowEditModal(false)} aria-label="Close">
@@ -902,77 +825,6 @@ export default function DesignationsPage() {
             <form onSubmit={handleEditDesignation}>
               <div className="avm-body">
                 <div className="row g-3">
-                  <div className="col-md-12">
-                    <div className="avm-field">
-                      <label className="avm-label">Head Office</label>
-                      <select
-                        className="form-select avm-select"
-                        value={modalHeadOfficeId}
-                        onChange={(e) => setModalHeadOfficeId(e.target.value)}
-                        disabled={metaLoading}
-                      >
-                        <option value="">Select</option>
-                        {[...headOffices]
-                          .filter(isActiveMaster)
-                          .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))
-                          .map((h) => (
-                            <option key={h.id} value={h.id}>
-                              {h.name}
-                            </option>
-                          ))}
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className="col-md-12">
-                    <div className="avm-field">
-                      <label className="avm-label">Branch</label>
-                      <select
-                        className="form-select avm-select"
-                        value={modalBranchId}
-                        onChange={(e) => setModalBranchId(e.target.value)}
-                        disabled={!modalHeadOfficeId}
-                      >
-                        <option value="">
-                          {modalHeadOfficeId ? "Select" : "Select Head Office first"}
-                        </option>
-                        {[...modalBranches]
-                          .filter(isActiveMaster)
-                          .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))
-                          .map((b) => (
-                            <option key={b.id} value={b.id}>
-                              {b.name}
-                            </option>
-                          ))}
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className="col-md-12">
-                    <div className="avm-field">
-                      <label className="avm-label">Department <span className="req">*</span></label>
-                      <select
-                        className="form-select avm-select"
-                        value={editForm.departmentId}
-                        onChange={(e) =>
-                          setEditForm((prev) => ({ ...prev, departmentId: e.target.value }))
-                        }
-                        disabled={!modalBranchId}
-                        required
-                      >
-                        <option value="">Select</option>
-                        {[...modalDepartments]
-                          .filter(isActiveMaster)
-                          .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))
-                          .map((d) => (
-                            <option key={d.id} value={d.id}>
-                              {d.name}
-                            </option>
-                          ))}
-                      </select>
-                    </div>
-                  </div>
-
                   <div className="col-md-12">
                     <div className="avm-field">
                       <label className="avm-label">Designation Name <span className="req">*</span></label>
@@ -1001,6 +853,48 @@ export default function DesignationsPage() {
                         <option value="ACTIVE">Active</option>
                         <option value="INACTIVE">Inactive</option>
                       </select>
+                    </div>
+                  </div>
+
+                  <div className="col-md-12">
+                    <div className="avm-field">
+                      <label className="avm-label mb-2">Assign Departments</label>
+                      <div className="border rounded p-3" style={{ maxHeight: "250px", overflowY: "auto", backgroundColor: "#f8fafc" }}>
+                        <div className="row g-2">
+                          {[...allDepartments]
+                            .filter(isActiveMaster)
+                            .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))
+                            .map((dept) => {
+                              const isChecked = editForm.departmentMasterIds?.includes(Number(dept.id));
+                              return (
+                                <div key={dept.id} className="col-sm-6">
+                                  <div className="form-check">
+                                    <input
+                                      className="form-check-input"
+                                      type="checkbox"
+                                      id={`dept-chk-${dept.id}`}
+                                      checked={isChecked}
+                                      onChange={(e) => {
+                                        const checked = e.target.checked;
+                                        const deptIdNum = Number(dept.id);
+                                        setEditForm(prev => {
+                                          const current = prev.departmentMasterIds || [];
+                                          const next = checked
+                                            ? [...current, deptIdNum]
+                                            : current.filter(id => id !== deptIdNum);
+                                          return { ...prev, departmentMasterIds: next };
+                                        });
+                                      }}
+                                    />
+                                    <label className="form-check-label small" htmlFor={`dept-chk-${dept.id}`}>
+                                      {dept.name}
+                                    </label>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>

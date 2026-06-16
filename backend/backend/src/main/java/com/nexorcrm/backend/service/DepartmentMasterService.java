@@ -14,42 +14,44 @@ import java.util.List;
 public class DepartmentMasterService {
 
     private final DepartmentMasterRepository repository;
+    private final com.nexorcrm.backend.repo.BranchMasterRepository branchMasterRepository;
 
-    public DepartmentMasterService(DepartmentMasterRepository repository) {
+    public DepartmentMasterService(DepartmentMasterRepository repository, com.nexorcrm.backend.repo.BranchMasterRepository branchMasterRepository) {
         this.repository = repository;
+        this.branchMasterRepository = branchMasterRepository;
     }
 
     public List<DepartmentMasterResponse> list(Long branchId) {
         var items = branchId == null
                 ? repository.findByDeletedFalseOrderByIdDesc()
-                : repository.findByBranchIdAndDeletedFalseOrderByIdDesc(branchId);
+                : repository.findByBranchesIdAndDeletedFalseOrderByIdDesc(branchId);
         return items
                 .stream()
                 .map(this::toResponse)
                 .toList();
     }
 
+    @org.springframework.transaction.annotation.Transactional
     public DepartmentMasterResponse create(DepartmentMasterRequest request) {
         String name = normalizeName(request.getName());
-        Long branchId = request.getBranchId();
-        if (branchId == null) {
-            if (repository.existsByNameIgnoreCaseAndDeletedFalse(name)) {
-                throw new IllegalArgumentException("Department already exists");
-            }
-        } else {
-            if (repository.existsByBranchIdAndNameIgnoreCaseAndDeletedFalse(branchId, name)) {
-                throw new IllegalArgumentException("Department already exists for this branch");
-            }
+        if (repository.existsByNameIgnoreCaseAndDeletedFalse(name)) {
+            throw new IllegalArgumentException("Department already exists");
         }
 
         DepartmentMaster d = new DepartmentMaster();
         d.setName(name);
-        d.setBranchId(branchId);
         d.setStatus(normalizeStatus(request.getStatus()));
+        
+        if (request.getBranchIds() != null && !request.getBranchIds().isEmpty()) {
+            var branches = branchMasterRepository.findAllById(request.getBranchIds());
+            d.getBranches().addAll(branches);
+        }
+
         d = repository.save(d);
         return toResponse(d);
     }
 
+    @org.springframework.transaction.annotation.Transactional
     public DepartmentMasterResponse update(Long id, DepartmentMasterRequest request) {
         DepartmentMaster d = repository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Department not found"));
@@ -58,25 +60,21 @@ public class DepartmentMasterService {
             throw new EntityNotFoundException("Department not found");
         }
 
-        Long branchId = request.getBranchId();
         String nextName = normalizeName(request.getName());
-        if (branchId == null) {
-            if (!nextName.equalsIgnoreCase(d.getName())
-                    && repository.existsByNameIgnoreCaseAndDeletedFalse(nextName)) {
-                throw new IllegalArgumentException("Department already exists");
-            }
-        } else {
-            boolean changedScope = d.getBranchId() == null || !branchId.equals(d.getBranchId());
-            boolean changedName = !nextName.equalsIgnoreCase(d.getName());
-            if ((changedScope || changedName)
-                    && repository.existsByBranchIdAndNameIgnoreCaseAndDeletedFalse(branchId, nextName)) {
-                throw new IllegalArgumentException("Department already exists for this branch");
-            }
+        if (!nextName.equalsIgnoreCase(d.getName())
+                && repository.existsByNameIgnoreCaseAndDeletedFalse(nextName)) {
+            throw new IllegalArgumentException("Department already exists");
         }
 
         d.setName(nextName);
-        d.setBranchId(branchId);
         d.setStatus(normalizeStatus(request.getStatus()));
+        
+        d.getBranches().clear();
+        if (request.getBranchIds() != null && !request.getBranchIds().isEmpty()) {
+            var branches = branchMasterRepository.findAllById(request.getBranchIds());
+            d.getBranches().addAll(branches);
+        }
+
         d = repository.save(d);
         return toResponse(d);
     }
@@ -102,9 +100,16 @@ public class DepartmentMasterService {
         DepartmentMasterResponse r = new DepartmentMasterResponse();
         r.setId(d.getId());
         r.setName(d.getName());
-        r.setBranchId(d.getBranchId());
         r.setStatus(d.getStatus());
         r.setEmployeeCount(0L); // keep for frontend compatibility
+        
+        if (d.getBranches() != null) {
+            r.setBranchIds(d.getBranches().stream().map(com.nexorcrm.backend.entity.BranchMaster::getId).collect(java.util.stream.Collectors.toList()));
+            r.setBranchNames(d.getBranches().stream().map(com.nexorcrm.backend.entity.BranchMaster::getName).collect(java.util.stream.Collectors.toList()));
+        } else {
+            r.setBranchIds(java.util.List.of());
+            r.setBranchNames(java.util.List.of());
+        }
         return r;
     }
 }

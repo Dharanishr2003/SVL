@@ -30,6 +30,7 @@ public class QuotationResponse {
     private String streetAddress;
     private String clientState;
     private String leadState;
+    private String clientGstin;
     private BigDecimal subtotal;
     private BigDecimal discountPercent;
     private BigDecimal gstPercent;
@@ -72,6 +73,8 @@ public class QuotationResponse {
     public void setClientState(String clientState) { this.clientState = clientState; }
     public String getLeadState() { return leadState; }
     public void setLeadState(String leadState) { this.leadState = leadState; }
+    public String getClientGstin() { return clientGstin; }
+    public void setClientGstin(String clientGstin) { this.clientGstin = clientGstin; }
     public BigDecimal getSubtotal() { return subtotal; }
     public void setSubtotal(BigDecimal subtotal) { this.subtotal = subtotal; }
     public BigDecimal getDiscountPercent() { return discountPercent; }

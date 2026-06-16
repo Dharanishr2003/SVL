@@ -152,6 +152,7 @@ public class QuotationService {
         r.setStreetAddress(clientAddress);
         r.setClientState(clientState);
         r.setLeadState(clientState);
+        r.setClientGstin(leadSnapshot != null ? leadSnapshot.getGstin() : null);
         r.setSubtotal(q.getSubtotal());
         r.setDiscountPercent(q.getDiscountPercent());
         r.setGstPercent(q.getGstPercent());

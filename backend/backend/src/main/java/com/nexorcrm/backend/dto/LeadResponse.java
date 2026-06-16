@@ -50,6 +50,7 @@ public class LeadResponse {
     private String rejectedReasonSubtype;
     private java.math.BigDecimal boqAmount;
     private String boqFileName;
+    private String gstin;
 
     // payment tracking
     private java.math.BigDecimal totalAmount;
@@ -699,4 +700,7 @@ public class LeadResponse {
 
     public Boolean getPaymentInvoiceSent() { return paymentInvoiceSent; }
     public void setPaymentInvoiceSent(Boolean paymentInvoiceSent) { this.paymentInvoiceSent = paymentInvoiceSent; }
+
+    public String getGstin() { return gstin; }
+    public void setGstin(String gstin) { this.gstin = gstin; }
 }

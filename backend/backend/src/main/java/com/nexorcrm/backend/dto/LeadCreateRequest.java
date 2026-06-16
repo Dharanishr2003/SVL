@@ -60,6 +60,9 @@ public class LeadCreateRequest {
 
     private Long assignedUserId;
 
+    @Size(max = 50, message = "GSTIN must be at most 50 characters")
+    private String gstin;
+
     public String getName() {
         return name;
     }
@@ -198,6 +201,9 @@ public class LeadCreateRequest {
 
     public Long getAssignedUserId() { return assignedUserId; }
     public void setAssignedUserId(Long assignedUserId) { this.assignedUserId = assignedUserId; }
+
+    public String getGstin() { return gstin; }
+    public void setGstin(String gstin) { this.gstin = gstin; }
 
     @JsonProperty("isDuplicate")
     private boolean isDuplicate = false;

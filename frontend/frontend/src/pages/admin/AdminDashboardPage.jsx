@@ -1344,102 +1344,30 @@ export default function AdminDashboardPage() {
           <a href="activity.php" className="btn btn-light btn-md mb-2">View All</a>
         </div>
         <div className="card-body">
-          <div className="recent-item">
-            <div className="d-flex justify-content-between">
-              <div className="d-flex align-items-center w-100">
-                <a href="javscript:void(0);" className="avatar  flex-shrink-0">
-                  <img src="assets/img/users/user-38.jpg" className="rounded-circle" alt="img" />
-                </a>
-                <div className="ms-2 flex-fill">
-                  <div className="d-flex align-items-center justify-content-between">
-                    <h6 className="fs-medium text-truncate"><a href="javscript:void(0);">Matt Morgan</a></h6>
-                    <p className="fs-13">05:30 PM</p>
+          {(Array.isArray(data.recentActivities) && data.recentActivities.length > 0) ? (
+            data.recentActivities.map((activity) => (
+              <div className="recent-item" key={activity.id}>
+                <div className="d-flex justify-content-between">
+                  <div className="d-flex align-items-center w-100">
+                    <a href="javascript:void(0);" className="avatar flex-shrink-0">
+                      <img src={data.welcome.avatar} className="rounded-circle" alt="activity" />
+                    </a>
+                    <div className="ms-2 flex-fill">
+                      <div className="d-flex align-items-center justify-content-between gap-2">
+                        <h6 className="fs-medium text-truncate mb-0">
+                          <a href="javascript:void(0);">{activity.performedBy || "System"}</a>
+                        </h6>
+                        <p className="fs-13 mb-0">{activity.timeLabel || "-"}</p>
+                      </div>
+                      <p className="fs-13 mb-0">{activity.displayText || activity.description || activity.action || "Activity recorded"}</p>
+                    </div>
                   </div>
-                  <p className="fs-13">Added New Project <span className="text-primary">HRMS Dashboard</span></p>
                 </div>
               </div>
-            </div>
-          </div>
-          <div className="recent-item">
-            <div className="d-flex justify-content-between">
-              <div className="d-flex align-items-center w-100">
-                <a href="javscript:void(0);" className="avatar  flex-shrink-0">
-                  <img src="assets/img/users/user-01.jpg" className="rounded-circle" alt="img" />
-                </a>
-                <div className="ms-2 flex-fill">
-                  <div className="d-flex align-items-center justify-content-between">
-                    <h6 className="fs-medium text-truncate"><a href="javscript:void(0);">Jay Ze</a></h6>
-                    <p className="fs-13">05:00 PM</p>
-                  </div>
-                  <p className="fs-13">Commented on Uploaded Document</p>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div className="recent-item">
-            <div className="d-flex justify-content-between">
-              <div className="d-flex align-items-center w-100">
-                <a href="javscript:void(0);" className="avatar  flex-shrink-0">
-                  <img src="assets/img/users/user-19.jpg" className="rounded-circle" alt="img" />
-                </a>
-                <div className="ms-2 flex-fill">
-                  <div className="d-flex align-items-center justify-content-between">
-                    <h6 className="fs-medium text-truncate"><a href="javscript:void(0);">Mary Donald</a></h6>
-                    <p className="fs-13">05:30 PM</p>
-                  </div>
-                  <p className="fs-13">Approved Task Projects</p>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div className="recent-item">
-            <div className="d-flex justify-content-between">
-              <div className="d-flex align-items-center w-100">
-                <a href="javscript:void(0);" className="avatar  flex-shrink-0">
-                  <img src="assets/img/users/user-11.jpg" className="rounded-circle" alt="img" />
-                </a>
-                <div className="ms-2 flex-fill">
-                  <div className="d-flex align-items-center justify-content-between">
-                    <h6 className="fs-medium text-truncate"><a href="javscript:void(0);">George David</a></h6>
-                    <p className="fs-13">06:00 PM</p>
-                  </div>
-                  <p className="fs-13">Requesting Access to Module Tickets</p>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div className="recent-item">
-            <div className="d-flex justify-content-between">
-              <div className="d-flex align-items-center w-100">
-                <a href="javscript:void(0);" className="avatar  flex-shrink-0">
-                  <img src="assets/img/users/user-20.jpg" className="rounded-circle" alt="img" />
-                </a>
-                <div className="ms-2 flex-fill">
-                  <div className="d-flex align-items-center justify-content-between">
-                    <h6 className="fs-medium text-truncate"><a href="javscript:void(0);">Aaron Zeen</a></h6>
-                    <p className="fs-13">06:30 PM</p>
-                  </div>
-                  <p className="fs-13">Downloaded App Reportss</p>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div className="recent-item">
-            <div className="d-flex justify-content-between">
-              <div className="d-flex align-items-center w-100">
-                <a href="javscript:void(0);" className="avatar  flex-shrink-0">
-                  <img src="assets/img/users/user-08.jpg" className="rounded-circle" alt="img" />
-                </a>
-                <div className="ms-2 flex-fill">
-                  <div className="d-flex align-items-center justify-content-between">
-                    <h6 className="fs-medium text-truncate"><a href="javscript:void(0);">Hendry Daniel</a></h6>
-                    <p className="fs-13">05:30 PM</p>
-                  </div>
-                  <p className="fs-13">Completed New Project <span>HMS</span></p>
-                </div>
-              </div>
-            </div>
-          </div>
+            ))
+          ) : (
+            <div className="text-muted small">No recent activity available.</div>
+          )}
         </div>
       </div>
     </div>
@@ -1519,7 +1447,6 @@ export default function AdminDashboardPage() {
     </>
   );
 }
-
 
 
 

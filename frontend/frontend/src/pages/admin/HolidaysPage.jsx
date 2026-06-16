@@ -483,12 +483,17 @@ export default function HolidaysPage() {
                           <td>{row.description || "-"}</td>
                           <td>
                             <span
-                              className={`badge d-inline-flex align-items-center badge-sm ${
-                                active ? "bg-success" : "bg-danger"
-                              }`}
-                              style={{ color: "#fff", padding: "4px 8px" }}
+                              className="badge d-inline-flex align-items-center badge-sm"
+                              style={{
+                                backgroundColor: active ? "#e6f4ea" : "#fce8e6",
+                                color: active ? "#137333" : "#c5221f",
+                                border: `1px solid ${active ? "#b7e1cd" : "#f5c2c7"}`,
+                                padding: "4px 8px",
+                                borderRadius: "4px",
+                                fontWeight: "600"
+                              }}
                             >
-                              <i className="ti ti-point-filled me-1"></i>
+                              <i className="ti ti-point-filled me-1" style={{ color: active ? "#137333" : "#c5221f" }}></i>
                               {active ? "Active" : "Inactive"}
                             </span>
                           </td>

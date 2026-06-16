@@ -16,8 +16,8 @@ import PageSizeSelector from "../../components/admin/PageSizeSelector";
 import "../../../public/assets/css/addModalShared.css";
 
 const initialForm = {
-  branchId: "",
   name: "",
+  branchIds: [],
   status: "ACTIVE",
 };
 
@@ -43,6 +43,7 @@ export default function DepartmentsPage() {
   const [rows, setRows] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [headOffices, setHeadOffices] = useState([]);
+  const [allBranches, setAllBranches] = useState([]);
   const [branches, setBranches] = useState([]); // for active filters
   const [filterBranches, setFilterBranches] = useState([]); // for drawer (draft filters)
   const [filterOpen, setFilterOpen] = useState(false);
@@ -91,10 +92,13 @@ export default function DepartmentsPage() {
 
   const loadMeta = async () => {
     try {
-      const data = await getHeadOffices();
-      setHeadOffices(Array.isArray(data) ? data : []);
+      const hoData = await getHeadOffices();
+      setHeadOffices(Array.isArray(hoData) ? hoData : []);
+      const bData = await getBranches();
+      setAllBranches(Array.isArray(bData) ? bData : []);
     } catch {
       setHeadOffices([]);
+      setAllBranches([]);
     }
   };
 
@@ -167,20 +171,24 @@ export default function DepartmentsPage() {
       String(a.name || "").localeCompare(String(b.name || ""))
     );
     const search = searchText.trim().toLowerCase();
-    const branchIdSet = new Set((branches || []).map((b) => String(b.id)));
     return sorted.filter((row) => {
       const status = String(row?.status || "ACTIVE").toUpperCase();
       const statusOk = !filters.status || status === String(filters.status).toUpperCase();
       const searchOk =
         !search || String(row?.name || "").toLowerCase().includes(search);
-      const branchOk = !filters.branchId || String(row?.branchId || "") === String(filters.branchId);
-      const hoOk =
-        !filters.headOfficeId ||
-        !!filters.branchId ||
-        branchIdSet.has(String(row?.branchId || ""));
+      const branchOk = !filters.branchId || (row.branchIds && row.branchIds.map(String).includes(String(filters.branchId)));
+      let hoOk = true;
+      if (filters.headOfficeId && !filters.branchId) {
+        const targetBranchIdsForHo = new Set(
+          allBranches
+            .filter((b) => String(b.headOfficeId) === String(filters.headOfficeId))
+            .map((b) => String(b.id))
+        );
+        hoOk = row.branchIds && row.branchIds.some(bId => targetBranchIdsForHo.has(String(bId)));
+      }
       return statusOk && searchOk && branchOk && hoOk;
     });
-  }, [rows, searchText, filters.status, filters.branchId, filters.headOfficeId, branches]);
+  }, [rows, searchText, filters.status, filters.branchId, filters.headOfficeId, allBranches]);
 
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / pageSize));
 
@@ -205,10 +213,6 @@ export default function DepartmentsPage() {
 
   const handleAddDepartment = async (e) => {
     e.preventDefault();
-    if (!form.branchId) {
-      showError("Branch is required");
-      return;
-    }
     if (!form.name.trim()) {
       showError("Department name is required");
       return;
@@ -216,8 +220,8 @@ export default function DepartmentsPage() {
     setSaving(true);
     try {
       await createDepartmentMaster({
-        branchId: Number(form.branchId),
         name: form.name.trim(),
+        branchIds: [],
         status: form.status,
       });
       setForm(initialForm);
@@ -233,39 +237,17 @@ export default function DepartmentsPage() {
 
   const openEdit = (row) => {
     setEditForm({
-      branchId: String(row?.branchId || ""),
       name: row?.name || "",
+      branchIds: row?.branchIds ? row.branchIds.map(Number) : [],
       status: String(row?.status || "ACTIVE").toUpperCase(),
     });
     setSelectedId(row?.id || null);
     setShowEditModal(true);
-
-    const existingHo = filters.headOfficeId || "";
-    setModalHeadOfficeId(existingHo);
-    if (!existingHo && row?.branchId) {
-      (async () => {
-        try {
-          const allBranches = await getBranches();
-          const match = (Array.isArray(allBranches) ? allBranches : []).find(
-            (b) => String(b?.id) === String(row.branchId),
-          );
-          if (match?.headOfficeId) {
-            setModalHeadOfficeId(String(match.headOfficeId));
-          }
-        } catch {
-          // ignore
-        }
-      })();
-    }
   };
 
   const handleEditDepartment = async (e) => {
     e.preventDefault();
     if (!selectedId) return;
-    if (!editForm.branchId) {
-      showError("Branch is required");
-      return;
-    }
     if (!editForm.name.trim()) {
       showError("Department name is required");
       return;
@@ -273,8 +255,8 @@ export default function DepartmentsPage() {
     setSaving(true);
     try {
       await updateDepartmentMaster(selectedId, {
-        branchId: Number(editForm.branchId),
         name: editForm.name.trim(),
+        branchIds: editForm.branchIds || [],
         status: editForm.status,
       });
       showSuccess("Department updated");
@@ -508,6 +490,7 @@ export default function DepartmentsPage() {
                       <tr>
                         <th className="text-muted" style={{ width: 100, fontWeight: "600", fontSize: "0.85rem" }}>#</th>
                         <th className="text-muted" style={{ fontWeight: "600", fontSize: "0.85rem" }}>Department</th>
+                        <th className="text-muted" style={{ fontWeight: "600", fontSize: "0.85rem" }}>Assigned Branches</th>
                         <th className="text-muted" style={{ fontWeight: "600", fontSize: "0.85rem" }}>No of Employees</th>
                         <th className="text-muted" style={{ fontWeight: "600", fontSize: "0.85rem" }}>Status</th>
                         <th className="text-muted text-end" style={{ width: 180, fontWeight: "600", fontSize: "0.85rem" }}>Action</th>
@@ -516,7 +499,7 @@ export default function DepartmentsPage() {
                     <tbody>
                       {pagedRows.length === 0 ? (
                         <tr>
-                          <td colSpan={5} className="text-center py-4 text-muted">
+                          <td colSpan={6} className="text-center py-4 text-muted">
                             No departments found
                           </td>
                         </tr>
@@ -527,6 +510,19 @@ export default function DepartmentsPage() {
                             <tr key={row.id || row.name}>
                               <td className="fw-semibold" style={{ color: "#1e293b", fontSize: "0.9rem" }}>{(page - 1) * pageSize + idx + 1}</td>
                               <td className="fw-semibold" style={{ color: "#0f172a", fontSize: "0.9rem" }}>{row.name || "-"}</td>
+                              <td>
+                                {row.branchNames && row.branchNames.length > 0 ? (
+                                  <div className="d-flex flex-wrap gap-1">
+                                    {row.branchNames.map((name, i) => (
+                                      <span key={i} className="badge bg-light text-dark border" style={{ fontSize: "0.75rem" }}>
+                                        {name}
+                                      </span>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <span className="text-muted small">No Branches</span>
+                                )}
+                              </td>
                               <td style={{ color: "#475569", fontSize: "0.9rem" }}>
                                 {departmentCounts.get(String(row.name || "").trim().toLowerCase()) ??
                                   row.employeeCount ??
@@ -684,46 +680,6 @@ export default function DepartmentsPage() {
                 <div className="row g-3">
                   <div className="col-md-12">
                     <div className="avm-field">
-                      <label className="avm-label">Head Office <span className="req">*</span></label>
-                      <select
-                        className="avm-select"
-                        value={modalHeadOfficeId}
-                        onChange={(e) => {
-                          setModalHeadOfficeId(e.target.value);
-                          setForm((prev) => ({ ...prev, branchId: "" }));
-                        }}
-                        required
-                      >
-                        <option value="">Select</option>
-                        {editHeadOfficeOptions.map((h) => (
-                          <option key={h.id} value={h.id}>
-                            {h.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                  <div className="col-md-12">
-                    <div className="avm-field">
-                      <label className="avm-label">Branch <span className="req">*</span></label>
-                      <select
-                        className="avm-select"
-                        value={form.branchId}
-                        onChange={(e) => setForm((prev) => ({ ...prev, branchId: e.target.value }))}
-                        disabled={!modalHeadOfficeId}
-                        required
-                      >
-                        <option value="">{modalHeadOfficeId ? "Select" : "Select Head Office first"}</option>
-                        {editBranchOptions.map((b) => (
-                          <option key={b.id} value={b.id}>
-                            {b.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                  <div className="col-md-12">
-                    <div className="avm-field">
                       <label className="avm-label">Department Name <span className="req">*</span></label>
                       <input
                         type="text"
@@ -767,7 +723,7 @@ export default function DepartmentsPage() {
 
       {showEditModal && (
         <div className="avm-backdrop" role="presentation">
-          <div className="avm-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+          <div className="avm-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" style={{ maxWidth: "550px" }}>
             <div className="avm-modal-header">
               <h2 className="avm-modal-title">Edit Department</h2>
               <button type="button" className="avm-modal-close" onClick={() => setShowEditModal(false)} aria-label="Close">
@@ -777,49 +733,6 @@ export default function DepartmentsPage() {
             <form onSubmit={handleEditDepartment}>
               <div className="avm-body">
                 <div className="row g-3">
-                  <div className="col-md-12">
-                    <div className="avm-field">
-                      <label className="avm-label">Head Office <span className="req">*</span></label>
-                      <select
-                        className="avm-select"
-                        value={modalHeadOfficeId}
-                        onChange={(e) => {
-                          setModalHeadOfficeId(e.target.value);
-                          setEditForm((prev) => ({ ...prev, branchId: "" }));
-                        }}
-                        required
-                      >
-                        <option value="">Select</option>
-                        {[...headOffices]
-                          .filter(isActiveMaster)
-                          .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))
-                          .map((h) => (
-                            <option key={h.id} value={h.id}>
-                              {h.name}
-                            </option>
-                          ))}
-                      </select>
-                    </div>
-                  </div>
-                  <div className="col-md-12">
-                    <div className="avm-field">
-                      <label className="avm-label">Branch <span className="req">*</span></label>
-                      <select
-                        className="avm-select"
-                        value={editForm.branchId}
-                        onChange={(e) => setEditForm((prev) => ({ ...prev, branchId: e.target.value }))}
-                        disabled={!modalHeadOfficeId}
-                        required
-                      >
-                        <option value="">{modalHeadOfficeId ? "Select" : "Select Head Office first"}</option>
-                        {editBranchOptions.map((b) => (
-                          <option key={b.id} value={b.id}>
-                            {b.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
                   <div className="col-md-12">
                     <div className="avm-field">
                       <label className="avm-label">Department Name <span className="req">*</span></label>
@@ -845,6 +758,56 @@ export default function DepartmentsPage() {
                       </select>
                     </div>
                   </div>
+                  <div className="col-md-12">
+                    <div className="avm-field">
+                      <label className="avm-label mb-2">Assign Branches</label>
+                      <div className="border rounded p-3" style={{ maxHeight: "250px", overflowY: "auto", backgroundColor: "#f8fafc" }}>
+                        {headOffices.map((ho) => {
+                          const hoBranches = allBranches.filter(b => String(b.headOfficeId) === String(ho.id));
+                          if (hoBranches.length === 0) return null;
+                          return (
+                            <div key={ho.id} className="mb-3">
+                              <div className="fw-bold text-primary border-bottom pb-1 mb-2" style={{ fontSize: "0.85rem" }}>
+                                {ho.name}
+                              </div>
+                              <div className="row g-2">
+                                {hoBranches.map((branch) => {
+                                  const isChecked = editForm.branchIds?.includes(Number(branch.id));
+                                  return (
+                                    <div key={branch.id} className="col-sm-6">
+                                      <div className="form-check">
+                                        <input
+                                          className="form-check-input"
+                                          type="checkbox"
+                                          id={`branch-chk-${branch.id}`}
+                                          checked={isChecked}
+                                          onChange={(e) => {
+                                            const checked = e.target.checked;
+                                            const branchIdNum = Number(branch.id);
+                                            setEditForm(prev => {
+                                              const current = prev.branchIds || [];
+                                              const next = checked
+                                                ? [...current, branchIdNum]
+                                                : current.filter(id => id !== branchIdNum);
+                                              return { ...prev, branchIds: next };
+                                            });
+                                          }}
+                                        />
+                                        <label className="form-check-label small" htmlFor={`branch-chk-${branch.id}`}>
+                                          {branch.name}
+                                          {String(branch.status).toUpperCase() === "INACTIVE" && " (Inactive)"}
+                                        </label>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
               <div className="avm-footer">
@@ -861,7 +824,7 @@ export default function DepartmentsPage() {
             </form>
           </div>
         </div>
-      )}
+      )})}
 
       {showDeleteModal && (
         <div className="avm-backdrop" role="presentation">

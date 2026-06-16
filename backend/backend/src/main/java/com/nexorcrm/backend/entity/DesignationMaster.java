@@ -17,8 +17,13 @@ public class DesignationMaster {
     @Column(nullable = false, length = 120)
     private String department; // plain text, no User Admin linkage
 
-    @Column(name = "department_master_id")
-    private Long departmentMasterId;
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+        name = "designation_departments",
+        joinColumns = @JoinColumn(name = "designation_id"),
+        inverseJoinColumns = @JoinColumn(name = "department_id")
+    )
+    private java.util.Set<DepartmentMaster> departments = new java.util.HashSet<>();
 
     @Column(nullable = false, length = 20)
     private String status; // ACTIVE / INACTIVE
@@ -54,8 +59,8 @@ public class DesignationMaster {
     public String getDepartment() { return department; }
     public void setDepartment(String department) { this.department = department; }
 
-    public Long getDepartmentMasterId() { return departmentMasterId; }
-    public void setDepartmentMasterId(Long departmentMasterId) { this.departmentMasterId = departmentMasterId; }
+    public java.util.Set<DepartmentMaster> getDepartments() { return departments; }
+    public void setDepartments(java.util.Set<DepartmentMaster> departments) { this.departments = departments; }
 
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }

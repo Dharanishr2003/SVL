@@ -7,15 +7,15 @@ public class DepartmentMasterRequest {
     @NotBlank
     private String name;
 
-    private Long branchId;
+    private java.util.List<Long> branchIds;
 
     private String status; // ACTIVE / INACTIVE
 
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
 
-    public Long getBranchId() { return branchId; }
-    public void setBranchId(Long branchId) { this.branchId = branchId; }
+    public java.util.List<Long> getBranchIds() { return branchIds; }
+    public void setBranchIds(java.util.List<Long> branchIds) { this.branchIds = branchIds; }
 
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }

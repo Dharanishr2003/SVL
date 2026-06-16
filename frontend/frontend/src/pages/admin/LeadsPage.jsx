@@ -73,6 +73,7 @@ const EMPTY_CREATE_FORM = {
   district: "",
   streetAddress: "",
   companyName: "",
+  gstin: "",
 };
 
 const DESIGN_THREAD_MARKER = "[[design-thread]]";
@@ -1147,6 +1148,7 @@ export default function LeadsPage() {
         leadState: createForm.state || null,
         leadCity: createForm.district || null,
         streetAddress: createForm.streetAddress?.trim() || null,
+        gstin: createForm.gstin?.trim() || null,
       };
 
       const created = await createLead(payload);
@@ -2368,6 +2370,18 @@ ${rowsHtml}
                                 setCreateForm((prev) => ({ ...prev, email: e.target.value }))
                               }
                               placeholder="E-mail Id"
+                            />
+                          </div>
+
+                          <div className="lead-form-field">
+                            <label className="form-label">GSTIN Number</label>
+                            <input
+                              className="form-control"
+                              value={createForm.gstin || ""}
+                              onChange={(e) =>
+                                setCreateForm((prev) => ({ ...prev, gstin: e.target.value }))
+                              }
+                              placeholder="GSTIN Number"
                             />
                           </div>
                           </div>

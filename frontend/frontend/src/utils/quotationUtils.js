@@ -368,7 +368,7 @@ export function buildQuotationTaxSummary(lineItems = [], options = {}) {
     groupsByRate.set(key, existing);
   };
 
-  (Array.isArray(lineItems) ? lineItems : []).forEach((item) => {
+  (Array.isArray(lineItems) ? lineItems : []).forEach((item, index) => {
     if (!item) return;
     const isDesignOnly = String(item.designStatus || "").toLowerCase() === "design_only";
     const specs = (() => {
@@ -380,12 +380,9 @@ export function buildQuotationTaxSummary(lineItems = [], options = {}) {
     })();
     const isAddCharge = specs?.isAdditionalCharge || item.isAdditionalCharge || false;
     
-    if (isDesignOnly || isAddCharge) {
-      return; // Skip normal product processing for design-only or additional charge items
-    }
+    if (isDesignOnly) return;
     
-    productSerial += 1;
-
+    const itemSerialNum = index + 1;
     const gstPct = roundMoney(item.gstPct ?? item.gstPercent ?? 0);
     const key = gstPct.toFixed(2);
     const taxableAmount = roundMoney(
@@ -396,8 +393,9 @@ export function buildQuotationTaxSummary(lineItems = [], options = {}) {
     const cgstAmount = isTamilNadu ? roundMoney(item.cgstAmount ?? gstAmount / 2) : 0;
     const sgstAmount = isTamilNadu ? roundMoney(item.sgstAmount ?? gstAmount / 2) : 0;
     const igstAmount = isTamilNadu ? 0 : roundMoney(item.igstAmount ?? gstAmount);
-    const code = extractTaxGroupCode(item);
-    const label = summarizeTaxGroupItem(item);
+    const code = isAddCharge ? "" : extractTaxGroupCode(item);
+    const label = isAddCharge ? item.productName : summarizeTaxGroupItem(item);
+
     addGroupEntry({
       key,
       gstPct,
@@ -408,45 +406,7 @@ export function buildQuotationTaxSummary(lineItems = [], options = {}) {
       igstAmount,
       code,
       label,
-      displayPart: String(productSerial),
-    });
-  });
-
-  // Also loop additional charge items (if any are sent in lineItems directly)
-  (Array.isArray(lineItems) ? lineItems : []).forEach((item) => {
-    if (!item) return;
-    const specs = (() => {
-      if (item.specs && typeof item.specs === "object") return item.specs;
-      const raw = item.specs || item.specsJson || item.variantFields;
-      if (!raw) return {};
-      if (typeof raw === "object") return raw;
-      try { return JSON.parse(raw); } catch { return {}; }
-    })();
-    const isAddCharge = specs?.isAdditionalCharge || item.isAdditionalCharge || false;
-    if (!isAddCharge) return;
-
-    productSerial += 1;
-    const gstPct = roundMoney(item.gstPct ?? item.gstPercent ?? 0);
-    const key = gstPct.toFixed(2);
-    const taxableAmount = roundMoney(
-      item.taxableAmount ??
-      (Number(item.baseAmount || 0) - Number(item.discountAmount || 0))
-    );
-    const gstAmount = roundMoney(item.gstAmount ?? taxableAmount * (gstPct / 100));
-    const cgstAmount = isTamilNadu ? roundMoney(item.cgstAmount ?? gstAmount / 2) : 0;
-    const sgstAmount = isTamilNadu ? roundMoney(item.sgstAmount ?? gstAmount / 2) : 0;
-    const igstAmount = isTamilNadu ? 0 : roundMoney(item.igstAmount ?? gstAmount);
-    
-    addGroupEntry({
-      key,
-      gstPct,
-      taxableAmount,
-      gstAmount,
-      cgstAmount,
-      sgstAmount,
-      igstAmount,
-      label: item.productName,
-      displayPart: String(productSerial),
+      displayPart: String(itemSerialNum),
     });
   });
 
@@ -756,6 +716,7 @@ export function createQuotationPayload({
   const clientCompany = selectedLead?.company || selectedLead?.companyName || "";
   const clientAddress = String(selectedLead?.address || selectedLead?.streetAddress || "").trim();
   const clientState = String(selectedLead?.leadState || selectedLead?.state || "").trim();
+  const clientGstin = selectedLead?.gstin || selectedLead?.gstinCode || "";
   const items = Array.isArray(lineItems)
     ? lineItems.map((item) => ({
         requirementId: item.requirementId ?? item.sourceRequirementId ?? null,
@@ -784,6 +745,7 @@ export function createQuotationPayload({
     streetAddress: clientAddress,
     clientState,
     leadState: clientState,
+    clientGstin,
     partyMode,
     selectedLead,
     lineItems,
@@ -941,6 +903,7 @@ function normalizeQuotationLeadForPdf(quotation = {}) {
       streetAddress: rawLead.streetAddress || address,
       leadState,
       state: rawLead.state || leadState,
+      gstin: rawLead.gstin || quotation.clientGstin || "",
     },
   };
 }
@@ -1046,7 +1009,9 @@ export async function buildQuotationPdf({
   };
   const resolvedCustomerName = customerName || clientName || selectedLead?.name || "";
   const resolvedDate = quotationDate || (createdAt ? new Date(createdAt).toISOString().slice(0, 10) : "") || "";
-  const resolvedLineItems = (lineItems && lineItems.length) ? lineItems : (items || []);
+  const resolvedLineItems = ((lineItems && lineItems.length) ? lineItems : (items || [])).filter(
+    (item) => Number(item.unitPrice || 0) !== 0
+  );
 
   const resolvedTemplate = {
     companyName: "",
@@ -1397,11 +1362,11 @@ export async function buildQuotationPdf({
   const sgstAmt = taxSummary.totalSgstAmount;
   const igstAmt = taxSummary.totalIgstAmount;
   const designFeeTaxAmount = taxSummary.designFeeTaxAmount;
-  const subtotal = Number(totals.subtotal ?? rootSubtotal ?? (productSubtotal + Number(designFeePricing.baseAmount || 0)));
-  const discountAmt = Number(totals.discountAmt ?? (productDiscount + designFeePricing.discountAmount));
-  const taxableAmount = Number(totals.afterDiscount ?? (subtotal - discountAmt));
-  const taxAmount = Number(totals.taxAmt ?? taxSummary.totalTaxAmount);
-  const grandTotal = Number(totals.grandTotal ?? rootGrandTotal ?? (taxableAmount + taxAmount));
+  const subtotal = productSubtotal + Number(designFeePricing.baseAmount || 0);
+  const discountAmt = productDiscount + designFeePricing.discountAmount;
+  const taxableAmount = subtotal - discountAmt;
+  const taxAmount = taxSummary.totalTaxAmount;
+  const grandTotal = taxableAmount + taxAmount;
   const taxAmountWordsText = `Tax Amount (in words): ${amountToWords(taxAmount, { includePaise: true })}`;
   const declarationText = (() => {
     const rawDeclaration = String(resolvedTemplate.policyText || "").trim();
@@ -1473,6 +1438,51 @@ export async function buildQuotationPdf({
   currentY += 5;
 
   // ══ SECTION 2 — Buyer Card ══
+  const leftList = [
+    ["Quotation No", asText(quotationNumber, "DRAFT")],
+    ["Date", asText(resolvedDate, "-")],
+    ["Details Of Buyer(Billed To)", asText(resolvedCustomerName, "-")],
+    ["Customer ID", asText(selectedLead?.leadId, "-")],
+    ["Name", asText(resolvedCustomerName, "-")],
+    ["Address", leadAddress || "-"],
+    ["GSTIN", selectedLead?.gstin || selectedLead?.gstinCode || clientGstin || "-"],
+    ["State", expandStateName(leadStateValue) || leadStateDisplay || "-"],
+    ["StateCode", leadStateCode || "-"],
+    ["Mobile NO", formatIndianMobileNumber(selectedLead?.mobile)],
+    ["Quotation Type", quotationType || "-"],
+  ];
+
+  const rightList = [
+    ["Dispatch Through", dispatchThrough || "-"],
+    ["Dispatch Details", dispatchDetails || "-"],
+    ["Consignee/DeliveryShipping", consigneeDeliveryShipping || "-"],
+    ["Address", ""],
+    ["Customer ID", asText(selectedLead?.leadId, "-")],
+    ["Name", asText(resolvedCustomerName, "-")],
+    ["Address", leadAddress || "-"],
+    ["GSTIN", selectedLead?.gstin || selectedLead?.gstinCode || clientGstin || "-"],
+    ["Invoice No", asText(quotationNumber, "DRAFT")],
+    ["State", expandStateName(leadStateValue) || leadStateDisplay || "-"],
+    ["StateCode", leadStateCode || "-"],
+    ["Mobile No", formatIndianMobileNumber(selectedLead?.mobile)],
+  ];
+
+  // Measure wrapping height with helvetica 7.5
+  doc.setFont("helvetica", "bold").setFontSize(7.5);
+  let leftHeight = 4;
+  leftList.forEach(([label, value]) => {
+    const wrapped = doc.splitTextToSize(String(value || "-"), 91 - 43 - 4);
+    leftHeight += 4.2 + (Math.max(0, wrapped.length - 1) * 3.5);
+  });
+
+  let rightHeight = 4;
+  rightList.forEach(([label, value]) => {
+    const wrapped = doc.splitTextToSize(String(value || "-"), 91 - 43 - 4);
+    rightHeight += 4.2 + (Math.max(0, wrapped.length - 1) * 3.5);
+  });
+
+  const calculatedMinCellHeight = Math.max(56, leftHeight + 4, rightHeight + 4);
+
   autoTable(doc, {
     ...tableHookOptions,
     startY: currentY,
@@ -1501,20 +1511,6 @@ export async function buildQuotationPdf({
       let ly = data.cell.y + 4;
 
       if (isLeft) {
-        const leftList = [
-          ["Quotation No", asText(quotationNumber, "DRAFT")],
-          ["Date", asText(resolvedDate, "-")],
-          ["Details Of Buyer(Billed To)", asText(resolvedCustomerName, "-")],
-          ["Customer ID", asText(selectedLead?.leadId, "-")],
-          ["Name", asText(resolvedCustomerName, "-")],
-          ["Address", leadAddress || "-"],
-          ["GSTIN", selectedLead?.gstin || selectedLead?.gstinCode || clientGstin || "-"],
-          ["State", expandStateName(leadStateValue) || leadStateDisplay || "-"],
-          ["StateCode", leadStateCode || "-"],
-          ["Mobile NO", formatIndianMobileNumber(selectedLead?.mobile)],
-          ["Quotation Type", quotationType || "-"],
-        ];
-
         leftList.forEach(([label, value]) => {
           doc.setFont("helvetica", "bold").setFontSize(7.5).setTextColor(0, 0, 0);
           doc.text(label, cx, ly);
@@ -1531,21 +1527,6 @@ export async function buildQuotationPdf({
       }
 
       if (isRight) {
-        const rightList = [
-          ["Dispatch Through", dispatchThrough || "-"],
-          ["Dispatch Details", dispatchDetails || "-"],
-          ["Consignee/DeliveryShipping", consigneeDeliveryShipping || "-"],
-          ["Address", ""],
-          ["Customer ID", asText(selectedLead?.leadId, "-")],
-          ["Name", asText(resolvedCustomerName, "-")],
-          ["Address", leadAddress || "-"],
-          ["GSTIN", selectedLead?.gstin || selectedLead?.gstinCode || clientGstin || "-"],
-          ["Invoice No", asText(quotationNumber, "DRAFT")],
-          ["State", expandStateName(leadStateValue) || leadStateDisplay || "-"],
-          ["StateCode", leadStateCode || "-"],
-          ["Mobile No", formatIndianMobileNumber(selectedLead?.mobile)],
-        ];
-
         rightList.forEach(([label, value]) => {
           doc.setFont("helvetica", "bold").setFontSize(7.5).setTextColor(0, 0, 0);
           doc.text(label, cx, ly);
@@ -1561,7 +1542,7 @@ export async function buildQuotationPdf({
         });
       }
     },
-    bodyStyles: { minCellHeight: 56 },
+    bodyStyles: { minCellHeight: calculatedMinCellHeight },
   });
 
   const buyerEndY = doc.lastAutoTable.finalY;

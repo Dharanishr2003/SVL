@@ -1,5 +1,7 @@
 package com.nexorcrm.backend.service;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import com.nexorcrm.backend.dto.*;
 import com.nexorcrm.backend.entity.*;
 import com.nexorcrm.backend.entity.EmailTemplateKey;
@@ -48,6 +50,8 @@ import java.util.stream.Collectors;
 @Service
 public class EmployeeProfileFormService {
 
+    private static final Logger logger = LoggerFactory.getLogger(EmployeeProfileFormService.class);
+
     private static final String HMAC_ALG = "HmacSHA256";
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
     private static final Pattern HANDLEBARS_TOKEN_PATTERN = Pattern.compile("\\{\\{\\s*([A-Za-z0-9_]+)\\s*\\}\\}");
@@ -91,7 +95,7 @@ public class EmployeeProfileFormService {
     @Value("${app.employee-form.required-fields:PHONE,DATE_OF_BIRTH,GENDER,CURRENT_ADDRESS,AADHAAR_NUMBER,PAN_NUMBER,BANK_ACCOUNT_HOLDER_NAME,BANK_ACCOUNT_NUMBER,BANK_IFSC,BANK_NAME_BRANCH}")
     private String requiredFieldsConfig;
 
-    @Value("${app.employee-form.required-docs:PHOTO,RESUME,CERTIFICATE}")
+    @Value("${app.employee-form.required-docs:PHOTO,RESUME}")
     private String requiredDocsConfig;
 
     @Value("${app.upload-dir:uploads}")
@@ -192,6 +196,12 @@ public class EmployeeProfileFormService {
 
         if (StringUtils.hasText(recipientEmail)) {
             var template = emailTemplateService.getOne(EmailTemplateKey.OFFER_LETTER_TEMPLATE.getKey());
+            if (template != null && !template.isActive()) {
+                logger.info("Email template {} is inactive. Skipping email to {}.", EmailTemplateKey.OFFER_LETTER_TEMPLATE.getKey(), recipientEmail);
+                EmployeeFormLinkResponse res = new EmployeeFormLinkResponse();
+                res.setPublicUrl(publicUrl);
+                return res;
+            }
             String subjectTemplate = template == null ? null : template.getSubject();
             String bodyTemplate = template == null ? null : template.getBody();
 
@@ -243,6 +253,12 @@ public class EmployeeProfileFormService {
 
         if (StringUtils.hasText(recipientEmail)) {
             var template = emailTemplateService.getOne(EmailTemplateKey.OFFER_LETTER_TEMPLATE.getKey());
+            if (template != null && !template.isActive()) {
+                logger.info("Email template {} is inactive. Skipping email to {}.", EmailTemplateKey.OFFER_LETTER_TEMPLATE.getKey(), recipientEmail);
+                EmployeeFormLinkResponse res = new EmployeeFormLinkResponse();
+                res.setPublicUrl(publicUrl);
+                return res;
+            }
             String subjectTemplate = template == null ? null : template.getSubject();
             String bodyTemplate = template == null ? null : template.getBody();
 
@@ -292,6 +308,12 @@ public class EmployeeProfileFormService {
         String publicUrl = buildPublicUrl(token);
 
         var template = emailTemplateService.getOne(EmailTemplateKey.PROFILE_COMPLETION_TEMPLATE.getKey());
+        if (template != null && !template.isActive()) {
+            logger.info("Email template {} is inactive. Skipping email to {}.", EmailTemplateKey.PROFILE_COMPLETION_TEMPLATE.getKey(), recipientEmail);
+            EmployeeFormLinkResponse res = new EmployeeFormLinkResponse();
+            res.setPublicUrl(publicUrl);
+            return res;
+        }
         String subjectTemplate = template == null ? null : template.getSubject();
         String bodyTemplate = template == null ? null : template.getBody();
 
@@ -563,6 +585,28 @@ public class EmployeeProfileFormService {
             dto.setRemarks(d.getRemarks());
             dto.setUploadedAt(d.getUploadedAt());
             res.getDocuments().add(dto);
+        }
+
+        // Add placeholder entries for configured required documents that are not uploaded
+        List<EmployeeDocumentType> requiredDocs = parseDocCsv(requiredDocsConfig);
+        for (EmployeeDocumentType dt : requiredDocs) {
+            boolean exists;
+            if (dt == EmployeeDocumentType.PHOTO) {
+                exists = docs.stream().anyMatch(d -> d.getDocType() == EmployeeDocumentType.PHOTO || d.getDocType() == EmployeeDocumentType.CANDIDATE_PHOTO);
+            } else {
+                exists = docs.stream().anyMatch(d -> d.getDocType() == dt);
+            }
+            if (!exists) {
+                EmployeeVerificationDocumentDto dto = new EmployeeVerificationDocumentDto();
+                dto.setId(null);
+                dto.setDocType(dt);
+                dto.setFileUrl(null);
+                dto.setOriginalFilename("Not Uploaded");
+                dto.setStatus(null);
+                dto.setRemarks("Missing required document");
+                dto.setUploadedAt(null);
+                res.getDocuments().add(dto);
+            }
         }
 
         return res;

@@ -3,8 +3,8 @@ package com.nexorcrm.backend.dto;
 public class DesignationMasterResponse {
     private Long id;
     private String name;
-    private String department;
-    private Long departmentMasterId;
+    private java.util.List<Long> departmentMasterIds;
+    private java.util.List<String> departmentMasterNames;
     private String status;
     private Long employeeCount; // optional
 
@@ -14,11 +14,11 @@ public class DesignationMasterResponse {
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
 
-    public String getDepartment() { return department; }
-    public void setDepartment(String department) { this.department = department; }
+    public java.util.List<Long> getDepartmentMasterIds() { return departmentMasterIds; }
+    public void setDepartmentMasterIds(java.util.List<Long> departmentMasterIds) { this.departmentMasterIds = departmentMasterIds; }
 
-    public Long getDepartmentMasterId() { return departmentMasterId; }
-    public void setDepartmentMasterId(Long departmentMasterId) { this.departmentMasterId = departmentMasterId; }
+    public java.util.List<String> getDepartmentMasterNames() { return departmentMasterNames; }
+    public void setDepartmentMasterNames(java.util.List<String> departmentMasterNames) { this.departmentMasterNames = departmentMasterNames; }
 
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
