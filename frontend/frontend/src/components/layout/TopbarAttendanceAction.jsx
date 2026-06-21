@@ -121,7 +121,11 @@ export default function TopbarAttendanceAction() {
   const attendanceStatus = String(attendanceToday?.status || "").toUpperCase();
 
   const canUseAttendance = useMemo(
-    () => role === "EMPLOYEE" || role === "MANAGER" || role === "ADMIN",
+    () =>
+      role === "EMPLOYEE" ||
+      role === "MANAGER" ||
+      role === "TEAM_LEAD" ||
+      role === "ADMIN",
     [role],
   );
 

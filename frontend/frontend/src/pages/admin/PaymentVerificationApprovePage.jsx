@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
+import LoadingSpinner from "../../components/common/LoadingSpinner";
 import { getLeadById, updateLeadDetails, getLeadInvoiceItems, saveLeadInvoiceItems, uploadLeadLogFile } from "../../api/leadsApi";
 import { getAddressById } from "../../api/addressApi";
 import { useToast } from "../../components/system/ToastProvider";
@@ -307,9 +308,7 @@ export default function PaymentVerificationApprovePage() {
           </div>
         </div>
         <div className="text-center py-5">
-          <div className="spinner-border" role="status">
-            <span className="visually-hidden">Loading...</span>
-          </div>
+          <LoadingSpinner size="page" label="Loading payment verification" />
         </div>
       </>
     );
@@ -740,7 +739,7 @@ export default function PaymentVerificationApprovePage() {
                     >
                       {saving ? (
                         <>
-                          <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                          <LoadingSpinner size="sm" className="me-2" label="Approving payment verification" />
                           Approving...
                         </>
                       ) : (

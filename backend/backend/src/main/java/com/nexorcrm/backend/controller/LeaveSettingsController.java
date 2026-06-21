@@ -36,6 +36,12 @@ public class LeaveSettingsController {
         return service.updateLeaveType(id, request);
     }
 
+    @DeleteMapping("/types/{id}")
+    public void deleteType(@PathVariable Long id) {
+        service.deleteLeaveType(id);
+    }
+
+
     @GetMapping("/types/{leaveTypeId}/policies")
     public List<LeavePolicyResponse> listPolicies(@PathVariable Long leaveTypeId) {
         return service.listPolicies(leaveTypeId);

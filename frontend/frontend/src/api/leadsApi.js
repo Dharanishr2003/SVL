@@ -21,6 +21,11 @@ export async function getLeadById(id) {
   return response?.data || null
 }
 
+export async function getLeadByCustomerUserId(userId) {
+  const response = await api.get(`/api/v1/leads/customer/${userId}`)
+  return response?.data || null
+}
+
 export async function getLeadFilters() {
   const response = await api.get('/api/v1/leads/filters')
   return response?.data || {}

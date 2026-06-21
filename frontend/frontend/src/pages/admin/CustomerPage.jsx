@@ -7,6 +7,7 @@ import { getUsers, createUser, deleteUser } from "../../api/userAdminApi";
 import { useToast } from "../../components/system/ToastProvider";
 import { extractApiErrorMessage } from "../../utils/errorMessage";
 import PageSizeSelector from "../../components/admin/PageSizeSelector";
+import { validatePhoneNumber } from "../../utils/phoneUtils";
 
 export default function CustomerPage() {
   const { showSuccess, showError } = useToast();
@@ -83,8 +84,12 @@ export default function CustomerPage() {
   const handleSave = async (e) => {
     e?.preventDefault?.();
 
-    if (!form.customerName.trim()) {
-      showError("Customer Name is required");
+    if (!form.firstName.trim()) {
+      showError("First Name is required");
+      return;
+    }
+    if (!form.lastName.trim()) {
+      showError("Last Name is required");
       return;
     }
     if (!form.email.trim()) {
@@ -92,15 +97,17 @@ export default function CustomerPage() {
       return;
     }
 
+    const phoneError = validatePhoneNumber(form.phone, form.countryCode);
+    if (phoneError) {
+      showError(phoneError);
+      return;
+    }
+
     setSaving(true);
     try {
-      const nameParts = (form.customerName || "").trim().split(/\s+/);
-      const firstName = nameParts[0] || "";
-      const lastName = nameParts.slice(1).join(" ") || "";
-
       await createUser({
-        firstName,
-        lastName,
+        firstName: form.firstName.trim(),
+        lastName: form.lastName.trim(),
         username: form.email.trim(),
         email: form.email.trim(),
         password: form.password || "Customer@123", // fallback password
@@ -208,6 +215,13 @@ export default function CustomerPage() {
                         </span>
                       </td>
                       <td>
+                        <button
+                          className="btn btn-sm btn-outline-primary me-2"
+                          style={{ borderRadius: 8, fontWeight: "600" }}
+                          onClick={() => navigate("/quotation", { state: { prefillCustomer: r } })}
+                        >
+                          Create Quotation
+                        </button>
                         <button
                           className="btn btn-sm btn-outline-danger"
                           style={{ borderRadius: 8, fontWeight: "600" }}

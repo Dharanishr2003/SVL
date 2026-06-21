@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import "./LeadsPage.css";
 import "./RequirementFormModal.css";
+import LoadingSpinner from "../../components/common/LoadingSpinner";
 import { createRequirement, updateRequirement } from "../../api/requirementApi";
 import { getCustomOptions, saveCustomOption } from "../../api/customOptionsApi";
 import {
@@ -1052,10 +1053,8 @@ export default function RequirementFormModal({
                         {/* Product-specific fields */}
                         {fieldsLoading ? (
                           <div className="col-12 text-center py-4">
-                            <div className="spinner-border spinner-border-sm text-primary" role="status">
-                              <span className="visually-hidden">Loading...</span>
-                            </div>
-                            <div className="text-muted mt-2 small">Loading fields…</div>
+                            <LoadingSpinner size="sm" label="Loading fields" />
+                            <div className="text-muted mt-2 small">Loading fields</div>
                           </div>
                         ) : productFields.length > 0 ? (
                           [currentSpecification].flatMap((entry, sectionIndex) => {

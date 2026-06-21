@@ -166,3 +166,109 @@
     backdrop-filter: none;
   }
 }
+
+/* ---- Phone Combined Field ---- */
+.avm-phone-field {
+  position: relative;
+}
+
+.avm-phone-wrap {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.avm-phone-code-trigger {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  height: 40px;
+  min-width: 100px;
+  max-width: 120px;
+  padding: 0 0.75rem;
+  border-radius: 2rem;
+  border: 1px solid #d0d5dd;
+  background: #ffffff;
+  color: #010c1a;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.avm-phone-code-trigger:hover {
+  border-color: #45597a;
+  background-color: #f8fafc;
+}
+
+.avm-phone-code-trigger:focus {
+  outline: none;
+  border-color: #45597a;
+  box-shadow: 0 0 0 3px rgba(69, 89, 122, 0.14);
+}
+
+.avm-phone-input {
+  flex: 1;
+  height: 40px;
+  border-radius: 2rem;
+  border: 1px solid #d0d5dd;
+  padding: 0 1rem;
+  font-size: 0.9rem;
+  background: #ffffff;
+  color: #010c1a;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  min-width: 0;
+}
+
+.avm-phone-input:hover {
+  border-color: #45597a;
+}
+
+.avm-phone-input:focus {
+  outline: none;
+  border-color: #45597a;
+  box-shadow: 0 0 0 3px rgba(69, 89, 122, 0.14);
+}
+
+.avm-phone-code-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 200;
+  background: #ffffff;
+  border: 1px solid #e9ecef;
+  border-radius: 0.6rem;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  max-height: 260px;
+  overflow-y: auto;
+  min-width: 220px;
+}
+
+.avm-phone-code-option {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 0.55rem 1rem;
+  border: none;
+  background: none;
+  font-size: 0.85rem;
+  color: #34393f;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+.avm-phone-code-option:hover {
+  background-color: #f4f5f7;
+}
+
+.avm-phone-code-option.is-active {
+  background-color: #e8edf4;
+  color: #45597a;
+  font-weight: 600;
+}
+
+.avm-phone-hint {
+  font-size: 0.78rem;
+  color: #7a8a9a;
+  margin-top: 0.25rem;
+}

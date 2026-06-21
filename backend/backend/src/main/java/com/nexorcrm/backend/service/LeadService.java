@@ -247,6 +247,26 @@ public class LeadService {
     }
 
     @Transactional(readOnly = true)
+    public LeadResponse getCustomerLeadByUserId(Long userId) {
+        if (userId == null) {
+            throw new EntityNotFoundException("Customer user not found");
+        }
+
+        User customer = userRepository.findByIdAndIsDeletedFalse(userId)
+                .orElseThrow(() -> new EntityNotFoundException("Customer user not found"));
+        String emailNormalized = normalizeEmail(customer.getEmail());
+        if (!StringUtils.hasText(emailNormalized)) {
+            throw new EntityNotFoundException("Customer lead not found");
+        }
+
+        Lead lead = leadRepository.findTopByDeletedFalseAndEmailNormalizedOrderByCreatedAtDesc(emailNormalized)
+                .orElseThrow(() -> new EntityNotFoundException("Customer lead not found"));
+        Map<Long, String> groupNameMap = loadGroupNameMap(List.of(lead));
+        Map<Long, String> userNameMap = loadUserNameMap(List.of(lead));
+        return toResponse(lead, groupNameMap, userNameMap);
+    }
+
+    @Transactional(readOnly = true)
     public List<LeadResponse> list(String actorPrincipal,
                                    String search,
                                    String project,

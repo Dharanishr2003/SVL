@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import LoadingSpinner from "../../components/common/LoadingSpinner";
 import { useParams } from "react-router-dom";
 import { getPublicEmployeeForm, submitPublicEmployeeForm } from "../../api/employeesApi";
 import { extractApiErrorMessage } from "../../utils/errorMessage";
@@ -161,6 +162,7 @@ const PUBLIC_FORM_SECTION_CONFIGS = [
 export default function PublicEmployeeFormPage() {
   const { token } = useParams();
   const { showSuccess, showError } = useToast();
+  const submissionKey = token ? `public-employee-form-submitted:${token}` : null;
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [data, setData] = useState(null);
@@ -174,7 +176,22 @@ export default function PublicEmployeeFormPage() {
       setLoading(true);
       try {
         const res = await getPublicEmployeeForm(token);
-        setData(res);
+        let cachedSubmission = null;
+        if (submissionKey) {
+          const cachedRaw = window.sessionStorage.getItem(submissionKey);
+          if (cachedRaw) {
+            try {
+              cachedSubmission = JSON.parse(cachedRaw);
+            } catch {
+              cachedSubmission = { submitted: true };
+            }
+          }
+        }
+        setData({
+          ...res,
+          submitted: Boolean(res?.submitted || cachedSubmission?.submitted),
+          profileStatus: res?.profileStatus || cachedSubmission?.profileStatus || null,
+        });
         const initial = {};
         (res?.fields || []).forEach((f) => {
           initial[f.fieldKey] = f.currentValue || "";
@@ -197,7 +214,7 @@ export default function PublicEmployeeFormPage() {
       }
     }
     load();
-  }, [token, showError]);
+  }, [token, showError, submissionKey]);
 
   const fieldList = useMemo(() => (data?.fields || []), [data]);
   const uploadList = useMemo(() => (data?.uploads || []), [data]);
@@ -721,7 +738,24 @@ export default function PublicEmployeeFormPage() {
 
       const res = await submitPublicEmployeeForm(token, fd);
       showSuccess("Submitted for verification");
-      setData((prev) => prev ? { ...prev, submitted: true, profileStatus: res?.profileStatus } : prev);
+      if (submissionKey) {
+        window.sessionStorage.setItem(
+          submissionKey,
+          JSON.stringify({
+            submitted: true,
+            profileStatus: res?.profileStatus || "PENDING_VERIFICATION",
+          }),
+        );
+      }
+      setData((prev) =>
+        prev
+          ? {
+              ...prev,
+              submitted: true,
+              profileStatus: res?.profileStatus || prev.profileStatus || "PENDING_VERIFICATION",
+            }
+          : prev,
+      );
     } catch (e2) {
       showError(extractApiErrorMessage(e2, "Failed to submit"));
     } finally {
@@ -733,7 +767,9 @@ export default function PublicEmployeeFormPage() {
     return (
       <div className="container py-5">
         <div className="card">
-          <div className="card-body">Loading...</div>
+          <div className="card-body d-flex justify-content-center py-5">
+            <LoadingSpinner size="page" label="Loading form" />
+          </div>
         </div>
       </div>
     );
@@ -751,6 +787,42 @@ export default function PublicEmployeeFormPage() {
 
   const noFields = (data.fields || []).length === 0 && (data.uploads || []).length === 0;
   const noEditableFields = editableFieldList.length === 0 && editableUploadList.length === 0;
+  const isSubmitted = Boolean(data?.submitted);
+
+  if (isSubmitted) {
+    return (
+      <div className="container py-5">
+        <div className="row justify-content-center">
+          <div className="col-lg-8">
+            <div className="card">
+              <div className="card-header">
+                <h4 className="mb-0">Complete Your Profile</h4>
+                <div className="text-muted small">
+                  {data.name || "Employee"} Â· {data.emailMasked || ""} {data.phoneMasked ? `Â· ${data.phoneMasked}` : ""}
+                </div>
+              </div>
+              <div className="card-body">
+                <div className="text-center py-4">
+                  <div
+                    className="d-inline-flex align-items-center justify-content-center rounded-circle bg-success bg-opacity-10 text-success mb-3"
+                    style={{ width: 64, height: 64 }}
+                  >
+                    <i className="ti ti-circle-check" style={{ fontSize: 32 }} />
+                  </div>
+                  <h5 className="mb-2">Profile submitted successfully</h5>
+                  <div className="text-muted mb-3">Your details have been sent for verification.</div>
+                  <div className="alert alert-success d-inline-flex align-items-center gap-2 mb-0">
+                    <span className="fw-semibold">Status:</span>
+                    <span>{String(data.profileStatus || "PENDING_VERIFICATION").replaceAll("_", " ")}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="container py-5">

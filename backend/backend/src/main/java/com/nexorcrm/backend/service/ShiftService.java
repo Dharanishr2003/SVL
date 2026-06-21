@@ -20,6 +20,7 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.Duration;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -203,8 +204,20 @@ public class ShiftService {
         if (r.getLunchAllowedMinutes() != null) s.setLunchAllowedMinutes(r.getLunchAllowedMinutes());
         if (r.getLunchGraceMinutes() != null) s.setLunchGraceMinutes(r.getLunchGraceMinutes());
         if (r.getIsNightShift() != null) s.setIsNightShift(r.getIsNightShift());
-        if (r.getMinWorkMinutes() != null) s.setMinWorkMinutes(r.getMinWorkMinutes());
+        s.setMinWorkMinutes(calculateMinWorkMinutes(r.getStartTime(), r.getEndTime()));
         if (r.getMaxOvertimeMinutes() != null) s.setMaxOvertimeMinutes(r.getMaxOvertimeMinutes());
+    }
+
+    private int calculateMinWorkMinutes(LocalTime startTime, LocalTime endTime) {
+        if (startTime == null || endTime == null) {
+            return 0;
+        }
+
+        long minutes = Duration.between(startTime, endTime).toMinutes();
+        if (minutes < 0) {
+            minutes += 24L * 60L;
+        }
+        return (int) Math.max(0L, minutes);
     }
 
     private ShiftResponse toShiftResponse(Shift s) {

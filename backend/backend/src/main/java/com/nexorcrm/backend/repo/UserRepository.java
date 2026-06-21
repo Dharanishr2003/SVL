@@ -342,7 +342,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
                     WHERE u.role IN :roles
                       AND u.activationStatus IN :activationStatuses
                       AND u.isDeleted = false
-                      AND lower(coalesce(u.institutionName, '')) = lower(:institutionName)
+                      AND (u.role = com.nexorcrm.backend.entity.Role.CUSTOMER OR lower(coalesce(u.institutionName, '')) = lower(:institutionName))
                     ORDER BY CASE u.role
                         WHEN com.nexorcrm.backend.entity.Role.SUPER_ADMIN THEN 1
                         WHEN com.nexorcrm.backend.entity.Role.ADMIN THEN 2
@@ -359,7 +359,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
                     WHERE u.role IN :roles
                       AND u.activationStatus IN :activationStatuses
                       AND u.isDeleted = false
-                      AND lower(coalesce(u.institutionName, '')) = lower(:institutionName)
+                      AND (u.role = com.nexorcrm.backend.entity.Role.CUSTOMER OR lower(coalesce(u.institutionName, '')) = lower(:institutionName))
                     """
     )
     Page<User> findByRoleInAndActivationStatusInAndBranchScopeOrderByRoleHierarchy(
@@ -375,8 +375,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
                     WHERE u.role IN :roles
                       AND u.activationStatus IN :activationStatuses
                       AND u.isDeleted = false
-                      AND lower(coalesce(u.institutionName, '')) = lower(:institutionName)
-                      AND lower(coalesce(u.departmentName, '')) = lower(:departmentName)
+                      AND (u.role = com.nexorcrm.backend.entity.Role.CUSTOMER OR (lower(coalesce(u.institutionName, '')) = lower(:institutionName) AND lower(coalesce(u.departmentName, '')) = lower(:departmentName)))
                     ORDER BY CASE u.role
                         WHEN com.nexorcrm.backend.entity.Role.SUPER_ADMIN THEN 1
                         WHEN com.nexorcrm.backend.entity.Role.ADMIN THEN 2
@@ -393,8 +392,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
                     WHERE u.role IN :roles
                       AND u.activationStatus IN :activationStatuses
                       AND u.isDeleted = false
-                      AND lower(coalesce(u.institutionName, '')) = lower(:institutionName)
-                      AND lower(coalesce(u.departmentName, '')) = lower(:departmentName)
+                      AND (u.role = com.nexorcrm.backend.entity.Role.CUSTOMER OR (lower(coalesce(u.institutionName, '')) = lower(:institutionName) AND lower(coalesce(u.departmentName, '')) = lower(:departmentName)))
                     """
     )
     Page<User> findByRoleInAndActivationStatusInAndDepartmentScopeOrderByRoleHierarchy(
@@ -411,9 +409,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
                     WHERE u.role IN :roles
                       AND u.activationStatus IN :activationStatuses
                       AND u.isDeleted = false
-                      AND lower(coalesce(u.institutionName, '')) = lower(:institutionName)
-                      AND lower(coalesce(u.departmentName, '')) = lower(:departmentName)
-                      AND lower(coalesce(u.teamName, '')) = lower(:teamName)
+                      AND (u.role = com.nexorcrm.backend.entity.Role.CUSTOMER OR (lower(coalesce(u.institutionName, '')) = lower(:institutionName) AND lower(coalesce(u.departmentName, '')) = lower(:departmentName) AND lower(coalesce(u.teamName, '')) = lower(:teamName)))
                     ORDER BY CASE u.role
                         WHEN com.nexorcrm.backend.entity.Role.SUPER_ADMIN THEN 1
                         WHEN com.nexorcrm.backend.entity.Role.ADMIN THEN 2
@@ -430,9 +426,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
                     WHERE u.role IN :roles
                       AND u.activationStatus IN :activationStatuses
                       AND u.isDeleted = false
-                      AND lower(coalesce(u.institutionName, '')) = lower(:institutionName)
-                      AND lower(coalesce(u.departmentName, '')) = lower(:departmentName)
-                      AND lower(coalesce(u.teamName, '')) = lower(:teamName)
+                      AND (u.role = com.nexorcrm.backend.entity.Role.CUSTOMER OR (lower(coalesce(u.institutionName, '')) = lower(:institutionName) AND lower(coalesce(u.departmentName, '')) = lower(:departmentName) AND lower(coalesce(u.teamName, '')) = lower(:teamName)))
                     """
     )
     Page<User> findByRoleInAndActivationStatusInAndTeamScopeOrderByRoleHierarchy(
@@ -458,4 +452,6 @@ public interface UserRepository extends JpaRepository<User, Long> {
             @Param("institutionName") String institutionName,
             @Param("teamName") String teamName
     );
+
+    Optional<User> findByEmployeeIdAndIsDeletedFalse(Long employeeId);
 }

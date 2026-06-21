@@ -32,6 +32,23 @@ function matchesRoute(pathname, href) {
   return current === target || current.startsWith(`${target}/`);
 }
 
+function formatDisplayName(user) {
+  const firstName = String(user?.firstName || "").trim();
+  const lastName = String(user?.lastName || "").trim();
+  const fullName = [firstName, lastName].filter(Boolean).join(" ").trim();
+  return fullName || String(user?.username || "").trim() || "User";
+}
+
+function formatRoleLabel(role) {
+  const normalized = String(role || "").trim().replace(/_/g, " ");
+  if (!normalized) {
+    return "Admin";
+  }
+  return normalized
+    .toLowerCase()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
 export default function Sidebar() {
   const containerRef = useRef(null);
   const navigate = useNavigate();
@@ -39,6 +56,9 @@ export default function Sidebar() {
   const { user } = useAuth();
   const { canAccess } = usePageAccess();
   const role = String(user?.role || "").toUpperCase();
+  const profilePhotoUrl = user?.profilePhotoUrl || "/assets/img/profiles/avatar-02.jpg";
+  const displayName = formatDisplayName(user);
+  const roleLabel = formatRoleLabel(user?.role || "Admin");
 
   const canAccessAny = (...keys) =>
     keys.flat().some((key) => key && canAccess(key));
@@ -143,13 +163,13 @@ export default function Sidebar() {
           <div className="text-center rounded bg-light p-3 mb-4 user-profile">
             <div className="avatar avatar-lg online mb-3">
               <img
-                src="/assets/img/profiles/avatar-02.jpg"
-                alt="Img"
+                src={profilePhotoUrl}
+                alt={displayName}
                 className="img-fluid rounded-circle"
               />
             </div>
-            <h6 className="fs-12 fw-normal mb-1">Adrian Herman</h6>
-            <p className="fs-10">System Admin</p>
+            <h6 className="fs-12 fw-normal mb-1">{displayName}</h6>
+            <p className="fs-10">{roleLabel}</p>
           </div>
           <div className="sidebar-nav mb-3">
             <ul
@@ -173,14 +193,14 @@ export default function Sidebar() {
           <div className="text-center rounded bg-light p-2 mb-4 sidebar-profile d-flex align-items-center">
             <div className="avatar avatar-md onlin">
               <img
-                src="/assets/img/profiles/avatar-02.jpg"
-                alt="Img"
+                src={profilePhotoUrl}
+                alt={displayName}
                 className="img-fluid rounded-circle"
               />
             </div>
             <div className="text-start sidebar-profile-info ms-2">
-              <h6 className="fs-12 fw-normal mb-1">Adrian Herman</h6>
-              <p className="fs-10">System Admin</p>
+              <h6 className="fs-12 fw-normal mb-1">{displayName}</h6>
+              <p className="fs-10">{roleLabel}</p>
             </div>
           </div>
           <div className="input-group input-group-flat d-inline-flex mb-4">

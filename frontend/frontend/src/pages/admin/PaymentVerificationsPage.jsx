@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { createPortal } from "react-dom";
+import LoadingSpinner from "../../components/common/LoadingSpinner";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import { useAuth } from "../../context/AuthContext";
@@ -431,9 +432,7 @@ export default function PaymentVerificationsPage() {
                   {loading ? (
                     <tr>
                       <td colSpan={8} className="text-center py-4">
-                        <div className="spinner-border text-primary" role="status">
-                          <span className="visually-hidden">Loading...</span>
-                        </div>
+                        <LoadingSpinner size="page" label="Loading payment verifications" />
                       </td>
                     </tr>
                   ) : pagedRows.length === 0 ? (

@@ -88,6 +88,11 @@ public class LeadController {
         return leadService.getById(id, authentication.getName());
     }
 
+    @GetMapping("/customer/{userId}")
+    public LeadResponse getCustomerLeadByUserId(@PathVariable("userId") Long userId) {
+        return leadService.getCustomerLeadByUserId(userId);
+    }
+
     @GetMapping("/{id}/log")
     public List<LeadLogResponse> getLeadLog(@PathVariable("id") Long id, Authentication authentication) {
         return leadService.listLeadLogs(id, authentication.getName());

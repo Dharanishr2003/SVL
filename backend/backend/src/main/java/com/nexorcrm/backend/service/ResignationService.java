@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 @Transactional
@@ -70,12 +71,29 @@ public class ResignationService {
     }
 
     private void apply(Resignation row, ResignationRequest request) {
+        var employee = request.getEmployeeId() == null
+                ? Optional.<com.nexorcrm.backend.entity.Employee>empty()
+                : employeeRepository.findById(request.getEmployeeId());
+        String department = firstNonBlank(
+                request.getDepartment(),
+                employee.map(com.nexorcrm.backend.entity.Employee::getDepartmentName).orElse(null),
+                employee.map(com.nexorcrm.backend.entity.Employee::getDept).orElse(null)
+        );
         row.setEmployeeId(request.getEmployeeId());
         row.setEmployeeName(request.getEmployeeName().trim());
-        row.setDepartment(request.getDepartment().trim());
+        row.setDepartment(department);
         row.setReason(request.getReason().trim());
         row.setNoticeDate(request.getNoticeDate());
         row.setResignationDate(request.getResignationDate());
+    }
+
+    private String firstNonBlank(String... values) {
+        for (String value : values) {
+            if (value != null && !value.trim().isEmpty()) {
+                return value.trim();
+            }
+        }
+        return "";
     }
 
     private ResignationResponse toResponse(Resignation row) {

@@ -1,20 +1,110 @@
-import React, { useState, useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import {
+  createCategory,
+  deleteCategory,
+  getCategories,
+  updateCategory,
+} from "../../api/categoriesApi";
+import { extractApiErrorMessage } from "../../utils/errorMessage";
+import { useToast } from "../../components/system/ToastProvider";
 
 const CategoriesPage = () => {
-  const [categories, setCategories] = useState([
-    { id: 1, name: "Technology", subName: "Hardware Cost" },
-    { id: 2, name: "Taxes", subName: "Payroll Taxes" },
-    { id: 3, name: "Recruitment", subName: "Advertisement" },
-    { id: 4, name: "Compensation", subName: "Incentive" },
-    { id: 5, name: "Travel", subName: "Business Travel" },
-    { id: 6, name: "Internship", subName: "Stipends" },
-    { id: 7, name: "Employee Engagement", subName: "Engagement Activities" },
-    { id: 8, name: "Employee Benefits", subName: "Healthcare Benefits" },
-    { id: 9, name: "Corporate Events", subName: "Decorations" },
-    { id: 10, name: "Compliance", subName: "Performance Appraisal" },
-  ]);
+  const { showSuccess, showError } = useToast();
+  const [categories, setCategories] = useState([]);
   const [searchText, setSearchText] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingCategoryId, setEditingCategoryId] = useState(null);
+  const [form, setForm] = useState({ name: "", subName: "" });
+
+  const loadCategories = async () => {
+    setLoading(true);
+    try {
+      const data = await getCategories();
+      setCategories(Array.isArray(data) ? data : []);
+    } catch (error) {
+      setCategories([]);
+      showError(extractApiErrorMessage(error, "Failed to load categories"));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadCategories();
+  }, []);
+
+  const resetForm = () => setForm({ name: "", subName: "" });
+
+  const openAddModal = () => {
+    resetForm();
+    setEditingCategoryId(null);
+    setShowEditModal(false);
+    setShowAddModal(true);
+  };
+
+  const openEditModal = (category) => {
+    setForm({
+      name: category?.name || "",
+      subName: category?.subName || "",
+    });
+    setEditingCategoryId(category?.id || null);
+    setShowAddModal(false);
+    setShowEditModal(true);
+  };
+
+  const handleSave = async (event) => {
+    event.preventDefault();
+    const payload = {
+      name: form.name.trim(),
+      subName: form.subName.trim(),
+    };
+
+    if (!payload.name) {
+      showError("Category name is required");
+      return;
+    }
+    if (!payload.subName) {
+      showError("Sub category name is required");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      if (editingCategoryId) {
+        await updateCategory(editingCategoryId, payload);
+        showSuccess("Category updated");
+      } else {
+        await createCategory(payload);
+        showSuccess("Category added");
+      }
+      setShowAddModal(false);
+      setShowEditModal(false);
+      setEditingCategoryId(null);
+      resetForm();
+      await loadCategories();
+    } catch (error) {
+      showError(extractApiErrorMessage(error, "Failed to save category"));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async (category) => {
+    if (!window.confirm(`Delete category "${category.name}"?`)) {
+      return;
+    }
+    try {
+      await deleteCategory(category.id);
+      showSuccess("Category deleted");
+      await loadCategories();
+    } catch (error) {
+      showError(extractApiErrorMessage(error, "Failed to delete category"));
+    }
+  };
 
   const filteredCategories = useMemo(() => {
     const search = searchText.trim().toLowerCase();
@@ -67,16 +157,15 @@ const CategoriesPage = () => {
               />
             </div>
             <div className="d-flex gap-2">
-              <Link
-                to="#"
+                <button
+                type="button"
                 className="btn btn-outline-primary d-flex align-items-center gap-2"
                 style={{ height: 42, padding: "0 18px", borderRadius: 10, fontWeight: "500", fontSize: "0.9rem" }}
-                data-bs-toggle="modal"
-                data-bs-target="#add_category"
+                onClick={openAddModal}
               >
                 <i className="ti ti-circle-plus" />
                 Add Categories
-              </Link>
+              </button>
             </div>
           </div>
 
@@ -119,24 +208,22 @@ const CategoriesPage = () => {
                       <td style={{ color: "#475569", fontSize: "0.9rem" }}>{c.subName}</td>
                       <td className="text-end">
                         <div className="d-flex justify-content-end gap-2">
-                          <Link
-                            to="#"
+                          <button
+                            type="button"
                             className="btn btn-sm btn-outline-primary"
                             style={{ borderRadius: 8 }}
-                            data-bs-toggle="modal"
-                            data-bs-target="#edit_category"
+                            onClick={() => openEditModal(c)}
                           >
                             <i className="ti ti-edit"></i>
-                          </Link>
-                          <Link
-                            to="#"
+                          </button>
+                          <button
+                            type="button"
                             className="btn btn-sm btn-outline-danger"
                             style={{ borderRadius: 8 }}
-                            data-bs-toggle="modal"
-                            data-bs-target="#delete_modal"
+                            onClick={() => handleDelete(c)}
                           >
                             <i className="ti ti-trash"></i>
-                          </Link>
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -149,7 +236,8 @@ const CategoriesPage = () => {
       </div>
 
       {/* Add Category */}
-      <div className="modal fade" id="add_category">
+      {showAddModal && (
+      <div className="modal fade show" style={{ display: "block" }} tabIndex="-1" aria-modal="true" role="dialog">
         <div className="modal-dialog modal-dialog-centered modal-md">
           <div className="modal-content border-0 shadow-lg" style={{ borderRadius: 16 }}>
             <div className="modal-header border-0 pb-0">
@@ -157,23 +245,36 @@ const CategoriesPage = () => {
               <button
                 type="button"
                 className="btn-close"
-                data-bs-dismiss="modal"
                 aria-label="Close"
+                onClick={() => setShowAddModal(false)}
               />
             </div>
-            <form action="categories.php">
+            <form onSubmit={handleSave}>
               <div className="modal-body p-4 pb-0">
                 <div className="row">
                   <div className="col-md-12">
                     <div className="mb-3">
                       <label className="form-label fw-semibold text-muted" style={{ fontSize: "0.85rem" }}>Category Name</label>
-                      <input type="text" className="form-control" style={{ borderRadius: 10, height: 42 }} />
+                      <input
+                        type="text"
+                        className="form-control"
+                        style={{ borderRadius: 10, height: 42 }}
+                        value={form.name}
+                        onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
+                        autoFocus
+                      />
                     </div>
                   </div>
                   <div className="col-md-12">
                     <div className="mb-3">
                       <label className="form-label fw-semibold text-muted" style={{ fontSize: "0.85rem" }}>Sub Category Name</label>
-                      <input type="text" className="form-control" style={{ borderRadius: 10, height: 42 }} />
+                      <input
+                        type="text"
+                        className="form-control"
+                        style={{ borderRadius: 10, height: 42 }}
+                        value={form.subName}
+                        onChange={(e) => setForm((prev) => ({ ...prev, subName: e.target.value }))}
+                      />
                     </div>
                   </div>
                 </div>
@@ -183,21 +284,23 @@ const CategoriesPage = () => {
                   type="button"
                   className="btn btn-light px-4 py-2"
                   style={{ borderRadius: 10 }}
-                  data-bs-dismiss="modal"
+                  onClick={() => setShowAddModal(false)}
                 >
                   Cancel
                 </button>
-                <button type="submit" className="btn btn-primary px-4 py-2" style={{ borderRadius: 10, backgroundColor: "#3b82f6", borderColor: "#3b82f6" }}>
-                  Add Category
+                <button type="submit" className="btn btn-primary px-4 py-2" style={{ borderRadius: 10, backgroundColor: "#3b82f6", borderColor: "#3b82f6" }} disabled={saving}>
+                  {saving ? "Saving..." : "Add Category"}
                 </button>
               </div>
             </form>
           </div>
         </div>
       </div>
+      )}
 
       {/* Edit Category */}
-      <div className="modal fade" id="edit_category">
+      {showEditModal && (
+      <div className="modal fade show" style={{ display: "block" }} tabIndex="-1" aria-modal="true" role="dialog">
         <div className="modal-dialog modal-dialog-centered modal-md">
           <div className="modal-content border-0 shadow-lg" style={{ borderRadius: 16 }}>
             <div className="modal-header border-0 pb-0">
@@ -205,11 +308,11 @@ const CategoriesPage = () => {
               <button
                 type="button"
                 className="btn-close"
-                data-bs-dismiss="modal"
                 aria-label="Close"
+                onClick={() => setShowEditModal(false)}
               />
             </div>
-            <form action="categories.php">
+            <form onSubmit={handleSave}>
               <div className="modal-body p-4 pb-0">
                 <div className="row">
                   <div className="col-md-12">
@@ -218,8 +321,9 @@ const CategoriesPage = () => {
                       <input
                         type="text"
                         className="form-control"
-                        defaultValue="Technology"
                         style={{ borderRadius: 10, height: 42 }}
+                        value={form.name}
+                        onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
                       />
                     </div>
                   </div>
@@ -229,8 +333,9 @@ const CategoriesPage = () => {
                       <input
                         type="text"
                         className="form-control"
-                        defaultValue="Hardware Cost"
                         style={{ borderRadius: 10, height: 42 }}
+                        value={form.subName}
+                        onChange={(e) => setForm((prev) => ({ ...prev, subName: e.target.value }))}
                       />
                     </div>
                   </div>
@@ -241,49 +346,19 @@ const CategoriesPage = () => {
                   type="button"
                   className="btn btn-light px-4 py-2"
                   style={{ borderRadius: 10 }}
-                  data-bs-dismiss="modal"
+                  onClick={() => setShowEditModal(false)}
                 >
                   Cancel
                 </button>
-                <button type="submit" className="btn btn-primary px-4 py-2" style={{ borderRadius: 10, backgroundColor: "#3b82f6", borderColor: "#3b82f6" }}>
-                  Save Changes
+                <button type="submit" className="btn btn-primary px-4 py-2" style={{ borderRadius: 10, backgroundColor: "#3b82f6", borderColor: "#3b82f6" }} disabled={saving}>
+                  {saving ? "Saving..." : "Save Changes"}
                 </button>
               </div>
             </form>
           </div>
         </div>
       </div>
-
-      {/* Delete Modal */}
-      <div className="modal fade" id="delete_modal">
-        <div className="modal-dialog modal-dialog-centered">
-          <div className="modal-content border-0 shadow-lg" style={{ borderRadius: 16 }}>
-            <div className="modal-body text-center p-4">
-              <span className="avatar avatar-xl bg-transparent-danger text-danger mb-3">
-                <i className="ti ti-trash-x fs-36"></i>
-              </span>
-              <h4 className="mb-1 fw-bold">Confirm Delete</h4>
-              <p className="mb-3 text-muted">
-                You want to delete all the marked items, this cant be undone
-                once you delete.
-              </p>
-              <div className="d-flex justify-content-center gap-2">
-                <Link
-                  to="#"
-                  className="btn btn-light px-4 py-2"
-                  style={{ borderRadius: 10 }}
-                  data-bs-dismiss="modal"
-                >
-                  Cancel
-                </Link>
-                <Link to="/categories" className="btn btn-danger px-4 py-2" style={{ borderRadius: 10 }}>
-                  Yes, Delete
-                </Link>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+      )}
     </div>
   );
 };

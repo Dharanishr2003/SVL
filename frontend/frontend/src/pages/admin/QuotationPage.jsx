@@ -1,12 +1,13 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
-import { getLeadById, getLeads } from "../../api/leadsApi";
+import { getLeadByCustomerUserId, getLeadById, getLeads } from "../../api/leadsApi";
 import { getRequirementsByLeadId } from "../../api/requirementApi";
 import { approveQuotation, getQuotationById, saveQuotation } from "../../api/quotationApi";
 import { getQuotationTemplate } from "../../api/quotationTemplateApi";
 import { getPriceList, normalizePriceListEntries } from "../../api/priceListApi";
 import { getActiveGstMasters, createGstMaster } from "../../api/gstMasterApi";
+import { getUsers } from "../../api/userAdminApi";
 import "./QuotationPage.css";
 import AddItemModal from "./AddItemModal";
 import {
@@ -335,6 +336,34 @@ function normalizeQuotationLead(lead) {
   };
 }
 
+function normalizeQuotationCustomer(user) {
+  if (!user) return null;
+
+  const firstName = String(user.firstName || "").trim();
+  const lastName = String(user.lastName || "").trim();
+  const name = [firstName, lastName].filter(Boolean).join(" ").trim()
+    || String(user.username || "").trim()
+    || String(user.email || "").trim();
+
+  return {
+    id: null,
+    customerId: user.id ?? null,
+    leadId: null,
+    name,
+    email: String(user.email || "").trim(),
+    mobile: String(user.mobile || user.phone || "").trim(),
+    company: String(user.company || user.companyName || "").trim(),
+    address: "",
+    streetAddress: "",
+    leadState: "",
+    state: "",
+    gstin: "",
+    username: String(user.username || "").trim(),
+    active: Boolean(user.active),
+    role: String(user.role || "CUSTOMER").toUpperCase(),
+  };
+}
+
 function createEmptyGstRow() {
   return {
     id: `gst-row-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -360,6 +389,14 @@ export default function QuotationPage() {
   const [leadSuggestions, setLeadSuggestions] = useState([]);
   const [selectedLead, setSelectedLead] = useState(null);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [allCustomers, setAllCustomers] = useState([]);
+  const [customersLoading, setCustomersLoading] = useState(false);
+  const [customerSearch, setCustomerSearch] = useState("");
+  const [customerSuggestions, setCustomerSuggestions] = useState([]);
+  const [selectedCustomer, setSelectedCustomer] = useState(null);
+  const [showCustomerSuggestions, setShowCustomerSuggestions] = useState(false);
+  const [customerLeadId, setCustomerLeadId] = useState(null);
+  const [customerLeadLoading, setCustomerLeadLoading] = useState(false);
   const [quotationId, setQuotationId] = useState(null);
   const [quotationNumber, setQuotationNumber] = useState("");
   const [quotationCreatedAt, setQuotationCreatedAt] = useState("");
@@ -447,12 +484,18 @@ export default function QuotationPage() {
   const [quotationTemplate, setQuotationTemplate] = useState(null);
 
   const suggestionRef = useRef(null);
+  const customerSuggestionRef = useRef(null);
   const skipAutoGenerateRef = useRef(false);
   const restoringDraftRef = useRef(false);
   const hydratedQuotationIdRef = useRef(null);
   const hydratedLeadIdRef = useRef(null);
 
-  const customerName = selectedLead?.name || "";
+  const customerName =
+    selectedLead?.name ||
+    [selectedCustomer?.firstName, selectedCustomer?.lastName].filter(Boolean).join(" ").trim() ||
+    selectedCustomer?.username ||
+    selectedCustomer?.email ||
+    "";
   const leadStateValue = selectedLead?.leadState || selectedLead?.state || "";
   const leadStateDisplay = useMemo(() => formatLeadState(leadStateValue), [leadStateValue]);
   const leadAddressDisplay = selectedLead?.address || selectedLead?.streetAddress || "";
@@ -508,6 +551,11 @@ export default function QuotationPage() {
         (initial.selectedLead
           ? `${initial.selectedLead.leadId} - ${initial.selectedLead.name}`
           : "")
+    );
+    setCustomerSearch(
+      initial.partyMode === "customer"
+        ? (initial.customerSearch || initial.selectedLead?.name || initial.clientName || "")
+        : ""
     );
     setLineItems(
         Array.isArray(initial.lineItems)
@@ -610,6 +658,16 @@ export default function QuotationPage() {
     grandTotal,
   };
 
+  const selectedCustomerDisplayName = useMemo(() => {
+    if (!selectedCustomer) return "";
+    return [selectedCustomer.firstName, selectedCustomer.lastName].filter(Boolean).join(" ").trim()
+      || selectedCustomer.username
+      || selectedCustomer.email
+      || "";
+  }, [selectedCustomer]);
+  const selectedCustomerEmail = selectedCustomer?.email || "";
+  const selectedCustomerUsername = selectedCustomer?.username || "";
+
   const lineItemCellBase = {
     padding: "12px 8px",
     borderBottom: "1px solid #f3f4f6",
@@ -646,6 +704,17 @@ export default function QuotationPage() {
       .then((data) => setAllLeads(Array.isArray(data) ? data : []))
       .catch(() => setAllLeads([]))
       .finally(() => setLeadsLoading(false));
+  }, []);
+
+  useEffect(() => {
+    setCustomersLoading(true);
+    getUsers(0, 1000)
+      .then((data) => {
+        const rows = Array.isArray(data?.items) ? data.items : [];
+        setAllCustomers(rows.filter((user) => String(user.role || "").toUpperCase() === "CUSTOMER"));
+      })
+      .catch(() => setAllCustomers([]))
+      .finally(() => setCustomersLoading(false));
   }, []);
 
   useEffect(() => {
@@ -700,6 +769,19 @@ export default function QuotationPage() {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
+    const prefillCustomer = location.state?.prefillCustomer;
+    if (!prefillCustomer) return;
+    setPartyMode("customer");
+    setActiveTab("customer");
+    setSelectedCustomer(prefillCustomer);
+    const name = [prefillCustomer.firstName, prefillCustomer.lastName]
+      .filter(Boolean)
+      .join(" ")
+      .trim() || prefillCustomer.username || prefillCustomer.email || "";
+    setCustomerSearch(name);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
     setIsViewOnly(Boolean(location.state?.viewOnly));
   }, [location.state?.viewOnly]);
 
@@ -723,6 +805,67 @@ export default function QuotationPage() {
       ignore = true;
     };
   }, [selectedLead?.id]);
+
+  useEffect(() => {
+    if (partyMode !== "customer") {
+      return;
+    }
+
+    const customerId = selectedCustomer?.id;
+    if (!customerId) {
+      setCustomerLeadId(null);
+      setCustomerLeadLoading(false);
+      return;
+    }
+
+    let ignore = false;
+    setCustomerLeadLoading(true);
+    setRequirementsError("");
+
+    getLeadByCustomerUserId(customerId)
+      .then((lead) => {
+        if (ignore) return;
+        if (lead) {
+          setSelectedLead(normalizeQuotationLead(lead));
+          setCustomerLeadId(lead.id ?? null);
+        } else {
+          setSelectedLead(null);
+          setCustomerLeadId(null);
+        }
+      })
+      .catch(() => {
+        if (!ignore) {
+          setSelectedLead(null);
+          setCustomerLeadId(null);
+        }
+      })
+      .finally(() => {
+        if (!ignore) {
+          setCustomerLeadLoading(false);
+        }
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, [partyMode, selectedCustomer?.id]);
+
+  useEffect(() => {
+    if (!customerSearch.trim()) {
+      setCustomerSuggestions([]);
+      return;
+    }
+
+    const query = customerSearch.toLowerCase();
+    const filtered = allCustomers.filter((customer) => {
+      const name = [customer.firstName, customer.lastName].filter(Boolean).join(" ").toLowerCase();
+      const email = String(customer.email || "").toLowerCase();
+      const username = String(customer.username || "").toLowerCase();
+      return name.includes(query) || email.includes(query) || username.includes(query);
+    });
+
+    setCustomerSuggestions(filtered.slice(0, 8));
+  }, [customerSearch, allCustomers]);
 
   useEffect(() => {
     setPriceListLoading(true);
@@ -798,6 +941,9 @@ export default function QuotationPage() {
       if (suggestionRef.current && !suggestionRef.current.contains(event.target)) {
         setShowSuggestions(false);
       }
+      if (customerSuggestionRef.current && !customerSuggestionRef.current.contains(event.target)) {
+        setShowCustomerSuggestions(false);
+      }
     }
 
     document.addEventListener("mousedown", handleClickOutside);
@@ -810,7 +956,7 @@ export default function QuotationPage() {
     }
 
     const numericId = selectedLead?.id;
-    if (!numericId || partyMode !== "lead") {
+    if (!numericId || (partyMode !== "lead" && partyMode !== "customer")) {
       setRequirements([]);
       if (!skipAutoGenerateRef.current) {
         setLineItems([]);
@@ -947,13 +1093,45 @@ export default function QuotationPage() {
     setSaveMessage("");
   };
 
+  const handleCustomerSelect = (customer) => {
+    setSelectedCustomer(customer);
+    setSelectedLead(null);
+    setCustomerLeadId(null);
+    setRequirements([]);
+    setRequirementsError("");
+    setLineItems([]);
+    setCustomerLeadLoading(true);
+    const name = [customer.firstName, customer.lastName].filter(Boolean).join(" ").trim()
+      || customer.username
+      || customer.email
+      || "";
+    setCustomerSearch(name);
+    setShowCustomerSuggestions(false);
+    setSaveMessage("");
+  };
+
+  const handleCustomerSearchChange = (event) => {
+    setCustomerSearch(event.target.value);
+    setSelectedCustomer(null);
+    setSelectedLead(null);
+    setLineItems([]);
+    setShowCustomerSuggestions(true);
+    setSaveMessage("");
+  };
+
   const handlePartyModeChange = (mode) => {
     setPartyMode(mode);
     setActiveTab(mode);
     setSelectedLead(null);
+    setSelectedCustomer(null);
+    setCustomerLeadId(null);
+    setCustomerLeadLoading(false);
     setLeadSearch("");
     setLeadSuggestions([]);
     setShowSuggestions(false);
+    setCustomerSearch("");
+    setCustomerSuggestions([]);
+    setShowCustomerSuggestions(false);
     setSaveMessage("");
     setRequirements([]);
     setRequirementsError("");
@@ -974,6 +1152,14 @@ export default function QuotationPage() {
   }
 
   function openAddModal(prefill) {
+    if (partyMode === "customer" && !resolvedLeadId) {
+      setConfigError(
+        customerLeadLoading
+          ? "Loading linked lead for this customer. Please wait and try again."
+          : "This customer is not linked to a lead yet, so items cannot be added."
+      );
+      return;
+    }
     setEditingItem(prefill ?? null);
     setConfigError("");
     setSaveMessage("");
@@ -1113,7 +1299,7 @@ export default function QuotationPage() {
     });
 
   const executeSaveQuotation = async () => {
-    console.log("Creating quotation with leadId:", selectedLead?.id);
+    console.log("Creating quotation with leadId:", resolvedLeadId, "customerId:", selectedCustomer?.id);
     setIsSaving(true);
     try {
       const payload = buildCurrentQuotation();
@@ -1151,12 +1337,26 @@ export default function QuotationPage() {
 
   const handleSaveQuotation = async () => {
     if (!customerName.trim()) {
-      setConfigError("Please select a lead first.");
+      setConfigError(partyMode === "customer" ? "Please select a customer first." : "Please select a lead first.");
       return;
     }
 
-    if (!selectedLead?.id) {
+    if (partyMode === "lead" && !selectedLead?.id) {
       setConfigError("No lead selected. Cannot create quotation.");
+      return;
+    }
+
+    if (partyMode === "customer" && !selectedCustomer) {
+      setConfigError("No customer selected. Cannot create quotation.");
+      return;
+    }
+
+    if (partyMode === "customer" && !resolvedLeadId) {
+      if (customerLeadLoading) {
+        setConfigError("Loading linked lead for this customer. Please wait and try again.");
+      } else {
+        setConfigError("This customer is not linked to a lead yet, so the quotation cannot be saved.");
+      }
       return;
     }
 
@@ -1179,6 +1379,15 @@ export default function QuotationPage() {
   const handleDownloadPdf = async () => {
     if (!lineItems.length) {
       setConfigError("Please add at least one item before downloading.");
+      return;
+    }
+
+    if (partyMode === "customer" && !resolvedLeadId) {
+      setConfigError(
+        customerLeadLoading
+          ? "Loading linked lead for this customer. Please wait and try again."
+          : "This customer is not linked to a lead yet, so the quotation cannot be downloaded."
+      );
       return;
     }
 
@@ -1206,6 +1415,8 @@ export default function QuotationPage() {
     !isViewOnly &&
     quotationStatus === QUOTATION_STATUS_VERIFICATION_PENDING &&
     (canApproveAsManager || canApproveAsTeamLead);
+
+  const resolvedLeadId = selectedLead?.id ?? customerLeadId ?? null;
 
   const handleApproveFromEdit = async (notesValue) => {
     if (!canApproveCurrentQuotation) {
@@ -1427,20 +1638,93 @@ export default function QuotationPage() {
           </>
         )}
 
-        {/* ── CUSTOMER MODE — placeholder ── */}
-        {partyMode === "customer" && (
-          <div className="qp-card">
-            <div className="qp-coming-soon">
-              <div className="qp-coming-soon-icon">
-                <i className="ti ti-users" />
+        {/* ── CUSTOMER MODE ── */}
+      {partyMode === "customer" && (
+            <>
+            <div className="qp-card">
+              <div className="qp-card-label">Customer details</div>
+              <div className="qp-fields-grid">
+                <div className="qp-field-group" ref={customerSuggestionRef} style={{ position: "relative" }}>
+                  <div className="qp-field-label">Customer Account *</div>
+                  <input
+                    className="qp-field-input"
+                    type="text"
+                    placeholder={customersLoading ? "Loading customers..." : "Type customer name, email, or username"}
+                    value={customerSearch}
+                    onChange={handleCustomerSearchChange}
+                    onFocus={() => customerSearch && setShowCustomerSuggestions(true)}
+                    autoComplete="off"
+                  />
+                  {showCustomerSuggestions && customerSuggestions.length > 0 && (
+                    <ul className="qp-suggestions">
+                      {customerSuggestions.map((customer) => (
+                        <li
+                          key={customer.id}
+                          className="qp-suggestion-item"
+                          onMouseDown={() => handleCustomerSelect(customer)}
+                        >
+                          <span className="qp-suggestion-id">{customer.username || customer.id}</span>
+                          {[customer.firstName, customer.lastName].filter(Boolean).join(" ").trim() || customer.email}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+                <div className="qp-field-group">
+                  <div className="qp-field-label">Name</div>
+                  <div className="qp-field-readonly">{selectedCustomerDisplayName || selectedLead?.name || "—"}</div>
+                </div>
+                <div className="qp-field-group">
+                  <div className="qp-field-label">Email / Username</div>
+                  <div className="qp-field-readonly">
+                    {selectedCustomerEmail || selectedCustomerUsername || selectedLead?.email || "—"}
+                  </div>
+                </div>
+                <div className="qp-field-group">
+                  <div className="qp-field-label">Linked Lead ID</div>
+                  <div className="qp-field-readonly">{selectedLead?.leadId || "—"}</div>
+                </div>
+                <div className="qp-field-group">
+                  <div className="qp-field-label">Address</div>
+                  <div className="qp-field-readonly qp-field-readonly-multiline">
+                    {selectedLead?.address || selectedLead?.streetAddress || "—"}
+                  </div>
+                </div>
+                <div className="qp-field-group">
+                  <div className="qp-field-label">State</div>
+                  <div className="qp-field-readonly">{leadStateDisplay || "—"}</div>
+                </div>
+                <div className="qp-field-group">
+                  <div className="qp-field-label">GSTIN</div>
+                  <div className="qp-field-readonly">{selectedLead?.gstin || "—"}</div>
+                </div>
               </div>
-              <div className="qp-coming-soon-title">Customer mode coming soon</div>
-              <div className="qp-coming-soon-sub">
-                Direct customer quotations will be available in a future update.
-                Use Lead mode to create quotations from enquiries.
+              <div className="qp-meta-row">
+                <div className="qp-meta-chip">
+                  Date <span>{quotationDate}</span>
+                </div>
+                <div className="qp-meta-chip">
+                  Quotation No. <span>{quotationNumber || "Generated on save"}</span>
+                </div>
+              </div>
+              {selectedCustomer && !resolvedLeadId ? (
+                <div className="qp-status-alert info mt-3">
+                  <i className="ti ti-info-circle" style={{ fontSize: 16 }} />
+                  {customerLeadLoading
+                    ? "Loading the linked lead for this customer..."
+                    : "No linked lead was found for this customer account. A lead is required before items can be added or saved."
+                  }
+                </div>
+              ) : null}
+            </div>
+
+            <div className="qp-card">
+              <div className="qp-card-label">Customer quotation note</div>
+              <div className="qp-empty">
+                Select a customer account to load the linked lead snapshot. If no lead is linked, quotation creation is blocked until the customer is linked to a lead.
               </div>
             </div>
-          </div>
+          </>
         )}
 
         {/* ── Line Items ── */}
@@ -1612,7 +1896,7 @@ export default function QuotationPage() {
                 type="button"
                 className="qp-btn-ghost"
                 onClick={() => openAddModal()}
-                disabled={!canEditQuotation}
+                disabled={!canEditQuotation || (partyMode === "customer" && (!resolvedLeadId || customerLeadLoading))}
               >
                 <i className="ti ti-plus" style={{ fontSize: 13 }} />
                 Add item
@@ -2094,7 +2378,6 @@ export default function QuotationPage() {
                                   <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                                     <select
                                       className="qp-field-input"
-                                      disabled={isViewOnly}
                                       style={{
                                         ...inBase,
                                         flex: 1,
@@ -2538,10 +2821,10 @@ export default function QuotationPage() {
         open={addModalOpen}
         priceList={priceList}
         prefill={editingItem}
-        leadId={selectedLead?.id}
+        leadId={resolvedLeadId}
         onRequirementSaved={() => {
-          if (selectedLead?.id) {
-            getRequirementsByLeadId(selectedLead.id).then(setRequirements);
+          if (resolvedLeadId) {
+            getRequirementsByLeadId(resolvedLeadId).then(setRequirements);
           }
         }}
         onConfirm={(lineItem) => {

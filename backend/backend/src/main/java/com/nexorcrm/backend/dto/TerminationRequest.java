@@ -7,11 +7,7 @@ import java.time.LocalDate;
 public class TerminationRequest {
 
     private Long employeeId;
-
-    @NotBlank(message = "Terminated employee is required")
     private String employeeName;
-
-    @NotBlank(message = "Department is required")
     private String department;
 
     @NotBlank(message = "Termination type is required")

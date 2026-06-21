@@ -3,6 +3,7 @@ package com.nexorcrm.backend.entity;
 import jakarta.persistence.*;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.math.BigDecimal;
 
 @Entity
 @Table(name = "employees")
@@ -275,6 +276,33 @@ public class Employee {
 
     @Column(name = "community_certificate_path", length = 500)
     private String communityCertificatePath;
+
+    @Column(precision = 15, scale = 2)
+    private BigDecimal basic = BigDecimal.ZERO;
+
+    @Column(precision = 15, scale = 2)
+    private BigDecimal da = BigDecimal.ZERO;
+
+    @Column(precision = 15, scale = 2)
+    private BigDecimal hra = BigDecimal.ZERO;
+
+    @Column(precision = 15, scale = 2)
+    private BigDecimal conveyance = BigDecimal.ZERO;
+
+    @Column(precision = 15, scale = 2)
+    private BigDecimal tds = BigDecimal.ZERO;
+
+    @Column(precision = 15, scale = 2)
+    private BigDecimal esi = BigDecimal.ZERO;
+
+    @Column(precision = 15, scale = 2)
+    private BigDecimal pf = BigDecimal.ZERO;
+
+    @Column(name = "leave_deduction", precision = 15, scale = 2)
+    private BigDecimal leaveDeduction = BigDecimal.ZERO;
+
+    @Column(name = "net_salary", precision = 15, scale = 2)
+    private BigDecimal netSalary = BigDecimal.ZERO;
 
     private LocalDate joinDate;
 
@@ -677,6 +705,33 @@ public class Employee {
 	public void setDeleted(Boolean deleted) {
 		this.deleted = deleted;
 	}
+
+    public BigDecimal getBasic() { return basic; }
+    public void setBasic(BigDecimal basic) { this.basic = basic; }
+
+    public BigDecimal getDa() { return da; }
+    public void setDa(BigDecimal da) { this.da = da; }
+
+    public BigDecimal getHra() { return hra; }
+    public void setHra(BigDecimal hra) { this.hra = hra; }
+
+    public BigDecimal getConveyance() { return conveyance; }
+    public void setConveyance(BigDecimal conveyance) { this.conveyance = conveyance; }
+
+    public BigDecimal getTds() { return tds; }
+    public void setTds(BigDecimal tds) { this.tds = tds; }
+
+    public BigDecimal getEsi() { return esi; }
+    public void setEsi(BigDecimal esi) { this.esi = esi; }
+
+    public BigDecimal getPf() { return pf; }
+    public void setPf(BigDecimal pf) { this.pf = pf; }
+
+    public BigDecimal getLeaveDeduction() { return leaveDeduction; }
+    public void setLeaveDeduction(BigDecimal leaveDeduction) { this.leaveDeduction = leaveDeduction; }
+
+    public BigDecimal getNetSalary() { return netSalary; }
+    public void setNetSalary(BigDecimal netSalary) { this.netSalary = netSalary; }
 
 	public LocalDateTime getCreatedAt() {
 		return createdAt;

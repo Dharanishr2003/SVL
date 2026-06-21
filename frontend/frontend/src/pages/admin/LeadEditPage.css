@@ -26,7 +26,7 @@
 .lead-edit-wizard-circles {
   display: flex;
   justify-content: center;
-  align-items: center;
+  align-items: flex-start;
   width: 100%;
   margin-bottom: 1.75rem;
   gap: 2rem;

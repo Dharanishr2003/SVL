@@ -180,6 +180,7 @@ public class EmailTemplateService {
             case LEAD_ASSIGNED_CUSTOMER_TEMPLATE -> "SVL ERP - Lead Representative Assigned";
             case LEAD_STATUS_UPDATED_TEMPLATE -> "Lead Status Updated: {{lead_id}} - {{lead_name}}";
             case LEAD_CREATED_SELF_TEMPLATE -> "New Lead Created by {{Employee Name}}";
+            case PAYSLIP_EMAIL_TEMPLATE -> "Payslip for {{month}}";
         };
     }
 
@@ -191,6 +192,7 @@ public class EmailTemplateService {
             case LEAD_ASSIGNED_CUSTOMER_TEMPLATE -> "Dear {{lead_name}},\n\nAn executive from SVL, {{employee_name}}, has been assigned to assist you with your request. They will contact you shortly.\n\nBest regards,\nSVL Team";
             case LEAD_STATUS_UPDATED_TEMPLATE -> "Hello {{official_name}},\n\nThe status of the lead {{lead_id}} ({{lead_name}}) has been updated to \"{{status}}\".\n\nBest regards,\nSVL ERP";
             case LEAD_CREATED_SELF_TEMPLATE -> "Dear {{Reporting Person Name}},\n\nA new lead has been created by {{Employee Name}} and has been automatically assigned to them for follow-up.\n\nLead Details\nLead ID: {{Lead ID}}\nCustomer Name: {{Customer Name}}\nCompany: {{Company Name}}\nContact Number: {{Phone Number}}\nEmail: {{Customer Email}}\nRequirement: {{Requirement}}\nPriority: {{Priority}}\nEmployee Details\nCreated By: {{Employee Name}}\nAssigned To: {{Employee Name}}\nCreated On: {{Created Date}}\n\nThis notification is for your information and tracking purposes.\n\nRegards,\n{{Company Name}}\nCRM System";
+            case PAYSLIP_EMAIL_TEMPLATE -> "Dear {{employee_name}},\n\nWe hope you are doing well.\n\nYour payslip for the month of {{month}} has been generated and is attached to this email for your reference.\n\nPlease review the attached document for complete details regarding your earnings, deductions, and net salary.\n\nPayslip Details\n\nEmployee Name: {{employee_name}}\nEmployee ID: {{employee_code}}\nPay Period: {{month}}\n\nIf you have any questions regarding your salary or payroll calculations, please contact the HR Department.\n\nThank you.\n\nBest Regards,\nHR Department\nSVL Packaging Printing";
         };
     }
 

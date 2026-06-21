@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import LoadingSpinner from "../../components/common/LoadingSpinner";
 import { getBranches } from "../../api/branchesApi";
 import { getUserDesignations } from "../../api/userPermissionsApi";
 import {
@@ -258,9 +259,7 @@ export default function WorkflowTeamsPage() {
               </div>
             ) : loading ? (
               <div className="text-center py-5">
-                <div className="spinner-border text-primary" role="status">
-                  <span className="visually-hidden">Loading...</span>
-                </div>
+                <LoadingSpinner size="page" label="Loading workflow teams" />
               </div>
             ) : (
               <>

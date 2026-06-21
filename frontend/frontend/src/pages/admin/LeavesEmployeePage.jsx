@@ -397,7 +397,15 @@ export default function LeavesEmployeePage() {
                           <td>{formatDate(row.toDate)}</td>
                           <td>{(row.noOfDays ?? calcDays(row.fromDate, row.toDate)) || "-"}</td>
                           <td>
-                            <span className={`badge ${status === "APPROVED" ? "badge-success" : status === "DECLINED" ? "badge-danger" : "badge-warning"}`}>
+                            <span
+                              className={`badge d-inline-flex align-items-center ${
+                                status === "APPROVED"
+                                  ? "badge-success bg-success-light text-dark"
+                                  : status === "DECLINED"
+                                    ? "badge-danger bg-danger-light text-dark"
+                                    : "badge-warning bg-warning-light text-dark"
+                              }`}
+                            >
                               {status}
                             </span>
                           </td>

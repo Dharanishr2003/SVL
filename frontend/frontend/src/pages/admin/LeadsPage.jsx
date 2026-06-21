@@ -961,7 +961,12 @@ export default function LeadsPage() {
     leadEligibleGroups,
     shouldSelectCreateLeadGroup,
   ]);
-  const canCreateNewLead = role === "SUPER_ADMIN" || !newLeadFlowGroupId || !!createAllowedGroup;
+  const canCreateNewLead =
+    role === "SUPER_ADMIN" ||
+    role === "ADMIN" ||
+    role === "MANAGER" ||
+    !newLeadFlowGroupId ||
+    !!createAllowedGroup;
   const createCountryDisplayMaxLength = getCountryDisplayMaxLength(createForm.countryCode);
 
   const openCreateModal = () => {

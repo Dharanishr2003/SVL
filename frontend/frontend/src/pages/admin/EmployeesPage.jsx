@@ -369,13 +369,12 @@
     };
 
     const exportCsv = () => {
-      const headers = ["Employee Code", "Name", "Phone", "Email", "Department", "Designation", "Join Date", "Status", "Profile Status"];
+      const headers = ["Employee Code", "Name", "Email", "Department", "Designation", "Join Date", "Status", "Profile Status"];
       const csvRows = [
         headers.map(h => `"${h}"`).join(","),
         ...rows.map(row => [
           row.employeeCode || "",
           row.name || "",
-          row.phone || "",
           row.email || "",
           row.dept || "",
           row.designation || "",
@@ -388,7 +387,7 @@
     };
 
     const exportExcel = () => {
-      const headers = ["Employee Code", "Name", "Phone", "Email", "Department", "Designation", "Join Date", "Status", "Profile Status"];
+      const headers = ["Employee Code", "Name", "Email", "Department", "Designation", "Join Date", "Status", "Profile Status"];
       const escapeXml = (unsafe) => {
         return String(unsafe ?? "")
           .replace(/&/g, "&amp;")
@@ -407,7 +406,6 @@
           (row) => `      <tr>
           <td>${escapeXml(row.employeeCode)}</td>
           <td>${escapeXml(row.name)}</td>
-          <td>${escapeXml(row.phone)}</td>
           <td>${escapeXml(row.email)}</td>
           <td>${escapeXml(row.dept)}</td>
           <td>${escapeXml(row.designation)}</td>
@@ -460,11 +458,10 @@ ${rowsHtml}
       doc.setFontSize(10);
       doc.text(`Generated: ${generatedAt}`, 40, 58);
 
-      const headers = [["Employee Code", "Name", "Phone", "Department", "Designation", "Join Date", "Status", "Profile"]];
+      const headers = [["Employee Code", "Name", "Department", "Designation", "Join Date", "Status", "Profile"]];
       const data = rows.map((row) => [
         row.employeeCode || "",
         row.name || "",
-        row.phone || "",
         row.dept || "",
         row.designation || "",
         row.joinDate || "",
@@ -1615,10 +1612,9 @@ ${rowsHtml}
                       </th>
                       <th
                         className="text-muted"
-                        style={{ minWidth: "120px", fontWeight: "600", fontSize: "0.85rem", cursor: "pointer", userSelect: "none" }}
-                        onClick={() => handleSort("phone")}
+                        style={{ minWidth: "120px", fontWeight: "600", fontSize: "0.85rem" }}
                       >
-                        Phone {sortField === "phone" && <span className="ms-1 sort-indicator text-muted">{sortOrder === "asc" ? "▲" : "▼"}</span>}
+                        Email
                       </th>
                       <th
                         className="text-muted"
@@ -1661,11 +1657,11 @@ ${rowsHtml}
                   <tbody>
                     {loading ? (
                       <tr>
-                        <td colSpan="10" className="text-center py-4 text-muted">Loading employees...</td>
+                        <td colSpan="9" className="text-center py-4 text-muted">Loading employees...</td>
                       </tr>
                     ) : pagedRows.length === 0 ? (
                       <tr>
-                        <td colSpan="10" className="text-center py-4 text-muted">
+                        <td colSpan="9" className="text-center py-4 text-muted">
                           No employees found
                         </td>
                       </tr>
@@ -1686,7 +1682,7 @@ ${rowsHtml}
                               <span className="fw-semibold" style={{ color: "#0f172a", fontSize: "0.9rem" }}>{emp.name}</span>
                             </div>
                           </td>
-                          <td style={{ color: "#475569", fontSize: "0.9rem" }}>{emp.phone}</td>
+                          <td style={{ color: "#475569", fontSize: "0.9rem" }}>{emp.email || "-"}</td>
                           <td style={{ color: "#475569", fontSize: "0.9rem" }}>{emp.dept || "-"}</td>
                           <td style={{ color: "#475569", fontSize: "0.9rem" }}>{emp.designation}</td>
                           <td style={{ color: "#475569", fontSize: "0.9rem" }}>{emp.joinDate || "-"}</td>

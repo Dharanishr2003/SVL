@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { createPortal } from "react-dom";
+import LoadingSpinner from "../../components/common/LoadingSpinner";
 import {
   approveQuotation,
   deleteQuotation,
@@ -535,9 +536,7 @@ export default function QuotationListPage() {
 
             {loading ? (
               <div className="py-5 text-center text-muted">
-                <div className="spinner-border text-primary" role="status">
-                  <span className="sr-only">Loading...</span>
-                </div>
+                <LoadingSpinner size="page" label="Loading quotations" />
               </div>
             ) : pagedQuotations.length === 0 ? (
               <div className="text-center py-5">

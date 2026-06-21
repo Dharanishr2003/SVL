@@ -200,7 +200,8 @@ export default function UserGroupEditPage() {
           if (match) departmentMatches.push(match);
         }
         if (!departmentMatches.length) {
-          setScope((prev) => ({ ...prev, headOfficeId, branchId }));
+          const currentHeadOfficeId = String(branch?.headOfficeId || preferredHeadOfficeId || "");
+          setScope((prev) => ({ ...prev, headOfficeId: currentHeadOfficeId, branchId }));
           return;
         }
         const primaryDepartmentId = String(departmentMatches[0].id);

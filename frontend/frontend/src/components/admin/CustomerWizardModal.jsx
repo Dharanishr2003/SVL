@@ -1,6 +1,14 @@
-import { useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import "./CustomerWizardModal.css";
+import { useCountryCodePicker } from "../../hooks/useCountryCodePicker";
+import {
+  COUNTRY_CODE_OPTIONS,
+  ensureCountryCodeValue,
+  getCountryAllowedLengths,
+  getCountryDisplayMaxLength,
+  sanitizePhoneDigits,
+} from "../../utils/phoneUtils";
 
 export default function CustomerWizardModal({
   wizardStep,
@@ -13,6 +21,64 @@ export default function CustomerWizardModal({
   saving,
 }) {
   const shouldReduceMotion = useReducedMotion();
+  const [sameAsBilling, setSameAsBilling] = useState(false);
+
+  const handleSameAsBillingChange = (checked) => {
+    setSameAsBilling(checked);
+    if (checked) {
+      setForm((prev) => ({
+        ...prev,
+        shippingContactPerson: prev.billingContactPerson || "",
+        shippingCompany: prev.billingCompany || "",
+        shippingAddress1: prev.billingAddress1 || "",
+        shippingAddress2: prev.billingAddress2 || "",
+        shippingCity: prev.billingCity || "",
+        shippingState: prev.billingState || "",
+        shippingPincode: prev.billingPincode || "",
+        shippingCountry: prev.billingCountry || "",
+        shippingPhone: prev.billingPhone || "",
+        shippingEmail: prev.billingEmail || "",
+      }));
+    } else {
+      setForm((prev) => ({
+        ...prev,
+        shippingContactPerson: "",
+        shippingCompany: "",
+        shippingAddress1: "",
+        shippingAddress2: "",
+        shippingCity: "",
+        shippingState: "",
+        shippingPincode: "",
+        shippingCountry: "",
+        shippingPhone: "",
+        shippingEmail: "",
+      }));
+    }
+  };
+
+  useEffect(() => {
+    if (wizardStep !== 2) {
+      setSameAsBilling(false);
+    }
+  }, [wizardStep]);
+
+  const {
+    isOpen: phonePickerOpen,
+    pickerRef: phonePickerRef,
+    togglePicker: togglePhonePicker,
+    closePicker: closePhonePicker,
+  } = useCountryCodePicker();
+
+  const filteredCountryOptions = useMemo(() => COUNTRY_CODE_OPTIONS, []);
+  const phoneDisplayMaxLength = getCountryDisplayMaxLength(form.countryCode || "+91");
+
+  const handlePhoneChange = (val) => {
+    const nextCode = form.countryCode || "+91";
+    const lengths = getCountryAllowedLengths(nextCode);
+    const maxLength = getCountryDisplayMaxLength(nextCode);
+    const sanitized = sanitizePhoneDigits(val, maxLength, lengths);
+    setForm((prev) => ({ ...prev, phone: sanitized }));
+  };
 
   return (
     <>
@@ -113,13 +179,23 @@ export default function CustomerWizardModal({
                         <h6 className="fw-600 text-secondary mb-3">Personal Information</h6>
                       </div>
                       <div className="col-md-6">
-                        <label className="form-label">Customer Name *</label>
+                        <label className="form-label">First Name *</label>
                         <input
                           type="text"
                           className="form-control customer-wizard-input"
-                          value={form.customerName}
-                          onChange={(e) => setForm((f) => ({ ...f, customerName: e.target.value }))}
-                          placeholder="Enter customer name"
+                          value={form.firstName}
+                          onChange={(e) => setForm((f) => ({ ...f, firstName: e.target.value }))}
+                          placeholder="Enter first name"
+                        />
+                      </div>
+                      <div className="col-md-6">
+                        <label className="form-label">Last Name *</label>
+                        <input
+                          type="text"
+                          className="form-control customer-wizard-input"
+                          value={form.lastName}
+                          onChange={(e) => setForm((f) => ({ ...f, lastName: e.target.value }))}
+                          placeholder="Enter last name"
                         />
                       </div>
                       <div className="col-md-6">
@@ -155,13 +231,51 @@ export default function CustomerWizardModal({
                       </div>
                       <div className="col-md-6">
                         <label className="form-label">Phone Number *</label>
-                        <input
-                          type="tel"
-                          className="form-control customer-wizard-input"
-                          value={form.phone}
-                          onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
-                          placeholder="Enter phone number"
-                        />
+                        <div className="avm-phone-field" ref={phonePickerRef}>
+                          <div className="avm-phone-wrap">
+                            <button
+                              type="button"
+                              className="avm-phone-code-trigger"
+                              style={{ borderRadius: "2rem", height: "40px" }}
+                              onClick={togglePhonePicker}
+                              aria-expanded={phonePickerOpen}
+                            >
+                              <span>{form.countryCode || "+91"}</span>
+                              <i className="ti ti-chevron-down" />
+                            </button>
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              className="form-control customer-wizard-input"
+                              style={{ borderRadius: "2rem", height: "40px", flex: 1 }}
+                              value={form.phone}
+                              maxLength={phoneDisplayMaxLength || undefined}
+                              placeholder={phoneDisplayMaxLength ? `${phoneDisplayMaxLength} digits` : "Phone number"}
+                              onChange={(e) => handlePhoneChange(e.target.value)}
+                            />
+                          </div>
+                          {phonePickerOpen && (
+                            <div className="avm-phone-code-menu" style={{ display: "block" }}>
+                              {filteredCountryOptions.map((option) => (
+                                <button
+                                  key={`${option.country}-${option.callingCode}`}
+                                  type="button"
+                                  className={`avm-phone-code-option${(form.countryCode || "+91") === option.value ? " is-active" : ""}`}
+                                  onClick={() => {
+                                    setForm((prev) => ({
+                                      ...prev,
+                                      countryCode: ensureCountryCodeValue(option.value),
+                                      phone: "",
+                                    }));
+                                    closePhonePicker();
+                                  }}
+                                >
+                                  {option.label}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       </div>
                       <div className="col-md-6">
                         <label className="form-label">Date of Birth</label>
@@ -323,6 +437,20 @@ export default function CustomerWizardModal({
                       transition={{ duration: 0.2 }}
                       className="row g-3"
                     >
+                      <div className="col-12 mb-2">
+                        <div className="form-check">
+                          <input
+                            type="checkbox"
+                            className="form-check-input"
+                            id="sameAsBillingCheckbox"
+                            checked={sameAsBilling}
+                            onChange={(e) => handleSameAsBillingChange(e.target.checked)}
+                          />
+                          <label className="form-check-label fw-semibold text-secondary" htmlFor="sameAsBillingCheckbox" style={{ cursor: "pointer" }}>
+                            Same as billing address
+                          </label>
+                        </div>
+                      </div>
                       <div className="col-md-6">
                         <label className="form-label">Contact Person</label>
                         <input

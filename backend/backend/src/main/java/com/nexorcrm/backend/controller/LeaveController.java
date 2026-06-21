@@ -29,8 +29,11 @@ public class LeaveController {
     }
 
     @PutMapping("/{id}")
-    public LeaveResponse update(@PathVariable Long id, @Valid @RequestBody LeaveRequest request) {
-        return service.update(id, request);
+    public LeaveResponse update(@PathVariable Long id, 
+                               @Valid @RequestBody LeaveRequest request,
+                               org.springframework.security.core.Authentication auth) {
+        String actorEmail = auth != null ? auth.getName() : null;
+        return service.update(id, request, actorEmail);
     }
 
     @DeleteMapping("/{id}")

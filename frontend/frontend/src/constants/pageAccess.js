@@ -30,15 +30,6 @@ export const PAGE_ACCESS_OPTIONS = [
     ],
   },
   {
-    key: "rrq",
-    label: "RRQ",
-    category: "CRM",
-    children: [
-      { key: "rrq-overview", label: "RRQ" },
-      { key: "rrq-type", label: "RRQ Type" },
-    ],
-  },
-  {
     key: "projects",
     label: "Projects",
     category: "CRM",
@@ -58,8 +49,6 @@ export const PAGE_ACCESS_OPTIONS = [
       { key: "lead-status", label: "Lead Status" },
       { key: "primary-source", label: "Primary Source" },
       { key: "secondary-source", label: "Secondary Source" },
-      { key: "tertiary-source", label: "Tertiary Source" },
-      { key: "lead-type", label: "Lead Type" },
     ],
   },
 
@@ -249,9 +238,7 @@ const ROUTE_ACCESS_RULES = [
   { pageKeys: ["settings-workflow-teams"], prefixes: ["/settings/workflow-teams"] },
   { pageKeys: ["vendor-management", "vendors", "brands", "vendor-types"], prefixes: ["/stocks/vendors", "/stocks/brands", "/stocks/vendor-types"] },
   { pageKeys: ["vendor-management", "vendor-orders"], prefixes: ["/stocks/vendor-orders"] },
-  { pageKeys: ["lead-source", "lead-status", "lead-type", "primary-source", "secondary-source", "tertiary-source"], prefixes: ["/lead-status", "/lead-type", "/primary-source", "/secondary-source", "/tertiary-source"] },
-  { pageKeys: ["rrq", "rrq-overview"], prefixes: ["/rrq"] },
-  { pageKeys: ["rrq", "rrq-type"], prefixes: ["/rrq-type"] },
+  { pageKeys: ["lead-source", "lead-status", "primary-source", "secondary-source"], prefixes: ["/lead-status", "/primary-source", "/secondary-source"] },
   { pageKeys: ["projects", "projects-list"], prefixes: ["/projects", "/projects-grid"] },
   { pageKeys: ["projects", "project-status"], prefixes: ["/project-status"] },
   { pageKeys: ["projects", "project-type"], prefixes: ["/project-type"] },

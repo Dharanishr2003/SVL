@@ -1,4 +1,5 @@
 import React from "react";
+import LoadingSpinner from "../common/LoadingSpinner";
 import { getStatusStyle, formatStatusLabel } from "../../utils/statusLabels";
 
 function PhoneGlyph({ size = 14, className = "" }) {
@@ -87,7 +88,9 @@ export default function LeadListView({
         <tbody>
           {loading ? (
             <tr>
-              <td colSpan={11} className="text-center py-4 text-muted">Loading...</td>
+              <td colSpan={11} className="text-center py-4 text-muted">
+                <LoadingSpinner size="page" label="Loading leads" />
+              </td>
             </tr>
           ) : pagedRows.length === 0 ? (
             <tr>

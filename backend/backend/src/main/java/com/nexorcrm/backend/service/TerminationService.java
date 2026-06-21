@@ -9,15 +9,19 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Optional;
 
 @Service
 @Transactional
 public class TerminationService {
 
     private final TerminationRepository terminationRepository;
+    private final com.nexorcrm.backend.repo.EmployeeRepository employeeRepository;
 
-    public TerminationService(TerminationRepository terminationRepository) {
+    public TerminationService(TerminationRepository terminationRepository,
+                              com.nexorcrm.backend.repo.EmployeeRepository employeeRepository) {
         this.terminationRepository = terminationRepository;
+        this.employeeRepository = employeeRepository;
     }
 
     @Transactional(readOnly = true)
@@ -47,13 +51,30 @@ public class TerminationService {
     }
 
     private void apply(Termination row, TerminationRequest request) {
+        var employee = request.getEmployeeId() == null
+                ? Optional.<com.nexorcrm.backend.entity.Employee>empty()
+                : employeeRepository.findById(request.getEmployeeId());
+        String department = firstNonBlank(
+                request.getDepartment(),
+                employee.map(com.nexorcrm.backend.entity.Employee::getDepartmentName).orElse(null),
+                employee.map(com.nexorcrm.backend.entity.Employee::getDept).orElse(null)
+        );
         row.setEmployeeId(request.getEmployeeId());
         row.setEmployeeName(request.getEmployeeName().trim());
-        row.setDepartment(request.getDepartment().trim());
+        row.setDepartment(department);
         row.setTerminationType(request.getTerminationType().trim());
         row.setNoticeDate(request.getNoticeDate());
         row.setReason(request.getReason().trim());
         row.setTerminationDate(request.getTerminationDate());
+    }
+
+    private String firstNonBlank(String... values) {
+        for (String value : values) {
+            if (value != null && !value.trim().isEmpty()) {
+                return value.trim();
+            }
+        }
+        return "";
     }
 
     private TerminationResponse toResponse(Termination row) {

@@ -9,6 +9,9 @@ import com.nexorcrm.backend.repo.EmployeeDocumentRepository;
 import com.nexorcrm.backend.repo.EmployeeProfileFieldVerificationRepository;
 import com.nexorcrm.backend.repo.EmployeeProfileTokenRepository;
 import com.nexorcrm.backend.repo.EmployeeRepository;
+import com.nexorcrm.backend.repo.EmployeeSalaryRepository;
+import com.nexorcrm.backend.repo.ProvidentFundRepository;
+import com.nexorcrm.backend.entity.ProvidentFund;
 import com.nexorcrm.backend.repo.HeadOfficeMasterRepository;
 import com.nexorcrm.backend.repo.BranchMasterRepository;
 import com.nexorcrm.backend.repo.DepartmentMasterRepository;
@@ -79,6 +82,8 @@ public class EmployeeProfileFormService {
     private final EmailNotificationService emailNotificationService;
     private final EmailTemplateService emailTemplateService;
     private final UploadStorageService uploadStorageService;
+    private final EmployeeSalaryRepository employeeSalaryRepository;
+    private final ProvidentFundRepository providentFundRepository;
 
     @Value("${app.employee-form.token-secret:${EMPLOYEE_FORM_TOKEN_SECRET:change-me}}")
     private String tokenSecret;
@@ -112,7 +117,9 @@ public class EmployeeProfileFormService {
             DesignationMasterRepository designationMasterRepository,
             EmailNotificationService emailNotificationService,
             EmailTemplateService emailTemplateService,
-            UploadStorageService uploadStorageService
+            UploadStorageService uploadStorageService,
+            EmployeeSalaryRepository employeeSalaryRepository,
+            ProvidentFundRepository providentFundRepository
     ) {
         this.employeeRepository = employeeRepository;
         this.tokenRepository = tokenRepository;
@@ -125,6 +132,8 @@ public class EmployeeProfileFormService {
         this.emailNotificationService = emailNotificationService;
         this.emailTemplateService = emailTemplateService;
         this.uploadStorageService = uploadStorageService;
+        this.employeeSalaryRepository = employeeSalaryRepository;
+        this.providentFundRepository = providentFundRepository;
     }
 
     @Transactional
@@ -402,17 +411,117 @@ public class EmployeeProfileFormService {
         text = replaceBracket(text, "Profile Completion Link", profileCompletionUrl == null ? "" : profileCompletionUrl);
         text = replaceBracket(text, "Expiry Date", expiry);
         text = replaceBracket(text, "Department Name", deptName);
+        text = replaceBracket(text, "Department", deptName);
+        text = replaceBracket(text, "dept", deptName);
         text = replaceBracket(text, "Branch Name", branchName);
         text = replaceBracket(text, "Designation", designation);
+
+        String empIdVal = "";
+        if (employee != null) {
+            if (StringUtils.hasText(employee.getEmployeeCode())) {
+                empIdVal = employee.getEmployeeCode();
+            } else if (StringUtils.hasText(employee.getEmployeeIdNumber())) {
+                empIdVal = employee.getEmployeeIdNumber();
+            } else if (employee.getId() != null) {
+                empIdVal = String.format("Emp-%03d", employee.getId());
+            }
+        }
+        text = replaceBracket(text, "Employee ID", empIdVal);
+        text = replaceBracket(text, "Employee Code", empIdVal);
+        text = replaceBracket(text, "Emp ID", empIdVal);
+        text = replaceBracket(text, "Employee ID Number", empIdVal);
+
+        java.math.BigDecimal basicVal = java.math.BigDecimal.ZERO;
+        java.math.BigDecimal daVal = java.math.BigDecimal.ZERO;
+        java.math.BigDecimal hraVal = java.math.BigDecimal.ZERO;
+        java.math.BigDecimal conveyanceVal = java.math.BigDecimal.ZERO;
+        java.math.BigDecimal employerPf = java.math.BigDecimal.ZERO;
+
+        if (employee != null) {
+            basicVal = employee.getBasic() != null ? employee.getBasic() : java.math.BigDecimal.ZERO;
+            daVal = employee.getDa() != null ? employee.getDa() : java.math.BigDecimal.ZERO;
+            hraVal = employee.getHra() != null ? employee.getHra() : java.math.BigDecimal.ZERO;
+            conveyanceVal = employee.getConveyance() != null ? employee.getConveyance() : java.math.BigDecimal.ZERO;
+
+            if (basicVal.compareTo(java.math.BigDecimal.ZERO) == 0 && employee.getId() != null) {
+                Optional<EmployeeSalary> salaryOpt = employeeSalaryRepository.findByEmployeeIdAndDeletedFalse(employee.getId());
+                if (salaryOpt.isPresent()) {
+                    EmployeeSalary es = salaryOpt.get();
+                    basicVal = es.getBasic() != null ? es.getBasic() : java.math.BigDecimal.ZERO;
+                    daVal = es.getDa() != null ? es.getDa() : java.math.BigDecimal.ZERO;
+                    hraVal = es.getHra() != null ? es.getHra() : java.math.BigDecimal.ZERO;
+                    conveyanceVal = es.getConveyance() != null ? es.getConveyance() : java.math.BigDecimal.ZERO;
+                }
+            }
+
+            if (employee.getId() != null) {
+                employerPf = providentFundRepository.findByEmployeeIdAndDeletedFalse(employee.getId())
+                        .filter(pf -> "Approved".equalsIgnoreCase(pf.getStatus()))
+                        .map(ProvidentFund::getOrganizationShareAmount)
+                        .orElse(java.math.BigDecimal.ZERO);
+            }
+        }
+
+        java.math.BigDecimal monthlyGross = basicVal.add(daVal).add(hraVal).add(conveyanceVal);
+        java.math.BigDecimal monthlyCtc = monthlyGross.add(employerPf);
+        java.math.BigDecimal annualCtc = monthlyCtc.multiply(new java.math.BigDecimal("12"));
+
+        if (annualCtc.compareTo(java.math.BigDecimal.ZERO) == 0 && employee != null) {
+            java.math.BigDecimal netSal = employee.getNetSalary();
+            if ((netSal == null || netSal.compareTo(java.math.BigDecimal.ZERO) == 0) && employee.getId() != null) {
+                netSal = employeeSalaryRepository.findByEmployeeIdAndDeletedFalse(employee.getId())
+                        .map(com.nexorcrm.backend.entity.EmployeeSalary::getNetSalary)
+                        .orElse(null);
+            }
+            if (netSal != null) {
+                annualCtc = netSal.multiply(new java.math.BigDecimal("12"));
+            }
+        }
+
+        String amountVal = annualCtc.stripTrailingZeros().toPlainString();
+        text = replaceBracket(text, "Amount", amountVal);
+        text = replaceBracket(text, "CTC", amountVal);
+        text = replaceBracket(text, "ctc", amountVal);
+        text = replaceBracket(text, "Salary", amountVal);
+        text = replaceBracket(text, "Annual CTC", amountVal);
+
+        // Replace hardcoded numbers following "CTC"
+        String ctcRegex = "(?i)(CTC\\s*:\\s*(?:₹|Rs\\.?|INR)?\\s*)([\\d,]+(?:\\.\\d+)?)";
+        text = text.replaceAll(ctcRegex, "$1" + amountVal);
 
         // Replace {{tokens}} last so templates that contain bracket placeholders inside tokens still work.
         text = renderHandlebarsTokens(text, tokens);
 
         // Safety net: only for email bodies (never for subjects).
         if (appendLinkIfMissing && StringUtils.hasText(profileCompletionUrl) && !text.contains(profileCompletionUrl)) {
-            text = text
-                    + "\n\nProfile Completion Link: " + profileCompletionUrl
+            String linkStr = "\n\nProfile Completion Link: " + profileCompletionUrl
                     + (StringUtils.hasText(expiry) ? ("\nValid until: " + expiry) : "");
+
+            int insertIndex = -1;
+            String lowerText = text.toLowerCase();
+            String[] markers = {
+                "complete your profile",
+                "profile completion"
+            };
+
+            for (String marker : markers) {
+                int idx = lowerText.indexOf(marker);
+                if (idx != -1) {
+                    int lineEnd = text.indexOf("\n", idx);
+                    if (lineEnd != -1) {
+                        insertIndex = lineEnd;
+                    } else {
+                        insertIndex = text.length();
+                    }
+                    break;
+                }
+            }
+
+            if (insertIndex != -1) {
+                text = text.substring(0, insertIndex) + linkStr + text.substring(insertIndex);
+            } else {
+                text = text + linkStr;
+            }
         }
         return text;
     }
@@ -424,9 +533,10 @@ public class EmployeeProfileFormService {
     }
 
     private static String replaceBracket(String text, String label, String value) {
-        String out = text == null ? "" : text;
+        if (text == null) return "";
         String v = value == null ? "" : value;
-        return out.replace("[" + label + "]", v);
+        String regex = "[\\{\\[]+\\s*" + Pattern.quote(label) + "\\s*[\\}\\]]+";
+        return text.replaceAll("(?i)" + regex, Matcher.quoteReplacement(v));
     }
 
     private static String renderHandlebarsTokens(String template, Map<String, String> values) {

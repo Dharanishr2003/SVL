@@ -4,6 +4,7 @@ import { createPortal } from "react-dom";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import * as attendanceApi from '../../api/attendanceApi';
+import LoadingSpinner from "../../components/common/LoadingSpinner";
 import PageSizeSelector from "../../components/admin/PageSizeSelector";
 import "./LeadsPage.css";
 import "../../../public/assets/css/addModalShared.css";
@@ -286,7 +287,7 @@ const AttendanceAdminPage = () => {
               </div>
               <div className="col-lg-4">
                 <button className="btn btn-primary w-100 d-flex align-items-center justify-content-center gap-2" style={{ height: 38, borderRadius: 8 }} onClick={loadData} disabled={loading}>
-                  {loading ? <span className="spinner-border spinner-border-sm"></span> : <i className="ti ti-search"></i>}
+                  {loading ? <LoadingSpinner size="sm" className="me-0" label="Loading records" /> : <i className="ti ti-search"></i>}
                   Load Records
                 </button>
               </div>
@@ -335,7 +336,7 @@ const AttendanceAdminPage = () => {
 
           <div className="table-responsive">
             {loading ? (
-              <div className="text-center py-5"><div className="spinner-border text-primary" role="status"><span className="visually-hidden">Loading...</span></div></div>
+              <div className="text-center py-5"><LoadingSpinner size="page" label="Loading attendance records" /></div>
             ) : (
               <table className="table table-hover align-middle mb-0">
                 <thead className="table-light">

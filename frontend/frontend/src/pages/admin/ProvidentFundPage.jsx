@@ -4,26 +4,21 @@ import { createPortal } from "react-dom";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import PageSizeSelector from "../../components/admin/PageSizeSelector";
-
-const INITIAL_PROVIDENT_FUNDS = [
-  { id: 1, name: "Anthony Lewis", designation: "Finance", type: "Employee Provident Fund", employeeShare: "2%", orgShare: "2%", status: "Approved", avatar: "/assets/img/users/user-32.jpg" },
-  { id: 2, name: "Brian Villalobos", designation: "Developer", type: "Employee Provident Fund", employeeShare: "2%", orgShare: "2%", status: "Pending", avatar: "/assets/img/users/user-09.jpg" },
-  { id: 3, name: "Harvey Smith", designation: "Developer", type: "Voluntary Provident Fund", employeeShare: "5%", orgShare: "2%", status: "Approved", avatar: "/assets/img/users/user-01.jpg" },
-  { id: 4, name: "Stephan Peralt", designation: "Executive Officer", type: "Voluntary Provident Fund", employeeShare: "3%", orgShare: "2%", status: "Pending", avatar: "/assets/img/users/user-33.jpg" },
-  { id: 5, name: "Doglas Martini", designation: "Manager", type: "Employee Provident Fund", employeeShare: "2%", orgShare: "2%", status: "Approved", avatar: "/assets/img/users/user-34.jpg" },
-  { id: 6, name: "Linda Ray", designation: "Finance", type: "Employee Provident Fund", employeeShare: "2%", orgShare: "2%", status: "Pending", avatar: "/assets/img/users/user-02.jpg" },
-  { id: 7, name: "Elliot Murray", designation: "Developer", type: "Voluntary Provident Fund", employeeShare: "6%", orgShare: "2%", status: "Approved", avatar: "/assets/img/users/user-35.jpg" },
-  { id: 8, name: "Rebecca Smith", designation: "Executive", type: "Voluntary Provident Fund", employeeShare: "4%", orgShare: "2%", status: "Pending", avatar: "/assets/img/users/user-36.jpg" },
-  { id: 9, name: "Connie Waters", designation: "Developer", type: "Employee Provident Fund", employeeShare: "2%", orgShare: "2%", status: "Approved", avatar: "/assets/img/users/user-37.jpg" },
-  { id: 10, name: "Lori Broaddus", designation: "Finance", type: "Voluntary Provident Fund", employeeShare: "7%", orgShare: "2%", status: "Pending", avatar: "/assets/img/users/user-38.jpg" }
-];
+import { getEmployees } from "../../api/employeesApi";
+import { getProvidentFunds, createProvidentFund, updateProvidentFund, deleteProvidentFund } from "../../api/providentFundApi";
+import { extractApiErrorMessage } from "../../utils/errorMessage";
+import { useToast } from "../../components/system/ToastProvider";
 
 const ProvidentFundPage = () => {
-  const [funds, setFunds] = useState(INITIAL_PROVIDENT_FUNDS);
+  const [funds, setFunds] = useState([]);
+  const [employees, setEmployees] = useState([]);
   const [search, setSearch] = useState("");
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const { showSuccess, showError } = useToast();
 
   // Modal states
   const [showAddModal, setShowAddModal] = useState(false);
@@ -33,6 +28,25 @@ const ProvidentFundPage = () => {
   // Targets
   const [editTarget, setEditTarget] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
+
+  // Form states
+  const [addForm, setAddForm] = useState({
+    employeeId: "",
+    pfType: "Employee Provident Fund",
+    employeeShareAmount: "",
+    organizationShareAmount: "",
+    description: "",
+    status: "Pending"
+  });
+
+  const [editForm, setEditForm] = useState({
+    employeeId: "",
+    pfType: "Employee Provident Fund",
+    employeeShareAmount: "",
+    organizationShareAmount: "",
+    description: "",
+    status: "Pending"
+  });
 
   // Kebab actions
   const [activeActionsRow, setActiveActionsRow] = useState(null);
@@ -50,14 +64,34 @@ const ProvidentFundPage = () => {
     };
   }, []);
 
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const [pfList, empList] = await Promise.all([
+        getProvidentFunds(),
+        getEmployees()
+      ]);
+      setFunds(pfList);
+      setEmployees(empList);
+    } catch (e) {
+      showError(extractApiErrorMessage(e, "Failed to load data"));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
   const filteredRows = useMemo(() => {
     const q = search.toLowerCase().trim();
     if (!q) return funds;
     return funds.filter(
       (r) =>
-        r.name.toLowerCase().includes(q) ||
-        r.designation.toLowerCase().includes(q) ||
-        r.type.toLowerCase().includes(q)
+        (r.name && r.name.toLowerCase().includes(q)) ||
+        (r.designation && r.designation.toLowerCase().includes(q)) ||
+        (r.pfType && r.pfType.toLowerCase().includes(q))
     );
   }, [funds, search]);
 
@@ -105,9 +139,9 @@ const ProvidentFundPage = () => {
       ? funds.filter((r) => selectedIds.has(r.id))
       : filteredRows;
     const headers = ["Employee Name", "Designation", "Provident Fund Type", "Employee Share", "Organization Share", "Status"];
-    const body = targetRows.map((r) => [r.name, r.designation, r.type, r.employeeShare, r.orgShare, r.status]);
+    const body = targetRows.map((r) => [r.name, r.designation, r.pfType, r.employeeShareAmount, r.organizationShareAmount, r.status]);
     const csvContent = [headers, ...body]
-      .map((line) => line.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","))
+      .map((line) => line.map((cell) => `"${String(cell || '').replace(/"/g, '""')}"`).join(","))
       .join("\n");
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
@@ -129,7 +163,7 @@ const ProvidentFundPage = () => {
     const doc = new jsPDF();
     doc.text("Provident Funds List", 14, 15);
     const headers = [["Employee Name", "Designation", "Type", "Emp Share", "Org Share", "Status"]];
-    const body = targetRows.map((r) => [r.name, r.designation, r.type, r.employeeShare, r.orgShare, r.status]);
+    const body = targetRows.map((r) => [r.name, r.designation, r.pfType, `$${r.employeeShareAmount}`, `$${r.organizationShareAmount}`, r.status]);
     autoTable(doc, {
       head: headers,
       body: body,
@@ -138,22 +172,89 @@ const ProvidentFundPage = () => {
     doc.save(`provident_funds_${Date.now()}.pdf`);
   };
 
-  const handleDelete = () => {
-    if (deleteTarget) {
-      setFunds((prev) => prev.filter((r) => r.id !== deleteTarget.id));
-      setSelectedIds((prev) => {
-        const next = new Set(prev);
-        next.delete(deleteTarget.id);
-        return next;
+  const handleAddSubmit = async (e) => {
+    e.preventDefault();
+    if (!addForm.employeeId) {
+      showError("Please select an employee");
+      return;
+    }
+    setSaving(true);
+    try {
+      const payload = {
+        ...addForm,
+        employeeId: parseInt(addForm.employeeId),
+        employeeShareAmount: parseFloat(addForm.employeeShareAmount) || 0,
+        organizationShareAmount: parseFloat(addForm.organizationShareAmount) || 0
+      };
+      await createProvidentFund(payload);
+      showSuccess("Provident Fund record added successfully");
+      setShowAddModal(false);
+      setAddForm({
+        employeeId: "",
+        pfType: "Employee Provident Fund",
+        employeeShareAmount: "",
+        organizationShareAmount: "",
+        description: "",
+        status: "Pending"
       });
-      setShowDeleteModal(false);
-      setDeleteTarget(null);
+      loadData();
+    } catch (e) {
+      showError(extractApiErrorMessage(e, "Failed to create Provident Fund record"));
+    } finally {
+      setSaving(false);
     }
   };
 
-  const handleBulkDelete = () => {
-    setFunds((prev) => prev.filter((r) => !selectedIds.has(r.id)));
-    setSelectedIds(new Set());
+  const handleEditSubmit = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      const payload = {
+        ...editForm,
+        employeeId: parseInt(editForm.employeeId),
+        employeeShareAmount: parseFloat(editForm.employeeShareAmount) || 0,
+        organizationShareAmount: parseFloat(editForm.organizationShareAmount) || 0
+      };
+      await updateProvidentFund(editTarget.id, payload);
+      showSuccess("Provident Fund record updated successfully");
+      setShowEditModal(false);
+      setEditTarget(null);
+      loadData();
+    } catch (e) {
+      showError(extractApiErrorMessage(e, "Failed to update Provident Fund record"));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (deleteTarget) {
+      try {
+        await deleteProvidentFund(deleteTarget.id);
+        showSuccess("Provident Fund record deleted successfully");
+        setSelectedIds((prev) => {
+          const next = new Set(prev);
+          next.delete(deleteTarget.id);
+          return next;
+        });
+        setShowDeleteModal(false);
+        setDeleteTarget(null);
+        loadData();
+      } catch (e) {
+        showError(extractApiErrorMessage(e, "Failed to delete Provident Fund record"));
+      }
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    try {
+      await Promise.all(Array.from(selectedIds).map((id) => deleteProvidentFund(id)));
+      showSuccess("Selected Provident Fund records deleted successfully");
+      setSelectedIds(new Set());
+      loadData();
+    } catch (e) {
+      showError(extractApiErrorMessage(e, "Failed to delete some Provident Fund records"));
+    }
   };
 
   return (
@@ -241,90 +342,90 @@ const ProvidentFundPage = () => {
           </div>
 
           <div className="card-body p-0">
-            <div className="table-responsive">
-              <table className="table table-hover align-middle mb-0">
-                <thead className="thead-light">
-                  <tr>
-                    <th style={{ width: "40px" }}>
-                      <input
-                        type="checkbox"
-                        className="form-check-input"
-                        checked={pagedRows.length > 0 && pagedRows.every((r) => selectedIds.has(r.id))}
-                        onChange={toggleSelectAll}
-                      />
-                    </th>
-                    <th style={{ width: "50px" }}>#</th>
-                    <th>Employee Name</th>
-                    <th>Provident Fund Type</th>
-                    <th>Employee Share</th>
-                    <th>Organization Share</th>
-                    <th>Status</th>
-                    <th style={{ width: "80px" }}>Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {pagedRows.length === 0 ? (
+            {loading ? (
+              <div className="text-center py-5">
+                <div className="spinner-border text-primary" role="status">
+                  <span className="visually-hidden">Loading...</span>
+                </div>
+              </div>
+            ) : (
+              <div className="table-responsive">
+                <table className="table table-hover align-middle mb-0">
+                  <thead className="thead-light">
                     <tr>
-                      <td colSpan={8} className="text-center py-4">No data found</td>
+                      <th style={{ width: "40px" }}>
+                        <input
+                          type="checkbox"
+                          className="form-check-input"
+                          checked={pagedRows.length > 0 && pagedRows.every((r) => selectedIds.has(r.id))}
+                          onChange={toggleSelectAll}
+                        />
+                      </th>
+                      <th style={{ width: "50px" }}>#</th>
+                      <th>Employee Name</th>
+                      <th>Designation</th>
+                      <th>Provident Fund Type</th>
+                      <th>Employee Share</th>
+                      <th>Organization Share</th>
+                      <th>Status</th>
+                      <th style={{ width: "80px" }}>Action</th>
                     </tr>
-                  ) : (
-                    pagedRows.map((row, idx) => (
-                      <tr key={row.id}>
-                        <td>
-                          <input
-                            type="checkbox"
-                            className="form-check-input"
-                            checked={selectedIds.has(row.id)}
-                            onChange={() => toggleRowSelection(row.id)}
-                          />
-                        </td>
-                        <td>{pageOffset + idx + 1}</td>
-                        <td>
-                          <div className="d-flex align-items-center">
-                            <span className="avatar avatar-md rounded-circle me-2">
-                              <img src={row.avatar} className="img-fluid rounded-circle" alt="img" />
-                            </span>
-                            <div>
-                              <div className="fw-semibold text-dark">{row.name}</div>
-                              <span className="text-muted small">{row.designation}</span>
-                            </div>
-                          </div>
-                        </td>
-                        <td>{row.type}</td>
-                        <td>{row.employeeShare}</td>
-                        <td>{row.orgShare}</td>
-                        <td>
-                          <span className={`badge ${row.status === "Approved" ? "bg-success" : "bg-warning"} text-white`}>
-                            {row.status}
-                          </span>
-                        </td>
-                        <td>
-                          <button
-                            className="btn btn-kebab-actions d-flex align-items-center justify-content-center"
-                            style={{ width: 32, height: 32, borderRadius: "50%", border: "none", backgroundColor: "transparent", color: "#64748b" }}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (activeActionsRow?.id === row.id) {
-                                setActiveActionsRow(null);
-                              } else {
-                                const rect = e.currentTarget.getBoundingClientRect();
-                                setActionsMenuPos({
-                                  top: rect.top + window.scrollY,
-                                  left: rect.right + window.scrollX,
-                                });
-                                setActiveActionsRow(row);
-                              }
-                            }}
-                          >
-                            <i className="ti ti-dots-vertical" style={{ fontSize: "1.15rem" }} />
-                          </button>
-                        </td>
+                  </thead>
+                  <tbody>
+                    {pagedRows.length === 0 ? (
+                      <tr>
+                        <td colSpan={9} className="text-center py-4">No data found</td>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
+                    ) : (
+                      pagedRows.map((row, idx) => (
+                        <tr key={row.id}>
+                          <td>
+                            <input
+                              type="checkbox"
+                              className="form-check-input"
+                              checked={selectedIds.has(row.id)}
+                              onChange={() => toggleRowSelection(row.id)}
+                            />
+                          </td>
+                          <td>{pageOffset + idx + 1}</td>
+                          <td className="fw-semibold text-dark">{row.name}</td>
+                          <td>{row.designation}</td>
+                          <td>{row.pfType}</td>
+                          <td>${row.employeeShareAmount}</td>
+                          <td>${row.organizationShareAmount}</td>
+                          <td>
+                            <span className={`badge ${row.status === "Approved" ? "bg-success" : "bg-warning"} text-white`}>
+                              {row.status}
+                            </span>
+                          </td>
+                          <td>
+                            <button
+                              className="btn btn-kebab-actions d-flex align-items-center justify-content-center"
+                              style={{ width: 32, height: 32, borderRadius: "50%", border: "none", backgroundColor: "transparent", color: "#64748b" }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (activeActionsRow?.id === row.id) {
+                                  setActiveActionsRow(null);
+                                } else {
+                                  const rect = e.currentTarget.getBoundingClientRect();
+                                  setActionsMenuPos({
+                                    top: rect.top + window.scrollY,
+                                    left: rect.right + window.scrollX,
+                                  });
+                                  setActiveActionsRow(row);
+                                }
+                              }}
+                            >
+                              <i className="ti ti-dots-vertical" style={{ fontSize: "1.15rem" }} />
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
 
           {/* Pagination Footer */}
@@ -389,57 +490,85 @@ const ProvidentFundPage = () => {
                     <i className="ti ti-x"></i>
                   </button>
                 </div>
-                <form onSubmit={(e) => {
-                  e.preventDefault();
-                  const fd = new FormData(e.target);
-                  const name = fd.get("employeeName") || "";
-                  const type = fd.get("fundType") || "Employee Provident Fund";
-                  const empShare = fd.get("empShare") || "0%";
-                  const orgShare = fd.get("orgShare") || "0%";
-                  if (name) {
-                    setFunds((prev) => [...prev, {
-                      id: Date.now(),
-                      name,
-                      designation: "Finance",
-                      type,
-                      employeeShare: empShare,
-                      orgShare,
-                      status: "Pending",
-                      avatar: "/assets/img/users/user-32.jpg"
-                    }]);
-                  }
-                  setShowAddModal(false);
-                }}>
+                <form onSubmit={handleAddSubmit}>
                   <div className="modal-body pb-0">
                     <div className="row">
-                      <div className="col-md-6 mb-3">
+                      <div className="col-md-12 mb-3">
                         <label className="form-label">Employee Name</label>
-                        <select className="form-select" name="employeeName">
-                          <option>Anthony Lewis</option>
-                          <option>Brian Villalobos</option>
-                          <option>Harvey Smith</option>
+                        <select
+                          className="form-select"
+                          value={addForm.employeeId}
+                          onChange={(e) => setAddForm({ ...addForm, employeeId: e.target.value })}
+                          required
+                        >
+                          <option value="">Select Employee</option>
+                          {employees.map((emp) => (
+                            <option key={emp.id} value={emp.id}>
+                              {emp.name} ({emp.employeeCode})
+                            </option>
+                          ))}
                         </select>
                       </div>
-                      <div className="col-md-6 mb-3">
+                      <div className="col-md-12 mb-3">
                         <label className="form-label">Provident Fund Type</label>
-                        <select className="form-select" name="fundType">
-                          <option>Employee Provident Fund</option>
-                          <option>Voluntary Provident Fund</option>
+                        <select
+                          className="form-select"
+                          value={addForm.pfType}
+                          onChange={(e) => setAddForm({ ...addForm, pfType: e.target.value })}
+                          required
+                        >
+                          <option value="Employee Provident Fund">Employee Provident Fund</option>
+                          <option value="Voluntary Provident Fund">Voluntary Provident Fund</option>
                         </select>
                       </div>
                       <div className="col-md-6 mb-3">
-                        <label className="form-label">Employee Share(%)</label>
-                        <input type="text" className="form-control" name="empShare" defaultValue="2%" />
+                        <label className="form-label">Employee Share Amount ($)</label>
+                        <input
+                          type="number"
+                          className="form-control"
+                          value={addForm.employeeShareAmount}
+                          onChange={(e) => setAddForm({ ...addForm, employeeShareAmount: e.target.value })}
+                          required
+                        />
                       </div>
                       <div className="col-md-6 mb-3">
-                        <label className="form-label">Organization Share(%)</label>
-                        <input type="text" className="form-control" name="orgShare" defaultValue="2%" />
+                        <label className="form-label">Organization Share Amount ($)</label>
+                        <input
+                          type="number"
+                          className="form-control"
+                          value={addForm.organizationShareAmount}
+                          onChange={(e) => setAddForm({ ...addForm, organizationShareAmount: e.target.value })}
+                          required
+                        />
+                      </div>
+                      <div className="col-md-12 mb-3">
+                        <label className="form-label">Description</label>
+                        <textarea
+                          className="form-control"
+                          value={addForm.description}
+                          onChange={(e) => setAddForm({ ...addForm, description: e.target.value })}
+                          rows="3"
+                        />
+                      </div>
+                      <div className="col-md-12 mb-3">
+                        <label className="form-label">Status</label>
+                        <select
+                          className="form-select"
+                          value={addForm.status}
+                          onChange={(e) => setAddForm({ ...addForm, status: e.target.value })}
+                        >
+                          <option value="Pending">Pending</option>
+                          <option value="Approved">Approved</option>
+                          <option value="Rejected">Rejected</option>
+                        </select>
                       </div>
                     </div>
                   </div>
                   <div className="modal-footer">
                     <button type="button" className="btn btn-white border me-2" onClick={() => setShowAddModal(false)}>Cancel</button>
-                    <button type="submit" className="btn btn-primary" style={{ backgroundColor: "#3b82f6", borderColor: "#3b82f6" }}>Add Provident Fund</button>
+                    <button type="submit" className="btn btn-primary" style={{ backgroundColor: "#3b82f6", borderColor: "#3b82f6" }} disabled={saving}>
+                      Add Provident Fund
+                    </button>
                   </div>
                 </form>
               </div>
@@ -461,42 +590,75 @@ const ProvidentFundPage = () => {
                     <i className="ti ti-x"></i>
                   </button>
                 </div>
-                <form onSubmit={(e) => {
-                  e.preventDefault();
-                  const fd = new FormData(e.target);
-                  const type = fd.get("fundType") || editTarget.type;
-                  const empShare = fd.get("empShare") || editTarget.employeeShare;
-                  const orgShare = fd.get("orgShare") || editTarget.orgShare;
-                  setFunds((prev) => prev.map((r) => r.id === editTarget.id ? { ...r, type, employeeShare: empShare, orgShare } : r));
-                  setShowEditModal(false);
-                  setEditTarget(null);
-                }}>
+                <form onSubmit={handleEditSubmit}>
                   <div className="modal-body pb-0">
                     <div className="row">
-                      <div className="col-md-6 mb-3">
+                      <div className="col-md-12 mb-3">
                         <label className="form-label">Employee Name</label>
-                        <input type="text" className="form-control" value={editTarget.name} disabled />
+                        <select className="form-select" disabled value={editForm.employeeId}>
+                          <option value={editForm.employeeId}>{editTarget.name}</option>
+                        </select>
                       </div>
-                      <div className="col-md-6 mb-3">
+                      <div className="col-md-12 mb-3">
                         <label className="form-label">Provident Fund Type</label>
-                        <select className="form-select" name="fundType" defaultValue={editTarget.type}>
-                          <option>Employee Provident Fund</option>
-                          <option>Voluntary Provident Fund</option>
+                        <select
+                          className="form-select"
+                          value={editForm.pfType}
+                          onChange={(e) => setEditForm({ ...editForm, pfType: e.target.value })}
+                          required
+                        >
+                          <option value="Employee Provident Fund">Employee Provident Fund</option>
+                          <option value="Voluntary Provident Fund">Voluntary Provident Fund</option>
                         </select>
                       </div>
                       <div className="col-md-6 mb-3">
-                        <label className="form-label">Employee Share(%)</label>
-                        <input type="text" className="form-control" name="empShare" defaultValue={editTarget.employeeShare} />
+                        <label className="form-label">Employee Share Amount ($)</label>
+                        <input
+                          type="number"
+                          className="form-control"
+                          value={editForm.employeeShareAmount}
+                          onChange={(e) => setEditForm({ ...editForm, employeeShareAmount: e.target.value })}
+                          required
+                        />
                       </div>
                       <div className="col-md-6 mb-3">
-                        <label className="form-label">Organization Share(%)</label>
-                        <input type="text" className="form-control" name="orgShare" defaultValue={editTarget.orgShare} />
+                        <label className="form-label">Organization Share Amount ($)</label>
+                        <input
+                          type="number"
+                          className="form-control"
+                          value={editForm.organizationShareAmount}
+                          onChange={(e) => setEditForm({ ...editForm, organizationShareAmount: e.target.value })}
+                          required
+                        />
+                      </div>
+                      <div className="col-md-12 mb-3">
+                        <label className="form-label">Description</label>
+                        <textarea
+                          className="form-control"
+                          value={editForm.description}
+                          onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+                          rows="3"
+                        />
+                      </div>
+                      <div className="col-md-12 mb-3">
+                        <label className="form-label">Status</label>
+                        <select
+                          className="form-select"
+                          value={editForm.status}
+                          onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
+                        >
+                          <option value="Pending">Pending</option>
+                          <option value="Approved">Approved</option>
+                          <option value="Rejected">Rejected</option>
+                        </select>
                       </div>
                     </div>
                   </div>
                   <div className="modal-footer">
                     <button type="button" className="btn btn-white border me-2" onClick={() => { setShowEditModal(false); setEditTarget(null); }}>Cancel</button>
-                    <button type="submit" className="btn btn-primary" style={{ backgroundColor: "#3b82f6", borderColor: "#3b82f6" }}>Save Changes</button>
+                    <button type="submit" className="btn btn-primary" style={{ backgroundColor: "#3b82f6", borderColor: "#3b82f6" }} disabled={saving}>
+                      Save Changes
+                    </button>
                   </div>
                 </form>
               </div>
@@ -552,6 +714,14 @@ const ProvidentFundPage = () => {
             style={{ fontSize: "0.85rem" }}
             onClick={() => {
               setEditTarget(activeActionsRow);
+              setEditForm({
+                employeeId: activeActionsRow.employeeId,
+                pfType: activeActionsRow.pfType || "Employee Provident Fund",
+                employeeShareAmount: activeActionsRow.employeeShareAmount || "",
+                organizationShareAmount: activeActionsRow.organizationShareAmount || "",
+                description: activeActionsRow.description || "",
+                status: activeActionsRow.status || "Pending"
+              });
               setShowEditModal(true);
               setActiveActionsRow(null);
             }}

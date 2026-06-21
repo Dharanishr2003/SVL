@@ -175,3 +175,74 @@
   border-color: #3b82f6 !important;
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1) !important;
 }
+
+/* Sticky Form Navigation Tabs Styles */
+.form-nav-container {
+  position: sticky;
+  top: 70px; /* Offset for header/top navbar if present */
+  z-index: 99;
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-bottom: 1px solid #e2e8f0;
+  padding: 0.5rem 1rem;
+  margin: -1rem -1rem 1.5rem -1rem;
+}
+
+.form-nav-tabs {
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none; /* Firefox */
+  padding-bottom: 2px;
+}
+
+.form-nav-tabs::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
+}
+
+.form-nav-tab {
+  border: 0;
+  background: transparent;
+  padding: 0.5rem 1rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #64748b;
+  border-radius: 8px;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.form-nav-tab:hover {
+  color: #1e293b;
+  background-color: #f1f5f9;
+}
+
+.form-nav-tab.active {
+  color: #2563eb;
+  background-color: #eff6ff;
+}
+
+.form-nav-tab.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 10%;
+  width: 80%;
+  height: 3px;
+  background-color: #2563eb;
+  border-radius: 99px;
+}
+
+/* Smooth scrolling for page */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Form Section spacing & scroll offset */
+.form-section-card {
+  scroll-margin-top: 130px; /* Ensures scrolled sections aren't hidden behind the sticky navbar */
+}

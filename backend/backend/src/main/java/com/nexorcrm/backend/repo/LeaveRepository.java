@@ -11,6 +11,7 @@ import java.util.List;
 
 public interface LeaveRepository extends JpaRepository<Leave, Long> {
     List<Leave> findByDeletedFalseOrderByFromDateDesc();
+    List<Leave> findByEmployeeIdAndDeletedFalseOrderByFromDateDesc(Long employeeId);
 
     @Query("select coalesce(sum(l.noOfDays), 0) from Leave l where l.deleted=false and l.employeeId=:employeeId and lower(l.leaveType)=lower(:leaveType) and l.status='APPROVED' and l.fromDate>=:start and l.toDate<=:end and (:excludeId is null or l.id <> :excludeId)")
     BigDecimal sumApprovedDays(@Param("employeeId") Long employeeId,

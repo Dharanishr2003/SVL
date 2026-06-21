@@ -17,6 +17,21 @@ function fmtDuration(mins) {
   return h > 0 ? `${h}h ${m}m` : `${m}m`;
 }
 
+function calculateShiftMinutes(startTime, endTime) {
+  if (!startTime || !endTime) return 0;
+
+  const [startHours, startMinutes] = String(startTime).split(":").map(Number);
+  const [endHours, endMinutes] = String(endTime).split(":").map(Number);
+
+  const startTotal = (Number(startHours) || 0) * 60 + (Number(startMinutes) || 0);
+  const endTotal = (Number(endHours) || 0) * 60 + (Number(endMinutes) || 0);
+  const total = endTotal >= startTotal
+    ? endTotal - startTotal
+    : endTotal + 24 * 60 - startTotal;
+
+  return Math.max(0, total);
+}
+
 const ScheduleTimingPage = () => {
   const [shifts, setShifts] = useState([]);
   const [locations, setLocations] = useState([]);
@@ -45,6 +60,11 @@ const ScheduleTimingPage = () => {
   const [pageLocations, setPageLocations] = useState(1);
   const [pageSizeLocations, setPageSizeLocations] = useState(10);
 
+  const calculatedMinWorkMinutes = useMemo(
+    () => calculateShiftMinutes(shiftForm.startTime, shiftForm.endTime),
+    [shiftForm.startTime, shiftForm.endTime]
+  );
+
   /* ── Data loading ── */
   const loadData = useCallback(async () => {
     try {
@@ -71,10 +91,14 @@ const ScheduleTimingPage = () => {
   const handleShiftSave = async (e) => {
     e.preventDefault();
     try {
+      const payload = {
+        ...shiftForm,
+        minWorkMinutes: calculatedMinWorkMinutes,
+      };
       if (editingShiftId) {
-        await attendanceApi.updateShift(editingShiftId, shiftForm);
+        await attendanceApi.updateShift(editingShiftId, payload);
       } else {
-        await attendanceApi.createShift(shiftForm);
+        await attendanceApi.createShift(payload);
       }
       setEditingShiftId(null);
       setShiftForm({ name: '', startTime: '09:00', endTime: '18:00', breakAllowedMinutes: 15, breakGraceMinutes: 5, lunchAllowedMinutes: 60, lunchGraceMinutes: 10, minWorkMinutes: 480, isNightShift: false, earlyCheckinBufferMinutes: 30, lateCheckinBufferMinutes: 15, maxOvertimeMinutes: 120 });
@@ -90,7 +114,7 @@ const ScheduleTimingPage = () => {
       name: s.name || '', startTime: s.startTime || '09:00', endTime: s.endTime || '18:00',
       breakAllowedMinutes: s.breakAllowedMinutes ?? 15, breakGraceMinutes: s.breakGraceMinutes ?? 5,
       lunchAllowedMinutes: s.lunchAllowedMinutes ?? 60, lunchGraceMinutes: s.lunchGraceMinutes ?? 10,
-      minWorkMinutes: s.minWorkMinutes ?? 480, isNightShift: s.isNightShift ?? false,
+      minWorkMinutes: s.minWorkMinutes ?? calculateShiftMinutes(s.startTime, s.endTime), isNightShift: s.isNightShift ?? false,
       earlyCheckinBufferMinutes: s.earlyCheckinBufferMinutes ?? 30, lateCheckinBufferMinutes: s.lateCheckinBufferMinutes ?? 15, maxOvertimeMinutes: s.maxOvertimeMinutes ?? 120
     });
   };
@@ -343,7 +367,19 @@ const ScheduleTimingPage = () => {
                           </div>
                           <div className="col-6 mb-3">
                             <label className="form-label">End Time</label>
-                            <input type="time" className="form-control" required value={shiftForm.endTime} onChange={e => setShiftForm(p => ({ ...p, endTime: e.target.value }))} />
+                            <input
+                              type="time"
+                              className="form-control"
+                              required
+                              value={shiftForm.endTime}
+                              onChange={e =>
+                                setShiftForm((p) => ({
+                                  ...p,
+                                  endTime: e.target.value,
+                                  minWorkMinutes: calculateShiftMinutes(p.startTime, e.target.value),
+                                }))
+                              }
+                            />
                           </div>
                         </div>
                         <div className="row">
@@ -368,7 +404,7 @@ const ScheduleTimingPage = () => {
                         </div>
                         <div className="mb-3">
                           <label className="form-label">Min Work (min)</label>
-                          <input type="number" className="form-control" value={shiftForm.minWorkMinutes} onChange={e => setShiftForm(p => ({ ...p, minWorkMinutes: parseInt(e.target.value, 10) || 0 }))} />
+                          <input type="number" className="form-control" value={calculatedMinWorkMinutes} readOnly />
                         </div>
                         <div className="mb-3">
                           <label className="form-label">Max Overtime (min)</label>

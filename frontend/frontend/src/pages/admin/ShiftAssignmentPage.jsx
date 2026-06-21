@@ -380,19 +380,9 @@ export default function ShiftAssignmentPage() {
                         />
                       </td>
                       <td>
-                        <div className="d-flex align-items-center gap-2">
-                          <img
-                            src={emp.img || "assets/img/users/user-32.jpg"}
-                            alt={emp.name}
-                            className="rounded-circle"
-                            width="34"
-                            height="34"
-                            onError={(e) => { e.target.src = "assets/img/users/user-32.jpg"; }}
-                          />
-                          <div>
-                            <div className="fw-semibold text-slate-800">{emp.name || "-"}</div>
-                            <small className="text-muted">{emp.employeeCode || emp.employeeId || ""}</small>
-                          </div>
+                        <div>
+                          <div className="fw-semibold text-slate-800">{emp.name || "-"}</div>
+                          <small className="text-muted">{emp.employeeCode || emp.employeeId || ""}</small>
                         </div>
                       </td>
                       <td>{emp.email || "-"}</td>

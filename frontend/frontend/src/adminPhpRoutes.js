@@ -666,6 +666,10 @@ export const adminPhpRoutes = [
     component: "LeaveSettingsPage",
   },
   {
+    path: "leave-type",
+    component: "LeaveTypePage",
+  },
+  {
     path: "leaves",
     component: "LeavesPage",
   },
@@ -1224,14 +1228,6 @@ export const adminPhpRoutes = [
   {
     path: "voice-call",
     component: "VoiceCallPage",
-  },
-  {
-    path: "rrq",
-    component: "RrqPage",
-  },
-  {
-    path: "rrq-type",
-    component: "RrqTypePage",
   },
   {
     path: "projects-page",

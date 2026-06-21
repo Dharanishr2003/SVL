@@ -10,6 +10,7 @@ import { getLeads } from "../../api/leadsApi";
 import { getRequirementsByLeadId, deleteRequirement } from "../../api/requirementApi";
 import LeadExportDropdown from "../../components/admin/LeadExportDropdown";
 import PageSizeSelector from "../../components/admin/PageSizeSelector";
+import LoadingSpinner from "../../components/common/LoadingSpinner";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import "./RequirementsPage.css";
@@ -357,10 +358,8 @@ ${rowsHtml}
             </div>
 
             {loading ? (
-              <div className="text-center py-5">
-                <div className="spinner-border text-primary" role="status">
-                  <span className="sr-only">Loading...</span>
-                </div>
+              <div className="d-flex align-items-center justify-content-center py-5" style={{ minHeight: "260px" }}>
+                <LoadingSpinner size="page" />
               </div>
             ) : pagedLeads.length === 0 ? (
               <div className="text-center py-5">

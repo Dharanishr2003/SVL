@@ -17,6 +17,7 @@ import java.time.DayOfWeek;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -33,6 +34,7 @@ public class AttendanceService {
     private final EmployeeRepository employeeRepository;
     private final GeoFenceService geoFenceService;
     private final ShiftService shiftService;
+    private final HolidayRepository holidayRepository;
 
     public AttendanceService(AttendanceRepository attendanceRepository,
                              AttendanceEventRepository eventRepository,
@@ -43,7 +45,8 @@ public class AttendanceService {
                              UserRepository userRepository,
                              EmployeeRepository employeeRepository,
                              GeoFenceService geoFenceService,
-                             ShiftService shiftService) {
+                             ShiftService shiftService,
+                             HolidayRepository holidayRepository) {
         this.attendanceRepository = attendanceRepository;
         this.eventRepository = eventRepository;
         this.breakRepository = breakRepository;
@@ -54,6 +57,7 @@ public class AttendanceService {
         this.employeeRepository = employeeRepository;
         this.geoFenceService = geoFenceService;
         this.shiftService = shiftService;
+        this.holidayRepository = holidayRepository;
     }
 
     // ══════════════════════════════════════════════════════════════
@@ -369,8 +373,29 @@ public class AttendanceService {
         summary.setOvertimeMinutesMonth(overtime);
 
         long daysThisMonth = attendanceRepository.countByUserBetween(userId, monthStart, today);
-
         summary.setDaysPresent((int) daysThisMonth);
+
+        // Calculate days absent excluding weekends and holidays
+        List<Holiday> holidays = holidayRepository.findByDeletedFalseOrderByDateAsc();
+        Set<LocalDate> holidayDates = holidays.stream()
+                .map(Holiday::getDate)
+                .collect(Collectors.toSet());
+
+        int workingDays = 0;
+        for (LocalDate date = monthStart; !date.isAfter(today); date = date.plusDays(1)) {
+            DayOfWeek day = date.getDayOfWeek();
+            boolean isWeekend = day == DayOfWeek.SATURDAY || day == DayOfWeek.SUNDAY;
+            boolean isHoliday = holidayDates.contains(date);
+            if (!isWeekend && !isHoliday) {
+                workingDays++;
+            }
+        }
+
+        int daysAbsent = workingDays - (int) daysThisMonth;
+        if (daysAbsent < 0) {
+            daysAbsent = 0;
+        }
+        summary.setDaysAbsent(daysAbsent);
 
         return summary;
     }

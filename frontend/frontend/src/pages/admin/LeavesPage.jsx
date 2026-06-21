@@ -505,7 +505,7 @@ export default function LeavesPage() {
             </div>
           </div>
 
-          <div className="table-responsive">
+          <div className="table-responsive" style={{ overflow: "visible" }}>
             <table className="table table-hover align-middle mb-0">
               <thead className="table-light">
                 <tr>
@@ -570,12 +570,21 @@ export default function LeavesPage() {
                         <td>{formatDate(row.toDate)}</td>
                         <td>{(row.noOfDays ?? calcDays(row.fromDate, row.toDate)) || "-"}</td>
                         <td>
-                          <span className={`badge ${status === "APPROVED" ? "badge-success bg-success-light text-success" : status === "DECLINED" ? "badge-danger bg-danger-light text-danger" : "badge-warning bg-warning-light text-warning"}`}>
+                          <span
+                            className={`badge d-inline-flex align-items-center justify-content-center ${
+                              status === "APPROVED"
+                                ? "badge-success bg-success-light text-dark"
+                                : status === "DECLINED"
+                                  ? "badge-danger bg-danger-light text-dark"
+                                  : "badge-warning bg-warning-light text-dark"
+                            }`}
+                            style={{ minWidth: 88, padding: "0.45rem 0.75rem", fontWeight: 700, lineHeight: 1 }}
+                          >
                             {status}
                           </span>
                         </td>
                         <td className="text-end">
-                          <div className="dropdown">
+                          <div className="dropdown" style={{ position: "relative", zIndex: 5 }}>
                             <button className="btn btn-light btn-sm btn-icon" data-bs-toggle="dropdown" aria-expanded="false">
                               <i className="ti ti-dots-vertical" />
                             </button>

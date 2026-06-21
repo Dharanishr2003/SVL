@@ -44,14 +44,14 @@ public final class RolePermissionUtil {
             return false;
         }
         if (roleToAssign == Role.CUSTOMER) {
-            return false;
+            return true;
         }
         return isStrictlyHigher(actorRole, roleToAssign);
     }
 
     public static boolean canSeeInManagementList(Role actorRole, Role targetRole) {
         if (targetRole == Role.CUSTOMER) {
-            return false;
+            return true;
         }
         return isEqualOrHigher(actorRole, targetRole);
     }

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
+import LoadingSpinner from "../../components/common/LoadingSpinner";
 import {
   approveBudgetVerification,
   downloadLeadRequirementFile,
@@ -283,13 +284,11 @@ export default function BudgetVerificationApprovePage() {
         <div className="page-header">
           <div className="page-title">
             <h4>Calculate Budget</h4>
-            <p className="text-muted">Loading...</p>
+            <p className="text-muted">Loading budget details</p>
           </div>
         </div>
         <div className="text-center py-5">
-          <div className="spinner-border" role="status">
-            <span className="visually-hidden">Loading...</span>
-          </div>
+          <LoadingSpinner size="page" label="Loading budget details" />
         </div>
       </>
     );
@@ -835,7 +834,7 @@ export default function BudgetVerificationApprovePage() {
                   >
                     {saving ? (
                       <>
-                        <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                        <LoadingSpinner size="sm" className="me-2" label="Approving budget" />
                         Approving...
                       </>
                     ) : (

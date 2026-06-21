@@ -148,6 +148,26 @@ public class SuperAdminService {
             throw new IllegalStateException("Password and Confirm Password do not match");
         }
 
+        Role requestedRole = parseRequestedRole(request);
+
+        if (requestedRole == Role.CUSTOMER) {
+            User user = new User();
+            user.setUsername(username);
+            user.setEmail(email);
+            user.setFirstName(normalizeNullable(request.getFirstName()));
+            user.setLastName(normalizeNullable(request.getLastName()));
+            user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
+            user.setRole(Role.CUSTOMER);
+            user.setActivationStatus(ActivationStatus.ACTIVE);
+            user.setActive(true);
+            user.setForcePasswordChange(false);
+            user.setCreatedBy(actor.getEmail());
+
+            User saved = userRepository.save(user);
+            auditService.log("CREATE_CUSTOMER", "Created customer user", saved.getEmail());
+            return toUserResponse(saved);
+        }
+
         if (request.getEmployeeId() == null) {
             throw new IllegalStateException("Please select an employee");
         }
@@ -165,7 +185,6 @@ public class SuperAdminService {
         if (StringUtils.hasText(request.getInstitution()) && !textEquals(request.getInstitution(), employeeBranchName)) {
             throw new IllegalStateException("Selected employee does not belong to the selected branch");
         }
-        Role requestedRole = parseRequestedRole(request);
         String branchName = required(employeeBranchName, "Branch is required");
         String institutionName = StringUtils.hasText(request.getInstitution())
                 ? request.getInstitution().trim()

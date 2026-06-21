@@ -4,19 +4,24 @@ import { createPortal } from "react-dom";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import PageSizeSelector from "../../components/admin/PageSizeSelector";
-
-const INITIAL_ADDITIONS = [
-  { id: 1, name: "Leave Balance Amount", category: "Monthly Remuneration", amount: 5 },
-  { id: 2, name: "Arrears of Salary", category: "Additional Remuneration", amount: 8 },
-  { id: 3, name: "Gratuity", category: "Monthly Remuneration", amount: 20 }
-];
+import {
+  getAdditions, createAddition, updateAddition, deleteAddition,
+  getOvertimes, createOvertime, updateOvertime, deleteOvertime,
+  getDeductions, createDeduction, updateDeduction, deleteDeduction
+} from "../../api/payrollItemsApi";
+import { extractApiErrorMessage } from "../../utils/errorMessage";
+import { useToast } from "../../components/system/ToastProvider";
 
 const PayrollPage = () => {
-  const [additions, setAdditions] = useState(INITIAL_ADDITIONS);
+  const [activeTab, setActiveTab] = useState("additions"); // additions, overtimes, deductions
+  const [rows, setRows] = useState([]);
   const [search, setSearch] = useState("");
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const { showSuccess, showError } = useToast();
 
   // Modal states
   const [showAddModal, setShowAddModal] = useState(false);
@@ -26,6 +31,23 @@ const PayrollPage = () => {
   // Targets
   const [editTarget, setEditTarget] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
+
+  // Form states
+  const [addForm, setAddForm] = useState({
+    name: "",
+    category: "MONTHLY", // for additions: MONTHLY/ADDITIONAL
+    rateType: "HOURLY", // for overtimes: HOURLY/DAILY
+    rate: "0",          // for overtimes
+    unitCalculation: false // for additions & deductions
+  });
+
+  const [editForm, setEditForm] = useState({
+    name: "",
+    category: "MONTHLY",
+    rateType: "HOURLY",
+    rate: "0",
+    unitCalculation: false
+  });
 
   // Kebab row actions
   const [activeActionsRow, setActiveActionsRow] = useState(null);
@@ -44,15 +66,40 @@ const PayrollPage = () => {
     };
   }, []);
 
+  const loadData = async () => {
+    setLoading(true);
+    setSelectedIds(new Set());
+    try {
+      let data = [];
+      if (activeTab === "additions") {
+        data = await getAdditions();
+      } else if (activeTab === "overtimes") {
+        data = await getOvertimes();
+      } else {
+        data = await getDeductions();
+      }
+      setRows(data);
+    } catch (e) {
+      showError(extractApiErrorMessage(e, `Failed to load ${activeTab}`));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, [activeTab]);
+
   const filteredRows = useMemo(() => {
     const q = search.toLowerCase().trim();
-    if (!q) return additions;
-    return additions.filter(
+    if (!q) return rows;
+    return rows.filter(
       (r) =>
-        r.name.toLowerCase().includes(q) ||
-        r.category.toLowerCase().includes(q)
+        (r.name && r.name.toLowerCase().includes(q)) ||
+        (r.category && r.category.toLowerCase().includes(q)) ||
+        (r.rateType && r.rateType.toLowerCase().includes(q))
     );
-  }, [additions, search]);
+  }, [rows, search]);
 
   const totalRows = filteredRows.length;
   const pageCount = Math.max(1, Math.ceil(totalRows / Math.max(1, pageSize)));
@@ -95,18 +142,28 @@ const PayrollPage = () => {
 
   const exportCsv = () => {
     const targetRows = selectedIds.size > 0
-      ? additions.filter((r) => selectedIds.has(r.id))
+      ? rows.filter((r) => selectedIds.has(r.id))
       : filteredRows;
-    const headers = ["Name", "Category", "Default / Unit Amount"];
-    const body = targetRows.map((r) => [r.name, r.category, `$${r.amount}`]);
+    let headers = ["Name"];
+    let body = [];
+    if (activeTab === "additions") {
+      headers = ["Name", "Category", "Unit Calculation"];
+      body = targetRows.map((r) => [r.name, r.category, r.unitCalculation]);
+    } else if (activeTab === "overtimes") {
+      headers = ["Name", "Rate Type", "Rate"];
+      body = targetRows.map((r) => [r.name, r.rateType, r.rate]);
+    } else {
+      headers = ["Name", "Unit Calculation"];
+      body = targetRows.map((r) => [r.name, r.unitCalculation]);
+    }
     const csvContent = [headers, ...body]
-      .map((line) => line.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","))
+      .map((line) => line.map((cell) => `"${String(cell || '').replace(/"/g, '""')}"`).join(","))
       .join("\n");
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `additions_${Date.now()}.csv`;
+    link.download = `${activeTab}_${Date.now()}.csv`;
     link.click();
     URL.revokeObjectURL(url);
   };
@@ -117,36 +174,120 @@ const PayrollPage = () => {
 
   const exportPdf = () => {
     const targetRows = selectedIds.size > 0
-      ? additions.filter((r) => selectedIds.has(r.id))
+      ? rows.filter((r) => selectedIds.has(r.id))
       : filteredRows;
     const doc = new jsPDF();
-    doc.text("Additions List", 14, 15);
-    const headers = [["Name", "Category", "Amount"]];
-    const body = targetRows.map((r) => [r.name, r.category, `$${r.amount}`]);
+    doc.text(`${activeTab.toUpperCase()} List`, 14, 15);
+    let headers = [["Name"]];
+    let body = [];
+    if (activeTab === "additions") {
+      headers = [["Name", "Category", "Unit Calculation"]];
+      body = targetRows.map((r) => [r.name, r.category, r.unitCalculation ? "Yes" : "No"]);
+    } else if (activeTab === "overtimes") {
+      headers = [["Name", "Rate Type", "Rate"]];
+      body = targetRows.map((r) => [r.name, r.rateType, `$${r.rate}`]);
+    } else {
+      headers = [["Name", "Unit Calculation"]];
+      body = targetRows.map((r) => [r.name, r.unitCalculation ? "Yes" : "No"]);
+    }
     autoTable(doc, {
       head: headers,
       body: body,
       startY: 20,
     });
-    doc.save(`additions_${Date.now()}.pdf`);
+    doc.save(`${activeTab}_${Date.now()}.pdf`);
   };
 
-  const handleDelete = () => {
-    if (deleteTarget) {
-      setAdditions((prev) => prev.filter((r) => r.id !== deleteTarget.id));
-      setSelectedIds((prev) => {
-        const next = new Set(prev);
-        next.delete(deleteTarget.id);
-        return next;
+  const handleAddSubmit = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      if (activeTab === "additions") {
+        await createAddition(addForm);
+      } else if (activeTab === "overtimes") {
+        await createOvertime({ ...addForm, rate: parseFloat(addForm.rate) || 0 });
+      } else {
+        await createDeduction(addForm);
+      }
+      showSuccess(`Created successfully`);
+      setShowAddModal(false);
+      setAddForm({
+        name: "",
+        category: "MONTHLY",
+        rateType: "HOURLY",
+        rate: "0",
+        unitCalculation: false
       });
-      setShowDeleteModal(false);
-      setDeleteTarget(null);
+      loadData();
+    } catch (e) {
+      showError(extractApiErrorMessage(e, `Failed to create`));
+    } finally {
+      setSaving(false);
     }
   };
 
-  const handleBulkDelete = () => {
-    setAdditions((prev) => prev.filter((r) => !selectedIds.has(r.id)));
-    setSelectedIds(new Set());
+  const handleEditSubmit = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      if (activeTab === "additions") {
+        await updateAddition(editTarget.id, editForm);
+      } else if (activeTab === "overtimes") {
+        await updateOvertime(editTarget.id, { ...editForm, rate: parseFloat(editForm.rate) || 0 });
+      } else {
+        await updateDeduction(editTarget.id, editForm);
+      }
+      showSuccess(`Updated successfully`);
+      setShowEditModal(false);
+      setEditTarget(null);
+      loadData();
+    } catch (e) {
+      showError(extractApiErrorMessage(e, `Failed to update`));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (deleteTarget) {
+      try {
+        if (activeTab === "additions") {
+          await deleteAddition(deleteTarget.id);
+        } else if (activeTab === "overtimes") {
+          await deleteOvertime(deleteTarget.id);
+        } else {
+          await deleteDeduction(deleteTarget.id);
+        }
+        showSuccess(`Deleted successfully`);
+        setSelectedIds((prev) => {
+          const next = new Set(prev);
+          next.delete(deleteTarget.id);
+          return next;
+        });
+        setShowDeleteModal(false);
+        setDeleteTarget(null);
+        loadData();
+      } catch (e) {
+        showError(extractApiErrorMessage(e, `Failed to delete`));
+      }
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    try {
+      if (activeTab === "additions") {
+        await Promise.all(Array.from(selectedIds).map((id) => deleteAddition(id)));
+      } else if (activeTab === "overtimes") {
+        await Promise.all(Array.from(selectedIds).map((id) => deleteOvertime(id)));
+      } else {
+        await Promise.all(Array.from(selectedIds).map((id) => deleteDeduction(id)));
+      }
+      showSuccess(`Deleted selected items successfully`);
+      setSelectedIds(new Set());
+      loadData();
+    } catch (e) {
+      showError(extractApiErrorMessage(e, `Failed to delete some items`));
+    }
   };
 
   return (
@@ -178,7 +319,7 @@ const PayrollPage = () => {
                 style={{ backgroundColor: "#3b82f6", borderColor: "#3b82f6", fontWeight: "600", padding: "10px 20px", borderRadius: "10px" }}
               >
                 <i className="ti ti-plus" style={{ fontSize: "1.1rem" }}></i>
-                Add Addition
+                Add {activeTab === "additions" ? "Addition" : activeTab === "overtimes" ? "Overtime" : "Deduction"}
               </button>
             </div>
           </div>
@@ -187,15 +328,27 @@ const PayrollPage = () => {
         {/* Tab Selection Row */}
         <div className="d-flex flex-wrap gy-2 justify-content-between mb-4">
           <div className="payroll-btns">
-            <Link to="/payroll" className="btn btn-white active border me-2">
+            <button
+              onClick={() => setActiveTab("additions")}
+              className={`btn border me-2 ${activeTab === "additions" ? "btn-primary active text-white" : "btn-white"}`}
+              style={activeTab === "additions" ? { backgroundColor: "#3b82f6", borderColor: "#3b82f6" } : {}}
+            >
               Additions
-            </Link>
-            <Link to="/payroll-overtime" className="btn btn-white border me-2">
+            </button>
+            <button
+              onClick={() => setActiveTab("overtimes")}
+              className={`btn border me-2 ${activeTab === "overtimes" ? "btn-primary active text-white" : "btn-white"}`}
+              style={activeTab === "overtimes" ? { backgroundColor: "#3b82f6", borderColor: "#3b82f6" } : {}}
+            >
               Overtime
-            </Link>
-            <Link to="/payroll-deduction" className="btn btn-white border">
+            </button>
+            <button
+              onClick={() => setActiveTab("deductions")}
+              className={`btn border ${activeTab === "deductions" ? "btn-primary active text-white" : "btn-white"}`}
+              style={activeTab === "deductions" ? { backgroundColor: "#3b82f6", borderColor: "#3b82f6" } : {}}
+            >
               Deductions
-            </Link>
+            </button>
           </div>
         </div>
 
@@ -208,7 +361,7 @@ const PayrollPage = () => {
                 className="form-control"
                 style={{ height: 42, borderRadius: 10, paddingLeft: 38, fontSize: "0.95rem" }}
                 value={search}
-                placeholder="Search addition..."
+                placeholder={`Search ${activeTab}...`}
                 onChange={(e) => setSearch(e.target.value)}
               />
               <i className="ti ti-search position-absolute text-muted" style={{ left: 14, top: "50%", transform: "translateY(-50%)", fontSize: "1.1rem" }} />
@@ -249,72 +402,86 @@ const PayrollPage = () => {
           </div>
 
           <div className="card-body p-0">
-            <div className="table-responsive">
-              <table className="table table-hover align-middle mb-0">
-                <thead className="thead-light">
-                  <tr>
-                    <th style={{ width: "40px" }}>
-                      <input
-                        type="checkbox"
-                        className="form-check-input"
-                        checked={pagedRows.length > 0 && pagedRows.every((r) => selectedIds.has(r.id))}
-                        onChange={toggleSelectAll}
-                      />
-                    </th>
-                    <th style={{ width: "50px" }}>#</th>
-                    <th>Name</th>
-                    <th>Category</th>
-                    <th>Default / Unit Amount</th>
-                    <th style={{ width: "80px" }}>Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {pagedRows.length === 0 ? (
+            {loading ? (
+              <div className="text-center py-5">
+                <div className="spinner-border text-primary" role="status">
+                  <span className="visually-hidden">Loading...</span>
+                </div>
+              </div>
+            ) : (
+              <div className="table-responsive">
+                <table className="table table-hover align-middle mb-0">
+                  <thead className="thead-light">
                     <tr>
-                      <td colSpan={6} className="text-center py-4">No data found</td>
+                      <th style={{ width: "40px" }}>
+                        <input
+                          type="checkbox"
+                          className="form-check-input"
+                          checked={pagedRows.length > 0 && pagedRows.every((r) => selectedIds.has(r.id))}
+                          onChange={toggleSelectAll}
+                        />
+                      </th>
+                      <th style={{ width: "50px" }}>#</th>
+                      <th>Name</th>
+                      {activeTab === "additions" && <th>Category</th>}
+                      {activeTab === "overtimes" && <th>Rate Type</th>}
+                      {activeTab === "overtimes" && <th>Rate</th>}
+                      {(activeTab === "additions" || activeTab === "deductions") && <th>Unit Calculation</th>}
+                      <th style={{ width: "80px" }}>Action</th>
                     </tr>
-                  ) : (
-                    pagedRows.map((row, idx) => (
-                      <tr key={row.id}>
-                        <td>
-                          <input
-                            type="checkbox"
-                            className="form-check-input"
-                            checked={selectedIds.has(row.id)}
-                            onChange={() => toggleRowSelection(row.id)}
-                          />
-                        </td>
-                        <td>{pageOffset + idx + 1}</td>
-                        <td className="fw-semibold text-dark">{row.name}</td>
-                        <td>{row.category}</td>
-                        <td>${row.amount}</td>
-                        <td>
-                          <button
-                            className="btn btn-kebab-actions d-flex align-items-center justify-content-center"
-                            style={{ width: 32, height: 32, borderRadius: "50%", border: "none", backgroundColor: "transparent", color: "#64748b" }}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (activeActionsRow?.id === row.id) {
-                                setActiveActionsRow(null);
-                              } else {
-                                const rect = e.currentTarget.getBoundingClientRect();
-                                setActionsMenuPos({
-                                  top: rect.top + window.scrollY,
-                                  left: rect.right + window.scrollX,
-                                });
-                                setActiveActionsRow(row);
-                              }
-                            }}
-                          >
-                            <i className="ti ti-dots-vertical" style={{ fontSize: "1.15rem" }} />
-                          </button>
-                        </td>
+                  </thead>
+                  <tbody>
+                    {pagedRows.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="text-center py-4">No data found</td>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
+                    ) : (
+                      pagedRows.map((row, idx) => (
+                        <tr key={row.id}>
+                          <td>
+                            <input
+                              type="checkbox"
+                              className="form-check-input"
+                              checked={selectedIds.has(row.id)}
+                              onChange={() => toggleRowSelection(row.id)}
+                            />
+                          </td>
+                          <td>{pageOffset + idx + 1}</td>
+                          <td className="fw-semibold text-dark">{row.name}</td>
+                          {activeTab === "additions" && <td>{row.category}</td>}
+                          {activeTab === "overtimes" && <td>{row.rateType}</td>}
+                          {activeTab === "overtimes" && <td>${row.rate}</td>}
+                          {(activeTab === "additions" || activeTab === "deductions") && (
+                            <td>{row.unitCalculation ? "Yes" : "No"}</td>
+                          )}
+                          <td>
+                            <button
+                              className="btn btn-kebab-actions d-flex align-items-center justify-content-center"
+                              style={{ width: 32, height: 32, borderRadius: "50%", border: "none", backgroundColor: "transparent", color: "#64748b" }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (activeActionsRow?.id === row.id) {
+                                  setActiveActionsRow(null);
+                                } else {
+                                  const rect = e.currentTarget.getBoundingClientRect();
+                                  setActionsMenuPos({
+                                    top: rect.top + window.scrollY,
+                                    left: rect.right + window.scrollX,
+                                  });
+                                  setActiveActionsRow(row);
+                                }
+                              }}
+                            >
+                              <i className="ti ti-dots-vertical" style={{ fontSize: "1.15rem" }} />
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
 
           {/* Pagination Footer */}
@@ -374,44 +541,84 @@ const PayrollPage = () => {
             <div className="modal-dialog modal-dialog-centered modal-md">
               <div className="modal-content">
                 <div className="modal-header">
-                  <h4 className="modal-title">Add Addition</h4>
+                  <h4 className="modal-title">Add {activeTab === "additions" ? "Addition" : activeTab === "overtimes" ? "Overtime" : "Deduction"}</h4>
                   <button type="button" className="btn-close custom-btn-close" onClick={() => setShowAddModal(false)}>
                     <i className="ti ti-x"></i>
                   </button>
                 </div>
-                <form onSubmit={(e) => {
-                  e.preventDefault();
-                  const fd = new FormData(e.target);
-                  const name = fd.get("name") || "";
-                  const category = fd.get("category") || "Monthly Remuneration";
-                  const amount = parseFloat(fd.get("amount")) || 0;
-                  if (name) {
-                    setAdditions((prev) => [...prev, { id: Date.now(), name, category, amount }]);
-                  }
-                  setShowAddModal(false);
-                }}>
+                <form onSubmit={handleAddSubmit}>
                   <div className="modal-body pb-0">
                     <div className="row">
                       <div className="col-md-12 mb-3">
                         <label className="form-label">Name</label>
-                        <input type="text" className="form-control" name="name" required />
+                        <input
+                          type="text"
+                          className="form-control"
+                          value={addForm.name}
+                          onChange={(e) => setAddForm({ ...addForm, name: e.target.value })}
+                          required
+                        />
                       </div>
-                      <div className="col-md-12 mb-3">
-                        <label className="form-label">Category Name</label>
-                        <select className="form-select" name="category">
-                          <option>Monthly Remuneration</option>
-                          <option>Additional Remuneration</option>
-                        </select>
-                      </div>
-                      <div className="col-md-12 mb-3">
-                        <label className="form-label">Amount</label>
-                        <input type="number" className="form-control" name="amount" defaultValue="0" />
-                      </div>
+                      
+                      {activeTab === "additions" && (
+                        <div className="col-md-12 mb-3">
+                          <label className="form-label">Category</label>
+                          <select
+                            className="form-select"
+                            value={addForm.category}
+                            onChange={(e) => setAddForm({ ...addForm, category: e.target.value })}
+                          >
+                            <option value="MONTHLY">MONTHLY</option>
+                            <option value="ADDITIONAL">ADDITIONAL</option>
+                          </select>
+                        </div>
+                      )}
+
+                      {activeTab === "overtimes" && (
+                        <>
+                          <div className="col-md-12 mb-3">
+                            <label className="form-label">Rate Type</label>
+                            <select
+                              className="form-select"
+                              value={addForm.rateType}
+                              onChange={(e) => setAddForm({ ...addForm, rateType: e.target.value })}
+                            >
+                              <option value="HOURLY">HOURLY</option>
+                              <option value="DAILY">DAILY</option>
+                            </select>
+                          </div>
+                          <div className="col-md-12 mb-3">
+                            <label className="form-label">Rate</label>
+                            <input
+                              type="number"
+                              className="form-control"
+                              value={addForm.rate}
+                              onChange={(e) => setAddForm({ ...addForm, rate: e.target.value })}
+                              required
+                            />
+                          </div>
+                        </>
+                      )}
+
+                      {(activeTab === "additions" || activeTab === "deductions") && (
+                        <div className="col-md-12 mb-3 d-flex align-items-center gap-2">
+                          <input
+                            type="checkbox"
+                            className="form-check-input"
+                            id="addUnitCalculation"
+                            checked={addForm.unitCalculation}
+                            onChange={(e) => setAddForm({ ...addForm, unitCalculation: e.target.checked })}
+                          />
+                          <label className="form-label mb-0" htmlFor="addUnitCalculation">Unit Calculation</label>
+                        </div>
+                      )}
                     </div>
                   </div>
                   <div className="modal-footer">
                     <button type="button" className="btn btn-white border me-2" onClick={() => setShowAddModal(false)}>Cancel</button>
-                    <button type="submit" className="btn btn-primary" style={{ backgroundColor: "#3b82f6", borderColor: "#3b82f6" }}>Add Addition</button>
+                    <button type="submit" className="btn btn-primary" style={{ backgroundColor: "#3b82f6", borderColor: "#3b82f6" }} disabled={saving}>
+                      Add
+                    </button>
                   </div>
                 </form>
               </div>
@@ -428,43 +635,84 @@ const PayrollPage = () => {
             <div className="modal-dialog modal-dialog-centered modal-md">
               <div className="modal-content">
                 <div className="modal-header">
-                  <h4 className="modal-title">Edit Addition</h4>
+                  <h4 className="modal-title">Edit {activeTab === "additions" ? "Addition" : activeTab === "overtimes" ? "Overtime" : "Deduction"}</h4>
                   <button type="button" className="btn-close custom-btn-close" onClick={() => { setShowEditModal(false); setEditTarget(null); }}>
                     <i className="ti ti-x"></i>
                   </button>
                 </div>
-                <form onSubmit={(e) => {
-                  e.preventDefault();
-                  const fd = new FormData(e.target);
-                  const name = fd.get("name") || "";
-                  const category = fd.get("category") || "Monthly Remuneration";
-                  const amount = parseFloat(fd.get("amount")) || 0;
-                  setAdditions((prev) => prev.map((r) => r.id === editTarget.id ? { ...r, name, category, amount } : r));
-                  setShowEditModal(false);
-                  setEditTarget(null);
-                }}>
+                <form onSubmit={handleEditSubmit}>
                   <div className="modal-body pb-0">
                     <div className="row">
                       <div className="col-md-12 mb-3">
                         <label className="form-label">Name</label>
-                        <input type="text" className="form-control" name="name" defaultValue={editTarget.name} required />
+                        <input
+                          type="text"
+                          className="form-control"
+                          value={editForm.name}
+                          onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                          required
+                        />
                       </div>
-                      <div className="col-md-12 mb-3">
-                        <label className="form-label">Category Name</label>
-                        <select className="form-select" name="category" defaultValue={editTarget.category}>
-                          <option>Monthly Remuneration</option>
-                          <option>Additional Remuneration</option>
-                        </select>
-                      </div>
-                      <div className="col-md-12 mb-3">
-                        <label className="form-label">Amount</label>
-                        <input type="number" className="form-control" name="amount" defaultValue={editTarget.amount} />
-                      </div>
+                      
+                      {activeTab === "additions" && (
+                        <div className="col-md-12 mb-3">
+                          <label className="form-label">Category</label>
+                          <select
+                            className="form-select"
+                            value={editForm.category}
+                            onChange={(e) => setEditForm({ ...editForm, category: e.target.value })}
+                          >
+                            <option value="MONTHLY">MONTHLY</option>
+                            <option value="ADDITIONAL">ADDITIONAL</option>
+                          </select>
+                        </div>
+                      )}
+
+                      {activeTab === "overtimes" && (
+                        <>
+                          <div className="col-md-12 mb-3">
+                            <label className="form-label">Rate Type</label>
+                            <select
+                              className="form-select"
+                              value={editForm.rateType}
+                              onChange={(e) => setEditForm({ ...editForm, rateType: e.target.value })}
+                            >
+                              <option value="HOURLY">HOURLY</option>
+                              <option value="DAILY">DAILY</option>
+                            </select>
+                          </div>
+                          <div className="col-md-12 mb-3">
+                            <label className="form-label">Rate</label>
+                            <input
+                              type="number"
+                              className="form-control"
+                              value={editForm.rate}
+                              onChange={(e) => setEditForm({ ...editForm, rate: e.target.value })}
+                              required
+                            />
+                          </div>
+                        </>
+                      )}
+
+                      {(activeTab === "additions" || activeTab === "deductions") && (
+                        <div className="col-md-12 mb-3 d-flex align-items-center gap-2">
+                          <input
+                            type="checkbox"
+                            className="form-check-input"
+                            id="editUnitCalculation"
+                            checked={editForm.unitCalculation}
+                            onChange={(e) => setEditForm({ ...editForm, unitCalculation: e.target.checked })}
+                          />
+                          <label className="form-label mb-0" htmlFor="editUnitCalculation">Unit Calculation</label>
+                        </div>
+                      )}
                     </div>
                   </div>
                   <div className="modal-footer">
                     <button type="button" className="btn btn-white border me-2" onClick={() => { setShowEditModal(false); setEditTarget(null); }}>Cancel</button>
-                    <button type="submit" className="btn btn-primary" style={{ backgroundColor: "#3b82f6", borderColor: "#3b82f6" }}>Save Changes</button>
+                    <button type="submit" className="btn btn-primary" style={{ backgroundColor: "#3b82f6", borderColor: "#3b82f6" }} disabled={saving}>
+                      Save Changes
+                    </button>
                   </div>
                 </form>
               </div>
@@ -485,7 +733,7 @@ const PayrollPage = () => {
                     <i className="ti ti-trash-x fs-36"></i>
                   </span>
                   <h4 className="mb-1">Confirm Delete</h4>
-                  <p className="mb-3">Are you sure you want to delete addition <strong>{deleteTarget.name}</strong>? This action cannot be undone.</p>
+                  <p className="mb-3">Are you sure you want to delete <strong>{deleteTarget.name}</strong>? This action cannot be undone.</p>
                   <div className="d-flex justify-content-center">
                     <button type="button" className="btn btn-light me-3" onClick={() => { setShowDeleteModal(false); setDeleteTarget(null); }}>Cancel</button>
                     <button type="button" className="btn btn-danger" onClick={handleDelete}>Yes, Delete</button>
@@ -520,11 +768,18 @@ const PayrollPage = () => {
             style={{ fontSize: "0.85rem" }}
             onClick={() => {
               setEditTarget(activeActionsRow);
+              setEditForm({
+                name: activeActionsRow.name || "",
+                category: activeActionsRow.category || "MONTHLY",
+                rateType: activeActionsRow.rateType || "HOURLY",
+                rate: activeActionsRow.rate || "0",
+                unitCalculation: activeActionsRow.unitCalculation || false
+              });
               setShowEditModal(true);
               setActiveActionsRow(null);
             }}
           >
-            <i className="ti ti-edit" style={{ fontSize: "1rem", color: "#64748b" }} /> Edit Addition
+            <i className="ti ti-edit" style={{ fontSize: "1rem", color: "#64748b" }} /> Edit Item
           </button>
           <button
             className="dropdown-item py-2 px-3 text-start d-flex align-items-center gap-2 text-danger"
@@ -535,7 +790,7 @@ const PayrollPage = () => {
               setActiveActionsRow(null);
             }}
           >
-            <i className="ti ti-trash" style={{ fontSize: "1rem", color: "#ef4444" }} /> Delete Addition
+            <i className="ti ti-trash" style={{ fontSize: "1rem", color: "#ef4444" }} /> Delete Item
           </button>
         </div>,
         document.body

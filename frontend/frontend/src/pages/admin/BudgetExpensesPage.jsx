@@ -13,6 +13,13 @@ const MOCK_DATA = [
   { id: 4, name: "Annual Meet",  category: "Corporate Events",subCategory: "Decorations",    amount: 20000, date: "18 Feb 2024" },
 ];
 
+const EXPENSE_CATEGORY_OPTIONS = [
+  { value: "Technology", subCategories: ["Hardware Cost", "Software", "Maintenance"] },
+  { value: "Taxes", subCategories: ["Payroll Taxes", "Compliance", "Tax Filing"] },
+  { value: "Recruitment", subCategories: ["Advertisement", "Interviewing", "Onboarding"] },
+  { value: "Corporate Events", subCategories: ["Decorations", "Catering", "Entertainment"] },
+];
+
 const initialForm = { name: "", category: "", subCategory: "", amount: "", date: "" };
 
 export default function BudgetExpensesPage() {
@@ -28,6 +35,17 @@ export default function BudgetExpensesPage() {
   const [editForm, setEditForm] = useState(initialForm);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [editTarget, setEditTarget] = useState(null);
+
+  const getExpenseSubCategoryOptions = (category) =>
+    EXPENSE_CATEGORY_OPTIONS.find((option) => option.value === category)?.subCategories || [];
+
+  const handleCategoryChange = (value, isEdit = false) => {
+    if (isEdit) {
+      setEditForm((prev) => ({ ...prev, category: value, subCategory: "" }));
+      return;
+    }
+    setForm((prev) => ({ ...prev, category: value, subCategory: "" }));
+  };
 
   const filteredRows = useMemo(() => {
     const q = searchQuery.toLowerCase();
@@ -102,14 +120,31 @@ export default function BudgetExpensesPage() {
 
   const handleAdd = (e) => {
     e.preventDefault();
-    setRows(prev => [...prev, { ...form, id: Date.now(), amount: Number(form.amount) }]);
+    setRows(prev => [
+      ...prev,
+      {
+        ...form,
+        id: Date.now(),
+        amount: Math.abs(Number(form.amount) || 0),
+      },
+    ]);
     setForm(initialForm);
     setShowAddModal(false);
   };
 
   const handleEdit = (e) => {
     e.preventDefault();
-    setRows(prev => prev.map(r => r.id === editTarget.id ? { ...editForm, id: r.id, amount: Number(editForm.amount) } : r));
+    setRows(prev =>
+      prev.map(r =>
+        r.id === editTarget.id
+          ? {
+              ...editForm,
+              id: r.id,
+              amount: Math.abs(Number(editForm.amount) || 0),
+            }
+          : r
+      )
+    );
     setShowEditModal(false);
   };
 
@@ -299,15 +334,34 @@ export default function BudgetExpensesPage() {
                       </div>
                       <div className="col-md-6 mb-3">
                         <label className="form-label">Category Name</label>
-                        <input type="text" className="form-control" value={form.category} onChange={e => setForm(p => ({ ...p, category: e.target.value }))} />
+                        <select
+                          className="form-select"
+                          value={form.category}
+                          onChange={(e) => handleCategoryChange(e.target.value)}
+                        >
+                          <option value="">Select category</option>
+                          {EXPENSE_CATEGORY_OPTIONS.map((option) => (
+                            <option key={option.value} value={option.value}>{option.value}</option>
+                          ))}
+                        </select>
                       </div>
                       <div className="col-md-6 mb-3">
                         <label className="form-label">Sub Category Name</label>
-                        <input type="text" className="form-control" value={form.subCategory} onChange={e => setForm(p => ({ ...p, subCategory: e.target.value }))} />
+                        <select
+                          className="form-select"
+                          value={form.subCategory}
+                          onChange={(e) => setForm((prev) => ({ ...prev, subCategory: e.target.value }))}
+                          disabled={!form.category}
+                        >
+                          <option value="">{form.category ? "Select sub category" : "Select category first"}</option>
+                          {getExpenseSubCategoryOptions(form.category).map((subCategory) => (
+                            <option key={subCategory} value={subCategory}>{subCategory}</option>
+                          ))}
+                        </select>
                       </div>
                       <div className="col-md-6 mb-3">
                         <label className="form-label">Amount</label>
-                        <input type="number" className="form-control" value={form.amount} onChange={e => setForm(p => ({ ...p, amount: e.target.value }))} />
+                        <input type="number" min="0" className="form-control" value={form.amount} onChange={e => setForm(p => ({ ...p, amount: e.target.value }))} />
                       </div>
                       <div className="col-md-6 mb-3">
                         <label className="form-label">Expense Date</label>
@@ -346,15 +400,34 @@ export default function BudgetExpensesPage() {
                       </div>
                       <div className="col-md-6 mb-3">
                         <label className="form-label">Category Name</label>
-                        <input type="text" className="form-control" value={editForm.category} onChange={e => setEditForm(p => ({ ...p, category: e.target.value }))} />
+                        <select
+                          className="form-select"
+                          value={editForm.category}
+                          onChange={(e) => handleCategoryChange(e.target.value, true)}
+                        >
+                          <option value="">Select category</option>
+                          {EXPENSE_CATEGORY_OPTIONS.map((option) => (
+                            <option key={option.value} value={option.value}>{option.value}</option>
+                          ))}
+                        </select>
                       </div>
                       <div className="col-md-6 mb-3">
                         <label className="form-label">Sub Category Name</label>
-                        <input type="text" className="form-control" value={editForm.subCategory} onChange={e => setEditForm(p => ({ ...p, subCategory: e.target.value }))} />
+                        <select
+                          className="form-select"
+                          value={editForm.subCategory}
+                          onChange={(e) => setEditForm((prev) => ({ ...prev, subCategory: e.target.value }))}
+                          disabled={!editForm.category}
+                        >
+                          <option value="">{editForm.category ? "Select sub category" : "Select category first"}</option>
+                          {getExpenseSubCategoryOptions(editForm.category).map((subCategory) => (
+                            <option key={subCategory} value={subCategory}>{subCategory}</option>
+                          ))}
+                        </select>
                       </div>
                       <div className="col-md-6 mb-3">
                         <label className="form-label">Amount</label>
-                        <input type="number" className="form-control" value={editForm.amount} onChange={e => setEditForm(p => ({ ...p, amount: e.target.value }))} />
+                        <input type="number" min="0" className="form-control" value={editForm.amount} onChange={e => setEditForm(p => ({ ...p, amount: e.target.value }))} />
                       </div>
                       <div className="col-md-6 mb-3">
                         <label className="form-label">Expense Date</label>

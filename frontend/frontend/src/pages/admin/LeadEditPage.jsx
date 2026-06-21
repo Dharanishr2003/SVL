@@ -2261,10 +2261,11 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
                               <h6 className="lead-info-section-title">Address</h6>
                             </div>
                           </div>
-                          <div className="row g-3">
-                            <div className="col-md-4">
-                              <div className="lead-info-column">
-                                <div>
+                          <div className="row g-4">
+                            {/* General Info Column (Spans 8 cols) */}
+                            <div className="col-md-8">
+                              <div className="row g-4">
+                                <div className="col-md-6">
                                   <label className="form-label">Lead Allocator</label>
                                   <input
                                     className="form-control"
@@ -2273,7 +2274,17 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
                                     readOnly
                                   />
                                 </div>
-                                <div>
+                                <div className="col-md-6">
+                                  <label className="form-label">Lead Owner</label>
+                                  <input
+                                    className="form-control"
+                                    placeholder="Lead owner name"
+                                    value={lead?.ownerName || lead?.owner || "-"}
+                                    readOnly
+                                  />
+                                </div>
+                                
+                                <div className="col-md-6">
                                   <label className="form-label">Enquiry Id</label>
                                   <input
                                     className="form-control"
@@ -2291,11 +2302,51 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
                                     readOnly
                                   />
                                 </div>
-                                <div>
+                                <div className="col-md-6">
+                                  <label className="form-label">Primary Source</label>
+                                  <select
+                                    className="form-select"
+                                    value={lead?.primarySource || ""}
+                                    onChange={(e) =>
+                                      setLead((prev) => ({
+                                        ...(prev || {}),
+                                        primarySource: e.target.value,
+                                        secondarySource: "",
+                                      }))
+                                    }
+                                    disabled={isGeneralInfoReadOnly || isElevatedOnlyField}
+                                  >
+                                    <option value="">Select Primary Source</option>
+                                    {primarySourceOptions.map((source) => (
+                                      <option key={source} value={source}>
+                                        {source}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+
+                                <div className="col-md-6">
                                   <label className="form-label">Enquiry Name</label>
                                   <input className="form-control" value={lead.name || "-"} readOnly />
                                 </div>
-                                <div>
+                                <div className="col-md-6">
+                                  <label className="form-label">Secondary Source</label>
+                                  <select
+                                    className="form-select"
+                                    value={lead?.secondarySource || ""}
+                                    onChange={(e) => setLead((prev) => ({ ...(prev || {}), secondarySource: e.target.value }))}
+                                    disabled={isGeneralInfoReadOnly || isElevatedOnlyField}
+                                  >
+                                    <option value="">Select Secondary Source</option>
+                                    {secondarySourceOptions.map((source) => (
+                                      <option key={source} value={source}>
+                                        {source}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+
+                                <div className="col-md-6">
                                   <label className="form-label">Mobile Number</label>
                                   <div className="lead-phone-field" ref={generalCountryPickerRef}>
                                     <div className="lead-phone-input-wrap">
@@ -2348,101 +2399,7 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
                                     )}
                                   </div>
                                 </div>
-                                  <div>
-                                  <label className="form-label">Email</label>
-                                  <input
-                                    className="form-control"
-                                    value={leadEmail}
-                                    onChange={(e) => setLeadEmail(e.target.value)}
-                                    readOnly={isGeneralInfoReadOnly}
-                                  />
-                                </div>
-                                <div>
-                                  <label className="form-label">Type of Product</label>
-                                  <input
-                                    className="form-control"
-                                    placeholder="e.g. Software, Hardware, Service"
-                                    value={productType}
-                                    onChange={(e) => setProductType(e.target.value)}
-                                    readOnly={isGeneralInfoReadOnly}
-                                  />
-                                </div>
-                                {showVariantQuantityFields ? (
-                                  <>
-                                    <div>
-                                      <label className="form-label">Variant</label>
-                                      <input
-                                        className="form-control"
-                                        placeholder="e.g. Size, Color, Style"
-                                        value={variant}
-                                        onChange={(e) => setVariant(e.target.value)}
-                                        readOnly={isGeneralInfoReadOnly}
-                                      />
-                                   
-                                      <label className="form-label">Quantity</label>
-                                      <input
-                                        type="number"
-                                        className="form-control"
-                                        placeholder="e.g. 100"
-                                        value={quantity}
-                                        onChange={(e) => setQuantity(e.target.value)}
-                                        readOnly={isGeneralInfoReadOnly}
-                                      />
-                                    </div>
-                                  </>
-                                ) : null}
-                              </div>
-                            </div>
-                            <div className="col-md-4">
-                              <div className="lead-info-column">
-                                <div>
-                                  <label className="form-label">Lead Owner</label>
-                                  <input
-                                    className="form-control"
-                                    placeholder="Lead owner name"
-                                    value={lead?.ownerName || lead?.owner || "-"}
-                                    readOnly
-                                  />
-                                </div>
-                                    <div>
-                                  <label className="form-label">Primary Source</label>
-                                  <select
-                                    className="form-select"
-                                    value={lead?.primarySource || ""}
-                                    onChange={(e) =>
-                                      setLead((prev) => ({
-                                        ...(prev || {}),
-                                        primarySource: e.target.value,
-                                        secondarySource: "",
-                                      }))
-                                    }
-                                    disabled={isGeneralInfoReadOnly || isElevatedOnlyField}
-                                  >
-                                    <option value="">Select Primary Source</option>
-                                    {primarySourceOptions.map((source) => (
-                                      <option key={source} value={source}>
-                                        {source}
-                                      </option>
-                                    ))}
-                                  </select>
-                                </div>
-                                <div>
-                                  <label className="form-label">Secondary Source</label>
-                                  <select
-                                    className="form-select"
-                                    value={lead?.secondarySource || ""}
-                                    onChange={(e) => setLead((prev) => ({ ...(prev || {}), secondarySource: e.target.value }))}
-                                    disabled={isGeneralInfoReadOnly || isElevatedOnlyField}
-                                  >
-                                    <option value="">Select Secondary Source</option>
-                                    {secondarySourceOptions.map((source) => (
-                                      <option key={source} value={source}>
-                                        {source}
-                                      </option>
-                                    ))}
-                                  </select>
-                                </div>
-                                <div>
+                                <div className="col-md-6">
                                   <label className="form-label">Alternate No.</label>
                                   <input
                                     className="form-control"
@@ -2460,7 +2417,17 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
                                     readOnly={isGeneralInfoReadOnly}
                                   />
                                 </div>
-                                <div>
+
+                                <div className="col-md-6">
+                                  <label className="form-label">Email</label>
+                                  <input
+                                    className="form-control"
+                                    value={leadEmail}
+                                    onChange={(e) => setLeadEmail(e.target.value)}
+                                    readOnly={isGeneralInfoReadOnly}
+                                  />
+                                </div>
+                                <div className="col-md-6">
                                   <label className="form-label">Alternate Email</label>
                                   <input
                                     className="form-control"
@@ -2469,7 +2436,18 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
                                     readOnly={isGeneralInfoReadOnly}
                                   />
                                 </div>
-                                <div>
+
+                                <div className="col-md-6">
+                                  <label className="form-label">Type of Product</label>
+                                  <input
+                                    className="form-control"
+                                    placeholder="e.g. Software, Hardware, Service"
+                                    value={productType}
+                                    onChange={(e) => setProductType(e.target.value)}
+                                    readOnly={isGeneralInfoReadOnly}
+                                  />
+                                </div>
+                                <div className="col-md-6">
                                   <label className="form-label">Company Name</label>
                                   <input
                                     className="form-control"
@@ -2478,19 +2456,38 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
                                     readOnly={isGeneralInfoReadOnly}
                                   />
                                 </div>
-                                <div>
-                                  <label className="form-label">GSTIN Number</label>
-                                  <input
-                                    className="form-control"
-                                    value={leadGstin}
-                                    onChange={(e) => setLeadGstin(e.target.value)}
-                                    readOnly={isGeneralInfoReadOnly}
-                                  />
-                                </div>
+
                                 
-                            
+                                
+                                {showVariantQuantityFields && (
+                                  <>
+                                    <div className="col-md-6">
+                                      <label className="form-label">Variant</label>
+                                      <input
+                                        className="form-control"
+                                        placeholder="e.g. Size, Color, Style"
+                                        value={variant}
+                                        onChange={(e) => setVariant(e.target.value)}
+                                        readOnly={isGeneralInfoReadOnly}
+                                      />
+                                    </div>
+                                    <div className="col-md-6">
+                                      <label className="form-label">Quantity</label>
+                                      <input
+                                        type="number"
+                                        className="form-control"
+                                        placeholder="e.g. 100"
+                                        value={quantity}
+                                        onChange={(e) => setQuantity(e.target.value)}
+                                        readOnly={isGeneralInfoReadOnly}
+                                      />
+                                    </div>
+                                  </>
+                                )}
                               </div>
                             </div>
+
+                            {/* Address Column (Spans 4 cols) */}
                             <div className="col-md-4">
                               <div className="lead-info-column">
                                 <div>
@@ -2548,6 +2545,15 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
                                     className="form-control"
                                     value={leadPincode}
                                     onChange={(e) => setLeadPincode(e.target.value)}
+                                    readOnly={isGeneralInfoReadOnly}
+                                  />
+                                </div>
+                                <div className="">
+                                  <label className="form-label">GSTIN Number</label>
+                                  <input
+                                    className="form-control"
+                                    value={leadGstin}
+                                    onChange={(e) => setLeadGstin(e.target.value)}
                                     readOnly={isGeneralInfoReadOnly}
                                   />
                                 </div>

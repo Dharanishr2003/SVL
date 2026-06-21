@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { getBranches } from "../../api/branchesApi";
 import { getDepartmentsMasterByBranch } from "../../api/departmentsApi";
@@ -400,6 +400,19 @@ function FileViewLink({ label, existingPath, fileValue, apiBase }) {
   );
 }
 
+const FORM_TABS = [
+  { id: "org-details", label: "Organization" },
+  { id: "basic-details", label: "Basic Details" },
+  { id: "family-details", label: "Family Details" },
+  { id: "address-details", label: "Address Details" },
+  { id: "education-details", label: "Education Details" },
+  { id: "bank-details", label: "Bank Details" },
+  { id: "prev-employment", label: "Previous Employment" },
+  { id: "emergency-contacts", label: "Emergency Contacts" },
+  { id: "friend-refs", label: "Friend References" },
+  { id: "declaration", label: "Declaration" }
+];
+
 export default function EmployeeFormPage() {
   const { id } = useParams();
   const isEdit = Boolean(id);
@@ -419,6 +432,7 @@ export default function EmployeeFormPage() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [existingFiles, setExistingFiles] = useState(EMPTY_FILE_PATHS);
   const [sections, setSections] = useState(EMPTY_SECTIONS);
+  const [activeTab, setActiveTab] = useState("org-details");
 
   const apiBase = useMemo(
     () => (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || "http://localhost:8082").replace(/\/+$/, ""),
@@ -435,6 +449,59 @@ export default function EmployeeFormPage() {
     () => getEducationVisibilityRules(form.educationQualification),
     [form.educationQualification],
   );
+
+  const isScrollingToRef = useRef(false);
+  const scrollTimeoutRef = useRef(null);
+
+  const scrollToSection = (id) => {
+    const el = document.getElementById(id);
+    if (el) {
+      isScrollingToRef.current = true;
+      setActiveTab(id);
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+      
+      if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+      scrollTimeoutRef.current = setTimeout(() => {
+        isScrollingToRef.current = false;
+      }, 800);
+    }
+  };
+
+  useEffect(() => {
+    if (loading) return;
+
+    const handleScroll = () => {
+      if (isScrollingToRef.current) return;
+
+      const offset = 180; // Approximate top of tab bar from screen top
+      let activeSectionId = "org-details";
+
+      // Iterate tabs from top to bottom
+      for (const tab of FORM_TABS) {
+        const el = document.getElementById(tab.id);
+        if (el) {
+          const rect = el.getBoundingClientRect();
+          // If the top of the element has scrolled past the offset height
+          if (rect.top <= offset) {
+            activeSectionId = tab.id;
+          }
+        }
+      }
+
+      setActiveTab(activeSectionId);
+    };
+
+    // Use capturing phase (capture: true) to ensure we receive scroll events from nested container layouts
+    window.addEventListener("scroll", handleScroll, { capture: true, passive: true });
+
+    // Run once on load to set initial state
+    handleScroll();
+
+    return () => {
+      window.removeEventListener("scroll", handleScroll, { capture: true });
+      if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+    };
+  }, [loading]);
 
   const loadBranches = async (headOfficeValue, selectedBranchValue = "") => {
     if (!headOfficeValue) {
@@ -753,216 +820,207 @@ export default function EmployeeFormPage() {
           {loading ? (
             <div className="py-4 text-center text-muted">Loading employee form...</div>
           ) : (
-            <form id="employee-form" onSubmit={handleSubmit}>
-              <div className="row g-3">
-                <div className="col-12">
-                  <p className="avm-section-title">Organization Details</p>
-                </div>
-                <div className="col-md-6">
-                  <div className="avm-field">
-                    <label className="avm-label">Head Office <span className="text-danger">*</span></label>
-                    <select
-                      className="avm-select form-select"
-                      value={headOfficeId}
-                      onChange={(e) => handleHeadOfficeChange(e.target.value)}
+            <>
+              {/* Sticky Form Navigation Tabs */}
+              <div className="form-nav-container">
+                <div className="form-nav-tabs">
+                  {FORM_TABS.map((tab) => (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      className={`form-nav-tab ${activeTab === tab.id ? "active" : ""}`}
+                      onClick={() => scrollToSection(tab.id)}
                     >
-                      <option value="">Select</option>
-                      {sortedHeadOffices.map((item) => (
-                        <option key={item.id} value={item.id}>
-                          {item.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                      {tab.label}
+                    </button>
+                  ))}
                 </div>
-                <div className="col-md-6">
-                  <div className="avm-field">
-                    <label className="avm-label">Branch <span className="text-danger">*</span></label>
-                    <select
-                      className="avm-select form-select"
-                      value={branchId}
-                      onChange={(e) => handleBranchChange(e.target.value)}
-                      disabled={!headOfficeId}
-                    >
-                      <option value="">Select</option>
-                      {sortedBranches.map((item) => (
-                        <option key={item.id} value={item.id}>
-                          {item.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-                <div className="col-md-6">
-                  <div className="avm-field">
-                    <label className="avm-label">Department <span className="text-danger">*</span></label>
-                    <select
-                      className="avm-select form-select"
-                      value={departmentId}
-                      onChange={(e) => handleDepartmentChange(e.target.value)}
-                      disabled={!branchId}
-                    >
-                      <option value="">Select</option>
-                      {sortedDepartments.map((item) => (
-                        <option key={item.id} value={item.id}>
-                          {item.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-                <div className="col-md-6">
-                  <div className="avm-field">
-                    <label className="avm-label">Team / Designation <span className="text-danger">*</span></label>
-                    <select
-                      className="avm-select form-select"
-                      value={designationId}
-                      onChange={(e) => setDesignationId(e.target.value)}
-                      disabled={!departmentId}
-                    >
-                      <option value="">Select</option>
-                      {sortedDesignations.map((item) => (
-                        <option key={item.id} value={item.id}>
-                          {item.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                <div className="col-12">
-                  <p className="avm-section-title">Basic Details</p>
-                </div>
-                <div className="col-md-6">
-                  <div className="avm-field">
-                    <label className="avm-label">Name <span className="text-danger">*</span></label>
-                    <input
-                      type="text"
-                      className="avm-input form-control"
-                      value={form.nameInCaps}
-                      onChange={(e) => setField("nameInCaps", e.target.value)}
-                    />
-                  </div>
-                </div>
-                <div className="col-md-6">
-                  <div className="avm-field">
-                    <label className="avm-label">Contact Number <span className="text-danger">*</span></label>
-                    <div className="employee-phone-input user-wizard-phone-group">
-                      <select
-                        className="employee-phone-code"
-                        value={form.countryCode || defaultCountryOption.value}
-                        onChange={(e) => setField("countryCode", e.target.value)}
-                      >
-                        {COUNTRY_CODE_OPTIONS.map((option) => (
-                          <option key={`${option.country}-${option.callingCode}`} value={option.value}>
-                            {option.value}
-                          </option>
-                        ))}
-                      </select>
-                      <input
-                        type="tel"
-                        className="employee-phone-number avm-input form-control"
-                        placeholder={`Enter ${getCountryDisplayMaxLength(form.countryCode || defaultCountryOption.value)} digit number`}
-                        maxLength={getCountryDisplayMaxLength(form.countryCode || defaultCountryOption.value) || 15}
-                        value={form.personalContactNumber}
-                        onChange={(e) => handlePhoneChange(e.target.value)}
-                      />
-                    </div>
-                  </div>
-                  
-                </div>
-                <div className="col-md-6">
-                  <div className="avm-field">
-                    <label className="avm-label">Email <span className="text-danger">*</span></label>
-                    <input
-                      type="email"
-                      className="avm-input form-control"
-                      value={form.personalEmail}
-                      onChange={(e) => setField("personalEmail", e.target.value)}
-                    />
-                  </div>
-                </div>
-                <div className="col-md-6">
-                      <div className="avm-field">
-                        <label className="avm-label">DOB <span className="text-danger">*</span></label>
-                        <input
-                          type="date"
-                          className="avm-input form-control"
-                          max="9999-12-31"
-                          value={form.dateOfBirth}
-                          onChange={(e) => handleDobChange(e.target.value)}
-                        />
-                      </div>
-                    </div>
-                    <div className="col-md-6">
-                      <div className="avm-field">
-                        <label className="avm-label">Candidate Photo</label>
-                        <input
-                          type="file"
-                          className="form-control"
-                          onChange={(e) => handleFileChange("candidatePhoto", e.target.files?.[0] || null)}
-                        />
-                        <FileViewLink
-                          label="Candidate Photo"
-                          existingPath={existingFiles.candidatePhotoPath}
-                          fileValue={form.candidatePhoto}
-                          apiBase={apiBase}
-                        />
-                      </div>
-                    </div>
-                <div className="col-md-6">
-                      <div className="avm-field">
-                        <label className="avm-label">Community Certificate</label>
-                        <input
-                          type="file"
-                          className="form-control"
-                          onChange={(e) => handleFileChange("uploadCommunityCertificate", e.target.files?.[0] || null)}
-                        />
-                        <FileViewLink
-                          label="Community Certificate"
-                          existingPath={existingFiles.communityCertificatePath}
-                          fileValue={form.uploadCommunityCertificate}
-                          apiBase={apiBase}
-                        />
-                      </div>
-                    </div>
               </div>
 
-              <div className="card mt-4">
-                <div className="card-header">
-                  <p className="avm-section-title mb-0">Additional Details</p>
+              <form id="employee-form" onSubmit={handleSubmit}>
+                {/* Organization Details */}
+                <div id="org-details" className="form-section-card card">
+                  <div className="card-body">
+                    <p className="avm-section-title">Organization Details</p>
+                    <div className="row g-3">
+                      <div className="col-md-6">
+                        <div className="avm-field">
+                          <label className="avm-label">Head Office <span className="text-danger">*</span></label>
+                          <select
+                            className="avm-select form-select"
+                            value={headOfficeId}
+                            onChange={(e) => handleHeadOfficeChange(e.target.value)}
+                          >
+                            <option value="">Select</option>
+                            {sortedHeadOffices.map((item) => (
+                              <option key={item.id} value={item.id}>
+                                {item.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                      <div className="col-md-6">
+                        <div className="avm-field">
+                          <label className="avm-label">Branch <span className="text-danger">*</span></label>
+                          <select
+                            className="avm-select form-select"
+                            value={branchId}
+                            onChange={(e) => handleBranchChange(e.target.value)}
+                            disabled={!headOfficeId}
+                          >
+                            <option value="">Select</option>
+                            {sortedBranches.map((item) => (
+                              <option key={item.id} value={item.id}>
+                                {item.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                      <div className="col-md-6">
+                        <div className="avm-field">
+                          <label className="avm-label">Department <span className="text-danger">*</span></label>
+                          <select
+                            className="avm-select form-select"
+                            value={departmentId}
+                            onChange={(e) => handleDepartmentChange(e.target.value)}
+                            disabled={!branchId}
+                          >
+                            <option value="">Select</option>
+                            {sortedDepartments.map((item) => (
+                              <option key={item.id} value={item.id}>
+                                {item.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                      <div className="col-md-6">
+                        <div className="avm-field">
+                          <label className="avm-label">Team / Designation <span className="text-danger">*</span></label>
+                          <select
+                            className="avm-select form-select"
+                            value={designationId}
+                            onChange={(e) => setDesignationId(e.target.value)}
+                            disabled={!departmentId}
+                          >
+                            <option value="">Select</option>
+                            {sortedDesignations.map((item) => (
+                              <option key={item.id} value={item.id}>
+                                {item.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <div className="card-body">
-                  <div className="row g-3">
-                    {[
-                      ["familyDetails", "Family Details"],
-                      ["addressDetails", "Address Details"],
-                      ["educationDetails", "Education Details"],
-                      ["bankDetails", "Bank Details"],
-                      ["previousEmployment", "Previous Employment"],
-                      ["emergencyContacts", "Emergency Contacts"],
-                      ["friendReferences", "Friend / Ex-Colleague References"],
-                      ["pfEsiDetails", "PF / ESI Details"],
-                      ["declarationDetails", "Declaration Details"],
-                    ].map(([key, label]) => (
-                      <div className="col-md-6" key={key}>
-                        <label className="form-check d-flex gap-2 align-items-center mb-0">
+
+                {/* Basic Details */}
+                <div id="basic-details" className="form-section-card card mt-4">
+                  <div className="card-body">
+                    <p className="avm-section-title">Basic Details</p>
+                    <div className="row g-3">
+                      <div className="col-md-6">
+                        <div className="avm-field">
+                          <label className="avm-label">Name <span className="text-danger">*</span></label>
                           <input
-                            type="checkbox"
-                            className="form-check-input"
-                            checked={sections[key]}
-                            onChange={() => toggleSection(key)}
+                            type="text"
+                            className="avm-input form-control"
+                            value={form.nameInCaps}
+                            onChange={(e) => setField("nameInCaps", e.target.value)}
                           />
-                          <span className="form-check-label">{label}</span>
-                        </label>
+                        </div>
                       </div>
-                    ))}
+                      <div className="col-md-6">
+                        <div className="avm-field">
+                          <label className="avm-label">Contact Number <span className="text-danger">*</span></label>
+                          <div className="employee-phone-input user-wizard-phone-group">
+                            <select
+                              className="employee-phone-code"
+                              value={form.countryCode || defaultCountryOption.value}
+                              onChange={(e) => setField("countryCode", e.target.value)}
+                            >
+                              {COUNTRY_CODE_OPTIONS.map((option) => (
+                                <option key={`${option.country}-${option.callingCode}`} value={option.value}>
+                                  {option.value}
+                                </option>
+                              ))}
+                            </select>
+                            <input
+                              type="tel"
+                              className="employee-phone-number avm-input form-control"
+                              placeholder={`Enter ${getCountryDisplayMaxLength(form.countryCode || defaultCountryOption.value)} digit number`}
+                              maxLength={getCountryDisplayMaxLength(form.countryCode || defaultCountryOption.value) || 15}
+                              value={form.personalContactNumber}
+                              onChange={(e) => handlePhoneChange(e.target.value)}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                      <div className="col-md-6">
+                        <div className="avm-field">
+                          <label className="avm-label">Email <span className="text-danger">*</span></label>
+                          <input
+                            type="email"
+                            className="avm-input form-control"
+                            value={form.personalEmail}
+                            onChange={(e) => setField("personalEmail", e.target.value)}
+                          />
+                        </div>
+                      </div>
+                      <div className="col-md-6">
+                        <div className="avm-field">
+                          <label className="avm-label">DOB <span className="text-danger">*</span></label>
+                          <input
+                            type="date"
+                            className="avm-input form-control"
+                            max="9999-12-31"
+                            value={form.dateOfBirth}
+                            onChange={(e) => handleDobChange(e.target.value)}
+                          />
+                        </div>
+                      </div>
+                      <div className="col-md-6">
+                        <div className="avm-field">
+                          <label className="avm-label">Candidate Photo</label>
+                          <input
+                            type="file"
+                            className="form-control"
+                            onChange={(e) => handleFileChange("candidatePhoto", e.target.files?.[0] || null)}
+                          />
+                          <FileViewLink
+                            label="Candidate Photo"
+                            existingPath={existingFiles.candidatePhotoPath}
+                            fileValue={form.candidatePhoto}
+                            apiBase={apiBase}
+                          />
+                        </div>
+                      </div>
+                      <div className="col-md-6">
+                        <div className="avm-field">
+                          <label className="avm-label">Community Certificate</label>
+                          <input
+                            type="file"
+                            className="form-control"
+                            onChange={(e) => handleFileChange("uploadCommunityCertificate", e.target.files?.[0] || null)}
+                          />
+                          <FileViewLink
+                            label="Community Certificate"
+                            existingPath={existingFiles.communityCertificatePath}
+                            fileValue={form.uploadCommunityCertificate}
+                            apiBase={apiBase}
+                          />
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              {sections.familyDetails && (
-                <div className="card mt-4">
+                {/* Family Details */}
+                <div id="family-details" className="form-section-card card mt-4">
                   <div className="card-body">
                     <p className="avm-section-title">Family Details</p>
                     <div className="row g-3">
@@ -1020,10 +1078,9 @@ export default function EmployeeFormPage() {
                     </div>
                   </div>
                 </div>
-              )}
 
-              {sections.addressDetails && (
-                <div className="card mt-4">
+                {/* Address Details */}
+                <div id="address-details" className="form-section-card card mt-4">
                   <div className="card-body">
                     <p className="avm-section-title">Address Details</p>
                     <div className="row g-3">
@@ -1098,10 +1155,9 @@ export default function EmployeeFormPage() {
                     </div>
                   </div>
                 </div>
-              )}
 
-              {sections.educationDetails && (
-                <div className="card mt-4">
+                {/* Education Details */}
+                <div id="education-details" className="form-section-card card mt-4">
                   <div className="card-body">
                     <p className="avm-section-title">Education Details</p>
                     <div className="row g-3">
@@ -1243,10 +1299,9 @@ export default function EmployeeFormPage() {
                     ) : null}
                   </div>
                 </div>
-              )}
 
-              {sections.bankDetails && (
-                <div className="card mt-4">
+                {/* Bank Details */}
+                <div id="bank-details" className="form-section-card card mt-4">
                   <div className="card-body">
                     <p className="avm-section-title">Bank Details</p>
                     <div className="row g-3">
@@ -1293,10 +1348,9 @@ export default function EmployeeFormPage() {
                     </div>
                   </div>
                 </div>
-              )}
 
-              {sections.previousEmployment && (
-                <div className="card mt-4">
+                {/* Previous Employment */}
+                <div id="prev-employment" className="form-section-card card mt-4">
                   <div className="card-body">
                     <p className="avm-section-title">Previous Employment</p>
                     <div className="row g-3">
@@ -1469,13 +1523,24 @@ export default function EmployeeFormPage() {
                           <input className="avm-input form-control" value={form.platformSource} onChange={(e) => setField("platformSource", e.target.value)} />
                         </div>
                       </div>
+                      <div className="col-md-6">
+                        <div className="avm-field">
+                          <label className="avm-label">PF UAN</label>
+                          <input className="avm-input form-control" value={form.pfUan} onChange={(e) => setField("pfUan", e.target.value)} />
+                        </div>
+                      </div>
+                      <div className="col-md-6">
+                        <div className="avm-field">
+                          <label className="avm-label">ESI No</label>
+                          <input className="avm-input form-control" value={form.esiNo} onChange={(e) => setField("esiNo", e.target.value)} />
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
-              )}
 
-              {sections.emergencyContacts && (
-                <div className="card mt-4">
+                {/* Emergency Contacts */}
+                <div id="emergency-contacts" className="form-section-card card mt-4">
                   <div className="card-body">
                     <p className="avm-section-title">Emergency Contacts</p>
                     <div className="row g-3">
@@ -1518,10 +1583,9 @@ export default function EmployeeFormPage() {
                     </div>
                   </div>
                 </div>
-              )}
 
-              {sections.friendReferences && (
-                <div className="card mt-4">
+                {/* Friend References */}
+                <div id="friend-refs" className="form-section-card card mt-4">
                   <div className="card-body">
                     <p className="avm-section-title">Friend / Ex-Colleague References</p>
                     <div className="row g-3">
@@ -1552,32 +1616,10 @@ export default function EmployeeFormPage() {
                     </div>
                   </div>
                 </div>
-              )}
 
-              {sections.pfEsiDetails && (
-                <div className="card mt-4">
-                  <div className="card-body">
-                    <p className="avm-section-title">PF / ESI Details</p>
-                    <div className="row g-3">
-                      <div className="col-md-6">
-                        <div className="avm-field">
-                          <label className="avm-label">PF UAN</label>
-                          <input className="avm-input form-control" value={form.pfUan} onChange={(e) => setField("pfUan", e.target.value)} />
-                        </div>
-                      </div>
-                      <div className="col-md-6">
-                        <div className="avm-field">
-                          <label className="avm-label">ESI No</label>
-                          <input className="avm-input form-control" value={form.esiNo} onChange={(e) => setField("esiNo", e.target.value)} />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
 
-              {sections.declarationDetails && (
-                <div className="card mt-4">
+                {/* Declaration Details */}
+                <div id="declaration" className="form-section-card card mt-4">
                   <div className="card-body">
                     <p className="avm-section-title">Declaration Details</p>
                     <div className="row g-3">
@@ -1602,8 +1644,8 @@ export default function EmployeeFormPage() {
                     </div>
                   </div>
                 </div>
-              )}
-            </form>
+              </form>
+            </>
           )}
         </div>
 

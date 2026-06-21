@@ -6,6 +6,8 @@ import com.nexorcrm.backend.entity.Employee;
 import com.nexorcrm.backend.entity.Leave;
 import com.nexorcrm.backend.repo.EmployeeRepository;
 import com.nexorcrm.backend.repo.LeaveRepository;
+import com.nexorcrm.backend.repo.UserRepository;
+import com.nexorcrm.backend.entity.User;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.stereotype.Service;
 
@@ -20,11 +22,16 @@ public class LeaveService {
     private final LeaveRepository repository;
     private final EmployeeRepository employeeRepository;
     private final LeaveSettingsService settingsService;
+    private final UserRepository userRepository;
 
-    public LeaveService(LeaveRepository repository, EmployeeRepository employeeRepository, LeaveSettingsService settingsService) {
+    public LeaveService(LeaveRepository repository, 
+                        EmployeeRepository employeeRepository, 
+                        LeaveSettingsService settingsService,
+                        UserRepository userRepository) {
         this.repository = repository;
         this.employeeRepository = employeeRepository;
         this.settingsService = settingsService;
+        this.userRepository = userRepository;
     }
 
     public List<LeaveResponse> list() {
@@ -39,11 +46,29 @@ public class LeaveService {
     }
 
     public LeaveResponse update(Long id, LeaveRequest request) {
+        return update(id, request, null);
+    }
+
+    public LeaveResponse update(Long id, LeaveRequest request, String actorEmail) {
         Leave leave = repository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Leave not found"));
         if (Boolean.TRUE.equals(leave.getDeleted())) {
             throw new EntityNotFoundException("Leave not found");
         }
+
+        // Prevent self approval or rejection
+        String newStatus = request.getStatus() != null ? request.getStatus().trim().toUpperCase() : "NEW";
+        if ("APPROVED".equals(newStatus) || "DECLINED".equals(newStatus)) {
+            if (actorEmail != null) {
+                User actor = userRepository.findByEmailAndIsDeletedFalse(actorEmail).orElse(null);
+                if (actor != null && actor.getEmployeeId() != null) {
+                    if (actor.getEmployeeId().equals(leave.getEmployeeId())) {
+                        throw new IllegalArgumentException("You cannot approve or reject your own leave request.");
+                    }
+                }
+            }
+        }
+
         apply(leave, request);
         return toResponse(repository.save(leave));
     }

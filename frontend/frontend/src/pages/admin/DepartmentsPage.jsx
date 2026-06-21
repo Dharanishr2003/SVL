@@ -824,7 +824,7 @@ export default function DepartmentsPage() {
             </form>
           </div>
         </div>
-      )})}
+      )}
 
       {showDeleteModal && (
         <div className="avm-backdrop" role="presentation">

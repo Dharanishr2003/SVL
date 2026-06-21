@@ -2,11 +2,13 @@ import { useState } from "react";
 
 const EMPTY_FORM = {
   // Personal Information
-  customerName: "",
+  firstName: "",
+  lastName: "",
   email: "",
   password: "",
   showPassword: false,
   phone: "",
+  countryCode: "+91",
   dob: "",
   // Additional Details
   type: "",

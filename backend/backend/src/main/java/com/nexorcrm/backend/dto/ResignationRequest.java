@@ -1,20 +1,13 @@
 package com.nexorcrm.backend.dto;
 
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import java.time.LocalDate;
 
 public class ResignationRequest {
 
     private Long employeeId;
-
-    @NotBlank(message = "Resigning employee is required")
     private String employeeName;
-
-    @NotBlank(message = "Department is required")
     private String department;
-
-    @NotBlank(message = "Reason is required")
     private String reason;
 
     @NotNull(message = "Notice date is required")

@@ -1,11 +1,29 @@
-﻿import { useQuery } from "@tanstack/react-query";
+import { useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { loadLegacyUiScripts } from "../../utils/loadLegacyUiScripts";
 import PageLoader from "../../components/common/PageLoader";
 import ErrorState from "../../components/common/ErrorState";
 import PageHeader from "../../components/admin/PageHeader";
 import StatCard from "../../components/admin/StatCard";
 import dashboardService from "../../services/dashboardService";
 import { dashboardData } from "../../mock/dashboardData";
+import { useAuth } from "../../context/AuthContext";
+
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8082";
+
+function resolveImageSrc(value) {
+  const raw = String(value || "").trim();
+  if (!raw) {
+    return "";
+  }
+  if (/^https?:\/\//i.test(raw)) {
+    return raw;
+  }
+  return `${API_BASE}${raw.startsWith("/") ? raw : `/${raw}`}`;
+}
+
 export default function AdminDashboardPage() {
+  const { user } = useAuth();
   const { data: queryData, isLoading, error, refetch } = useQuery({
     queryKey: ["dashboard"],
     queryFn: dashboardService.getDashboard,
@@ -20,6 +38,186 @@ export default function AdminDashboardPage() {
     Array.isArray(queryData?.topStats);
 
   const data = hasValidData ? queryData : dashboardData;
+  const welcomeAvatar = user?.profilePhotoUrl
+    || (hasValidData ? resolveImageSrc(data.welcome?.avatar) : data.welcome?.avatar)
+    || "/assets/img/profiles/avatar-31.jpg";
+  const welcomeName =
+    [user?.firstName, user?.lastName].filter(Boolean).join(" ").trim() ||
+    user?.username ||
+    data.welcome?.name ||
+    "Admin";
+
+  useEffect(() => {
+    if (isLoading) return;
+
+    let empDeptChart = null;
+    let salesChart = null;
+    let attendanceChart = null;
+    let semiDonutChart = null;
+
+    loadLegacyUiScripts([
+      "/assets/plugins/apexchart/apexcharts.min.js",
+      "/assets/plugins/chartjs/chart.min.js"
+    ]).then(() => {
+      // 1. Employee Department Chart
+      const empEl = document.querySelector("#emp-department");
+      if (empEl && window.ApexCharts) {
+        empEl.innerHTML = ""; // Clear any residue
+        empDeptChart = new window.ApexCharts(empEl, {
+          chart: {
+            height: 220,
+            type: "bar",
+            padding: { top: 0, left: 0, right: 0, bottom: 0 },
+            toolbar: { show: false }
+          },
+          colors: ["#FF6F28"],
+          grid: {
+            borderColor: "#E5E7EB",
+            strokeDashArray: 5,
+            padding: { top: -20, left: 0, right: 0, bottom: 0 }
+          },
+          plotOptions: {
+            bar: {
+              borderRadius: 5,
+              horizontal: true,
+              barHeight: "35%",
+              endingShape: "rounded"
+            }
+          },
+          dataLabels: { enabled: false },
+          series: [{ data: [80, 110, 80, 20, 60, 100], name: "Employee" }],
+          xaxis: {
+            categories: ["UI/UX", "Development", "Management", "HR", "Testing", "Marketing"],
+            labels: { style: { colors: "#111827", fontSize: "13px" } }
+          }
+        });
+        empDeptChart.render();
+      }
+
+      // 2. Sales Income Chart
+      const salesEl = document.querySelector("#sales-income");
+      if (salesEl && window.ApexCharts) {
+        salesEl.innerHTML = ""; // Clear any residue
+        salesChart = new window.ApexCharts(salesEl, {
+          chart: {
+            height: 290,
+            type: "bar",
+            stacked: true,
+            toolbar: { show: false }
+          },
+          colors: ["#FF6F28", "#F8F9FA"],
+          responsive: [{
+            breakpoint: 480,
+            options: { legend: { position: "bottom", offsetX: -10, offsetY: 0 } }
+          }],
+          plotOptions: {
+            bar: {
+              borderRadius: 5,
+              borderRadiusWhenStacked: "all",
+              horizontal: false,
+              endingShape: "rounded"
+            }
+          },
+          series: [
+            { name: "Income", data: [40, 30, 45, 80, 85, 90, 80, 80, 80, 85, 20, 80] },
+            { name: "Expenses", data: [60, 70, 55, 20, 15, 10, 20, 20, 20, 15, 80, 20] }
+          ],
+          xaxis: {
+            categories: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
+            labels: { style: { colors: "#6B7280", fontSize: "13px" } }
+          },
+          yaxis: {
+            labels: { offsetX: -15, style: { colors: "#6B7280", fontSize: "13px" } }
+          },
+          grid: {
+            borderColor: "#E5E7EB",
+            strokeDashArray: 5,
+            padding: { left: -8 }
+          },
+          legend: { show: false },
+          dataLabels: { enabled: false },
+          fill: { opacity: 1 }
+        });
+        salesChart.render();
+      }
+
+      // 3. Attendance Overview Chart
+      const attEl = document.getElementById("attendance");
+      if (attEl && window.Chart) {
+        const ctx = attEl.getContext("2d");
+        // Destroy old Chart instance if exists on canvas
+        const existingChart = window.Chart.getChart(attEl);
+        if (existingChart) existingChart.destroy();
+
+        attendanceChart = new window.Chart(ctx, {
+          type: "doughnut",
+          data: {
+            labels: ["Late", "Present", "Permission", "Absent"],
+            datasets: [{
+              label: "Semi Donut",
+              data: [40, 20, 30, 10],
+              backgroundColor: ["#0C4B5E", "#03C95A", "#FFC107", "#E70D0D"],
+              borderWidth: 5,
+              borderRadius: 10,
+              borderColor: "#fff",
+              hoverBorderWidth: 0,
+              cutout: "60%"
+            }]
+          },
+          options: {
+            rotation: -100,
+            circumference: 200,
+            layout: { padding: { top: -20, bottom: -20 } },
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } }
+          }
+        });
+      }
+
+      // 4. Tasks Statistics Semi Donut Chart
+      const semiEl = document.getElementById("mySemiDonutChart");
+      if (semiEl && window.Chart) {
+        const ctx = semiEl.getContext("2d");
+        const existingChart = window.Chart.getChart(semiEl);
+        if (existingChart) existingChart.destroy();
+
+        semiDonutChart = new window.Chart(ctx, {
+          type: "doughnut",
+          data: {
+            labels: ["Ongoing", "Onhold", "Completed", "Overdue"],
+            datasets: [{
+              label: "Semi Donut",
+              data: [20, 40, 20, 10],
+              backgroundColor: ["#FFC107", "#1B84FF", "#03C95A", "#E70D0D"],
+              borderWidth: -10,
+              borderColor: "transparent",
+              hoverBorderWidth: 0,
+              cutout: "75%",
+              spacing: -30
+            }]
+          },
+          options: {
+            rotation: -100,
+            circumference: 185,
+            layout: { padding: { top: -20, bottom: 20 } },
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } }
+          }
+        });
+      }
+    }).catch(err => {
+      console.error("Failed to load chart scripts", err);
+    });
+
+    return () => {
+      if (empDeptChart) empDeptChart.destroy();
+      if (salesChart) salesChart.destroy();
+      if (attendanceChart) attendanceChart.destroy();
+      if (semiDonutChart) semiDonutChart.destroy();
+    };
+  }, [isLoading]);
 
   if (isLoading && !hasValidData) {
     return <PageLoader />;
@@ -67,25 +265,107 @@ export default function AdminDashboardPage() {
           </>
         }
       />
-  {/* Welcome Wrap */}
-  <div className="card border-0">
-    <div className="card-body d-flex align-items-center justify-content-between flex-wrap pb-1">
-      <div className="d-flex align-items-center mb-3">
-        <span className="avatar avatar-xl flex-shrink-0">
-          <img src={data.welcome.avatar} className="rounded-circle" alt="img" />
-        </span>
-        <div className="ms-3">
-          <h3 className="mb-2">Welcome Back, {data.welcome.name} <a href="javascript:void(0);" className="edit-icon"><i className="ti ti-edit fs-14" /></a></h3>
-          <p>You have <span className="text-primary text-decoration-underline">{data.welcome.pendingApprovals}</span> Pending Approvals &amp; <span className="text-primary text-decoration-underline">{data.welcome.leaveRequests}</span> Leave Requests</p>
+      <style>{`
+        .admin-dashboard-wrapper .welcome-gradient {
+          background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #311042 100%) !important;
+          border-radius: 20px !important;
+          box-shadow: 0 10px 30px rgba(15, 23, 42, 0.15), inset 0 0 0 1px rgba(255, 255, 255, 0.08) !important;
+          border: none !important;
+          overflow: hidden;
+        }
+        .admin-dashboard-wrapper .welcome-gradient h3 {
+          color: #ffffff !important;
+          font-weight: 700 !important;
+        }
+        .admin-dashboard-wrapper .welcome-gradient p {
+          color: rgba(255, 255, 255, 0.85) !important;
+        }
+        .admin-dashboard-wrapper .welcome-gradient .edit-icon {
+          background: transparent !important;
+          background-color: transparent !important;
+          color: rgba(255, 255, 255, 0.6) !important;
+          border: none !important;
+          box-shadow: none !important;
+          display: inline-flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          width: auto !important;
+          height: auto !important;
+          padding: 0 !important;
+          margin-left: 4px;
+        }
+        .admin-dashboard-wrapper .welcome-gradient .edit-icon i {
+          color: rgba(255, 255, 255, 0.6) !important;
+        }
+        .admin-dashboard-wrapper .card:not(.welcome-gradient) {
+          border: 1px solid rgba(226, 232, 240, 0.8) !important;
+          border-radius: 20px !important;
+          box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.02), 0 2px 4px -2px rgba(0, 0, 0, 0.02) !important;
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+          background: #ffffff !important;
+        }
+        .admin-dashboard-wrapper .card:not(.welcome-gradient):hover {
+          transform: translateY(-4px) !important;
+          box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.06), 0 8px 10px -6px rgba(0, 0, 0, 0.06) !important;
+          border-color: #3b82f6 !important;
+        }
+        .admin-dashboard-wrapper .avatar.rounded-circle {
+          border-radius: 12px !important;
+          width: 48px !important;
+          height: 48px !important;
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          box-shadow: 0 8px 16px -4px rgba(0, 0, 0, 0.08) !important;
+        }
+        .admin-dashboard-wrapper .avatar.rounded-circle.bg-success {
+          background-color: #03C95A !important;
+          border: 1px solid #03C95A !important;
+        }
+        .admin-dashboard-wrapper .avatar.rounded-circle i {
+          color: #ffffff !important;
+        }
+        .admin-dashboard-wrapper .btn-primary {
+          background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%) !important;
+          border: none !important;
+          box-shadow: 0 4px 10px rgba(59, 130, 246, 0.2) !important;
+          border-radius: 10px !important;
+          font-weight: 600 !important;
+        }
+        .admin-dashboard-wrapper .btn-secondary {
+          background: rgba(255, 255, 255, 0.1) !important;
+          border: 1px solid rgba(255, 255, 255, 0.2) !important;
+          color: #ffffff !important;
+          box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05) !important;
+          border-radius: 10px !important;
+          font-weight: 600 !important;
+          backdrop-filter: blur(8px) !important;
+        }
+        .admin-dashboard-wrapper .btn-secondary:hover {
+          background: rgba(255, 255, 255, 0.18) !important;
+          color: #ffffff !important;
+        }
+      `}</style>
+      <div className="admin-dashboard-wrapper">
+        {/* Welcome Wrap */}
+        <div className="card welcome-gradient border-0 mb-4">
+          <div className="card-body d-flex align-items-center justify-content-between flex-wrap pb-2 pt-2">
+            <div className="d-flex align-items-center mb-3 mt-2">
+              <span className="avatar avatar-xl flex-shrink-0" style={{ border: "3px solid rgba(255, 255, 255, 0.2)", borderRadius: "50%", boxShadow: "0 8px 16px rgba(0, 0, 0, 0.15)" }}>
+                <img src={welcomeAvatar} className="rounded-circle" alt={welcomeName} />
+              </span>
+              <div className="ms-3 text-white">
+                <h3 className="mb-2 text-white" style={{ fontWeight: "700", display: "flex", alignItems: "center" }}>Welcome Back, {welcomeName} <a href="javascript:void(0);" className="edit-icon"><i className="ti ti-edit fs-14" /></a></h3>
+                <p className="mb-0" style={{ color: "rgba(255, 255, 255, 0.85)" }}>You have <span className="text-info fw-semibold text-decoration-underline" style={{ color: "#38bdf8" }}>{data.welcome.pendingApprovals}</span> Pending Approvals &amp; <span className="text-info fw-semibold text-decoration-underline" style={{ color: "#38bdf8" }}>{data.welcome.leaveRequests}</span> Leave Requests</p>
+              </div>
+            </div>
+            <div className="d-flex align-items-center flex-wrap mb-1">
+              <a href="#" className="btn btn-secondary btn-md me-2 mb-2" data-bs-toggle="modal" data-bs-target="#add_project"><i className="ti ti-square-rounded-plus me-1" />Add Project</a>
+              <a href="#" className="btn btn-primary btn-md mb-2" data-bs-toggle="modal" data-bs-target="#add_leaves"><i className="ti ti-square-rounded-plus me-1" />Add Requests</a>
+            </div>
+          </div>
         </div>
-      </div>
-      <div className="d-flex align-items-center flex-wrap mb-1">
-        <a href="#" className="btn btn-secondary btn-md me-2 mb-2" data-bs-toggle="modal" data-bs-target="#add_project"><i className="ti ti-square-rounded-plus me-1" />Add Project</a>
-        <a href="#" className="btn btn-primary btn-md mb-2" data-bs-toggle="modal" data-bs-target="#add_leaves"><i className="ti ti-square-rounded-plus me-1" />Add Requests</a>
-      </div>
-    </div>
-  </div>
-  {/* /Welcome Wrap */}
+        {/* /Welcome Wrap */}
   <div className="row">
     {/* Widget Info */}
     <div className="col-xxl-8 d-flex">
@@ -1350,7 +1630,7 @@ export default function AdminDashboardPage() {
                 <div className="d-flex justify-content-between">
                   <div className="d-flex align-items-center w-100">
                     <a href="javascript:void(0);" className="avatar flex-shrink-0">
-                      <img src={data.welcome.avatar} className="rounded-circle" alt="activity" />
+                      <img src={welcomeAvatar} className="rounded-circle" alt={welcomeName} />
                     </a>
                     <div className="ms-2 flex-fill">
                       <div className="d-flex align-items-center justify-content-between gap-2">
@@ -1444,11 +1724,10 @@ export default function AdminDashboardPage() {
     </div>
     {/* /Birthdays */}
   </div>
+  </div>
     </>
   );
 }
-
-
 
 
 

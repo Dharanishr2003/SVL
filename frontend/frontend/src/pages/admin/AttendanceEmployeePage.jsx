@@ -4,6 +4,7 @@ import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import { useAuth } from '../../context/AuthContext';
 import * as attendanceApi from '../../api/attendanceApi';
+import LoadingSpinner from "../../components/common/LoadingSpinner";
 import PageSizeSelector from "../../components/admin/PageSizeSelector";
 import "./LeadsPage.css";
 import "../../../public/assets/css/addModalShared.css";
@@ -295,7 +296,7 @@ const AttendanceEmployeePage = () => {
             <div className="d-flex gap-2 align-items-center flex-wrap">
               {role !== "SUPER_ADMIN" && (
                 <button className="btn btn-primary d-flex align-items-center gap-2" style={{ borderRadius: 8 }} disabled={actionLoading || !hasNotCheckedIn} onClick={() => handleAction('checkIn')}>
-                  {actionLoading ? <span className="spinner-border spinner-border-sm"></span> : <i className="ti ti-fingerprint"></i>}
+                  {actionLoading ? <LoadingSpinner size="sm" className="me-0" label="Processing check in" /> : <i className="ti ti-fingerprint"></i>}
                   Check In
                 </button>
               )}
@@ -308,20 +309,20 @@ const AttendanceEmployeePage = () => {
                     <i className="ti ti-meat"></i>Lunch
                   </button>
                   <button className="btn btn-danger d-flex align-items-center gap-2" style={{ borderRadius: 8 }} disabled={actionLoading} onClick={() => handleAction('checkOut')}>
-                    {actionLoading ? <span className="spinner-border spinner-border-sm"></span> : <i className="ti ti-logout"></i>}
+                    {actionLoading ? <LoadingSpinner size="sm" className="me-0" label="Processing check out" /> : <i className="ti ti-logout"></i>}
                     Check Out
                   </button>
                 </>
               )}
               {isOnBreak && (
                 <button className="btn btn-warning d-flex align-items-center gap-2" style={{ borderRadius: 8 }} disabled={actionLoading} onClick={() => handleAction('breakEnd')}>
-                  {actionLoading ? <span className="spinner-border spinner-border-sm"></span> : <i className="ti ti-player-play"></i>}
+                  {actionLoading ? <LoadingSpinner size="sm" className="me-0" label="Ending break" /> : <i className="ti ti-player-play"></i>}
                   End Break
                 </button>
               )}
               {isOnLunch && (
                 <button className="btn btn-info text-white d-flex align-items-center gap-2" style={{ borderRadius: 8 }} disabled={actionLoading} onClick={() => handleAction('lunchEnd')}>
-                  {actionLoading ? <span className="spinner-border spinner-border-sm"></span> : <i className="ti ti-player-play"></i>}
+                  {actionLoading ? <LoadingSpinner size="sm" className="me-0" label="Ending lunch" /> : <i className="ti ti-player-play"></i>}
                   End Lunch
                 </button>
               )}
@@ -343,7 +344,7 @@ const AttendanceEmployeePage = () => {
         )}
 
         {loading ? (
-          <div className="text-center py-5"><div className="spinner-border text-primary" role="status"><span className="visually-hidden">Loading...</span></div></div>
+          <div className="text-center py-5"><LoadingSpinner size="page" label="Loading attendance details" /></div>
         ) : (
           <div className="row mb-4">
             {/* ── Punch Card ── */}

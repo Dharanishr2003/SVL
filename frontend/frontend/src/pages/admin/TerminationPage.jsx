@@ -14,6 +14,7 @@ import "../../../public/assets/css/addModalShared.css";
 const initialForm = {
   employeeId: "",
   employeeName: "",
+  department: "",
   terminationType: "",
   noticeDate: "",
   reason: "",
@@ -92,6 +93,7 @@ export default function TerminationPage() {
         .map((e) => ({
           id: e?.id,
           name: e?.name || e?.employeeName || e?.fullName || "",
+          department: e?.departmentName || e?.department || e?.dept || "",
         }))
         .filter((e) => e.id != null && e.name)
         .sort((a, b) => a.name.localeCompare(b.name)),
@@ -176,9 +178,11 @@ export default function TerminationPage() {
   };
 
   const openEdit = (row) => {
+    const employeeMatch = employeeOptions.find((e) => String(e.id) === String(row?.employeeId));
     setEditForm({
       employeeId: row?.employeeId ? String(row.employeeId) : "",
       employeeName: row?.employeeName || "",
+      department: row?.department || employeeMatch?.department || "",
       terminationType: row?.terminationType || "",
       noticeDate: row?.noticeDate ? String(row.noticeDate).slice(0, 10) : "",
       reason: row?.reason || "",
@@ -200,6 +204,7 @@ export default function TerminationPage() {
       showError("Terminated employee is required");
       return;
     }
+    const department = form.department.trim() || employeeOptions.find((e) => String(e.id) === String(form.employeeId))?.department || "";
     if (!form.terminationType.trim()) {
       showError("Termination type is required");
       return;
@@ -217,6 +222,7 @@ export default function TerminationPage() {
       await createTermination({
         employeeId: form.employeeId ? Number(form.employeeId) : null,
         employeeName: form.employeeName.trim(),
+        department,
         terminationType: form.terminationType.trim(),
         noticeDate: form.noticeDate,
         reason: form.reason.trim(),
@@ -240,6 +246,7 @@ export default function TerminationPage() {
       showError("Terminated employee is required");
       return;
     }
+    const department = editForm.department.trim() || employeeOptions.find((e) => String(e.id) === String(editForm.employeeId))?.department || "";
     if (!editForm.terminationType.trim()) {
       showError("Termination type is required");
       return;
@@ -257,6 +264,7 @@ export default function TerminationPage() {
       await updateTermination(selectedId, {
         employeeId: editForm.employeeId ? Number(editForm.employeeId) : null,
         employeeName: editForm.employeeName.trim(),
+        department,
         terminationType: editForm.terminationType.trim(),
         noticeDate: editForm.noticeDate,
         reason: editForm.reason.trim(),
@@ -313,6 +321,7 @@ export default function TerminationPage() {
       ...prev,
       employeeId: value,
       employeeName: match?.name || "",
+      department: match?.department || prev.department || "",
     }));
   };
 

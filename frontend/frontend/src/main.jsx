@@ -7,6 +7,7 @@ import { PageAccessProvider } from "./context/PageAccessContext";
 import QueryProvider from "./providers/QueryProvider";
 import ErrorBoundary from "./components/system/ErrorBoundary";
 import ToastProvider from "./components/system/ToastProvider";
+import "./styles/loadingSpinner.css";
 
 const markTablerIconsReady = () =>
   document.documentElement.classList.add("tabler-icons-ready");

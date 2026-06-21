@@ -139,6 +139,19 @@ public class LeaveSettingsService {
         policyRepository.save(policy);
     }
 
+    public void deleteLeaveType(Long id) {
+        LeaveType type = leaveTypeRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Leave type not found"));
+        settingsRepository.findByLeaveType_Id(id).ifPresent(settingsRepository::delete);
+        List<LeavePolicy> policies = policyRepository.findByDeletedFalseAndLeaveType_IdOrderByNameAsc(id);
+        for (LeavePolicy policy : policies) {
+            policy.setLeaveType(null);
+            policyRepository.save(policy);
+        }
+        leaveTypeRepository.delete(type);
+    }
+
+
     @Transactional(readOnly = true)
     public List<LeaveEligibilityResponse> getEligibility(Long employeeId) {
         List<LeaveEligibilityResponse> items = new ArrayList<>();

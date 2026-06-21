@@ -1,9 +1,25 @@
-﻿import api from "../utils/api";
+import api from "../utils/api";
 
 export async function getLeaveTypes() {
   const response = await api.get("/api/leave-settings/types");
   return Array.isArray(response?.data) ? response.data : [];
 }
+
+export async function createLeaveType(payload) {
+  const response = await api.post("/api/leave-settings/types", payload);
+  return response?.data || null;
+}
+
+export async function updateLeaveType(id, payload) {
+  const response = await api.put(`/api/leave-settings/types/${id}`, payload);
+  return response?.data || null;
+}
+
+export async function deleteLeaveType(id) {
+  const response = await api.delete(`/api/leave-settings/types/${id}`);
+  return response?.data || null;
+}
+
 
 export async function getLeavePolicies() {
   const response = await api.get("/api/leave-settings/policies");

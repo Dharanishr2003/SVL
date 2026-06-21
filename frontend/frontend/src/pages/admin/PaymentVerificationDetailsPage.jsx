@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import LoadingSpinner from "../../components/common/LoadingSpinner";
 import { downloadLeadPaymentProofFile, downloadLeadRequirementFile, getLeadById } from "../../api/leadsApi";
 import { getAddressById } from "../../api/addressApi";
 import { extractApiErrorMessage } from "../../utils/errorMessage";
@@ -114,13 +115,11 @@ export default function PaymentVerificationDetailsPage() {
         <div className="page-header">
           <div className="page-title">
             <h4>Payment Verification Details</h4>
-            <p className="text-muted">Loading...</p>
+            <p className="text-muted">Loading payment verification details</p>
           </div>
         </div>
         <div className="text-center py-5">
-          <div className="spinner-border" role="status">
-            <span className="visually-hidden">Loading...</span>
-          </div>
+          <LoadingSpinner size="page" label="Loading payment verification details" />
         </div>
       </>
     );
@@ -177,7 +176,7 @@ export default function PaymentVerificationDetailsPage() {
 
       {loadingAddresses && (
         <div className="alert alert-info">
-          <div className="spinner-border spinner-border-sm me-2" role="status"></div>
+          <LoadingSpinner size="sm" className="me-2" label="Loading address details" />
           Loading address details...
         </div>
       )}

@@ -45,6 +45,7 @@ import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -54,6 +55,10 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import com.nexorcrm.backend.repo.EmployeeSalaryRepository;
+import com.nexorcrm.backend.repo.ProvidentFundRepository;
+import com.nexorcrm.backend.entity.ProvidentFund;
+
 @Service
 public class EmployeeService {
 
@@ -62,6 +67,8 @@ public class EmployeeService {
     private final DepartmentMasterRepository departmentMasterRepository;
     private final DesignationMasterRepository designationMasterRepository;
     private final EmployeeProfileTokenRepository employeeProfileTokenRepository;
+    private final EmployeeSalaryRepository employeeSalaryRepository;
+    private final ProvidentFundRepository providentFundRepository;
 
     @Value("${app.upload-dir:uploads}")
     private String uploadDir;
@@ -71,13 +78,17 @@ public class EmployeeService {
             UserRepository userRepository,
             DepartmentMasterRepository departmentMasterRepository,
             DesignationMasterRepository designationMasterRepository,
-            EmployeeProfileTokenRepository employeeProfileTokenRepository
+            EmployeeProfileTokenRepository employeeProfileTokenRepository,
+            EmployeeSalaryRepository employeeSalaryRepository,
+            ProvidentFundRepository providentFundRepository
     ) {
         this.employeeRepository = employeeRepository;
         this.userRepository = userRepository;
         this.departmentMasterRepository = departmentMasterRepository;
         this.designationMasterRepository = designationMasterRepository;
         this.employeeProfileTokenRepository = employeeProfileTokenRepository;
+        this.employeeSalaryRepository = employeeSalaryRepository;
+        this.providentFundRepository = providentFundRepository;
     }
 
     public List<EmployeeResponse> list() {
@@ -303,6 +314,7 @@ public class EmployeeService {
 
         applyOnboardFiles(e, request);
         e = employeeRepository.save(e);
+        syncEmployeeSalary(e);
         return toResponse(e);
     }
 
@@ -316,6 +328,7 @@ public class EmployeeService {
         applyOnboard(e, request);
         applyOnboardFilesUpdate(e, request);
         e = employeeRepository.save(e);
+        syncEmployeeSalary(e);
         return toResponse(e);
     }
 
@@ -526,6 +539,16 @@ public class EmployeeService {
         if (e.getImg() == null || e.getImg().isBlank()) {
             e.setImg("assets/img/users/user-32.jpg");
         }
+
+        e.setBasic(r.getBasic() != null ? r.getBasic() : BigDecimal.ZERO);
+        e.setDa(r.getDa() != null ? r.getDa() : BigDecimal.ZERO);
+        e.setHra(r.getHra() != null ? r.getHra() : BigDecimal.ZERO);
+        e.setConveyance(r.getConveyance() != null ? r.getConveyance() : BigDecimal.ZERO);
+        e.setTds(r.getTds() != null ? r.getTds() : BigDecimal.ZERO);
+        e.setEsi(r.getEsi() != null ? r.getEsi() : BigDecimal.ZERO);
+        e.setPf(r.getPf() != null ? r.getPf() : BigDecimal.ZERO);
+        e.setLeaveDeduction(r.getLeaveDeduction() != null ? r.getLeaveDeduction() : BigDecimal.ZERO);
+        e.setNetSalary(r.getNetSalary() != null ? r.getNetSalary() : BigDecimal.ZERO);
     }
 
     private void applyOnboardFiles(Employee e, EmployeeOnboardRequest r) {
@@ -830,7 +853,58 @@ public class EmployeeService {
         r.setImg(e.getImg());
         r.setOfferLetterSent(offerLetterLinkExpiresAt != null);
         r.setOfferLetterLinkExpiresAt(offerLetterLinkExpiresAt);
+
+        r.setBasic(e.getBasic());
+        r.setDa(e.getDa());
+        r.setHra(e.getHra());
+        r.setConveyance(e.getConveyance());
+        r.setTds(e.getTds());
+        r.setEsi(e.getEsi());
+        r.setPf(e.getPf());
+        r.setLeaveDeduction(e.getLeaveDeduction());
+        r.setNetSalary(e.getNetSalary());
+
         return r;
+    }
+
+    private void syncEmployeeSalary(Employee e) {
+        com.nexorcrm.backend.entity.EmployeeSalary es = employeeSalaryRepository
+                .findByEmployeeIdAndDeletedFalse(e.getId())
+                .orElse(new com.nexorcrm.backend.entity.EmployeeSalary());
+        
+        es.setEmployee(e);
+        es.setBasic(e.getBasic() != null ? e.getBasic() : BigDecimal.ZERO);
+        es.setDa(e.getDa() != null ? e.getDa() : BigDecimal.ZERO);
+        es.setHra(e.getHra() != null ? e.getHra() : BigDecimal.ZERO);
+        es.setConveyance(e.getConveyance() != null ? e.getConveyance() : BigDecimal.ZERO);
+        es.setTds(e.getTds() != null ? e.getTds() : BigDecimal.ZERO);
+        es.setEsi(e.getEsi() != null ? e.getEsi() : BigDecimal.ZERO);
+        es.setPf(e.getPf() != null ? e.getPf() : BigDecimal.ZERO);
+        es.setLeaveDeduction(e.getLeaveDeduction() != null ? e.getLeaveDeduction() : BigDecimal.ZERO);
+        es.setNetSalary(e.getNetSalary() != null ? e.getNetSalary() : BigDecimal.ZERO);
+        es.setStatus("Active");
+        es.setDeleted(false);
+        employeeSalaryRepository.save(es);
+
+        // Auto-sync to ProvidentFund entity
+        if (e.getPf() != null) {
+            ProvidentFund pf = providentFundRepository
+                    .findByEmployeeIdAndDeletedFalse(e.getId())
+                    .orElse(null);
+            if (pf == null) {
+                pf = new ProvidentFund();
+                pf.setEmployee(e);
+                pf.setPfType("Employee Provident Fund");
+                pf.setEmployeeShareAmount(e.getPf());
+                pf.setOrganizationShareAmount(BigDecimal.ZERO);
+                pf.setStatus("Approved");
+                pf.setDescription("Automatically created from Employee Salary details");
+                providentFundRepository.save(pf);
+            } else {
+                pf.setEmployeeShareAmount(e.getPf());
+                providentFundRepository.save(pf);
+            }
+        }
     }
 
     private String firstNonBlank(String first, String second) {

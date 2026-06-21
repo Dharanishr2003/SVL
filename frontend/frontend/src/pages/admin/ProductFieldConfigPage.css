@@ -659,18 +659,6 @@
   min-height: 400px;
 }
 
-.spinner-border {
-  width: 40px;
-  height: 40px;
-  border-width: 3px;
-}
-
-.spinner-border.spinner-border-sm {
-  width: 20px;
-  height: 20px;
-  border-width: 2px;
-}
-
 /* Edit Modal */
 .pfc-edit-modal {
   z-index: 1050;

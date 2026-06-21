@@ -487,8 +487,8 @@
 .qp-total-value {
   font-size: 13px;
   font-weight: 600;
-  font-family: 'DM Mono', monospace;
   color: #1f2937;
+  font-variant-numeric: tabular-nums;
 }
 
 .qp-total-line.discount .qp-total-value { color: #059669; }
@@ -504,9 +504,11 @@
   color: #0f172a;
 }
 .qp-total-line.grand .qp-total-value {
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 700;
-  color: #45597a;
+  color: #0f172a;
+  font-family: inherit;
+  letter-spacing: 0.01em;
 }
 
 /* ── Actions bar ── */
@@ -530,10 +532,12 @@
 }
 
 .qp-actions-bar-amount {
-  font-size: 22px;
+  font-size: 20px;
   font-weight: 700;
   color: #fff;
-  font-family: 'DM Mono', monospace;
+  font-family: inherit;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
 }
 
 .qp-actions-bar-btns {

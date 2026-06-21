@@ -2,6 +2,7 @@ package com.nexorcrm.backend.dto;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.math.BigDecimal;
 import com.nexorcrm.backend.entity.EmployeeProfileStatus;
 
 public class EmployeeResponse {
@@ -9,6 +10,15 @@ public class EmployeeResponse {
     private String employeeCode;
     private String name;
     private String email;
+    private BigDecimal basic;
+    private BigDecimal da;
+    private BigDecimal hra;
+    private BigDecimal conveyance;
+    private BigDecimal tds;
+    private BigDecimal esi;
+    private BigDecimal pf;
+    private BigDecimal leaveDeduction;
+    private BigDecimal netSalary;
     private Long headOfficeId;
     private Long branchId;
     private Long departmentMasterId;
@@ -383,5 +393,30 @@ public class EmployeeResponse {
 		this.img = img;
 	}
 
-   
+    public BigDecimal getBasic() { return basic; }
+    public void setBasic(BigDecimal basic) { this.basic = basic; }
+
+    public BigDecimal getDa() { return da; }
+    public void setDa(BigDecimal da) { this.da = da; }
+
+    public BigDecimal getHra() { return hra; }
+    public void setHra(BigDecimal hra) { this.hra = hra; }
+
+    public BigDecimal getConveyance() { return conveyance; }
+    public void setConveyance(BigDecimal conveyance) { this.conveyance = conveyance; }
+
+    public BigDecimal getTds() { return tds; }
+    public void setTds(BigDecimal tds) { this.tds = tds; }
+
+    public BigDecimal getEsi() { return esi; }
+    public void setEsi(BigDecimal esi) { this.esi = esi; }
+
+    public BigDecimal getPf() { return pf; }
+    public void setPf(BigDecimal pf) { this.pf = pf; }
+
+    public BigDecimal getLeaveDeduction() { return leaveDeduction; }
+    public void setLeaveDeduction(BigDecimal leaveDeduction) { this.leaveDeduction = leaveDeduction; }
+
+    public BigDecimal getNetSalary() { return netSalary; }
+    public void setNetSalary(BigDecimal netSalary) { this.netSalary = netSalary; }
 }

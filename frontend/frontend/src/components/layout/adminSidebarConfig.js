@@ -86,8 +86,8 @@ export const adminSidebarSections = [
           "lead-status",
           "primary-source",
           "secondary-source",
-          "tertiary-source",
-          "lead-type",
+          // "tertiary-source",
+          // "lead-type",
         ],
         children: [
           { label: "Lead Status", href: "/lead-status", accessAny: ["lead-source", "lead-status"] },
@@ -125,15 +125,6 @@ export const adminSidebarSections = [
         icon: "ti ti-layout-kanban",
         accessAny: ["projects", "task-board"],
       },
-      // {
-      //   label: "RRQ",
-      //   icon: "ti ti-package",
-      //   accessAny: ["rrq", "rrq-overview", "rrq-type"],
-      //   children: [
-      //     { label: "RRQ Overview", href: "/rrq", accessAny: ["rrq", "rrq-overview"] },
-      //     { label: "RRQ Type", href: "/rrq-type", accessAny: ["rrq", "rrq-type"] },
-      //   ],
-      // },
     ],
   },
   {
@@ -232,7 +223,9 @@ export const adminSidebarSections = [
           { label: "Attendance Employee", href: "/attendance-employee", accessAny: ["attendance", "attendance-employee"] },
           { label: "Leaves", href: "/leaves", accessAny: ["attendance", "leaves"] },
           { label: "Leave Policy", href: "/leave-settings", accessAny: ["attendance", "leave-settings"] },
+          // { label: "Leave Type", href: "/leave-type", accessAny: ["attendance", "leave-settings"] },
           { label: "Timesheets", href: "/timesheets", accessAny: ["attendance", "timesheets"] },
+
           { label: "Shift & Schedule", href: "/schedule-timing", accessAny: ["attendance", "schedule-timing"] },
           { label: "Shift Assignment", href: "/shift-assignments", accessAny: ["attendance", "shift-assignments"] },
         ],

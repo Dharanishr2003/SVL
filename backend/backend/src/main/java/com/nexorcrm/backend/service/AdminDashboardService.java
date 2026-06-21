@@ -26,6 +26,7 @@ import org.springframework.util.StringUtils;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -111,7 +112,8 @@ public class AdminDashboardService {
         welcome.setName(resolveDisplayName(actor));
         welcome.setPendingApprovals(pendingUsers);
         welcome.setLeaveRequests(pendingLeaves);
-        welcome.setAvatar("assets/img/profiles/avatar-31.jpg");
+        String avatarUrl = resolveAvatarUrl(actor);
+        welcome.setAvatar(StringUtils.hasText(avatarUrl) ? avatarUrl : "assets/img/profiles/avatar-31.jpg");
         return welcome;
     }
 
@@ -244,6 +246,18 @@ public class AdminDashboardService {
             return actor.getUsername();
         }
         return "Admin";
+    }
+
+    private String resolveAvatarUrl(User actor) {
+        if (actor == null || !StringUtils.hasText(actor.getProfilePhotoPath())) {
+            return null;
+        }
+        String pathStr = actor.getProfilePhotoPath().replace("\\", "/");
+        int uploadsIdx = pathStr.indexOf("uploads/");
+        if (uploadsIdx >= 0) {
+            return "/" + pathStr.substring(uploadsIdx);
+        }
+        return "/uploads/profile-photos/" + Path.of(actor.getProfilePhotoPath()).getFileName();
     }
 
     private User resolveActor(String actorPrincipal) {
