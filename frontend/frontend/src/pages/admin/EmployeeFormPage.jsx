@@ -5,6 +5,7 @@ import { getDepartmentsMasterByBranch } from "../../api/departmentsApi";
 import { getDesignations } from "../../api/designationsApi";
 import { getEmployeeById, onboardEmployee, updateOnboardEmployee } from "../../api/employeesApi";
 import { getHeadOffices } from "../../api/headOfficesApi";
+import { getAdditions, getDeductions } from "../../api/payrollItemsApi";
 import { extractApiErrorMessage } from "../../utils/errorMessage";
 import { useToast } from "../../components/system/ToastProvider";
 import {
@@ -111,6 +112,15 @@ const EMPTY_FORM = {
   joinDate: "",
   status: "ACTIVE",
   img: "assets/img/users/user-32.jpg",
+  basic: "",
+  da: "",
+  hra: "",
+  conveyance: "",
+  tds: "",
+  esi: "",
+  pf: "",
+  leaveDeduction: "",
+  netSalary: "",
 };
 
 const EMPTY_FILE_PATHS = {
@@ -261,6 +271,15 @@ function normalizeEmployee(raw = {}) {
     joinDate: pickDate(raw?.joinDate),
     status: String(raw?.status || "ACTIVE").toUpperCase(),
     img: raw?.img || "assets/img/users/user-32.jpg",
+    basic: raw?.basic || "",
+    da: raw?.da || "",
+    hra: raw?.hra || "",
+    conveyance: raw?.conveyance || "",
+    tds: raw?.tds || "",
+    esi: raw?.esi || "",
+    pf: raw?.pf || "",
+    leaveDeduction: raw?.leaveDeduction || "",
+    netSalary: raw?.netSalary || "",
   };
 
   const existingFiles = {
@@ -403,6 +422,7 @@ function FileViewLink({ label, existingPath, fileValue, apiBase }) {
 const FORM_TABS = [
   { id: "org-details", label: "Organization" },
   { id: "basic-details", label: "Basic Details" },
+  { id: "salary-details", label: "Salary Details" },
   { id: "family-details", label: "Family Details" },
   { id: "address-details", label: "Address Details" },
   { id: "education-details", label: "Education Details" },
@@ -418,6 +438,40 @@ export default function EmployeeFormPage() {
   const isEdit = Boolean(id);
   const navigate = useNavigate();
   const { showSuccess, showError } = useToast();
+
+  const [additionsList, setAdditionsList] = useState([]);
+  const [deductionsList, setDeductionsList] = useState([]);
+
+  const isFieldActive = (fieldKey) => {
+    if (["basic", "da", "hra", "conveyance"].includes(fieldKey)) {
+      if (additionsList.length === 0) return true;
+      const match = additionsList.find(item => {
+        const name = (item.name || "").toLowerCase();
+        if (fieldKey === "basic") return name.includes("basic");
+        if (fieldKey === "da") return name.includes("da") || name.includes("dearness");
+        if (fieldKey === "hra") return name.includes("hra") || name.includes("house rent");
+        if (fieldKey === "conveyance") return name.includes("conveyance");
+        return false;
+      });
+      if (match) {
+        return match.status === "Active" || match.status === "ACTIVE";
+      }
+    } else if (["tds", "esi", "pf", "leaveDeduction"].includes(fieldKey)) {
+      if (deductionsList.length === 0) return true;
+      const match = deductionsList.find(item => {
+        const name = (item.name || "").toLowerCase();
+        if (fieldKey === "tds") return name.includes("tds");
+        if (fieldKey === "esi") return name.includes("esi");
+        if (fieldKey === "pf") return name.includes("pf");
+        if (fieldKey === "leaveDeduction") return name.includes("leave") || name.includes("lop");
+        return false;
+      });
+      if (match) {
+        return match.status === "Active" || match.status === "ACTIVE";
+      }
+    }
+    return true;
+  };
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -449,6 +503,29 @@ export default function EmployeeFormPage() {
     () => getEducationVisibilityRules(form.educationQualification),
     [form.educationQualification],
   );
+
+  useEffect(() => {
+    const basic = parseFloat(form.basic) || 0;
+    const da = parseFloat(form.da) || 0;
+    const hra = parseFloat(form.hra) || 0;
+    const conveyance = parseFloat(form.conveyance) || 0;
+    const tds = parseFloat(form.tds) || 0;
+    const esi = parseFloat(form.esi) || 0;
+    const pf = parseFloat(form.pf) || 0;
+    const leaveDeduction = parseFloat(form.leaveDeduction) || 0;
+
+    const calculated = (basic + da + hra + conveyance) - (tds + esi + pf + leaveDeduction);
+    const netSalary = calculated < 0 ? "0.00" : calculated.toFixed(2);
+
+    if (String(form.netSalary) !== String(netSalary)) {
+      setForm((prev) => ({ ...prev, netSalary }));
+    }
+  }, [form.basic, form.da, form.hra, form.conveyance, form.tds, form.esi, form.pf, form.leaveDeduction, form.netSalary]);
+
+  const handleNumericChange = (key, rawValue) => {
+    const sanitized = rawValue.replace(/[^0-9.]/g, "");
+    setField(key, sanitized);
+  };
 
   const isScrollingToRef = useRef(false);
   const scrollTimeoutRef = useRef(null);
@@ -557,9 +634,15 @@ export default function EmployeeFormPage() {
     async function load() {
       setLoading(true);
       try {
-        const offices = await getHeadOffices();
+        const [offices, additions, deductions] = await Promise.all([
+          getHeadOffices(),
+          getAdditions(),
+          getDeductions()
+        ]);
         if (!active) return;
         setHeadOffices(Array.isArray(offices) ? offices : []);
+        setAdditionsList(Array.isArray(additions) ? additions : []);
+        setDeductionsList(Array.isArray(deductions) ? deductions : []);
 
         if (!isEdit || !id) {
           setForm(EMPTY_FORM);
@@ -724,6 +807,7 @@ export default function EmployeeFormPage() {
     if (!hasText(form.personalContactNumber)) return "Contact Number is required";
     if (!hasText(form.personalEmail)) return "Email is required";
     if (!hasText(form.dateOfBirth)) return "DOB is required";
+    if (!hasText(form.basic)) return "Basic Salary is required";
     const phoneError = validatePhoneNumber(form.personalContactNumber, form.countryCode || defaultCountryOption.value);
     if (phoneError) return phoneError;
     return "";
@@ -1012,6 +1096,132 @@ export default function EmployeeFormPage() {
                             existingPath={existingFiles.communityCertificatePath}
                             fileValue={form.uploadCommunityCertificate}
                             apiBase={apiBase}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Salary Details */}
+                <div id="salary-details" className="form-section-card card mt-4">
+                  <div className="card-body">
+                    <p className="avm-section-title">Salary Details</p>
+                    <div className="row g-3">
+                      {isFieldActive("basic") && (
+                        <div className="col-md-6">
+                          <div className="avm-field">
+                            <label className="avm-label">Basic Salary (₹) <span className="text-danger">*</span></label>
+                            <input
+                              type="text"
+                              className="avm-input form-control"
+                              value={form.basic}
+                              onChange={(e) => handleNumericChange("basic", e.target.value)}
+                            />
+                          </div>
+                        </div>
+                      )}
+                      {isFieldActive("da") && (
+                        <div className="col-md-6">
+                          <div className="avm-field">
+                            <label className="avm-label">DA (Dearness Allowance) (₹)</label>
+                            <input
+                              type="text"
+                              className="avm-input form-control"
+                              value={form.da}
+                              onChange={(e) => handleNumericChange("da", e.target.value)}
+                            />
+                          </div>
+                        </div>
+                      )}
+                      {isFieldActive("hra") && (
+                        <div className="col-md-6">
+                          <div className="avm-field">
+                            <label className="avm-label">HRA (House Rent Allowance) (₹)</label>
+                            <input
+                              type="text"
+                              className="avm-input form-control"
+                              value={form.hra}
+                              onChange={(e) => handleNumericChange("hra", e.target.value)}
+                            />
+                          </div>
+                        </div>
+                      )}
+                      {isFieldActive("conveyance") && (
+                        <div className="col-md-6">
+                          <div className="avm-field">
+                            <label className="avm-label">Conveyance (₹)</label>
+                            <input
+                              type="text"
+                              className="avm-input form-control"
+                              value={form.conveyance}
+                              onChange={(e) => handleNumericChange("conveyance", e.target.value)}
+                            />
+                          </div>
+                        </div>
+                      )}
+                      {isFieldActive("tds") && (
+                        <div className="col-md-6">
+                          <div className="avm-field">
+                            <label className="avm-label">TDS (₹)</label>
+                            <input
+                              type="text"
+                              className="avm-input form-control"
+                              value={form.tds}
+                              onChange={(e) => handleNumericChange("tds", e.target.value)}
+                            />
+                          </div>
+                        </div>
+                      )}
+                      {isFieldActive("esi") && (
+                        <div className="col-md-6">
+                          <div className="avm-field">
+                            <label className="avm-label">ESI (₹)</label>
+                            <input
+                              type="text"
+                              className="avm-input form-control"
+                              value={form.esi}
+                              onChange={(e) => handleNumericChange("esi", e.target.value)}
+                            />
+                          </div>
+                        </div>
+                      )}
+                      {isFieldActive("pf") && (
+                        <div className="col-md-6">
+                          <div className="avm-field">
+                            <label className="avm-label">PF (Provident Fund) (₹)</label>
+                            <input
+                              type="text"
+                              className="avm-input form-control"
+                              value={form.pf}
+                              onChange={(e) => handleNumericChange("pf", e.target.value)}
+                            />
+                          </div>
+                        </div>
+                      )}
+                      {isFieldActive("leaveDeduction") && (
+                        <div className="col-md-6">
+                          <div className="avm-field">
+                            <label className="avm-label">Leave Deduction (₹)</label>
+                            <input
+                              type="text"
+                              className="avm-input form-control"
+                              value={form.leaveDeduction}
+                              onChange={(e) => handleNumericChange("leaveDeduction", e.target.value)}
+                            />
+                          </div>
+                        </div>
+                      )}
+                      <div className="col-md-12">
+                        <div className="avm-field">
+                          <label className="avm-label" style={{ fontWeight: "700" }}>Calculated Net Salary (₹)</label>
+                          <input
+                            type="text"
+                            className="avm-input form-control bg-light"
+                            style={{ fontWeight: "700", color: "#0f172a" }}
+                            value={form.netSalary}
+                            readOnly
+                            disabled
                           />
                         </div>
                       </div>

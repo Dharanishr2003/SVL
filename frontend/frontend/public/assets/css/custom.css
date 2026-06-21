@@ -446,7 +446,7 @@ input.form-control.input-animate::placeholder {
     overflow-x: hidden;
     padding: 8px 16px 16px;
     scrollbar-width: thin;
-    scrollbar-color: #2419749d #e8e9ea;
+    scrollbar-color: #f26522 #e8e9ea;
 }
 
 .sidebar .sidebar-inner.slimscroll .sidebar-menu {
@@ -2749,6 +2749,33 @@ table.dataTable.dtr-inline.collapsed
     background: #ffffff !important;
     color: #111827 !important;
 }
+}
+
+/* Global orange scrollbars for all pages, scrollable lists, and tables */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #f8fafc;
+    border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #f26522;
+    border-radius: 999px;
+    border: 2px solid #f8fafc;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #e85d13;
+}
+
+/* Firefox compatibility */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: #f26522 #f8fafc;
 }
 
 

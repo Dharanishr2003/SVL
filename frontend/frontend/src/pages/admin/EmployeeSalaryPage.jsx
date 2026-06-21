@@ -7,14 +7,48 @@ import PageSizeSelector from "../../components/admin/PageSizeSelector";
 import { getEmployees } from "../../api/employeesApi";
 import { getEmployeeSalaries, createEmployeeSalary, updateEmployeeSalary, deleteEmployeeSalary } from "../../api/employeeSalaryApi";
 import { createPayslip } from "../../api/payslipApi";
+import { getAdditions, getDeductions } from "../../api/payrollItemsApi";
 import { extractApiErrorMessage } from "../../utils/errorMessage";
 import { useToast } from "../../components/system/ToastProvider";
 
 const EmployeeSalaryPage = () => {
   const [salaries, setSalaries] = useState([]);
   const [employees, setEmployees] = useState([]);
+  const [additionsList, setAdditionsList] = useState([]);
+  const [deductionsList, setDeductionsList] = useState([]);
   const [search, setSearch] = useState("");
   const [selectedIds, setSelectedIds] = useState(new Set());
+
+  const isFieldActive = (fieldKey) => {
+    if (["basic", "da", "hra", "conveyance"].includes(fieldKey)) {
+      if (additionsList.length === 0) return true;
+      const match = additionsList.find(item => {
+        const name = (item.name || "").toLowerCase();
+        if (fieldKey === "basic") return name.includes("basic");
+        if (fieldKey === "da") return name.includes("da") || name.includes("dearness");
+        if (fieldKey === "hra") return name.includes("hra") || name.includes("house rent");
+        if (fieldKey === "conveyance") return name.includes("conveyance");
+        return false;
+      });
+      if (match) {
+        return match.status === "Active" || match.status === "ACTIVE";
+      }
+    } else if (["tds", "esi", "pf", "leaveDeduction"].includes(fieldKey)) {
+      if (deductionsList.length === 0) return true;
+      const match = deductionsList.find(item => {
+        const name = (item.name || "").toLowerCase();
+        if (fieldKey === "tds") return name.includes("tds");
+        if (fieldKey === "esi") return name.includes("esi");
+        if (fieldKey === "pf") return name.includes("pf");
+        if (fieldKey === "leaveDeduction") return name.includes("leave") || name.includes("lop");
+        return false;
+      });
+      if (match) {
+        return match.status === "Active" || match.status === "ACTIVE";
+      }
+    }
+    return true;
+  };
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [loading, setLoading] = useState(false);
@@ -81,12 +115,16 @@ const EmployeeSalaryPage = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [salList, empList] = await Promise.all([
+      const [salList, empList, addList, dedList] = await Promise.all([
         getEmployeeSalaries(),
-        getEmployees()
+        getEmployees(),
+        getAdditions(),
+        getDeductions()
       ]);
       setSalaries(salList);
       setEmployees(empList);
+      setAdditionsList(addList);
+      setDeductionsList(dedList);
     } catch (e) {
       showError(extractApiErrorMessage(e, "Failed to load data"));
     } finally {
@@ -635,91 +673,107 @@ const EmployeeSalaryPage = () => {
                       </div>
                     </div>
                     <div className="row mt-2">
-                      <div className="col-md-4 mb-3">
-                        <label className="form-label">Basic</label>
-                        <input
-                          type="number"
-                          className="form-control"
-                          min="0"
-                          value={addForm.basic}
-                          onChange={(e) => handleNumberChange("add", "basic", e.target.value)}
-                          required
-                        />
-                      </div>
-                      <div className="col-md-4 mb-3">
-                        <label className="form-label">DA</label>
-                        <input
-                          type="number"
-                          className="form-control"
-                          min="0"
-                          value={addForm.da}
-                          onChange={(e) => handleNumberChange("add", "da", e.target.value)}
-                        />
-                      </div>
-                      <div className="col-md-4 mb-3">
-                        <label className="form-label">HRA</label>
-                        <input
-                          type="number"
-                          className="form-control"
-                          min="0"
-                          value={addForm.hra}
-                          onChange={(e) => handleNumberChange("add", "hra", e.target.value)}
-                        />
-                      </div>
+                      {isFieldActive("basic") && (
+                        <div className="col-md-4 mb-3">
+                          <label className="form-label">Basic</label>
+                          <input
+                            type="number"
+                            className="form-control"
+                            min="0"
+                            value={addForm.basic}
+                            onChange={(e) => handleNumberChange("add", "basic", e.target.value)}
+                            required
+                          />
+                        </div>
+                      )}
+                      {isFieldActive("da") && (
+                        <div className="col-md-4 mb-3">
+                          <label className="form-label">DA</label>
+                          <input
+                            type="number"
+                            className="form-control"
+                            min="0"
+                            value={addForm.da}
+                            onChange={(e) => handleNumberChange("add", "da", e.target.value)}
+                          />
+                        </div>
+                      )}
+                      {isFieldActive("hra") && (
+                        <div className="col-md-4 mb-3">
+                          <label className="form-label">HRA</label>
+                          <input
+                            type="number"
+                            className="form-control"
+                            min="0"
+                            value={addForm.hra}
+                            onChange={(e) => handleNumberChange("add", "hra", e.target.value)}
+                          />
+                        </div>
+                      )}
                     </div>
                     <div className="row">
-                      <div className="col-md-4 mb-3">
-                        <label className="form-label">Conveyance</label>
-                        <input
-                          type="number"
-                          className="form-control"
-                          min="0"
-                          value={addForm.conveyance}
-                          onChange={(e) => handleNumberChange("add", "conveyance", e.target.value)}
-                        />
-                      </div>
-                      <div className="col-md-4 mb-3">
-                        <label className="form-label">TDS</label>
-                        <input
-                          type="number"
-                          className="form-control"
-                          min="0"
-                          value={addForm.tds}
-                          onChange={(e) => handleNumberChange("add", "tds", e.target.value)}
-                        />
-                      </div>
-                      <div className="col-md-4 mb-3">
-                        <label className="form-label">ESI</label>
-                        <input
-                          type="number"
-                          className="form-control"
-                          min="0"
-                          value={addForm.esi}
-                          onChange={(e) => handleNumberChange("add", "esi", e.target.value)}
-                        />
-                      </div>
+                      {isFieldActive("conveyance") && (
+                        <div className="col-md-4 mb-3">
+                          <label className="form-label">Conveyance</label>
+                          <input
+                            type="number"
+                            className="form-control"
+                            min="0"
+                            value={addForm.conveyance}
+                            onChange={(e) => handleNumberChange("add", "conveyance", e.target.value)}
+                          />
+                        </div>
+                      )}
+                      {isFieldActive("tds") && (
+                        <div className="col-md-4 mb-3">
+                          <label className="form-label">TDS</label>
+                          <input
+                            type="number"
+                            className="form-control"
+                            min="0"
+                            value={addForm.tds}
+                            onChange={(e) => handleNumberChange("add", "tds", e.target.value)}
+                          />
+                        </div>
+                      )}
+                      {isFieldActive("esi") && (
+                        <div className="col-md-4 mb-3">
+                          <label className="form-label">ESI</label>
+                          <input
+                            type="number"
+                            className="form-control"
+                            min="0"
+                            value={addForm.esi}
+                            onChange={(e) => handleNumberChange("add", "esi", e.target.value)}
+                          />
+                        </div>
+                      )}
                     </div>
                     <div className="row">
-                      <div className="col-md-4 mb-3">
-                        <label className="form-label">PF</label>
-                        <input
-                          type="number"
-                          className="form-control"
-                          min="0"
-                          value={addForm.pf}
-                          onChange={(e) => handleNumberChange("add", "pf", e.target.value)}
-                        />
-                      </div>
-                      <div className="col-md-4 mb-3">
-                        <label className="form-label">Leave Deduction</label>
-                        <input
-                          type="number"
-                          className="form-control"
-                          min="0"
-                          value={addForm.leaveDeduction}
-                          onChange={(e) => handleNumberChange("add", "leaveDeduction", e.target.value)}
-                        />
-                      </div>
+                      {isFieldActive("pf") && (
+                        <div className="col-md-4 mb-3">
+                          <label className="form-label">PF</label>
+                          <input
+                            type="number"
+                            className="form-control"
+                            min="0"
+                            value={addForm.pf}
+                            onChange={(e) => handleNumberChange("add", "pf", e.target.value)}
+                          />
+                        </div>
+                      )}
+                      {isFieldActive("leaveDeduction") && (
+                        <div className="col-md-4 mb-3">
+                          <label className="form-label">Leave Deduction</label>
+                          <input
+                            type="number"
+                            className="form-control"
+                            min="0"
+                            value={addForm.leaveDeduction}
+                            onChange={(e) => handleNumberChange("add", "leaveDeduction", e.target.value)}
+                          />
+                        </div>
+                      )}
                       <div className="col-md-4 mb-3">
                         <label className="form-label">Status</label>
                         <select
@@ -785,91 +839,107 @@ const EmployeeSalaryPage = () => {
                       </div>
                     </div>
                     <div className="row mt-2">
-                      <div className="col-md-4 mb-3">
-                        <label className="form-label">Basic</label>
-                        <input
-                          type="number"
-                          className="form-control"
-                          min="0"
-                          value={editForm.basic}
-                          onChange={(e) => handleNumberChange("edit", "basic", e.target.value)}
-                          required
-                        />
-                      </div>
-                      <div className="col-md-4 mb-3">
-                        <label className="form-label">DA</label>
-                        <input
-                          type="number"
-                          className="form-control"
-                          min="0"
-                          value={editForm.da}
-                          onChange={(e) => handleNumberChange("edit", "da", e.target.value)}
-                        />
-                      </div>
-                      <div className="col-md-4 mb-3">
-                        <label className="form-label">HRA</label>
-                        <input
-                          type="number"
-                          className="form-control"
-                          min="0"
-                          value={editForm.hra}
-                          onChange={(e) => handleNumberChange("edit", "hra", e.target.value)}
-                        />
-                      </div>
+                      {isFieldActive("basic") && (
+                        <div className="col-md-4 mb-3">
+                          <label className="form-label">Basic</label>
+                          <input
+                            type="number"
+                            className="form-control"
+                            min="0"
+                            value={editForm.basic}
+                            onChange={(e) => handleNumberChange("edit", "basic", e.target.value)}
+                            required
+                          />
+                        </div>
+                      )}
+                      {isFieldActive("da") && (
+                        <div className="col-md-4 mb-3">
+                          <label className="form-label">DA</label>
+                          <input
+                            type="number"
+                            className="form-control"
+                            min="0"
+                            value={editForm.da}
+                            onChange={(e) => handleNumberChange("edit", "da", e.target.value)}
+                          />
+                        </div>
+                      )}
+                      {isFieldActive("hra") && (
+                        <div className="col-md-4 mb-3">
+                          <label className="form-label">HRA</label>
+                          <input
+                            type="number"
+                            className="form-control"
+                            min="0"
+                            value={editForm.hra}
+                            onChange={(e) => handleNumberChange("edit", "hra", e.target.value)}
+                          />
+                        </div>
+                      )}
                     </div>
                     <div className="row">
-                      <div className="col-md-4 mb-3">
-                        <label className="form-label">Conveyance</label>
-                        <input
-                          type="number"
-                          className="form-control"
-                          min="0"
-                          value={editForm.conveyance}
-                          onChange={(e) => handleNumberChange("edit", "conveyance", e.target.value)}
-                        />
-                      </div>
-                      <div className="col-md-4 mb-3">
-                        <label className="form-label">TDS</label>
-                        <input
-                          type="number"
-                          className="form-control"
-                          min="0"
-                          value={editForm.tds}
-                          onChange={(e) => handleNumberChange("edit", "tds", e.target.value)}
-                        />
-                      </div>
-                      <div className="col-md-4 mb-3">
-                        <label className="form-label">ESI</label>
-                        <input
-                          type="number"
-                          className="form-control"
-                          min="0"
-                          value={editForm.esi}
-                          onChange={(e) => handleNumberChange("edit", "esi", e.target.value)}
-                        />
-                      </div>
+                      {isFieldActive("conveyance") && (
+                        <div className="col-md-4 mb-3">
+                          <label className="form-label">Conveyance</label>
+                          <input
+                            type="number"
+                            className="form-control"
+                            min="0"
+                            value={editForm.conveyance}
+                            onChange={(e) => handleNumberChange("edit", "conveyance", e.target.value)}
+                          />
+                        </div>
+                      )}
+                      {isFieldActive("tds") && (
+                        <div className="col-md-4 mb-3">
+                          <label className="form-label">TDS</label>
+                          <input
+                            type="number"
+                            className="form-control"
+                            min="0"
+                            value={editForm.tds}
+                            onChange={(e) => handleNumberChange("edit", "tds", e.target.value)}
+                          />
+                        </div>
+                      )}
+                      {isFieldActive("esi") && (
+                        <div className="col-md-4 mb-3">
+                          <label className="form-label">ESI</label>
+                          <input
+                            type="number"
+                            className="form-control"
+                            min="0"
+                            value={editForm.esi}
+                            onChange={(e) => handleNumberChange("edit", "esi", e.target.value)}
+                          />
+                        </div>
+                      )}
                     </div>
                     <div className="row">
-                      <div className="col-md-4 mb-3">
-                        <label className="form-label">PF</label>
-                        <input
-                          type="number"
-                          className="form-control"
-                          min="0"
-                          value={editForm.pf}
-                          onChange={(e) => handleNumberChange("edit", "pf", e.target.value)}
-                        />
-                      </div>
-                      <div className="col-md-4 mb-3">
-                        <label className="form-label">Leave Deduction</label>
-                        <input
-                          type="number"
-                          className="form-control"
-                          min="0"
-                          value={editForm.leaveDeduction}
-                          onChange={(e) => handleNumberChange("edit", "leaveDeduction", e.target.value)}
-                        />
-                      </div>
+                      {isFieldActive("pf") && (
+                        <div className="col-md-4 mb-3">
+                          <label className="form-label">PF</label>
+                          <input
+                            type="number"
+                            className="form-control"
+                            min="0"
+                            value={editForm.pf}
+                            onChange={(e) => handleNumberChange("edit", "pf", e.target.value)}
+                          />
+                        </div>
+                      )}
+                      {isFieldActive("leaveDeduction") && (
+                        <div className="col-md-4 mb-3">
+                          <label className="form-label">Leave Deduction</label>
+                          <input
+                            type="number"
+                            className="form-control"
+                            min="0"
+                            value={editForm.leaveDeduction}
+                            onChange={(e) => handleNumberChange("edit", "leaveDeduction", e.target.value)}
+                          />
+                        </div>
+                      )}
                       <div className="col-md-4 mb-3">
                         <label className="form-label">Status</label>
                         <select

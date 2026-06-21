@@ -1,6 +1,5 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { createPortal } from "react-dom";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import PageSizeSelector from "../../components/admin/PageSizeSelector";
@@ -38,7 +37,7 @@ const PayrollPage = () => {
     category: "MONTHLY", // for additions: MONTHLY/ADDITIONAL
     rateType: "HOURLY", // for overtimes: HOURLY/DAILY
     rate: "0",          // for overtimes
-    unitCalculation: false // for additions & deductions
+    status: "Active"    // for additions & deductions
   });
 
   const [editForm, setEditForm] = useState({
@@ -46,25 +45,10 @@ const PayrollPage = () => {
     category: "MONTHLY",
     rateType: "HOURLY",
     rate: "0",
-    unitCalculation: false
+    status: "Active"
   });
 
-  // Kebab row actions
-  const [activeActionsRow, setActiveActionsRow] = useState(null);
-  const [actionsMenuPos, setActionsMenuPos] = useState({ top: 0, left: 0 });
-
-  // Close kebab action menu on outside click/scroll
-  useEffect(() => {
-    const handleOutsideClickOrScroll = () => {
-      setActiveActionsRow(null);
-    };
-    window.addEventListener("click", handleOutsideClickOrScroll);
-    window.addEventListener("scroll", handleOutsideClickOrScroll, true);
-    return () => {
-      window.removeEventListener("click", handleOutsideClickOrScroll);
-      window.removeEventListener("scroll", handleOutsideClickOrScroll, true);
-    };
-  }, []);
+  // (Kebab actions now handled via Bootstrap dropdown)
 
   const loadData = async () => {
     setLoading(true);
@@ -147,14 +131,14 @@ const PayrollPage = () => {
     let headers = ["Name"];
     let body = [];
     if (activeTab === "additions") {
-      headers = ["Name", "Category", "Unit Calculation"];
-      body = targetRows.map((r) => [r.name, r.category, r.unitCalculation]);
+      headers = ["Name", "Category", "Status"];
+      body = targetRows.map((r) => [r.name, r.category, r.status]);
     } else if (activeTab === "overtimes") {
       headers = ["Name", "Rate Type", "Rate"];
       body = targetRows.map((r) => [r.name, r.rateType, r.rate]);
     } else {
-      headers = ["Name", "Unit Calculation"];
-      body = targetRows.map((r) => [r.name, r.unitCalculation]);
+      headers = ["Name", "Status"];
+      body = targetRows.map((r) => [r.name, r.status]);
     }
     const csvContent = [headers, ...body]
       .map((line) => line.map((cell) => `"${String(cell || '').replace(/"/g, '""')}"`).join(","))
@@ -181,14 +165,14 @@ const PayrollPage = () => {
     let headers = [["Name"]];
     let body = [];
     if (activeTab === "additions") {
-      headers = [["Name", "Category", "Unit Calculation"]];
-      body = targetRows.map((r) => [r.name, r.category, r.unitCalculation ? "Yes" : "No"]);
+      headers = [["Name", "Category", "Status"]];
+      body = targetRows.map((r) => [r.name, r.category, r.status || "Active"]);
     } else if (activeTab === "overtimes") {
       headers = [["Name", "Rate Type", "Rate"]];
       body = targetRows.map((r) => [r.name, r.rateType, `$${r.rate}`]);
     } else {
-      headers = [["Name", "Unit Calculation"]];
-      body = targetRows.map((r) => [r.name, r.unitCalculation ? "Yes" : "No"]);
+      headers = [["Name", "Status"]];
+      body = targetRows.map((r) => [r.name, r.status || "Active"]);
     }
     autoTable(doc, {
       head: headers,
@@ -216,7 +200,7 @@ const PayrollPage = () => {
         category: "MONTHLY",
         rateType: "HOURLY",
         rate: "0",
-        unitCalculation: false
+        status: "Active"
       });
       loadData();
     } catch (e) {
@@ -426,7 +410,7 @@ const PayrollPage = () => {
                       {activeTab === "additions" && <th>Category</th>}
                       {activeTab === "overtimes" && <th>Rate Type</th>}
                       {activeTab === "overtimes" && <th>Rate</th>}
-                      {(activeTab === "additions" || activeTab === "deductions") && <th>Unit Calculation</th>}
+                      {(activeTab === "additions" || activeTab === "deductions") && <th>Status</th>}
                       <th style={{ width: "80px" }}>Action</th>
                     </tr>
                   </thead>
@@ -452,28 +436,82 @@ const PayrollPage = () => {
                           {activeTab === "overtimes" && <td>{row.rateType}</td>}
                           {activeTab === "overtimes" && <td>${row.rate}</td>}
                           {(activeTab === "additions" || activeTab === "deductions") && (
-                            <td>{row.unitCalculation ? "Yes" : "No"}</td>
+                            <td>
+                              <div className="form-check form-switch mb-0 d-flex align-items-center">
+                                <input
+                                  className="form-check-input"
+                                  type="checkbox"
+                                  role="switch"
+                                  checked={row.status === "Active" || row.status === "ACTIVE" || !row.status}
+                                  onChange={async (e) => {
+                                    const newStatus = e.target.checked ? "Active" : "Inactive";
+                                    try {
+                                      if (activeTab === "additions") {
+                                        await updateAddition(row.id, { ...row, status: newStatus });
+                                      } else {
+                                        await updateDeduction(row.id, { ...row, status: newStatus });
+                                      }
+                                      showSuccess("Status updated successfully");
+                                      loadData();
+                                    } catch (err) {
+                                      showError("Failed to update status");
+                                    }
+                                  }}
+                                  style={{ cursor: "pointer" }}
+                                />
+                                <span className={`badge ms-2 ${row.status === "Inactive" ? "bg-light text-muted" : "bg-transparent-success text-success"}`} style={{ fontSize: "0.75rem", padding: "4px 8px", borderRadius: 4 }}>
+                                  {row.status === "Inactive" ? "Inactive" : "Active"}
+                                </span>
+                              </div>
+                            </td>
                           )}
                           <td>
-                            <button
-                              className="btn btn-kebab-actions d-flex align-items-center justify-content-center"
-                              style={{ width: 32, height: 32, borderRadius: "50%", border: "none", backgroundColor: "transparent", color: "#64748b" }}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                if (activeActionsRow?.id === row.id) {
-                                  setActiveActionsRow(null);
-                                } else {
-                                  const rect = e.currentTarget.getBoundingClientRect();
-                                  setActionsMenuPos({
-                                    top: rect.top + window.scrollY,
-                                    left: rect.right + window.scrollX,
-                                  });
-                                  setActiveActionsRow(row);
-                                }
-                              }}
-                            >
-                              <i className="ti ti-dots-vertical" style={{ fontSize: "1.15rem" }} />
-                            </button>
+                            <div className="dropdown">
+                              <button
+                                type="button"
+                                className="btn btn-kebab-actions d-flex align-items-center justify-content-center dropdown-toggle no-caret"
+                                style={{ width: 32, height: 32, borderRadius: "50%", border: "none", backgroundColor: "transparent", color: "#64748b" }}
+                                data-bs-toggle="dropdown"
+                                data-bs-boundary="viewport"
+                                data-bs-popper-config='{"strategy":"fixed"}'
+                                aria-expanded="false"
+                              >
+                                <i className="ti ti-dots-vertical" style={{ fontSize: "1.15rem" }} />
+                              </button>
+                              <ul className="dropdown-menu dropdown-menu-end shadow border-0" style={{ borderRadius: 10, minWidth: 160 }}>
+                                <li>
+                                  <button
+                                    className="dropdown-item py-2 px-3 text-start d-flex align-items-center gap-2"
+                                    style={{ fontSize: "0.85rem" }}
+                                    onClick={() => {
+                                      setEditTarget(row);
+                                      setEditForm({
+                                        name: row.name || "",
+                                        category: row.category || "MONTHLY",
+                                        rateType: row.rateType || "HOURLY",
+                                        rate: row.rate || "0",
+                                        status: row.status || "Active"
+                                      });
+                                      setShowEditModal(true);
+                                    }}
+                                  >
+                                    <i className="ti ti-edit" style={{ fontSize: "1rem", color: "#64748b" }} /> Edit Item
+                                  </button>
+                                </li>
+                                <li>
+                                  <button
+                                    className="dropdown-item py-2 px-3 text-start d-flex align-items-center gap-2 text-danger"
+                                    style={{ fontSize: "0.85rem" }}
+                                    onClick={() => {
+                                      setDeleteTarget(row);
+                                      setShowDeleteModal(true);
+                                    }}
+                                  >
+                                    <i className="ti ti-trash" style={{ fontSize: "1rem", color: "#ef4444" }} /> Delete Item
+                                  </button>
+                                </li>
+                              </ul>
+                            </div>
                           </td>
                         </tr>
                       ))
@@ -601,15 +639,22 @@ const PayrollPage = () => {
                       )}
 
                       {(activeTab === "additions" || activeTab === "deductions") && (
-                        <div className="col-md-12 mb-3 d-flex align-items-center gap-2">
-                          <input
-                            type="checkbox"
-                            className="form-check-input"
-                            id="addUnitCalculation"
-                            checked={addForm.unitCalculation}
-                            onChange={(e) => setAddForm({ ...addForm, unitCalculation: e.target.checked })}
-                          />
-                          <label className="form-label mb-0" htmlFor="addUnitCalculation">Unit Calculation</label>
+                        <div className="col-md-12 mb-3">
+                          <label className="form-label d-block">Status</label>
+                          <div className="form-check form-switch">
+                            <input
+                              type="checkbox"
+                              className="form-check-input"
+                              id="addStatus"
+                              role="switch"
+                              checked={addForm.status === "Active"}
+                              onChange={(e) => setAddForm({ ...addForm, status: e.target.checked ? "Active" : "Inactive" })}
+                              style={{ cursor: "pointer" }}
+                            />
+                            <label className="form-check-label ms-1" htmlFor="addStatus">
+                              {addForm.status === "Active" ? "Active" : "Inactive"}
+                            </label>
+                          </div>
                         </div>
                       )}
                     </div>
@@ -695,15 +740,22 @@ const PayrollPage = () => {
                       )}
 
                       {(activeTab === "additions" || activeTab === "deductions") && (
-                        <div className="col-md-12 mb-3 d-flex align-items-center gap-2">
-                          <input
-                            type="checkbox"
-                            className="form-check-input"
-                            id="editUnitCalculation"
-                            checked={editForm.unitCalculation}
-                            onChange={(e) => setEditForm({ ...editForm, unitCalculation: e.target.checked })}
-                          />
-                          <label className="form-label mb-0" htmlFor="editUnitCalculation">Unit Calculation</label>
+                        <div className="col-md-12 mb-3">
+                          <label className="form-label d-block">Status</label>
+                          <div className="form-check form-switch">
+                            <input
+                              type="checkbox"
+                              className="form-check-input"
+                              id="editStatus"
+                              role="switch"
+                              checked={editForm.status === "Active"}
+                              onChange={(e) => setEditForm({ ...editForm, status: e.target.checked ? "Active" : "Inactive" })}
+                              style={{ cursor: "pointer" }}
+                            />
+                            <label className="form-check-label ms-1" htmlFor="editStatus">
+                              {editForm.status === "Active" ? "Active" : "Inactive"}
+                            </label>
+                          </div>
                         </div>
                       )}
                     </div>
@@ -746,55 +798,7 @@ const PayrollPage = () => {
         </>
       )}
 
-      {/* Floating Kebab Actions Portal */}
-      {activeActionsRow && createPortal(
-        <div
-          className="floating-actions-menu shadow-lg border"
-          style={{
-            position: "absolute",
-            top: actionsMenuPos.top,
-            left: actionsMenuPos.left,
-            transform: "translate(-100%, -100%) translateY(-5px)",
-            zIndex: 9999,
-            background: "#fff",
-            borderRadius: 8,
-            padding: "6px 0",
-            minWidth: 150
-          }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <button
-            className="dropdown-item py-2 px-3 text-start d-flex align-items-center gap-2"
-            style={{ fontSize: "0.85rem" }}
-            onClick={() => {
-              setEditTarget(activeActionsRow);
-              setEditForm({
-                name: activeActionsRow.name || "",
-                category: activeActionsRow.category || "MONTHLY",
-                rateType: activeActionsRow.rateType || "HOURLY",
-                rate: activeActionsRow.rate || "0",
-                unitCalculation: activeActionsRow.unitCalculation || false
-              });
-              setShowEditModal(true);
-              setActiveActionsRow(null);
-            }}
-          >
-            <i className="ti ti-edit" style={{ fontSize: "1rem", color: "#64748b" }} /> Edit Item
-          </button>
-          <button
-            className="dropdown-item py-2 px-3 text-start d-flex align-items-center gap-2 text-danger"
-            style={{ fontSize: "0.85rem" }}
-            onClick={() => {
-              setDeleteTarget(activeActionsRow);
-              setShowDeleteModal(true);
-              setActiveActionsRow(null);
-            }}
-          >
-            <i className="ti ti-trash" style={{ fontSize: "1rem", color: "#ef4444" }} /> Delete Item
-          </button>
-        </div>,
-        document.body
-      )}
+      {/* Kebab actions are now Bootstrap dropdowns — no portal needed */}
 
       {/* Floating Bulk Actions Bar */}
       {selectedIds.size > 0 && (

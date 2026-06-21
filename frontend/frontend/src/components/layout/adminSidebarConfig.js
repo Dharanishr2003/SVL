@@ -266,7 +266,17 @@ export const adminSidebarSections = [
   {
     key: "finance-accounts",
     title: "Finance & Accounts",
-    items: [
+    items: [ {
+        label: "Payroll",
+        icon: "ti ti-wallet",
+        accessAny: ["payroll", "employee-salary", "payslip", "payroll-items", "sales", "provident-fund"],
+        children: [
+          { label: "Employee Salary", href: "/employee-salary", accessAny: ["payroll", "employee-salary"] },
+          { label: "Payslip", href: "/payslip", accessAny: ["payroll", "payslip"] },
+          { label: "Payroll Items", href: "/payroll", accessAny: ["payroll", "payroll-items"] },
+          { label: "Provident Fund", href: "/provident-fund", accessAny: ["sales", "provident-fund"] },
+        ],
+      },
       {
         label: "Sales & Billing",
         icon: "ti ti-receipt-2",
@@ -289,17 +299,7 @@ export const adminSidebarSections = [
           { label: "Budget Revenues", href: "/budget-revenues", accessAny: ["accounting", "budget-revenues"] },
         ],
       },
-      {
-        label: "Payroll",
-        icon: "ti ti-wallet",
-        accessAny: ["payroll", "employee-salary", "payslip", "payroll-items", "sales", "provident-fund"],
-        children: [
-          { label: "Employee Salary", href: "/employee-salary", accessAny: ["payroll", "employee-salary"] },
-          { label: "Payslip", href: "/payslip", accessAny: ["payroll", "payslip"] },
-          { label: "Payroll Items", href: "/payroll", accessAny: ["payroll", "payroll-items"] },
-          { label: "Provident Fund", href: "/provident-fund", accessAny: ["sales", "provident-fund"] },
-        ],
-      },
+      
       {
         label: "Accounts Control",
         icon: "ti ti-shield-dollar",

@@ -192,15 +192,8 @@
 .form-nav-tabs {
   display: flex;
   gap: 0.5rem;
-  overflow-x: auto;
-  scroll-behavior: smooth;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none; /* Firefox */
+  flex-wrap: wrap;
   padding-bottom: 2px;
-}
-
-.form-nav-tabs::-webkit-scrollbar {
-  display: none; /* Chrome, Safari, Opera */
 }
 
 .form-nav-tab {
