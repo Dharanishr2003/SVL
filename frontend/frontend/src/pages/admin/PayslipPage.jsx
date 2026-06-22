@@ -20,7 +20,7 @@ const MONTHS = [
 ];
 
 const currentYear = new Date().getFullYear();
-const YEARS = Array.from({ length: 5 }, (_, i) => currentYear - 2 + i);
+const YEARS = Array.from({ length: Math.max(1, currentYear - 2015 + 1) }, (_, i) => currentYear - i);
 
 function fmt(val) {
   const n = parseFloat(val) || 0;
@@ -124,11 +124,24 @@ const PayslipPage = () => {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `Payslip_${ps.month?.replace(/ /g, "_")}_${ps.employeeName?.replace(/ /g, "_") || ps.id}.pdf`;
+      a.download = `Payslip_${ps.month?.replace(/ /g, "_")}_${ps.name?.replace(/ /g, "_") || ps.employeeName?.replace(/ /g, "_") || ps.id}.pdf`;
       a.click();
       URL.revokeObjectURL(url);
     } catch (e) {
       showError(extractApiErrorMessage(e, "Failed to download PDF"));
+    } finally {
+      setDownloadingId(null);
+    }
+  };
+
+  const handlePreviewPdf = async (ps) => {
+    setDownloadingId(ps.id);
+    try {
+      const blob = await downloadPayslipPdf(ps.id);
+      const url = URL.createObjectURL(blob);
+      window.open(url, "_blank");
+    } catch (e) {
+      showError(extractApiErrorMessage(e, "Failed to preview PDF"));
     } finally {
       setDownloadingId(null);
     }
@@ -198,7 +211,7 @@ const PayslipPage = () => {
     const rows = filteredPayslips;
     const headers = ["Employee", "Month", "Basic", "DA", "HRA", "Conveyance", "Overtime", "PF", "ESI", "TDS", "LOP Deduction", "Net Salary", "Status"];
     const body = rows.map((r) => [
-      r.employeeName || "-", r.month, r.basic, r.da, r.hra, r.conveyance,
+      r.name || r.employeeName || "-", r.month, r.basic, r.da, r.hra, r.conveyance,
       r.overtime, r.pf, r.esi, r.tds, r.leaveDeduction, r.netSalary, r.status,
     ]);
     const csv = [headers, ...body]
@@ -219,7 +232,7 @@ const PayslipPage = () => {
     autoTable(doc, {
       head: [["Employee", "Month", "Basic", "HRA", "Overtime", "Net Salary", "Status"]],
       body: filteredPayslips.map((r) => [
-        r.employeeName || "-",
+        r.name || r.employeeName || "-",
         r.month,
         r.basic,
         r.hra,
@@ -238,6 +251,7 @@ const PayslipPage = () => {
     if (!q) return payslips;
     return payslips.filter(
       (r) =>
+        (r.name && r.name.toLowerCase().includes(q)) ||
         (r.employeeName && r.employeeName.toLowerCase().includes(q)) ||
         (r.employeeCode && r.employeeCode.toLowerCase().includes(q)) ||
         (r.month && r.month.toLowerCase().includes(q)) ||
@@ -365,7 +379,7 @@ const PayslipPage = () => {
             <div className="row mb-4">
               {[
                 ["Employee Code", ps.employeeCode || "N/A"],
-                ["Employee Name", ps.employeeName || "N/A"],
+                ["Employee Name", ps.name || ps.employeeName || "N/A"],
                 ["Designation", ps.designation || "N/A"],
                 ["Department", ps.departmentName || "N/A"],
                 ["Pay Period", ps.month],
@@ -666,7 +680,7 @@ const PayslipPage = () => {
                           </td>
                           <td>{pageOffset + idx + 1}</td>
                           <td>
-                            <div className="fw-semibold text-dark">{row.employeeName || "—"}</div>
+                            <div className="fw-semibold text-dark">{row.name || row.employeeName || "—"}</div>
                             <div style={{ fontSize: "0.8rem", color: "#64748b" }}>{row.employeeCode || ""}</div>
                           </td>
                           <td>{row.month}</td>
@@ -698,6 +712,17 @@ const PayslipPage = () => {
                                     onClick={() => setSelectedPayslip(row)}
                                   >
                                     <i className="ti ti-eye" style={{ color: "#64748b" }} /> View Details
+                                  </button>
+                                </li>
+                                <li>
+                                  <button
+                                    className="dropdown-item py-2 px-3 d-flex align-items-center gap-2"
+                                    style={{ fontSize: "0.85rem" }}
+                                    onClick={() => handlePreviewPdf(row)}
+                                    disabled={downloadingId === row.id}
+                                  >
+                                    <i className="ti ti-file-text" style={{ color: "#a855f7" }} />
+                                    {downloadingId === row.id ? "Loading..." : "Preview PDF"}
                                   </button>
                                 </li>
                                 <li>

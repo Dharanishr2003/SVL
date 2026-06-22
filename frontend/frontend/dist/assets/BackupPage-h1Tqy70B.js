@@ -1,0 +1,1 @@
+import{j as a}from"./index-Cp5WMrXo.js";function c(){return a.jsx("div",{className:"card",children:a.jsxs("div",{className:"card-body",children:[a.jsx("h4",{className:"mb-2",children:"Backup"}),a.jsx("p",{className:"mb-0",children:"Layout working confirmation."})]})})}export{c as default};

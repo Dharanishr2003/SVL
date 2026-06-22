@@ -86,15 +86,11 @@ export const adminSidebarSections = [
           "lead-status",
           "primary-source",
           "secondary-source",
-          // "tertiary-source",
-          // "lead-type",
         ],
         children: [
           { label: "Lead Status", href: "/lead-status", accessAny: ["lead-source", "lead-status"] },
           { label: "Primary Source", href: "/primary-source", accessAny: ["lead-source", "primary-source"] },
           { label: "Secondary Source", href: "/secondary-source", accessAny: ["lead-source", "secondary-source"] },
-          { label: "Tertiary Source", href: "/tertiary-source", accessAny: ["lead-source", "tertiary-source"] },
-          { label: "Lead Type", href: "/lead-type", accessAny: ["lead-source", "lead-type"] },
         ],
       },
     ],
@@ -227,7 +223,7 @@ export const adminSidebarSections = [
           { label: "Timesheets", href: "/timesheets", accessAny: ["attendance", "timesheets"] },
 
           { label: "Shift & Schedule", href: "/schedule-timing", accessAny: ["attendance", "schedule-timing"] },
-          { label: "Shift Assignment", href: "/shift-assignments", accessAny: ["attendance", "shift-assignments"] },
+          { label: "Shift Assignment", href: "/shift-assignments", accessAny: ["shift-assignments"] },
         ],
       },
       {
@@ -273,6 +269,7 @@ export const adminSidebarSections = [
         children: [
           { label: "Employee Salary", href: "/employee-salary", accessAny: ["payroll", "employee-salary"] },
           { label: "Payslip", href: "/payslip", accessAny: ["payroll", "payslip"] },
+          { label: "Payslip Template", href: "/payslip-template", accessAny: ["payroll", "payslip-template"] },
           { label: "Payroll Items", href: "/payroll", accessAny: ["payroll", "payroll-items"] },
           { label: "Provident Fund", href: "/provident-fund", accessAny: ["sales", "provident-fund"] },
         ],
@@ -305,7 +302,7 @@ export const adminSidebarSections = [
         icon: "ti ti-shield-dollar",
         accessAny: ["accounts", "payment-verifications", "payment-verifications-page", "budget-verifications", "budget-verifications-page"],
         children: [
-          { label: "Payment Verification", href: "/payment-verifications", accessAny: ["accounts", "payment-verifications", "payment-verifications-page"] },
+          { label: "Payment Verification", href: "/payment-verifications", accessAny: ["payment-verifications", "payment-verifications-page"] },
           { label: "Budget Verification", href: "/budget-verifications", accessAny: ["budget-verifications", "budget-verifications-page"] },
         ],
       },
@@ -399,6 +396,12 @@ export const adminSidebarSections = [
           "settings-user-departments",
           "settings-user-designations",
           "settings-logs",
+          "settings-registration",
+          "settings-session",
+          "settings-user",
+          "settings-security",
+          "settings-security-settings",
+          "settings-workflow-teams",
         ],
         children: [
           { label: "User Admin", href: "/useradmin", accessAny: ["settings-useradmin"] },
@@ -408,6 +411,13 @@ export const adminSidebarSections = [
           { label: "User Departments", href: "/settings/user-departments", accessAny: ["settings-user-departments"] },
           { label: "User Designations", href: "/settings/user-designations", accessAny: ["settings-user-designations"] },
           { label: "Logs", href: "/logs", accessAny: ["settings-logs"] },
+
+          { label: "Workflow Teams", href: "/settings/workflow-teams", accessAny: ["settings-workflow-teams"] },
+          { label: "Registration", href: "/registration", accessAny: ["settings-registration"] },
+          { label: "Session", href: "/session-settings", accessAny: ["settings-session"] },
+          { label: "User Settings", href: "/user-settings", accessAny: ["settings-user"] },
+          { label: "Security", href: "/security", accessAny: ["settings-security"] },
+          { label: "Security Settings", href: "/security-settings", accessAny: ["settings-security-settings"] },
         ],
       },
     ],

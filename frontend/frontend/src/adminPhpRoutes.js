@@ -1253,14 +1253,7 @@ export const adminPhpRoutes = [
     path: "secondary-source",
     component: "SecondarySourcePage",
   },
-  {
-    path: "tertiary-source",
-    component: "TertiarySourcePage",
-  },
-  {
-    path: "lead-type",
-    component: "LeadTypePage",
-  },
+
   {
     path: "services/service-categories",
     component: "ServiceCategoriesPage",

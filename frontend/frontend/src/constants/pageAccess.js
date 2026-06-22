@@ -137,6 +137,7 @@ export const PAGE_ACCESS_OPTIONS = [
     children: [
       { key: "employee-salary", label: "Employee Salary" },
       { key: "payslip", label: "Payslip" },
+      { key: "payslip-template", label: "Payslip Template" },
       { key: "payroll-items", label: "Payroll Items" },
     ],
   },
@@ -145,8 +146,8 @@ export const PAGE_ACCESS_OPTIONS = [
     label: "Accounts",
     category: "Finance",
     children: [
-      { key: "payment-verifications-page", label: "Payment Verifications" },
-      { key: "budget-verifications-page", label: "Budget Verifications" },
+      { key: "payment-verifications", label: "Payment Verification" },
+      { key: "budget-verifications", label: "Budget Verification" },
       { key: "stock-requests", label: "Stock Requests" },
     ],
   },
@@ -201,6 +202,8 @@ export const PAGE_ACCESS_OPTIONS = [
     category: "Admin",
     children: [
       { key: "settings-useradmin", label: "User Admin" },
+      { key: "settings-usergroups", label: "User Groups" },
+      { key: "settings-group-access", label: "Group Access" },
       { key: "settings-page-access", label: "Page Access" },
       { key: "settings-registration", label: "Registration" },
       { key: "settings-session", label: "Session" },
@@ -258,6 +261,7 @@ const ROUTE_ACCESS_RULES = [
   { pageKeys: ["accounting", "budget-revenues"], prefixes: ["/budget-revenues"] },
   { pageKeys: ["payroll", "employee-salary"], prefixes: ["/employee-salary"] },
   { pageKeys: ["payroll", "payslip"], prefixes: ["/payslip", "/payslip-report"] },
+  { pageKeys: ["payroll", "payslip-template"], prefixes: ["/payslip-template"] },
   { pageKeys: ["payroll", "payroll-items"], prefixes: ["/payroll"] },
   { pageKeys: ["accounts", "stock-requests"], prefixes: ["/stock-requests"] },
   { pageKeys: ["stocks", "stocks-dashboard"], prefixes: ["/stocks"] },

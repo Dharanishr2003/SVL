@@ -207,12 +207,10 @@ public class PageAccessService {
         if (scopeId == null) {
             return permissionRepository.findByRoleAndScopeTypeAndScopeId(role, scopeType, null)
                     .map(this::parseKeys)
-                    .filter(keys -> !keys.isEmpty())
                     .orElseGet(this::defaultKeys);
         }
         return permissionRepository.findByRoleAndScopeTypeAndScopeId(role, scopeType, scopeId)
                 .map(this::parseKeys)
-                .filter(keys -> !keys.isEmpty())
                 .orElseGet(this::defaultKeys);
     }
 
