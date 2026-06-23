@@ -85,6 +85,8 @@ function userFromToken(token, fallbackEmail = "", responseData = null) {
       responseUser?.profilePhotoUrl || responseData?.profilePhotoUrl || "",
     ),
     employeeId: responseUser?.employeeId ?? responseData?.employeeId ?? null,
+    sessionTimeout: payload?.sessionTimeout ?? responseData?.sessionTimeout ?? null,
+    sessionWarning: payload?.sessionWarning ?? responseData?.sessionWarning ?? null,
   };
 }
 
@@ -287,10 +289,10 @@ export function AuthProvider({ children }) {
 
   const isAuthenticated = Boolean(user && accessToken);
 
-  // Auto logout configuration: 1 minute total, 30 seconds warning
+  // Auto logout configuration: dynamic timeout and warning before logout seconds configured from sessionSettings claims
   const { showWarning, countdown, resetTimer } = useIdleTimer({
-    timeoutMs: 15* 60 * 1000,
-    warningMs: 2* 60 * 1000,
+    timeoutMs: (user?.sessionTimeout ?? 15) * 60 * 1000,
+    warningMs: (user?.sessionWarning ?? 120) * 1000,
     onTimeout: logout,
     enabled: isAuthenticated,
   });

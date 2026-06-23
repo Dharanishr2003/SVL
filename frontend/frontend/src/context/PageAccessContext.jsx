@@ -82,17 +82,6 @@ export function PageAccessProvider({ children }) {
     }
     window.addEventListener("page-access:refresh", refreshVisibility);
     setLoading(true);
-    if (cacheKey) {
-      try {
-        const cached = JSON.parse(sessionStorage.getItem(cacheKey) || "[]");
-        const normalizedCached = normalizePageKeys(cached);
-        if (normalizedCached.length) {
-          setVisiblePageKeys(normalizedCached);
-        }
-      } catch {
-        // ignore corrupted cache
-      }
-    }
     getMyPageKeys()
       .then((keys) => {
         if (!active) return;

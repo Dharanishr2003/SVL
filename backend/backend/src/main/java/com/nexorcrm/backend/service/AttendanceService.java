@@ -441,7 +441,26 @@ public class AttendanceService {
         att.setLunchTimeMinutes(lunchMins);
 
         // Calculate excess (break/lunch beyond allowed+grace)
-        Shift shift = att.getShiftId() != null ? shiftRepository.findById(att.getShiftId()).orElse(null) : null;
+        Shift shift = null;
+        if (att.getShiftId() != null) {
+            shift = shiftRepository.findById(att.getShiftId()).orElse(null);
+        }
+        if (shift == null) {
+            EmployeeShift assignment = employeeShiftRepository.findActiveForUser(att.getUserId(), att.getAttendanceDate()).orElse(null);
+            if (assignment != null) {
+                shift = shiftRepository.findById(assignment.getShiftId()).orElse(null);
+                if (shift != null) {
+                    att.setShiftId(shift.getId());
+                }
+            }
+        }
+        if (shift == null) {
+            shift = shiftRepository.findByDeletedFalseAndActiveTrueOrderByNameAsc()
+                    .stream().findFirst().orElse(null);
+            if (shift != null) {
+                att.setShiftId(shift.getId());
+            }
+        }
         int breakAllowed = 15, breakGrace = 5, lunchAllowed = 60, lunchGrace = 10, minWork = 480;
         if (shift != null) {
             breakAllowed = shift.getBreakAllowedMinutes();
@@ -525,9 +544,51 @@ public class AttendanceService {
         return val != null ? val : 0;
     }
 
+    @Transactional
+    public AttendanceResponse adminUpdate(Long id, AdminUpdateAttendanceRequest req) {
+        Attendance att = attendanceRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Attendance record not found"));
+
+        if (req.getCheckInTime() != null) {
+            att.setCheckInTime(req.getCheckInTime());
+        }
+        att.setCheckOutTime(req.getCheckOutTime());
+        
+        if (req.getStatus() != null && !req.getStatus().isBlank()) {
+            att.setStatus(AttendanceStatus.valueOf(req.getStatus().toUpperCase()));
+        } else {
+            if (req.getCheckOutTime() != null) {
+                att.setStatus(AttendanceStatus.CHECKED_OUT);
+            } else {
+                att.setStatus(AttendanceStatus.CHECKED_IN);
+            }
+        }
+
+        if (req.getNotes() != null) {
+            att.setNotes(req.getNotes());
+        }
+
+        // Recalculate work times and overtime
+        calculateWorkTime(att);
+
+        // Also if we manually edit check-out time, clear the missed checkout flag
+        if (att.getCheckOutTime() != null) {
+            att.setIsMissedCheckout(false);
+        }
+
+        att = attendanceRepository.save(att);
+
+        logEvent(att.getId(), 
+                 att.getStatus() == AttendanceStatus.CHECKED_IN ? AttendanceEventType.CHECK_IN : AttendanceEventType.CHECK_OUT, 
+                 now(), null, null, null, "Manually updated by admin: " + (req.getNotes() != null ? req.getNotes() : ""));
+
+        return toResponse(att);
+    }
+
     // ══════════════════════════════════════════════════════════════
     // MAPPING
     // ══════════════════════════════════════════════════════════════
+
 
     private AttendanceResponse toResponse(Attendance att) {
         AttendanceResponse r = new AttendanceResponse();

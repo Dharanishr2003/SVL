@@ -382,7 +382,7 @@ export const adminSidebarSections = [
   {
     key: "administration",
     title: "Administration",
-    rolesAny: ["ADMIN", "SUPER_ADMIN", "MANAGER", "TEAM_LEAD", "EMPLOYEE"],
+    rolesAny: ["ADMIN", "SUPER_ADMIN"],
     items: [
       {
         label: "Administration",

@@ -1,1 +1,0 @@
-import{j as r}from"./index-CI_-0vMR.js";function a(){return r.jsx("div",{className:"card",children:r.jsxs("div",{className:"card-body",children:[r.jsx("h4",{className:"mb-2",children:"Form Grid Gutters"}),r.jsx("p",{className:"mb-0",children:"Layout working confirmation."})]})})}export{a as default};

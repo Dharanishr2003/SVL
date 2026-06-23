@@ -6,6 +6,7 @@ import autoTable from "jspdf-autotable";
 import * as attendanceApi from '../../api/attendanceApi';
 import LoadingSpinner from "../../components/common/LoadingSpinner";
 import PageSizeSelector from "../../components/admin/PageSizeSelector";
+import { useToast } from '../../components/system/ToastProvider';
 import "./LeadsPage.css";
 import "../../../public/assets/css/addModalShared.css";
 
@@ -24,7 +25,25 @@ function fmtDuration(mins) {
   return h > 0 ? `${h}h ${m}m` : `${m}m`;
 }
 
+
+
+function toDatetimeLocalString(dateString) {
+  if (!dateString) return "";
+  if (typeof dateString === 'string' && dateString.length >= 16) {
+    return dateString.slice(0, 16);
+  }
+  const d = new Date(dateString);
+  if (isNaN(d.getTime())) return "";
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  const hours = String(d.getHours()).padStart(2, '0');
+  const minutes = String(d.getMinutes()).padStart(2, '0');
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+}
+
 const AttendanceAdminPage = () => {
+  const { showSuccess, showError } = useToast();
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -40,6 +59,17 @@ const AttendanceAdminPage = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
+
+  // Edit Timings Modal States
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingRecord, setEditingRecord] = useState(null);
+  const [editForm, setEditForm] = useState({
+    checkInTime: "",
+    checkOutTime: "",
+    status: "",
+    notes: ""
+  });
+  const [saving, setSaving] = useState(false);
 
   const loadData = useCallback(async () => {
     try {
@@ -92,6 +122,41 @@ const AttendanceAdminPage = () => {
       next.delete(id);
     }
     setSelectedIds(next);
+  };
+
+  // Open Edit Timing Modal
+  const handleOpenEdit = (record) => {
+    setEditingRecord(record);
+    setEditForm({
+      checkInTime: toDatetimeLocalString(record.checkInTime),
+      checkOutTime: toDatetimeLocalString(record.checkOutTime),
+      status: record.status || "CHECKED_IN",
+      notes: record.notes || ""
+    });
+    setShowEditModal(true);
+  };
+
+  // Submit Edit Timing
+  const handleSaveTiming = async (e) => {
+    e.preventDefault();
+    if (!editingRecord) return;
+    setSaving(true);
+    try {
+      const payload = {
+        checkInTime: editForm.checkInTime ? (editForm.checkInTime.length === 16 ? editForm.checkInTime + ":00" : editForm.checkInTime) : null,
+        checkOutTime: editForm.checkOutTime ? (editForm.checkOutTime.length === 16 ? editForm.checkOutTime + ":00" : editForm.checkOutTime) : null,
+        status: editForm.status,
+        notes: editForm.notes
+      };
+      await attendanceApi.updateAttendanceAdmin(editingRecord.id, payload);
+      showSuccess("Attendance timing updated successfully");
+      setShowEditModal(false);
+      loadData();
+    } catch (err) {
+      showError(err?.response?.data?.message || err.message || "Failed to update attendance timings");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const exportExcel = () => {
@@ -379,44 +444,77 @@ const AttendanceAdminPage = () => {
                         </td>
                         <td>
                           <div>
-                            <span className="fw-semibold text-slate-800">{r.userName || `User ${r.userId}`}</span>
+                            <span className="fw-bold text-dark">{r.userName || `User ${r.userId}`}</span>
                             <br />
                             <small className="text-muted">{r.userRole || '-'}</small>
                           </div>
                         </td>
-                        <td>{fmtDate(r.attendanceDate)}</td>
+                        <td className="small text-dark fw-medium">{fmtDate(r.attendanceDate)}</td>
                         <td><small className="text-muted">{r.checkInLocationName || '-'}</small></td>
                         <td><small className="text-muted">{r.checkOutLocationName || '-'}</small></td>
-                        <td>{fmtTime(r.checkInTime)}</td>
-                        <td>{fmtTime(r.checkOutTime)}</td>
-                        <td><span className="badge badge-primary bg-primary-light text-primary">{(r.netWorkMinutes ? fmtDuration(r.netWorkMinutes) : '-')}</span></td>
+                        <td className="small text-dark fw-medium">{fmtTime(r.checkInTime)}</td>
+                        <td className="small text-dark fw-medium">{fmtTime(r.checkOutTime)}</td>
                         <td>
-                          <span className={`badge badge-${
-                            r.status === 'CHECKED_IN' ? 'info' :
-                            r.status === 'CHECKED_OUT' || r.status === 'AUTO_CHECKOUT' ? 'success' :
-                            r.status === 'ON_BREAK' ? 'warning' :
-                            r.status === 'ON_LUNCH' ? 'info' : 'secondary'
-                          }`}>
-                            {r.status?.replace(/_/g, ' ')}
+                          <span className="badge bg-primary-transparent text-primary" style={{ borderRadius: 6, fontSize: "0.75rem", padding: "6px 12px" }}>
+                            {r.netWorkMinutes ? fmtDuration(r.netWorkMinutes) : '-'}
                           </span>
                         </td>
                         <td>
-                          {r.isLate ? (
-                            <span className="badge badge-danger">Yes (+{r.lateMinutes}m)</span>
+                          {r.status === 'CHECKED_IN' ? (
+                            <span className="badge bg-info-transparent text-info" style={{ borderRadius: 6, fontSize: "0.75rem", padding: "6px 12px" }}>
+                              Checked In
+                            </span>
+                          ) : r.status === 'CHECKED_OUT' ? (
+                            <span className="badge bg-success-transparent text-success" style={{ borderRadius: 6, fontSize: "0.75rem", padding: "6px 12px" }}>
+                              Checked Out
+                            </span>
+                          ) : r.status === 'AUTO_CHECKOUT' ? (
+                            <span className="badge bg-danger-transparent text-danger" style={{ borderRadius: 6, fontSize: "0.75rem", padding: "6px 12px" }}>
+                              Auto Checkout
+                            </span>
+                          ) : r.status === 'ON_BREAK' ? (
+                            <span className="badge bg-warning-transparent text-warning" style={{ borderRadius: 6, fontSize: "0.75rem", padding: "6px 12px" }}>
+                              On Break
+                            </span>
+                          ) : r.status === 'ON_LUNCH' ? (
+                            <span className="badge bg-info-transparent text-info" style={{ borderRadius: 6, fontSize: "0.75rem", padding: "6px 12px" }}>
+                              On Lunch
+                            </span>
                           ) : (
-                            <span className="badge badge-success">No</span>
+                            <span className="badge bg-secondary-transparent text-secondary" style={{ borderRadius: 6, fontSize: "0.75rem", padding: "6px 12px" }}>
+                              {r.status || '-'}
+                            </span>
+                          )}
+                        </td>
+                        <td>
+                          {r.isLate ? (
+                            <span className="badge bg-danger-transparent text-danger" style={{ borderRadius: 6, fontSize: "0.75rem", padding: "6px 12px" }}>
+                              Yes (+{r.lateMinutes}m)
+                            </span>
+                          ) : (
+                            <span className="badge bg-success-transparent text-success" style={{ borderRadius: 6, fontSize: "0.75rem", padding: "6px 12px" }}>
+                              No
+                            </span>
                           )}
                         </td>
                         <td>
                           {r.overtimeMinutes > 0 ? (
-                            <span className="badge badge-warning">{fmtDuration(r.overtimeMinutes)}</span>
-                          ) : '-'}
+                            <span className="badge bg-warning-transparent text-warning" style={{ borderRadius: 6, fontSize: "0.75rem", padding: "6px 12px" }}>
+                              {fmtDuration(r.overtimeMinutes)}
+                            </span>
+                          ) : (
+                            <span className="text-muted small">0m</span>
+                          )}
                         </td>
                         <td>
                           {r.isMissedCheckout && r.status === 'AUTO_CHECKOUT' ? (
-                            <span className="badge badge-warning">Auto Checkout</span>
+                            <span className="badge bg-warning-transparent text-warning" style={{ borderRadius: 6, fontSize: "0.75rem", padding: "6px 12px" }}>
+                              Auto Checkout
+                            </span>
                           ) : r.isMissedCheckout && r.status !== 'CHECKED_OUT' && r.status !== 'AUTO_CHECKOUT' ? (
-                            <span className="badge badge-danger">Missed Checkout</span>
+                            <span className="badge bg-danger-transparent text-danger" style={{ borderRadius: 6, fontSize: "0.75rem", padding: "6px 12px" }}>
+                              Missed Checkout
+                            </span>
                           ) : '-'}
                         </td>
                         <td className="text-end">
@@ -425,6 +523,11 @@ const AttendanceAdminPage = () => {
                               <i className="ti ti-dots-vertical" />
                             </button>
                             <ul className="dropdown-menu dropdown-menu-end shadow border-0">
+                              <li>
+                                <button className="dropdown-item" onClick={() => handleOpenEdit(r)}>
+                                  Edit Timing
+                                </button>
+                              </li>
                               <li>
                                 <button className="dropdown-item" onClick={() => {
                                   setSelectedIds(new Set([r.id]));
@@ -520,6 +623,99 @@ const AttendanceAdminPage = () => {
           <span className="small">{selectedIds.size} row(s) selected</span>
           <button className="btn btn-sm btn-outline-light" onClick={() => setSelectedIds(new Set())}>Clear</button>
           <button className="btn btn-sm btn-primary" onClick={exportPdf}>Export Selected PDF</button>
+        </div>,
+        document.body
+      )}
+
+      {/* Edit Timing Modal */}
+      {showEditModal && createPortal(
+        <div className="avm-backdrop" role="presentation" style={{ zIndex: 10050 }}>
+          <div className="avm-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" style={{ maxWidth: 500 }}>
+            <div className="avm-modal-header">
+              <h2 className="avm-modal-title">Edit Attendance Timing</h2>
+              <button type="button" className="avm-modal-close" onClick={() => setShowEditModal(false)} aria-label="Close">
+                x
+              </button>
+            </div>
+            <form onSubmit={handleSaveTiming}>
+              <div className="avm-body">
+                <div className="row g-3">
+                  <div className="col-md-12">
+                    <p className="mb-2"><strong>Employee:</strong> {editingRecord?.userName || `User ${editingRecord?.userId}`}</p>
+                    <p className="mb-2"><strong>Date:</strong> {fmtDate(editingRecord?.attendanceDate)}</p>
+                  </div>
+                  
+                  <div className="col-md-12">
+                    <div className="avm-field">
+                      <label className="avm-label">Check In Time</label>
+                      <input
+                        type="datetime-local"
+                        className="avm-input"
+                        value={editForm.checkInTime}
+                        onChange={(e) => setEditForm(prev => ({ ...prev, checkInTime: e.target.value }))}
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="col-md-12">
+                    <div className="avm-field">
+                      <label className="avm-label">Check Out Time</label>
+                      <input
+                        type="datetime-local"
+                        className="avm-input"
+                        value={editForm.checkOutTime}
+                        onChange={(e) => setEditForm(prev => ({ ...prev, checkOutTime: e.target.value }))}
+                      />
+                      <small className="text-muted">Leave empty if employee is still checked in</small>
+                    </div>
+                  </div>
+
+                  <div className="col-md-12">
+                    <div className="avm-field">
+                      <label className="avm-label">Status</label>
+                      <select
+                        className="avm-select"
+                        value={editForm.status}
+                        onChange={(e) => setEditForm(prev => ({ ...prev, status: e.target.value }))}
+                        required
+                      >
+                        <option value="CHECKED_IN">Checked In</option>
+                        <option value="CHECKED_OUT">Checked Out</option>
+                        <option value="AUTO_CHECKOUT">Auto Checkout</option>
+                        <option value="ON_BREAK">On Break</option>
+                        <option value="ON_LUNCH">On Lunch</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="col-md-12">
+                    <div className="avm-field">
+                      <label className="avm-label">Notes / Reason for Edit</label>
+                      <textarea
+                        className="avm-input"
+                        rows="3"
+                        placeholder="Add a reason for manually editing these times..."
+                        value={editForm.notes}
+                        onChange={(e) => setEditForm(prev => ({ ...prev, notes: e.target.value }))}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="avm-footer">
+                <div />
+                <div className="avm-footer-right">
+                  <button type="button" className="avm-btn light" onClick={() => setShowEditModal(false)} disabled={saving}>
+                    Cancel
+                  </button>
+                  <button type="submit" className="avm-btn primary" disabled={saving}>
+                    {saving ? "Saving..." : "Save Changes"}
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
         </div>,
         document.body
       )}

@@ -1,802 +1,296 @@
-import React from "react";
-import { Link } from "react-router-dom";
+import React, { useState, useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { getLeads } from "../../api/leadsApi";
+import LoadingSpinner from "../../components/common/LoadingSpinner";
 
 const InvoicesPage = () => {
+  const navigate = useNavigate();
+  const [leads, setLeads] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  const fetchInvoices = async () => {
+    setLoading(true);
+    try {
+      const data = await getLeads();
+      setLeads(Array.isArray(data) ? data : []);
+      setError("");
+    } catch (err) {
+      console.error("Error loading leads for invoices:", err);
+      setError("Failed to load invoices.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchInvoices();
+  }, []);
+
+  // Filter leads that have any invoice data
+  const invoiceLeads = leads.filter(
+    (lead) => lead.invoiceData || lead.paymentVerifiedInvoiceData
+  );
+
+  // Compute stats
+  let totalInvoiceAmount = 0;
+  let outstandingAmount = 0;
+  let draftAmount = 0;
+  let paidAmount = 0;
+
+  invoiceLeads.forEach((lead) => {
+    const dataStr = lead.paymentVerifiedInvoiceData || lead.invoiceData;
+    let grandTotal = 0;
+    try {
+      const parsed = JSON.parse(dataStr);
+      grandTotal = Number(parsed.grandTotal || parsed.grand_total || 0);
+    } catch {
+      grandTotal = 0;
+    }
+
+    totalInvoiceAmount += grandTotal;
+
+    const isPaid = !!lead.paymentVerifiedInvoiceData;
+    const isDraft = !!lead.invoiceData && !lead.budgetInvoiceSent;
+
+    if (isPaid) {
+      paidAmount += grandTotal;
+    } else if (isDraft) {
+      draftAmount += grandTotal;
+      outstandingAmount += grandTotal;
+    } else {
+      outstandingAmount += grandTotal;
+    }
+  });
+
+  const getInvoiceNumber = (lead) => {
+    return `INV-${lead.leadId || lead.id}`;
+  };
+
+  const getInvoiceDate = (lead) => {
+    if (!lead.createdAt) return "-";
+    return new Date(lead.createdAt).toLocaleDateString("en-IN", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+  };
+
+  const getInvoiceAmount = (lead) => {
+    const dataStr = lead.paymentVerifiedInvoiceData || lead.invoiceData;
+    try {
+      const parsed = JSON.parse(dataStr);
+      return Number(parsed.grandTotal || parsed.grand_total || 0);
+    } catch {
+      return 0;
+    }
+  };
+
+  const getInvoiceStatus = (lead) => {
+    if (lead.paymentVerifiedInvoiceData) {
+      return { label: "Paid", className: "badge badge-success" };
+    }
+    if (lead.invoiceData && !lead.budgetInvoiceSent) {
+      return { label: "Draft", className: "badge badge-warning" };
+    }
+    return { label: "Sent", className: "badge badge-purple" };
+  };
+
+  const handleViewInvoice = (lead) => {
+    navigate("/invoice-details", { state: { lead } });
+  };
+
   return (
     <>
       <div className="content">
-        {/* Breadcrumb */}
-				<div className="d-md-flex d-block align-items-center justify-content-between page-breadcrumb mb-3">
-					<div className="my-auto mb-2">
-						<h2 className="mb-1">Invoices</h2>
-						<nav>
-							<ol className="breadcrumb mb-0">
-								<li className="breadcrumb-item">
-									<Link to="/dashboard"><i className="ti ti-smart-home"></i></Link>
-								</li>
-								<li className="breadcrumb-item">
-									Application
-								</li>
-								<li className="breadcrumb-item active" aria-current="page">Invoices</li>
-							</ol>
-						</nav>
-					</div>
-					<div className="d-flex my-xl-auto right-content align-items-center flex-wrap ">
-						<div className="me-2 mb-2">
-							<div className="dropdown">
-								<Link to="#"
-									className="dropdown-toggle btn btn-white d-inline-flex align-items-center"
-									data-bs-toggle="dropdown">
-									<i className="ti ti-file-export me-2"></i>Export
-								</Link>
-								<ul className="dropdown-menu  dropdown-menu-end p-3">
-									<li>
-										<Link to="#" className="dropdown-item rounded-1"><i
-												className="ti ti-file-type-pdf me-1"></i>Export as PDF</Link>
-									</li>
-									<li>
-										<Link to="#" className="dropdown-item rounded-1"><i
-												className="ti ti-file-type-xls me-1"></i>Export as Excel </Link>
-									</li>
-								</ul>
-							</div>
-						</div>
-						<div className="mb-2">
-							<Link to="/add-invoices" className="btn btn-primary d-flex align-items-center"><i
-									className="ti ti-circle-plus me-2"></i>Add Invoice</Link>
-						</div>
-						<div className="ms-2 head-icons">
-							<Link to="#" className="" data-bs-toggle="tooltip" data-bs-placement="top"
-								data-bs-original-title="Collapse" id="collapse-header">
-								<i className="ti ti-chevrons-up"></i>
-							</Link>
-						</div>
-					</div>
-				</div>
-				{/* /Breadcrumb */}
+        {/* Breadcrumb section matching the user request */}
+        <div className="d-md-flex d-block align-items-center justify-content-between page-breadcrumb mb-3">
+          <div className="my-auto mb-2">
+            <h2 className="mb-1">Invoices</h2>
+            <nav>
+              <ol className="breadcrumb mb-0">
+                <li className="breadcrumb-item">
+                  <Link to="/admin-dashboard">
+                    <i className="ti ti-smart-home"></i>
+                  </Link>
+                </li>
+                <li className="breadcrumb-item">
+                  <span className="text-muted">Application</span>
+                </li>
+                <li className="breadcrumb-item active">Invoices</li>
+              </ol>
+            </nav>
+          </div>
+        </div>
 
-				{/* Invoice Data */}
-				<div className="row">
-					<div className="col-xl-3 col-sm-6">
-						<div className="card flex-fill">
-							<div className="card-body">
-								<div className="d-flex align-items-center overflow-hidden mb-2">
-									<div>
-										<p className="fs-12 fw-normal mb-1 text-truncate">Total Invoice</p>
-										<h5>$3,237.94</h5>
-									</div>
-								</div>
-								<div className="attendance-report-bar mb-2">
-									<div className="progress" role="progressbar" aria-label="Success example"
-										aria-valuenow="25" aria-valuemin="0" aria-valuemax="100" style={{"height":"5px"}}>
-										<div className="progress-bar bg-pink" style={{"width":"85%"}}></div>
-									</div>
-								</div>
-								<div>
-									<p className="fs-12 fw-normal d-flex align-items-center text-truncate"><span
-											className="text-success fs-12 d-flex align-items-center me-1"><i
-												className="ti ti-arrow-wave-right-up me-1"></i>+32.40%</span>from last month
-									</p>
-								</div>
-							</div>
-						</div>
-					</div>
-					<div className="col-xl-3 col-sm-6">
-						<div className="card flex-fill">
-							<div className="card-body">
-								<div className="d-flex align-items-center overflow-hidden mb-2">
-									<div>
-										<p className="fs-12 fw-normal mb-1 text-truncate">Outstanding</p>
-										<h5>$3,237.94</h5>
-									</div>
-								</div>
-								<div className="attendance-report-bar mb-2">
-									<div className="progress" role="progressbar" aria-label="Success example"
-										aria-valuenow="25" aria-valuemin="0" aria-valuemax="100" style={{"height":"5px"}}>
-										<div className="progress-bar bg-purple" style={{"width":"50%"}}></div>
-									</div>
-								</div>
-								<div>
-									<p className="fs-12 fw-normal d-flex align-items-center text-truncate"><span
-											className="text-danger fs-12 d-flex align-items-center me-1"><i
-												className="ti ti-arrow-wave-right-up me-1"></i>-4.40%</span>from last month
-									</p>
-								</div>
-							</div>
-						</div>
-					</div>
-					<div className="col-xl-3 col-sm-6">
-						<div className="card flex-fill">
-							<div className="card-body">
-								<div className="d-flex align-items-center overflow-hidden mb-2">
-									<div>
-										<p className="fs-12 fw-normal mb-1 text-truncate">Draft</p>
-										<h5>$3,237.94</h5>
-									</div>
-								</div>
-								<div className="attendance-report-bar mb-2">
-									<div className="progress" role="progressbar" aria-label="Success example"
-										aria-valuenow="25" aria-valuemin="0" aria-valuemax="100" style={{"height":"5px"}}>
-										<div className="progress-bar bg-warning" style={{"width":"30%"}}></div>
-									</div>
-								</div>
-								<div>
-									<p className="fs-12 fw-normal d-flex align-items-center text-truncate"><span
-											className="text-success fs-12 d-flex align-items-center me-1"><i
-												className="ti ti-arrow-wave-right-up me-1"></i>12%</span>from last month</p>
-								</div>
-							</div>
-						</div>
-					</div>
-					<div className="col-xl-3 col-sm-6">
-						<div className="card flex-fill">
-							<div className="card-body">
-								<div className="d-flex align-items-center overflow-hidden mb-2">
-									<div>
-										<p className="fs-12 fw-normal mb-1 text-truncate">Total Overdue</p>
-										<h5>$3,237.94</h5>
-									</div>
-								</div>
-								<div className="attendance-report-bar mb-2">
-									<div className="progress" role="progressbar" aria-label="Success example"
-										aria-valuenow="25" aria-valuemin="0" aria-valuemax="100" style={{"height":"5px"}}>
-										<div className="progress-bar bg-danger" style={{"width":"20%"}}></div>
-									</div>
-								</div>
-								<div>
-									<p className="fs-12 fw-normal d-flex align-items-center text-truncate"><span
-											className="text-danger fs-12 d-flex align-items-center me-1"><i
-												className="ti ti-arrow-wave-right-up me-1"></i>-15.40%</span>from last month
-									</p>
-								</div>
-							</div>
-						</div>
-					</div>
-				</div>
-				{/* /Invoice Data */}
+        {/* Invoice Stats Summary Row */}
+        <div className="row mb-2">
+          <div className="col-xl-3 col-sm-6">
+            <div className="card flex-fill border-0 shadow-sm bg-white" style={{ borderRadius: 12 }}>
+              <div className="card-body">
+                <div className="d-flex align-items-center overflow-hidden mb-2">
+                  <div>
+                    <p className="fs-12 fw-normal mb-1 text-truncate text-muted">Total Invoice</p>
+                    <h5 className="fw-bold text-dark">₹{totalInvoiceAmount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</h5>
+                  </div>
+                </div>
+                <div className="attendance-report-bar mb-2">
+                  <div className="progress" role="progressbar" style={{ height: "5px" }}>
+                    <div className="progress-bar bg-pink" style={{ width: "100%" }}></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="col-xl-3 col-sm-6">
+            <div className="card flex-fill border-0 shadow-sm bg-white" style={{ borderRadius: 12 }}>
+              <div className="card-body">
+                <div className="d-flex align-items-center overflow-hidden mb-2">
+                  <div>
+                    <p className="fs-12 fw-normal mb-1 text-truncate text-muted">Outstanding</p>
+                    <h5 className="fw-bold text-dark">₹{outstandingAmount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</h5>
+                  </div>
+                </div>
+                <div className="attendance-report-bar mb-2">
+                  <div className="progress" role="progressbar" style={{ height: "5px" }}>
+                    <div className="progress-bar bg-purple" style={{ width: "70%" }}></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="col-xl-3 col-sm-6">
+            <div className="card flex-fill border-0 shadow-sm bg-white" style={{ borderRadius: 12 }}>
+              <div className="card-body">
+                <div className="d-flex align-items-center overflow-hidden mb-2">
+                  <div>
+                    <p className="fs-12 fw-normal mb-1 text-truncate text-muted">Draft</p>
+                    <h5 className="fw-bold text-dark">₹{draftAmount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</h5>
+                  </div>
+                </div>
+                <div className="attendance-report-bar mb-2">
+                  <div className="progress" role="progressbar" style={{ height: "5px" }}>
+                    <div className="progress-bar bg-warning" style={{ width: "30%" }}></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="col-xl-3 col-sm-6">
+            <div className="card flex-fill border-0 shadow-sm bg-white" style={{ borderRadius: 12 }}>
+              <div className="card-body">
+                <div className="d-flex align-items-center overflow-hidden mb-2">
+                  <div>
+                    <p className="fs-12 fw-normal mb-1 text-truncate text-muted">Paid Amount</p>
+                    <h5 className="fw-bold text-dark">₹{paidAmount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</h5>
+                  </div>
+                </div>
+                <div className="attendance-report-bar mb-2">
+                  <div className="progress" role="progressbar" style={{ height: "5px" }}>
+                    <div className="progress-bar bg-success" style={{ width: "40%" }}></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
 
-				{/* Invoice DataTable */}
-				<div className="row">
-					<div className="col-sm-12">
-						<div className="card">
-							<div
-								className="card-header d-flex align-items-center justify-content-between flex-wrap row-gap-3">
-								<h5 className="d-flex align-items-center">Invoices<span
-										className="badge badge-dark-transparent ms-2">2000 Invoices</span></h5>
-								<div className="d-flex align-items-center flex-wrap row-gap-3">
+        {/* Invoices List Table Card */}
+        <div className="card border-0 shadow-sm p-4 mb-4 bg-white" style={{ borderRadius: 12 }}>
+          <div className="d-flex align-items-center justify-content-between flex-wrap gap-3">
+            <div>
+              <h2 className="leads-header-title mb-1" style={{ fontSize: "1.4rem", fontWeight: "700", color: "#0f172a" }}>Invoices List</h2>
+              <p className="leads-header-subtitle text-muted mb-0" style={{ fontSize: "0.9rem" }}>Manage and track all generated billing invoices.</p>
+            </div>
+            <div className="d-flex align-items-center gap-2">
+              <span className="badge bg-light text-dark py-2 px-3 fs-13" style={{ borderRadius: "8px" }}>
+                {invoiceLeads.length} Invoices
+              </span>
+            </div>
+          </div>
+        </div>
 
-									<div className="input-icon position-relative w-120 me-2">
-										<span className="input-icon-addon">
-											<i className="ti ti-calendar"></i>
-										</span>
-										<input type="text" className="form-control datetimepicker"
-											placeholder="Created Date" />
-									</div>
-									<div className="input-icon position-relative w-120 me-2">
-										<span className="input-icon-addon">
-											<i className="ti ti-calendar"></i>
-										</span>
-										<input type="text" className="form-control datetimepicker" placeholder="Due Date" />
-									</div>
-									<div className="dropdown me-2">
-										<Link to="#"
-											className="dropdown-toggle btn btn-white d-inline-flex align-items-center"
-											data-bs-toggle="dropdown">
-											Select Status
-										</Link>
-										<ul className="dropdown-menu  dropdown-menu-end p-3">
-											<li>
-												<Link to="#" className="dropdown-item rounded-1">Paid</Link>
-											</li>
-											<li>
-												<Link to="#"
-													className="dropdown-item rounded-1">Overdue</Link>
-											</li>
-											<li>
-												<Link to="#"
-													className="dropdown-item rounded-1">Pending</Link>
-											</li>
-											<li>
-												<Link to="#" className="dropdown-item rounded-1">Draft</Link>
-											</li>
-										</ul>
-									</div>
-									<div className="dropdown">
-										<Link to="#"
-											className="dropdown-toggle btn btn-white d-inline-flex align-items-center fs-12"
-											data-bs-toggle="dropdown">
-											<span className="fs-12 d-inline-flex me-1">Sort By : </span>
-											Last 7 Days
-										</Link>
-										<ul className="dropdown-menu  dropdown-menu-end p-3">
-											<li>
-												<Link to="#" className="dropdown-item rounded-1">Last 7
-													Days</Link>
-											</li>
-											<li>
-												<Link to="#" className="dropdown-item rounded-1">Created
-													Date</Link>
-											</li>
-											<li>
-												<Link to="#" className="dropdown-item rounded-1">Due
-													Date</Link>
-											</li>
-										</ul>
-									</div>
-								</div>
-							</div>
-							<div className="card-body p-0">
-
-								<div className="custom-datatable-filter table-responsive">
-									<table className="table datatable">
-										<thead className="thead-light">
-											<tr>
-												<th className="no-sort">
-													<div className="form-check form-check-md">
-														<input className="form-check-input" type="checkbox" id="select-all" />
-													</div>
-												</th>
-												<th>Invoice</th>
-												<th>Name</th>
-												<th>Created On</th>
-												<th>Total</th>
-												<th>Amount Due</th>
-												<th>Due Date</th>
-												<th>Status</th>
-												<th></th>
-											</tr>
-										</thead>
-										<tbody>
-											<tr>
-												<td>
-													<div className="form-check form-check-md">
-														<input className="form-check-input" type="checkbox" />
-													</div>
-												</td>
-												<td>
-													<Link to="/invoice-details" className="tb-data">INV-1454</Link>
-												</td>
-												<td>
-													<div className="d-flex align-items-center">
-														<Link to="/invoice-details" className="avatar avatar-lg me-2">
-															<img src="/assets/img/users/user-32.jpg"
-																className="rounded-circle" alt="user" />
-														</Link>
-														<div>
-															<h6 className="fw-medium"><Link to="/invoice-details">Anthony
-																	Lewis</Link>
-															</h6>
-															<span className="fs-12"><Link to="cdn-cgi/l/email-protection"
-																	className="__cf_email__"
-																	data-cfemail="bcddd2c8d4d3d2c5fcd9c4ddd1ccd0d992dfd3d1">[email&#160;protected]</Link></span>
-														</div>
-													</div>
-												</td>
-												<td>14 Jan 2024, 04:27 AM </td>
-												<td>$300</td>
-												<td>$0</td>
-												<td>14 Jan 2024, 04:27 AM</td>
-												<td>
-													<span
-														className="badge badge-soft-success d-inline-flex align-items-center">
-														<i className="ti ti-point-filled me-1"></i>Paid
-													</span>
-												</td>
-												<td>
-													<div className="action-icon d-inline-flex">
-														<Link to="/invoice-details" className="me-2"><i
-																className="ti ti-eye"></i></Link>
-														<Link to="/edit-invoices" className="me-2"><i
-																className="ti ti-edit"></i></Link>
-														<Link to="#" className="" data-bs-toggle="modal"
-															data-bs-target="#delete_modal"><i
-																className="ti ti-trash"></i></Link>
-													</div>
-												</td>
-											</tr>
-											<tr>
-												<td>
-													<div className="form-check form-check-md">
-														<input className="form-check-input" type="checkbox" />
-													</div>
-												</td>
-												<td>
-													<Link to="/invoice-details" className="tb-data">INV-6571</Link>
-												</td>
-												<td>
-													<div className="d-flex align-items-center">
-														<Link to="/invoice-details" className="avatar avatar-lg me-2">
-															<img src="/assets/img/users/user-09.jpg"
-																className="rounded-circle" alt="user" />
-														</Link>
-														<div>
-															<h6 className="fw-medium"><Link to="/invoice-details">Brian
-																	Villalobos</Link>
-															</h6>
-															<span className="fs-12"><Link to="cdn-cgi/l/email-protection"
-																	className="__cf_email__"
-																	data-cfemail="86e4f4efe7e8c6e3fee7ebf6eae3a8e5e9eb">[email&#160;protected]</Link></span>
-														</div>
-													</div>
-												</td>
-												<td>21 Jan 2024, 03:19 AM</td>
-												<td>$547</td>
-												<td>$200</td>
-												<td>21 Jan 2024, 03:19 AM</td>
-												<td>
-													<span
-														className="badge badge-soft-danger d-inline-flex align-items-center">
-														<i className="ti ti-point-filled me-1"></i>Overdue
-													</span>
-												</td>
-												<td>
-													<div className="action-icon d-inline-flex">
-														<Link to="/invoice-details" className="me-2"><i
-																className="ti ti-eye"></i></Link>
-														<Link to="/edit-invoices" className="me-2"><i
-																className="ti ti-edit"></i></Link>
-														<Link to="#" className="" data-bs-toggle="modal"
-															data-bs-target="#delete_modal"><i
-																className="ti ti-trash"></i></Link>
-													</div>
-												</td>
-											</tr>
-											<tr>
-												<td>
-													<div className="form-check form-check-md">
-														<input className="form-check-input" type="checkbox" />
-													</div>
-												</td>
-												<td>
-													<Link to="/invoice-details" className="tb-data">INV-2245</Link>
-												</td>
-												<td>
-													<div className="d-flex align-items-center">
-														<Link to="/invoice-details" className="avatar avatar-lg me-2">
-															<img src="/assets/img/users/user-01.jpg"
-																className="rounded-circle" alt="user" />
-														</Link>
-														<div>
-															<h6 className="fw-medium"><Link to="/invoice-details">Harvey
-																	Smith</Link>
-															</h6>
-															<span className="fs-12"><Link to="cdn-cgi/l/email-protection"
-																	className="__cf_email__"
-																	data-cfemail="f29a938084978bb2978a939f829e97dc919d9f">[email&#160;protected]</Link></span>
-														</div>
-													</div>
-												</td>
-												<td>20 Feb 2024, 12:15 PM</td>
-												<td>$325</td>
-												<td>$65</td>
-												<td>20 Feb 2024, 12:15 PM</td>
-												<td>
-													<span
-														className="badge badge-soft-purple d-inline-flex align-items-center">
-														<i className="ti ti-point-filled me-1"></i>Pending
-													</span>
-												</td>
-												<td>
-													<div className="action-icon d-inline-flex">
-														<Link to="/invoice-details" className="me-2"><i
-																className="ti ti-eye"></i></Link>
-														<Link to="/edit-invoices" className="me-2"><i
-																className="ti ti-edit"></i></Link>
-														<Link to="#" className="" data-bs-toggle="modal"
-															data-bs-target="#delete_modal"><i
-																className="ti ti-trash"></i></Link>
-													</div>
-												</td>
-											</tr>
-											<tr>
-												<td>
-													<div className="form-check form-check-md">
-														<input className="form-check-input" type="checkbox" />
-													</div>
-												</td>
-												<td>
-													<Link to="/invoice-details" className="tb-data">INV-1456</Link>
-												</td>
-												<td>
-													<div className="d-flex align-items-center">
-														<Link to="/invoice-details" className="avatar avatar-lg me-2">
-															<img src="/assets/img/users/user-33.jpg"
-																className="rounded-circle" alt="user" />
-														</Link>
-														<div>
-															<h6 className="fw-medium"><Link to="/invoice-details">Stephan
-																	Peralt</Link>
-															</h6>
-															<span className="fs-12"><Link to="cdn-cgi/l/email-protection"
-																	className="__cf_email__"
-																	data-cfemail="f3839681929fb3968b929e839f96dd909c9e">[email&#160;protected]</Link></span>
-														</div>
-													</div>
-												</td>
-												<td>15 Mar 2024, 12:11 AM</td>
-												<td>$471</td>
-												<td>$145</td>
-												<td>15 Mar 2024, 12:11 AM</td>
-												<td>
-													<span
-														className="badge badge-soft-purple d-inline-flex align-items-center">
-														<i className="ti ti-point-filled me-1"></i>Pending
-													</span>
-												</td>
-												<td>
-													<div className="action-icon d-inline-flex">
-														<Link to="/invoice-details" className="me-2"><i
-																className="ti ti-eye"></i></Link>
-														<Link to="#" className="me-2"><i className="ti ti-edit"></i></Link>
-														<Link to="#" className="" data-bs-toggle="modal"
-															data-bs-target="#delete_modal"><i
-																className="ti ti-trash"></i></Link>
-													</div>
-												</td>
-											</tr>
-											<tr>
-												<td>
-													<div className="form-check form-check-md">
-														<input className="form-check-input" type="checkbox" />
-													</div>
-												</td>
-												<td>
-													<Link to="/invoice-details" className="tb-data">INV-0045</Link>
-												</td>
-												<td>
-													<div className="d-flex align-items-center">
-														<Link to="/invoice-details" className="avatar avatar-lg me-2">
-															<img src="/assets/img/users/user-34.jpg"
-																className="rounded-circle" alt="user" />
-														</Link>
-														<div>
-															<h6 className="fw-medium"><Link to="/invoice-details">Doglas
-																	Martini</Link>
-															</h6>
-															<span className="fs-12"><Link to="cdn-cgi/l/email-protection"
-																	className="__cf_email__"
-																	data-cfemail="3954584b4d57504e4b795c41585449555c175a5654">[email&#160;protected]</Link></span>
-														</div>
-													</div>
-												</td>
-												<td>12 Apr 2024, 05:48 PM</td>
-												<td>$147</td>
-												<td>$32</td>
-												<td>12 Apr 2024, 05:48 PM</td>
-												<td>
-													<span
-														className="badge badge-soft-danger d-inline-flex align-items-center">
-														<i className="ti ti-point-filled me-1"></i>Overdue
-													</span>
-												</td>
-												<td>
-													<div className="action-icon d-inline-flex">
-														<Link to="/invoice-details" className="me-2"><i
-																className="ti ti-eye"></i></Link>
-														<Link to="/edit-invoices" className="me-2"><i
-																className="ti ti-edit"></i></Link>
-														<Link to="#" className="" data-bs-toggle="modal"
-															data-bs-target="#delete_modal"><i
-																className="ti ti-trash"></i></Link>
-													</div>
-												</td>
-											</tr>
-											<tr>
-												<td>
-													<div className="form-check form-check-md">
-														<input className="form-check-input" type="checkbox" />
-													</div>
-												</td>
-												<td>
-													<Link to="/invoice-details" className="tb-data">INV-6244</Link>
-												</td>
-												<td>
-													<div className="d-flex align-items-center">
-														<Link to="/invoice-details" className="avatar avatar-lg me-2">
-															<img src="/assets/img/users/user-02.jpg"
-																className="rounded-circle" alt="user" />
-														</Link>
-														<div>
-															<h6 className="fw-medium"><Link to="/invoice-details">Linda
-																	Ray</Link>
-															</h6>
-															<span className="fs-12"><Link to="cdn-cgi/l/email-protection"
-																	className="__cf_email__"
-																	data-cfemail="493b28307d7c7f092c31282439252c672a2624">[email&#160;protected]</Link></span>
-														</div>
-													</div>
-												</td>
-												<td>20 Apr 2024, 06:11 PM</td>
-												<td>$654</td>
-												<td>$140</td>
-												<td>20 Apr 2024, 06:11 PM</td>
-												<td>
-													<span
-														className="badge badge-soft-warning d-inline-flex align-items-center">
-														<i className="ti ti-point-filled me-1"></i>Draft
-													</span>
-												</td>
-												<td>
-													<div className="action-icon d-inline-flex">
-														<Link to="/invoice-details" className="me-2"><i
-																className="ti ti-eye"></i></Link>
-														<Link to="/edit-invoices" className="me-2"><i
-																className="ti ti-edit"></i></Link>
-														<Link to="#" className="" data-bs-toggle="modal"
-															data-bs-target="#delete_modal"><i
-																className="ti ti-trash"></i></Link>
-													</div>
-												</td>
-											</tr>
-											<tr>
-												<td>
-													<div className="form-check form-check-md">
-														<input className="form-check-input" type="checkbox" />
-													</div>
-												</td>
-												<td>
-													<Link to="/invoice-details" className="tb-data">INV-9565</Link>
-												</td>
-												<td>
-													<div className="d-flex align-items-center">
-														<Link to="/invoice-details" className="avatar avatar-lg me-2">
-															<img src="/assets/img/users/user-35.jpg"
-																className="rounded-circle" alt="user" />
-														</Link>
-														<div>
-															<h6 className="fw-medium"><Link to="/invoice-details">Elliot
-																	Murray</Link>
-															</h6>
-															<span className="fs-12"><Link to="cdn-cgi/l/email-protection"
-																	className="__cf_email__"
-																	data-cfemail="0469717676657d44617c65697468612a676b69">[email&#160;protected]</Link></span>
-														</div>
-													</div>
-												</td>
-												<td>14 Jan 2024, 04:27 AM </td>
-												<td>$300</td>
-												<td>$0</td>
-												<td>14 Jan 2024, 04:27 AM</td>
-												<td>
-													<span
-														className="badge badge-soft-success d-inline-flex align-items-center">
-														<i className="ti ti-point-filled me-1"></i>Paid
-													</span>
-												</td>
-												<td>
-													<div className="action-icon d-inline-flex">
-														<Link to="/invoice-details" className="me-2"><i
-																className="ti ti-eye"></i></Link>
-														<Link to="/edit-invoices" className="me-2"><i
-																className="ti ti-edit"></i></Link>
-														<Link to="#" className="" data-bs-toggle="modal"
-															data-bs-target="#delete_modal"><i
-																className="ti ti-trash"></i></Link>
-													</div>
-												</td>
-											</tr>
-											<tr>
-												<td>
-													<div className="form-check form-check-md">
-														<input className="form-check-input" type="checkbox" />
-													</div>
-												</td>
-												<td>
-													<Link to="/invoice-details" className="tb-data">INV-6874</Link>
-												</td>
-												<td>
-													<div className="d-flex align-items-center">
-														<Link to="/invoice-details" className="avatar avatar-lg me-2">
-															<img src="/assets/img/users/user-36.jpg"
-																className="rounded-circle" alt="user" />
-														</Link>
-														<div>
-															<h6 className="fw-medium"><Link to="/invoice-details">Rebecca
-																	Smtih</Link>
-															</h6>
-															<span className="fs-12"><Link to="cdn-cgi/l/email-protection"
-																	className="__cf_email__"
-																	data-cfemail="e7948a938e8fa7829f868a978b82c984888a">[email&#160;protected]</Link></span>
-														</div>
-													</div>
-												</td>
-												<td>02 Sep 2024, 09:21 PM</td>
-												<td>$654</td>
-												<td>$65</td>
-												<td>02 Sep 2024, 09:21 PM</td>
-												<td>
-													<span
-														className="badge badge-soft-success d-inline-flex align-items-center">
-														<i className="ti ti-point-filled me-1"></i>Paid
-													</span>
-												</td>
-												<td>
-													<div className="action-icon d-inline-flex">
-														<Link to="/invoice-details" className="me-2"><i
-																className="ti ti-eye"></i></Link>
-														<Link to="/edit-invoices" className="me-2"><i
-																className="ti ti-edit"></i></Link>
-														<Link to="#" className="" data-bs-toggle="modal"
-															data-bs-target="#delete_modal"><i
-																className="ti ti-trash"></i></Link>
-													</div>
-												</td>
-											</tr>
-											<tr>
-												<td>
-													<div className="form-check form-check-md">
-														<input className="form-check-input" type="checkbox" />
-													</div>
-												</td>
-												<td>
-													<Link to="/invoice-details" className="tb-data">INV-1454</Link>
-												</td>
-												<td>
-													<div className="d-flex align-items-center">
-														<Link to="/invoice-details" className="avatar avatar-lg me-2">
-															<img src="/assets/img/users/user-32.jpg"
-																className="rounded-circle" alt="user" />
-														</Link>
-														<div>
-															<h6 className="fw-medium"><Link to="/invoice-details">Anthony
-																	Lewis</Link>
-															</h6>
-															<span className="fs-12"><Link to="cdn-cgi/l/email-protection"
-																	className="__cf_email__"
-																	data-cfemail="aecfc0dac6c1c0d7eecbd6cfc3dec2cb80cdc1c3">[email&#160;protected]</Link></span>
-														</div>
-													</div>
-												</td>
-												<td>14 Jan 2024, 04:27 AM </td>
-												<td>$300</td>
-												<td>$0</td>
-												<td>14 Jan 2024, 04:27 AM</td>
-												<td>
-													<span
-														className="badge badge-soft-warning d-inline-flex align-items-center">
-														<i className="ti ti-point-filled me-1"></i>Draft
-													</span>
-												</td>
-												<td>
-													<div className="action-icon d-inline-flex">
-														<Link to="/invoice-details" className="me-2"><i
-																className="ti ti-eye"></i></Link>
-														<Link to="/edit-invoices" className="me-2"><i
-																className="ti ti-edit"></i></Link>
-														<Link to="#" className="" data-bs-toggle="modal"
-															data-bs-target="#delete_modal"><i
-																className="ti ti-trash"></i></Link>
-													</div>
-												</td>
-											</tr>
-											<tr>
-												<td>
-													<div className="form-check form-check-md">
-														<input className="form-check-input" type="checkbox" />
-													</div>
-												</td>
-												<td>
-													<Link to="/invoice-details" className="tb-data">INV-6587</Link>
-												</td>
-												<td>
-													<div className="d-flex align-items-center">
-														<Link to="/invoice-details" className="avatar avatar-lg me-2">
-															<img src="/assets/img/users/user-37.jpg"
-																className="rounded-circle" alt="user" />
-														</Link>
-														<div>
-															<h6 className="fw-medium"><Link to="/invoice-details">Connie
-																	Waters</Link>
-															</h6>
-															<span className="fs-12"><Link to="cdn-cgi/l/email-protection"
-																	className="__cf_email__"
-																	data-cfemail="86e5e9e8e8efe3c6e3fee7ebf6eae3a8e5e9eb">[email&#160;protected]</Link></span>
-														</div>
-													</div>
-												</td>
-												<td>15 Nov 2024, 12:44 PM</td>
-												<td>$987</td>
-												<td>$47</td>
-												<td>15 Nov 2024, 12:44 PM</td>
-												<td>
-													<span
-														className="badge badge-soft-purple d-inline-flex align-items-center">
-														<i className="ti ti-point-filled me-1"></i>Pending
-													</span>
-												</td>
-												<td>
-													<div className="action-icon d-inline-flex">
-														<Link to="/invoice-details" className="me-2"><i
-																className="ti ti-eye"></i></Link>
-														<Link to="/edit-invoices" className="me-2"><i
-																className="ti ti-edit"></i></Link>
-														<Link to="#" className="" data-bs-toggle="modal"
-															data-bs-target="#delete_modal"><i
-																className="ti ti-trash"></i></Link>
-													</div>
-												</td>
-											</tr>
-											<tr>
-												<td>
-													<div className="form-check form-check-md">
-														<input className="form-check-input" type="checkbox" />
-													</div>
-												</td>
-												<td>
-													<Link to="/invoice-details" className="tb-data">INV-5879</Link>
-												</td>
-												<td>
-													<div className="d-flex align-items-center">
-														<Link to="/invoice-details" className="avatar avatar-lg me-2">
-															<img src="/assets/img/users/user-38.jpg"
-																className="rounded-circle" alt="user" />
-														</Link>
-														<div>
-															<h6 className="fw-medium"><Link to="/invoice-details">Lori
-																	Broaddus</Link>
-															</h6>
-															<span className="fs-12"><Link to="cdn-cgi/l/email-protection"
-																	className="__cf_email__"
-																	data-cfemail="492b3b26282d2d3c3a092c31282439252c672a2624">[email&#160;protected]</Link></span>
-														</div>
-													</div>
-												</td>
-												<td>10 Dec 2024, 11:23 PM</td>
-												<td>$365</td>
-												<td>$21</td>
-												<td>10 Dec 2024, 11:23 PM</td>
-												<td>
-													<span
-														className="badge badge-soft-danger d-inline-flex align-items-center">
-														<i className="ti ti-point-filled me-1"></i>Overdue
-													</span>
-												</td>
-												<td>
-													<div className="action-icon d-inline-flex">
-														<Link to="/invoice-details" className="me-2"><i
-																className="ti ti-eye"></i></Link>
-														<Link to="/edit-invoices" className="me-2"><i
-																className="ti ti-edit"></i></Link>
-														<Link to="#" className="" data-bs-toggle="modal"
-															data-bs-target="#delete_modal"><i
-																className="ti ti-trash"></i></Link>
-													</div>
-												</td>
-											</tr>
-										</tbody>
-									</table>
-								</div>
-							</div>
-						</div>
-					</div>
-				</div>
-				{/* /Invoice DataTable */}
+        {/* List UI wrapper matching Lead list page */}
+        {loading ? (
+          <div className="p-5 text-center bg-white shadow-sm" style={{ borderRadius: 12 }}>
+            <LoadingSpinner />
+          </div>
+        ) : error ? (
+          <div className="alert alert-danger m-3">{error}</div>
+        ) : invoiceLeads.length === 0 ? (
+          <div className="p-5 text-center text-muted bg-white shadow-sm" style={{ borderRadius: 12 }}>No invoices found.</div>
+        ) : (
+          <div
+            className="table-responsive leads-table-wrap border-0 shadow-sm mb-4 bg-white"
+            style={{ overflowX: "auto", WebkitOverflowScrolling: "touch", touchAction: "pan-x", borderRadius: 12, minHeight: "260px" }}
+          >
+            <table className="table table-hover align-middle leads-table mb-0">
+              <thead>
+                <tr>
+                  <th className="col-select" style={{ width: 36 }}>
+                    <input className="form-check-input" type="checkbox" id="select-all" />
+                  </th>
+                  <th className="text-muted" style={{ fontWeight: "600", fontSize: "0.85rem" }}>Invoice ID</th>
+                  <th className="text-muted" style={{ fontWeight: "600", fontSize: "0.85rem" }}>Client Name</th>
+                  <th className="text-muted" style={{ fontWeight: "600", fontSize: "0.85rem" }}>Created On</th>
+                  <th className="text-muted" style={{ fontWeight: "600", fontSize: "0.85rem" }}>Total Amount</th>
+                  <th className="text-muted" style={{ fontWeight: "600", fontSize: "0.85rem" }}>Status</th>
+                  <th className="text-muted" style={{ fontWeight: "600", fontSize: "0.85rem" }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {invoiceLeads.map((lead) => {
+                  const status = getInvoiceStatus(lead);
+                  const amt = getInvoiceAmount(lead);
+                  return (
+                    <tr key={lead.id}>
+                      <td className="col-select">
+                        <input className="form-check-input" type="checkbox" />
+                      </td>
+                      <td style={{ fontSize: "0.9rem" }}>
+                        <Link to="#" onClick={() => handleViewInvoice(lead)} className="text-info fw-medium">
+                          {getInvoiceNumber(lead)}
+                        </Link>
+                      </td>
+                      <td style={{ fontSize: "0.9rem" }}>
+                        <div>
+                          <h6 className="fw-semibold mb-0" style={{ color: "#1e293b" }}>
+                            <Link to="#" onClick={() => handleViewInvoice(lead)} style={{ color: "inherit", textDecoration: "none" }}>
+                              {lead.name}
+                            </Link>
+                          </h6>
+                          <span className="d-block text-muted fs-12">{lead.email}</span>
+                        </div>
+                      </td>
+                      <td style={{ fontSize: "0.9rem", color: "#475569" }}>{getInvoiceDate(lead)}</td>
+                      <td className="fw-semibold" style={{ fontSize: "0.9rem", color: "#1e293b" }}>
+                        ₹{amt.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                      </td>
+                      <td>
+                        <span className={status.className}>
+                          {status.label}
+                        </span>
+                      </td>
+                      <td className="col-actions">
+                        <div className="action-icon d-inline-flex gap-2">
+                          <Link
+                            to="#"
+                            className="d-flex align-items-center justify-content-center"
+                            style={{ width: 32, height: 32, borderRadius: "50%", border: "none", backgroundColor: "transparent", color: "#64748b" }}
+                            onClick={() => handleViewInvoice(lead)}
+                          >
+                            <i className="ti ti-eye" style={{ fontSize: "1.1rem" }}></i>
+                          </Link>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
-
-      {/* /Page Wrapper */}
-
-			{/* Delete Modal */}
-			<div className="modal fade" id="delete_modal">
-				<div className="modal-dialog modal-dialog-centered">
-					<div className="modal-content">
-						<div className="modal-body text-center">
-							<span className="avatar avatar-xl bg-transparent-danger text-danger mb-3">
-								<i className="ti ti-trash-x fs-36"></i>
-							</span>
-							<h4 className="mb-1">Confirm Delete</h4>
-							<p className="mb-3">You want to delete all the marked items, this cant be undone once you
-								delete.
-							</p>
-							<div className="d-flex justify-content-center">
-								<Link to="#" className="btn btn-light me-3"
-									data-bs-dismiss="modal">Cancel</Link>
-								<Link to="/invoice" className="btn btn-danger">Yes, Delete</Link>
-							</div>
-						</div>
-					</div>
-				</div>
-			</div>
-			{/* /Delete Modal */}
     </>
   );
 };

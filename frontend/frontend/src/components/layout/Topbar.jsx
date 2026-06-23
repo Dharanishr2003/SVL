@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { attachAdminNavigationHandlers } from "../../utils/adminNavigation";
 import { useAuth } from "../../context/AuthContext";
+import { getLeadChatNotifications } from "../../api/leadsApi";
+import { getChatRooms } from "../../api/chatApi";
 
 export default function Topbar({
   isMobileSidebarOpen = false,
@@ -11,6 +13,66 @@ export default function Topbar({
   const navigate = useNavigate();
   const { logout, user } = useAuth();
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+    let active = true;
+    const fetchNotifications = async () => {
+      try {
+        const [leadRows, chatRooms] = await Promise.all([
+          getLeadChatNotifications(),
+          getChatRooms().catch(() => [])
+        ]);
+        if (!active) return;
+
+        const chatRows = chatRooms
+          .filter(r => r.unreadCount > 0)
+          .map(r => ({
+            messageId: `chat-unread-${r.id}`,
+            threadType: "Direct Chat",
+            message: r.latestMessage || "New message received",
+            senderRole: r.name,
+            createdAt: r.latestMessageTime || new Date().toISOString(),
+            unreadCount: r.unreadCount,
+            isMuted: r.isMuted
+          }));
+
+        const combined = [...leadRows, ...chatRows].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        setNotifications(combined);
+
+        const lastSeenStr = localStorage.getItem("lastSeenNotificationTime");
+        let unreadCountVal = 0;
+
+        if (lastSeenStr) {
+          const lastSeen = new Date(lastSeenStr);
+          const newLeadItems = leadRows.filter(
+            (item) => item.createdAt && new Date(item.createdAt) > lastSeen
+          );
+          unreadCountVal += newLeadItems.length;
+        } else {
+          unreadCountVal += leadRows.length;
+        }
+
+        chatRows.forEach(r => {
+          if (!r.isMuted) {
+            unreadCountVal += r.unreadCount;
+          }
+        });
+
+        setUnreadCount(unreadCountVal);
+      } catch (e) {
+        console.debug("Failed to fetch topbar notifications:", e);
+      }
+    };
+
+    fetchNotifications();
+    const interval = setInterval(fetchNotifications, 15000);
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
+  }, []);
 
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
@@ -244,15 +306,62 @@ export default function Topbar({
     user?.lastName,
   ]);
 
-  const notificationButton = (
-    <a
-      href="#"
-      className="btn btn-menubar position-relative"
-      title="Notifications"
-    >
-      <i className="ti ti-bell"></i>
-      <span className="notification-status-dot"></span>
-    </a>
+  const notificationDropdown = (
+    <div className="dropdown notifications-dropdown me-1">
+      <button
+        type="button"
+        className="btn btn-menubar position-relative"
+        data-bs-toggle="dropdown"
+        aria-expanded="false"
+        title="Notifications"
+        onClick={() => {
+          setUnreadCount(0);
+          localStorage.setItem("lastSeenNotificationTime", new Date().toISOString());
+        }}
+      >
+        <i className="ti ti-bell"></i>
+        {unreadCount > 0 && (
+          <span className="badge bg-danger rounded-pill position-absolute top-0 start-100 translate-middle animate-pulse" style={{ fontSize: "0.65rem", transform: "translate(-50%, -30%)" }}>
+            {unreadCount}
+          </span>
+        )}
+      </button>
+      <div className="dropdown-menu dropdown-menu-end shadow-lg p-0" style={{ width: "320px", maxHeight: "400px", overflowY: "auto", borderRadius: "12px", border: "1px solid #e2e8f0" }}>
+        <div className="d-flex align-items-center justify-content-between p-3 border-bottom bg-light" style={{ borderTopLeftRadius: "12px", borderTopRightRadius: "12px" }}>
+          <h6 className="mb-0 fw-semibold text-dark">Notifications</h6>
+          <span className="badge bg-primary-subtle text-primary rounded-pill small">{notifications.length} recent</span>
+        </div>
+        <div className="list-group list-group-flush">
+          {notifications.length === 0 ? (
+            <div className="text-center py-4 text-muted small">No notifications</div>
+          ) : (
+            notifications.map((item, idx) => (
+              <Link
+                key={item.messageId || idx}
+                to={item.threadType === "Direct Chat" ? "/chat" : "/leads"}
+                className="list-group-item list-group-item-action p-3"
+                style={{ borderBottom: "1px solid #f1f5f9" }}
+              >
+                <div className="d-flex justify-content-between align-items-start mb-1">
+                  <span className="fw-semibold text-dark small" style={{ textTransform: "capitalize" }}>
+                    {item.threadType ? `${item.threadType.toLowerCase()} update` : "New message"}
+                  </span>
+                  <span className="text-muted" style={{ fontSize: "0.75rem" }}>
+                    {item.createdAt ? new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ""}
+                  </span>
+                </div>
+                <p className="text-muted mb-0 text-truncate small" style={{ maxWidth: "260px" }}>
+                  {item.message || "New message received"}
+                </p>
+                <div className="text-primary small mt-1" style={{ fontSize: "0.75rem" }}>
+                  Sender: {item.senderRole || "System"}
+                </div>
+              </Link>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
   );
 
   const profileDropdown = (
@@ -363,17 +472,49 @@ export default function Topbar({
                   className={isFullscreen ? "ti ti-minimize" : "ti ti-maximize"}
                 ></i>
               </a>
-                <Link
-                to="/profile-settings"
-                className="btn btn-menubar"
-                title="Settings"
-              >
-                <i className="ti ti-settings-cog"></i>
-              </Link>
-                <Link to="/apps" className="btn btn-menubar me-1" title="Apps">
-                <i className="ti ti-layout-grid"></i>
-              </Link>
-                {notificationButton}
+                <div className="dropdown apps-dropdown me-1">
+                  <button
+                    type="button"
+                    className="btn btn-menubar"
+                    data-bs-toggle="dropdown"
+                    aria-expanded="false"
+                    title="Apps"
+                  >
+                    <i className="ti ti-layout-grid"></i>
+                  </button>
+                  <div className="dropdown-menu dropdown-menu-end shadow-lg p-3" style={{ width: "280px", borderRadius: "12px", border: "1px solid #e2e8f0" }}>
+                    <h6 className="mb-3 fw-semibold text-dark px-1">Quick Links</h6>
+                    <div className="row g-2">
+                      {[
+                        { label: "Dashboard", icon: "ti ti-layout-dashboard", color: "#3b82f6", href: "/admin-dashboard" },
+                        { label: "Chat", icon: "ti ti-message-2", color: "#10b981", href: "/chat" },
+                        { label: "Calendar", icon: "ti ti-calendar", color: "#f59e0b", href: "/calendar" },
+                        { label: "Todo", icon: "ti ti-list-check", color: "#6366f1", href: "/todo" },
+                        { label: "File Manager", icon: "ti ti-folder", color: "#ec4899", href: "/file-manager" },
+                        { label: "Settings", icon: "ti ti-settings-cog", color: "#64748b", href: "/profile-settings" },
+                      ].map((app) => (
+                        <div className="col-4 text-center" key={app.label}>
+                          <Link
+                            to={app.href}
+                            className="d-flex flex-column align-items-center justify-content-center p-2 rounded text-decoration-none"
+                            style={{ color: "#334155", transition: "background 0.2s" }}
+                            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = "#f8fafc"; }}
+                            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "transparent"; }}
+                          >
+                            <div
+                              className="d-flex align-items-center justify-content-center mb-1 rounded-circle"
+                              style={{ width: "40px", height: "40px", backgroundColor: `${app.color}15`, color: app.color }}
+                            >
+                              <i className={app.icon} style={{ fontSize: "1.25rem" }}></i>
+                            </div>
+                            <span className="small text-truncate w-100" style={{ fontSize: "0.75rem", fontWeight: "500" }}>{app.label}</span>
+                          </Link>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                {notificationDropdown}
                 {profileDropdown}
               </div>
 

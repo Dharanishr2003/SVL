@@ -1473,6 +1473,8 @@ ${rowsHtml}
                                 className="btn btn-kebab-actions d-flex align-items-center justify-content-center dropdown-toggle no-caret"
                                 style={{ width: 32, height: 32, borderRadius: "50%", border: "none", backgroundColor: "transparent", color: "#64748b" }}
                                 data-bs-toggle="dropdown"
+                                data-bs-boundary="viewport"
+                                data-bs-popper-config='{"strategy":"fixed"}'
                                 aria-expanded="false"
                               >
                                 <i className="ti ti-dots-vertical" style={{ fontSize: "1.15rem" }} />
@@ -1733,6 +1735,8 @@ ${rowsHtml}
                                 className="btn btn-kebab-actions d-flex align-items-center justify-content-center dropdown-toggle no-caret"
                                 style={{ width: 32, height: 32, borderRadius: "50%", border: "none", backgroundColor: "transparent", color: "#64748b" }}
                                 data-bs-toggle="dropdown"
+                                data-bs-boundary="viewport"
+                                data-bs-popper-config='{"strategy":"fixed"}'
                                 aria-expanded="false"
                               >
                                 <i className="ti ti-dots-vertical" style={{ fontSize: "1.15rem" }} />

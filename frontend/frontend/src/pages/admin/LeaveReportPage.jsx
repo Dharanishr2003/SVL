@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
 import PageSizeSelector from "../../components/admin/PageSizeSelector";
 import LeadExportDropdown from "../../components/admin/LeadExportDropdown";
@@ -574,9 +575,91 @@ export default function LeaveReportPage() {
 
             {/* Pagination Footer */}
             {!loading && totalElements > 0 && (
-              <div className="d-flex justify-content-between align-items-center flex-wrap gap-3 mt-4 pt-3 border-top">
+              <div className="leads-pagination-footer d-flex flex-wrap align-items-center justify-content-between gap-3 mt-4 pt-3 border-top">
+                <span className="entries-info text-muted small">
+                  Showing {(page - 1) * pageSize + 1} to {Math.min(page * pageSize, totalElements)} of {totalElements} entries
+                </span>
+                
+                <div className="pagination-numbers-container d-flex align-items-center gap-1 mx-auto">
+                  <button
+                    type="button"
+                    className="btn-pagination-arrow btn btn-sm btn-light border-0 d-flex align-items-center justify-content-center"
+                    style={{ width: 32, height: 32, borderRadius: 6 }}
+                    disabled={page <= 1}
+                    onClick={() => setPage(p => Math.max(1, p - 1))}
+                  >
+                    ❮
+                  </button>
+                  {(() => {
+                    const buttons = [];
+                    const maxVisible = 5;
+                    let startPage = Math.max(1, page - 2);
+                    let endPage = Math.min(totalPages, startPage + maxVisible - 1);
+                    if (maxVisible - 1 > endPage - startPage) {
+                      startPage = Math.max(1, endPage - maxVisible + 1);
+                    }
+
+                    if (startPage > 1) {
+                      buttons.push(
+                        <button
+                          key={1}
+                          type="button"
+                          className={`btn-pagination-num btn btn-sm border-0 ${page === 1 ? 'btn-primary text-white' : 'btn-light'}`}
+                          style={{ width: 32, height: 32, borderRadius: 6, fontWeight: "500", backgroundColor: page === 1 ? "#3b82f6" : undefined }}
+                          onClick={() => setPage(1)}
+                        >
+                          1
+                        </button>
+                      );
+                      if (startPage > 2) {
+                        buttons.push(<span key="dots-start" className="pagination-dots px-1 text-muted">...</span>);
+                      }
+                    }
+
+                    for (let i = startPage; endPage >= i; i++) {
+                      buttons.push(
+                        <button
+                          key={i}
+                          type="button"
+                          className={`btn-pagination-num btn btn-sm border-0 ${page === i ? 'btn-primary text-white' : 'btn-light'}`}
+                          style={{ width: 32, height: 32, borderRadius: 6, fontWeight: "500", backgroundColor: page === i ? "#3b82f6" : undefined }}
+                          onClick={() => setPage(i)}
+                        >
+                          {i}
+                        </button>
+                      );
+                    }
+
+                    if (totalPages > endPage) {
+                      if (totalPages - 1 > endPage) {
+                        buttons.push(<span key="dots-end" className="pagination-dots px-1 text-muted">...</span>);
+                      }
+                      buttons.push(
+                        <button
+                          key={totalPages}
+                          type="button"
+                          className={`btn-pagination-num btn btn-sm border-0 ${page === totalPages ? 'btn-primary text-white' : 'btn-light'}`}
+                          style={{ width: 32, height: 32, borderRadius: 6, fontWeight: "500", backgroundColor: page === totalPages ? "#3b82f6" : undefined }}
+                          onClick={() => setPage(totalPages)}
+                        >
+                          {totalPages}
+                        </button>
+                      );
+                    }
+                    return buttons;
+                  })()}
+                  <button
+                    type="button"
+                    className="btn-pagination-arrow btn btn-sm btn-light border-0 d-flex align-items-center justify-content-center"
+                    style={{ width: 32, height: 32, borderRadius: 6 }}
+                    disabled={page === totalPages}
+                    onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                  >
+                    ❯
+                  </button>
+                </div>
+
                 <div className="d-flex align-items-center gap-2">
-                  <span className="text-muted small">Show</span>
                   <PageSizeSelector
                     pageSize={pageSize}
                     setPageSize={(size) => {
@@ -584,51 +667,68 @@ export default function LeaveReportPage() {
                       setPage(1);
                     }}
                   />
-                  <span className="text-muted small">entries</span>
-                </div>
-                
-                <div className="text-muted small">
-                  Showing {(page - 1) * pageSize + 1} to {Math.min(page * pageSize, totalElements)} of {totalElements} entries
-                </div>
-
-                <div className="d-flex align-items-center gap-1">
-                  <button
-                    className="btn btn-icon btn-sm btn-outline-light border"
-                    disabled={page === 1}
-                    onClick={() => setPage(p => Math.max(1, p - 1))}
-                  >
-                    ❮
-                  </button>
-                  {Array.from({ length: totalPages }, (_, i) => i + 1)
-                    .filter(p => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
-                    .map((p, idx, arr) => {
-                      const isEllipsis = idx > 0 && p - arr[idx - 1] > 1;
-                      return (
-                        <React.Fragment key={p}>
-                          {isEllipsis && <span className="px-2 text-muted">...</span>}
-                          <button
-                            className={`btn btn-sm ${p === page ? "btn-primary" : "btn-outline-light border text-dark"}`}
-                            style={{ minWidth: 32 }}
-                            onClick={() => setPage(p)}
-                          >
-                            {p}
-                          </button>
-                        </React.Fragment>
-                      );
-                    })}
-                  <button
-                    className="btn btn-icon btn-sm btn-outline-light border"
-                    disabled={page === totalPages}
-                    onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                  >
-                    ❯
-                  </button>
                 </div>
               </div>
             )}
           </div>
         </div>
       </div>
+
+      {/* Floating Bulk Action Bar */}
+      {selectedIds.size > 0 &&
+        createPortal(
+          <div
+            className="floating-bulk-bar"
+            style={{
+              position: "fixed",
+              bottom: 24,
+              left: "50%",
+              transform: "translateX(-50%)",
+              backgroundColor: "#0f172a",
+              color: "#fff",
+              padding: "12px 24px",
+              borderRadius: 12,
+              display: "flex",
+              alignItems: "center",
+              gap: 16,
+              zIndex: 9999,
+              boxShadow: "0 10px 25px rgba(0,0,0,0.3)",
+            }}
+          >
+            <span className="small">{selectedIds.size} row(s) selected</span>
+            <button className="btn btn-sm btn-outline-light" onClick={() => setSelectedIds(new Set())}>
+              Clear
+            </button>
+            <div className="dropdown">
+              <button
+                className="btn btn-sm btn-primary dropdown-toggle"
+                type="button"
+                data-bs-toggle="dropdown"
+                aria-expanded="false"
+              >
+                Bulk Export
+              </button>
+              <ul className="dropdown-menu dropdown-menu-end shadow border-0">
+                <li>
+                  <button className="dropdown-item py-2 d-flex align-items-center gap-2" onClick={exportPdf}>
+                    <i className="ti ti-file-type-pdf text-danger" /> Export PDF
+                  </button>
+                </li>
+                <li>
+                  <button className="dropdown-item py-2 d-flex align-items-center gap-2" onClick={exportExcel}>
+                    <i className="ti ti-file-type-xls text-success" /> Export Excel
+                  </button>
+                </li>
+                <li>
+                  <button className="dropdown-item py-2 d-flex align-items-center gap-2" onClick={exportCsv}>
+                    <i className="ti ti-file-type-csv text-info" /> Export CSV
+                  </button>
+                </li>
+              </ul>
+            </div>
+          </div>,
+          document.body,
+        )}
     </>
   );
 }

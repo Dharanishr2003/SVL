@@ -84,11 +84,20 @@ public class PayrollService {
         LocalDate startDate = range[0];
         LocalDate endDate = range[1];
 
-        // Fetch global overtime percentage (defaults to 150.00%)
-        BigDecimal otPercentage = BigDecimal.valueOf(150.00);
         List<PayrollOvertime> overtimes = overtimeRepository.findByDeletedFalseOrderByNameAsc();
-        if (!overtimes.isEmpty()) {
-            otPercentage = overtimes.get(0).getRate();
+        BigDecimal normalHoursRate = null;
+        BigDecimal overtimeRate = null;
+        for (PayrollOvertime ot : overtimes) {
+            String name = ot.getName().toLowerCase();
+            if (name.contains("normal") || name.contains("regular")) {
+                normalHoursRate = ot.getRate();
+            } else if (name.contains("overtime") || name.contains("ot")) {
+                overtimeRate = ot.getRate();
+            }
+        }
+        // If not matched by specific names, try to assign default fallbacks from the list
+        if (overtimeRate == null && !overtimes.isEmpty()) {
+            overtimeRate = overtimes.get(0).getRate();
         }
 
         List<Employee> employees = employeeRepository.findByDeletedFalseOrderByIdDesc();
@@ -109,10 +118,26 @@ public class PayrollService {
                 if (totalOtMinutes > 0) {
                     BigDecimal otHours = BigDecimal.valueOf(totalOtMinutes).divide(BigDecimal.valueOf(60), 2, RoundingMode.HALF_UP);
                     
-                    // Dynamic OT Hourly Rate: (Basic / 240) * (otPercentage / 100)
+                    BigDecimal otHourlyRate = BigDecimal.ZERO;
                     BigDecimal basic = sal.getBasic() != null ? sal.getBasic() : BigDecimal.ZERO;
-                    BigDecimal regularHourlyRate = basic.divide(BigDecimal.valueOf(240), 4, RoundingMode.HALF_UP);
-                    BigDecimal otHourlyRate = regularHourlyRate.multiply(otPercentage.divide(BigDecimal.valueOf(100), 4, RoundingMode.HALF_UP));
+
+                    if (overtimeRate != null) {
+                        if (normalHoursRate != null) {
+                            BigDecimal multiplier;
+                            if (overtimeRate.compareTo(BigDecimal.valueOf(10)) > 0) {
+                                multiplier = overtimeRate.divide(BigDecimal.valueOf(100), 4, RoundingMode.HALF_UP);
+                            } else {
+                                multiplier = overtimeRate;
+                            }
+                            otHourlyRate = normalHoursRate.multiply(multiplier);
+                        } else {
+                            otHourlyRate = overtimeRate;
+                        }
+                    } else {
+                        // Dynamic OT Hourly Rate fallback: (Basic / 240) * 1.5
+                        BigDecimal regularHourlyRate = basic.divide(BigDecimal.valueOf(240), 4, RoundingMode.HALF_UP);
+                        otHourlyRate = regularHourlyRate.multiply(BigDecimal.valueOf(1.5));
+                    }
                     
                     overtimeAmount = otHours.multiply(otHourlyRate).setScale(2, RoundingMode.HALF_UP);
                 }

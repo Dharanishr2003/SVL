@@ -27,6 +27,10 @@ export default function EmailSettingsPage() {
   const [hasPassword, setHasPassword] = useState(false);
   const [form, setForm] = useState(DEFAULT_FORM);
   const [testTo, setTestTo] = useState("");
+  const [ccList, setCcList] = useState([]);
+  const [bccList, setBccList] = useState([]);
+  const [ccInput, setCcInput] = useState("");
+  const [bccInput, setBccInput] = useState("");
 
   const canSave = useMemo(() => {
     if (!form.enabled) return true;
@@ -59,6 +63,8 @@ export default function EmailSettingsPage() {
           cc: data.cc || "",
           bcc: data.bcc || "",
         }));
+        setCcList(data.cc ? data.cc.split(",").map(s => s.trim()).filter(Boolean) : []);
+        setBccList(data.bcc ? data.bcc.split(",").map(s => s.trim()).filter(Boolean) : []);
         setHasPassword(!!data.hasPassword);
       } catch (e) {
         if (isMounted) showError(extractApiErrorMessage(e, "Failed to load mail settings"));
@@ -89,8 +95,8 @@ export default function EmailSettingsPage() {
         starttls: !!form.starttls,
         fromAddress: form.fromAddress,
         fromName: form.fromName,
-        cc: form.cc,
-        bcc: form.bcc,
+        cc: ccList.join(","),
+        bcc: bccList.join(","),
       };
       const res = await saveMailSettings(payload);
       setHasPassword(!!res?.hasPassword || (hasPassword && !String(form.password || "").trim()));
@@ -102,6 +108,44 @@ export default function EmailSettingsPage() {
       setSaving(false);
     }
   }
+
+  const addCc = () => {
+    const val = ccInput.trim();
+    if (val) {
+      if (!ccList.includes(val)) {
+        setCcList([...ccList, val]);
+      }
+      setCcInput("");
+    }
+  };
+
+  const removeCc = (index) => {
+    setCcList(ccList.filter((_, i) => i !== index));
+  };
+
+  const editCc = (index) => {
+    setCcInput(ccList[index]);
+    setCcList(ccList.filter((_, i) => i !== index));
+  };
+
+  const addBcc = () => {
+    const val = bccInput.trim();
+    if (val) {
+      if (!bccList.includes(val)) {
+        setBccList([...bccList, val]);
+      }
+      setBccInput("");
+    }
+  };
+
+  const removeBcc = (index) => {
+    setBccList(bccList.filter((_, i) => i !== index));
+  };
+
+  const editBcc = (index) => {
+    setBccInput(bccList[index]);
+    setBccList(bccList.filter((_, i) => i !== index));
+  };
 
   async function handleTest() {
     const to = String(testTo || "").trim();
@@ -277,25 +321,117 @@ export default function EmailSettingsPage() {
               </div>
 
               <div className="col-md-6">
-                <label className="form-label fw-semibold text-dark" style={{ fontSize: "0.9rem" }}>Default CC Recipients (comma separated)</label>
-                <input
-                  className="form-control animate-focus"
-                  style={{ borderRadius: 8, height: 42 }}
-                  value={form.cc}
-                  onChange={(e) => setForm((p) => ({ ...p, cc: e.target.value }))}
-                  placeholder="cc1@example.com, cc2@example.com"
-                />
+                <label className="form-label fw-semibold text-dark" style={{ fontSize: "0.9rem" }}>Default CC Recipients</label>
+                <div className="input-group">
+                  <input
+                    type="email"
+                    className="form-control animate-focus"
+                    style={{ borderRadius: "8px 0 0 8px", height: 42 }}
+                    value={ccInput}
+                    onChange={(e) => setCcInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        addCc();
+                      }
+                    }}
+                    placeholder="Enter email and press Enter or Add"
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-outline-primary"
+                    style={{ borderRadius: "0 8px 8px 0", height: 42 }}
+                    onClick={addCc}
+                  >
+                    Add
+                  </button>
+                </div>
+                <div className="d-flex flex-wrap gap-2 mt-2">
+                  {ccList.map((email, index) => (
+                    <div
+                      key={index}
+                      className="d-flex align-items-center gap-2 px-3 py-1 bg-light border rounded-pill shadow-sm"
+                      style={{ fontSize: "0.85rem", color: "#334155", borderColor: "#cbd5e1" }}
+                    >
+                      <span className="text-truncate" style={{ maxWidth: "200px" }}>{email}</span>
+                      <button
+                        type="button"
+                        className="btn p-0 border-0 text-primary d-flex align-items-center justify-content-center"
+                        onClick={() => editCc(index)}
+                        title="Edit"
+                        style={{ background: "none", fontSize: "0.9rem" }}
+                      >
+                        <i className="ti ti-edit"></i>
+                      </button>
+                      <button
+                        type="button"
+                        className="btn p-0 border-0 text-danger d-flex align-items-center justify-content-center"
+                        onClick={() => removeCc(index)}
+                        title="Remove"
+                        style={{ background: "none", fontSize: "0.9rem" }}
+                      >
+                        <i className="ti ti-x"></i>
+                      </button>
+                    </div>
+                  ))}
+                </div>
               </div>
 
               <div className="col-md-6">
-                <label className="form-label fw-semibold text-dark" style={{ fontSize: "0.9rem" }}>Default BCC Recipients (comma separated)</label>
-                <input
-                  className="form-control animate-focus"
-                  style={{ borderRadius: 8, height: 42 }}
-                  value={form.bcc}
-                  onChange={(e) => setForm((p) => ({ ...p, bcc: e.target.value }))}
-                  placeholder="bcc1@example.com, bcc2@example.com"
-                />
+                <label className="form-label fw-semibold text-dark" style={{ fontSize: "0.9rem" }}>Default BCC Recipients</label>
+                <div className="input-group">
+                  <input
+                    type="email"
+                    className="form-control animate-focus"
+                    style={{ borderRadius: "8px 0 0 8px", height: 42 }}
+                    value={bccInput}
+                    onChange={(e) => setBccInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        addBcc();
+                      }
+                    }}
+                    placeholder="Enter email and press Enter or Add"
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-outline-primary"
+                    style={{ borderRadius: "0 8px 8px 0", height: 42 }}
+                    onClick={addBcc}
+                  >
+                    Add
+                  </button>
+                </div>
+                <div className="d-flex flex-wrap gap-2 mt-2">
+                  {bccList.map((email, index) => (
+                    <div
+                      key={index}
+                      className="d-flex align-items-center gap-2 px-3 py-1 bg-light border rounded-pill shadow-sm"
+                      style={{ fontSize: "0.85rem", color: "#334155", borderColor: "#cbd5e1" }}
+                    >
+                      <span className="text-truncate" style={{ maxWidth: "200px" }}>{email}</span>
+                      <button
+                        type="button"
+                        className="btn p-0 border-0 text-primary d-flex align-items-center justify-content-center"
+                        onClick={() => editBcc(index)}
+                        title="Edit"
+                        style={{ background: "none", fontSize: "0.9rem" }}
+                      >
+                        <i className="ti ti-edit"></i>
+                      </button>
+                      <button
+                        type="button"
+                        className="btn p-0 border-0 text-danger d-flex align-items-center justify-content-center"
+                        onClick={() => removeBcc(index)}
+                        title="Remove"
+                        style={{ background: "none", fontSize: "0.9rem" }}
+                      >
+                        <i className="ti ti-x"></i>
+                      </button>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           )}

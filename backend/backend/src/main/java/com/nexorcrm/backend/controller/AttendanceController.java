@@ -108,6 +108,14 @@ public class AttendanceController {
         return attendanceService.getAdminRange(from, to);
     }
 
+    @PutMapping("/admin/{id}")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','ADMIN','MANAGER')")
+    public ResponseEntity<AttendanceResponse> adminUpdateAttendance(
+            @PathVariable Long id,
+            @Valid @RequestBody AdminUpdateAttendanceRequest request) {
+        return ResponseEntity.ok(attendanceService.adminUpdate(id, request));
+    }
+
     // ── Admin: shifts CRUD ──
 
     @GetMapping("/shifts")

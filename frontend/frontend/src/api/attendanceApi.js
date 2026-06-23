@@ -109,3 +109,8 @@ export async function getEmployeeShift(employeeId) {
   const response = await api.get(`/api/attendance/employee-shifts/by-employee/${employeeId}`);
   return response?.data || [];
 }
+
+export async function updateAttendanceAdmin(id, payload) {
+  const response = await api.put(`/api/attendance/admin/${id}`, payload);
+  return response?.data;
+}

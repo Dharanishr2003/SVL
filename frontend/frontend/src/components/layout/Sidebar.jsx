@@ -67,10 +67,12 @@ export default function Sidebar() {
     if (!item) return false;
     if (!hasMatchingRole(role, item.rolesAny)) return false;
     if (hasExcludedRole(role, item.excludeRoles)) return false;
-    const children = Array.isArray(item.children)
-      ? item.children.filter(isVisibleItem)
-      : [];
-    if (children.length > 0) return true;
+    
+    if (Array.isArray(item.children) && item.children.length > 0) {
+      const visibleChildren = item.children.filter(isVisibleItem);
+      return visibleChildren.length > 0;
+    }
+    
     if (Array.isArray(item.accessAny) && item.accessAny.length > 0) {
       return canAccessAny(item.accessAny);
     }
@@ -86,7 +88,7 @@ export default function Sidebar() {
           items: (section.items || []).filter(isVisibleItem),
         }))
         .filter((section) => section.items.length > 0),
-    [role, canAccess],
+    [role, canAccess, user],
   );
 
   useEffect(() => {

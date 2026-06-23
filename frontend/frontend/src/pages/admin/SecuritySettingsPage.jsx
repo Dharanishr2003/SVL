@@ -1,1602 +1,287 @@
-﻿import { useEffect } from "react";
-import { loadLegacyUiScripts } from "../../utils/loadLegacyUiScripts";
-import "../../assets/css/LeadsDashboard.css";
+import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+import { getSecurityPolicySettings, saveSecurityPolicySettings } from "../../api/securityPolicySettingsApi";
+import { useToast } from "../../components/system/ToastProvider";
+import { extractApiErrorMessage } from "../../utils/errorMessage";
+import "./LeadsPage.css";
 
-function LeadsDashboardPage() {
+const DEFAULT_FORM = {
+  minPasswordLength: 8,
+  requireUppercase: true,
+  requireLowercase: true,
+  requireNumbers: true,
+  requireSpecialChars: true,
+  maxLoginAttempts: 5,
+  lockoutDurationMinutes: 15,
+  passwordExpiryDays: 90,
+};
+
+export default function SecuritySettingsPage() {
+  const { showSuccess, showError } = useToast();
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState(DEFAULT_FORM);
+
   useEffect(() => {
-    let timer = null;
-    loadLegacyUiScripts([
-      "/assets/js/jquery-3.7.1.min.js",
-      "/assets/js/bootstrap.bundle.min.js",
-      "/assets/plugins/apexchart/apexcharts.min.js",
-      "/assets/js/leads-dashboard.js",
-    ])
-      .then(() => {
-        timer = window.setTimeout(() => {
-          if (typeof window.__nexorLeadsDashboardInit === "function") {
-            window.__nexorLeadsDashboardInit();
-          }
-        }, 80);
-      })
-      .catch(() => {});
-
-    return () => {
-      if (timer) {
-        window.clearTimeout(timer);
-      }
-      if (typeof window.__nexorLeadsDashboardDestroy === "function") {
-        window.__nexorLeadsDashboardDestroy();
+    let isMounted = true;
+    const load = async () => {
+      setLoading(true);
+      try {
+        const data = await getSecurityPolicySettings();
+        if (!isMounted) return;
+        if (data) {
+          setForm({
+            minPasswordLength: data.minPasswordLength ?? 8,
+            requireUppercase: data.requireUppercase ?? true,
+            requireLowercase: data.requireLowercase ?? true,
+            requireNumbers: data.requireNumbers ?? true,
+            requireSpecialChars: data.requireSpecialChars ?? true,
+            maxLoginAttempts: data.maxLoginAttempts ?? 5,
+            lockoutDurationMinutes: data.lockoutDurationMinutes ?? 15,
+            passwordExpiryDays: data.passwordExpiryDays ?? 90,
+          });
+        }
+      } catch (e) {
+        if (isMounted) showError(extractApiErrorMessage(e, "Failed to load security policy settings"));
+      } finally {
+        if (isMounted) setLoading(false);
       }
     };
-  }, []);
+    load();
+    return () => {
+      isMounted = false;
+    };
+  }, [showError]);
+
+  async function handleSave() {
+    if (Number(form.minPasswordLength) < 4) {
+      showError("Minimum Password Length must be at least 4 characters");
+      return;
+    }
+    if (Number(form.maxLoginAttempts) < 1) {
+      showError("Maximum Login Attempts must be at least 1");
+      return;
+    }
+    if (Number(form.lockoutDurationMinutes) < 1) {
+      showError("Lockout Duration must be at least 1 minute");
+      return;
+    }
+    if (Number(form.passwordExpiryDays) < 1) {
+      showError("Password Expiry duration must be at least 1 day");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const payload = {
+        minPasswordLength: Number(form.minPasswordLength),
+        requireUppercase: !!form.requireUppercase,
+        requireLowercase: !!form.requireLowercase,
+        requireNumbers: !!form.requireNumbers,
+        requireSpecialChars: !!form.requireSpecialChars,
+        maxLoginAttempts: Number(form.maxLoginAttempts),
+        lockoutDurationMinutes: Number(form.lockoutDurationMinutes),
+        passwordExpiryDays: Number(form.passwordExpiryDays),
+      };
+      await saveSecurityPolicySettings(payload);
+      showSuccess("Security policy settings saved successfully");
+    } catch (e) {
+      showError(extractApiErrorMessage(e, "Failed to save security policy settings"));
+    } finally {
+      setSaving(false);
+    }
+  }
 
   return (
     <div className="content">
-      <div className="content">
-        <div className="content">
-          <h2 className="content">Leads Dashboard</h2>
-
-          <nav>
-            <ol className="content">
-              <li className="content">
-                <a href="index.html">
-                  <i className="content"></i>
-                </a>
-              </li>
-
-              <li className="content">Dashboard</li>
-
-              <li className="content" aria-current="page">
-                Leads Dashboard
-              </li>
-            </ol>
-          </nav>
-        </div>
-
-        <div className="content">
-          <div className="content">
-            <div className="content">
-              <a href="#" className="content" data-bs-toggle="dropdown">
-                <i className="content"></i>Export
-              </a>
-
-              <ul className="content">
-                <li>
-                  <a href="#" className="content">
-                    <i className="content"></i>Export as PDF
-                  </a>
+      {/* Styled Header Card */}
+      <div className="card border-0 shadow-sm p-4 mb-4 bg-white" style={{ borderRadius: 12 }}>
+        <div className="d-flex align-items-center justify-content-between flex-wrap gap-3">
+          <div>
+            <h2 className="leads-header-title mb-1" style={{ fontSize: "1.4rem", fontWeight: "700", color: "#0f172a" }}>Security Settings</h2>
+            <nav className="mb-0">
+              <ol className="breadcrumb mb-0" style={{ fontSize: "0.9rem" }}>
+                <li className="breadcrumb-item">
+                  <Link to="/admin-dashboard" style={{ color: "#64748b", textDecoration: "none" }}>
+                    <i className="ti ti-smart-home"></i>
+                  </Link>
                 </li>
-
-                <li>
-                  <a href="#" className="content">
-                    <i className="content"></i>Export as Excel{" "}
-                  </a>
-                </li>
-              </ul>
-            </div>
+                <li className="breadcrumb-item" style={{ color: "#64748b" }}>Settings</li>
+                <li className="breadcrumb-item active" style={{ color: "#0f172a", fontWeight: "500" }}>Security Settings</li>
+              </ol>
+            </nav>
           </div>
 
-          <div className="content">
-            <span className="content">
-              <i className="content"></i>
-            </span>
-
-            <input
-              type="text"
-              className="content"
-              placeholder="dd/mm/yyyy - dd/mm/yyyy"
-            />
-          </div>
-
-          <div className="content">
-            <a
-              href="#"
-              className="content"
-              data-bs-toggle="tooltip"
-              data-bs-placement="top"
-              data-bs-original-title="Collapse"
-              id="collapse-header"
+          <div className="d-flex align-items-center gap-2">
+            <button
+              type="button"
+              className="btn btn-primary create-lead-btn d-flex align-items-center gap-2"
+              onClick={handleSave}
+              disabled={loading || saving}
+              style={{ backgroundColor: "#3b82f6", borderColor: "#3b82f6", fontWeight: "600", padding: "10px 20px", borderRadius: "10px" }}
             >
-              <i className="content"></i>
-            </a>
+              <i className="ti ti-device-floppy" style={{ fontSize: "1.1rem" }}></i>
+              {saving ? "Saving..." : "Save Settings"}
+            </button>
           </div>
         </div>
       </div>
 
-      <div className="content">
-        <div className="content">
-          <div className="content">
-            <div className="content">
-              <div className="content">
-                <div className="content">
-                  <span className="content">
-                    <i className="content"></i>
-                  </span>
-                </div>
-
-                <div className="content">
-                  <p className="content">Total No of Leads</p>
-
-                  <h5>6000</h5>
-                </div>
-              </div>
-
-              <div className="content">
-                <div
-                  className="content"
-                  role="progressbar"
-                  style={{ width: "40%" }}
-                ></div>
-              </div>
-
-              <p className="content">
-                <span className="content">
-                  <i className="content"></i>-4.01%{" "}
-                </span>{" "}
-                from last week
-              </p>
-
-              <span className="content">
-                <img src="/core-assets/images/bg/card-bg-04.png" alt="Img" />
-              </span>
-            </div>
-          </div>
+      {/* Main Settings Card */}
+      <div className="card border-0 shadow-sm mb-4" style={{ borderRadius: 12 }}>
+        <div className="card-header bg-white border-bottom p-3">
+          <h5 className="mb-0" style={{ fontWeight: "600", color: "#0f172a" }}>Password Complexity & Account Lockout</h5>
+          <p className="text-muted small mb-0">Define password strength requirements, maximum failed attempts, and account lockout policies.</p>
         </div>
-
-        <div className="content">
-          <div className="content">
-            <div className="content">
-              <div className="content">
-                <div className="content">
-                  <span className="content">
-                    <i className="content"></i>
-                  </span>
-                </div>
-
-                <div className="content">
-                  <p className="content">No of New Leads</p>
-
-                  <h5>120</h5>
-                </div>
-              </div>
-
-              <div className="content">
-                <div
-                  className="content"
-                  role="progressbar"
-                  style={{ width: "40%" }}
-                ></div>
-              </div>
-
-              <p className="content">
-                <span className="content">
-                  <i className="content"></i>+20.01%{" "}
-                </span>{" "}
-                from last week
-              </p>
-
-              <span className="content">
-                <img src="/core-assets/images/bg/card-bg-04.png" alt="Img" />
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <div className="content">
-          <div className="content">
-            <div className="content">
-              <div className="content">
-                <div className="content">
-                  <span className="content">
-                    <i className="content"></i>
-                  </span>
-                </div>
-
-                <div className="content">
-                  <p className="content">No of Lost Leads</p>
-
-                  <h5>30</h5>
+        <div className="card-body p-4">
+          {loading ? (
+            <div className="text-center py-4">Loading settings...</div>
+          ) : (
+            <div className="row g-4">
+              <div className="col-md-6">
+                <div className="card border p-3" style={{ borderRadius: 10 }}>
+                  <label className="form-label fw-bold text-dark mb-1" style={{ fontSize: "0.95rem" }}>Minimum Password Length</label>
+                  <p className="text-muted small mb-2">Set the minimum character length required for passwords.</p>
+                  <input
+                    type="number"
+                    min="4"
+                    className="form-control animate-focus"
+                    style={{ borderRadius: 8, height: 42 }}
+                    value={form.minPasswordLength}
+                    onChange={(e) => setForm((p) => ({ ...p, minPasswordLength: e.target.value }))}
+                  />
                 </div>
               </div>
 
-              <div className="content">
-                <div
-                  className="content"
-                  role="progressbar"
-                  style={{ width: "40%" }}
-                ></div>
-              </div>
-
-              <p className="content">
-                <span className="content">
-                  <i className="content"></i>+55%{" "}
-                </span>{" "}
-                from last week
-              </p>
-
-              <span className="content">
-                <img src="/core-assets/images/bg/card-bg-04.png" alt="Img" />
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <div className="content">
-          <div className="content">
-            <div className="content">
-              <div className="content">
-                <div className="content">
-                  <span className="content">
-                    <i className="content"></i>
-                  </span>
-                </div>
-
-                <div className="content">
-                  <p className="content">No of Total Customers</p>
-
-                  <h5>9895</h5>
+              <div className="col-md-6">
+                <div className="card border p-3" style={{ borderRadius: 10 }}>
+                  <label className="form-label fw-bold text-dark mb-1" style={{ fontSize: "0.95rem" }}>Password Expiry Duration (Days)</label>
+                  <p className="text-muted small mb-2">Forces users to change their password periodically.</p>
+                  <input
+                    type="number"
+                    min="1"
+                    className="form-control animate-focus"
+                    style={{ borderRadius: 8, height: 42 }}
+                    value={form.passwordExpiryDays}
+                    onChange={(e) => setForm((p) => ({ ...p, passwordExpiryDays: e.target.value }))}
+                  />
                 </div>
               </div>
 
-              <div className="content">
-                <div
-                  className="content"
-                  role="progressbar"
-                  style={{ width: "40%" }}
-                ></div>
-              </div>
-
-              <p className="content">
-                <span className="content">
-                  <i className="content"></i>+55%{" "}
-                </span>{" "}
-                from last week
-              </p>
-
-              <span className="content">
-                <img src="/core-assets/images/bg/card-bg-04.png" alt="Img" />
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="content">
-        <div className="content">
-          <div className="content">
-            <div className="content">
-              <div className="content">
-                <h5>Pipeline Stages</h5>
-
-                <div className="content">
-                  <a href="#" className="content" data-bs-toggle="dropdown">
-                    <i className="content"></i>2023 - 2024
-                  </a>
-
-                  <ul className="content">
-                    <li>
-                      <a href="#" className="content">
-                        2023 - 2024
-                      </a>
-                    </li>
-
-                    <li>
-                      <a href="#" className="content">
-                        2022 - 2023
-                      </a>
-                    </li>
-
-                    <li>
-                      <a href="#" className="content">
-                        2021 - 2023
-                      </a>
-                    </li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-
-            <div className="content">
-              <div className="content">
-                <div className="content">
-                  <div className="content">
-                    <p className="content">
-                      <i className="content"></i>Contacted
-                    </p>
-
-                    <h6>50000</h6>
-                  </div>
-                </div>
-
-                <div className="content">
-                  <div className="content">
-                    <p className="content">
-                      <i className="content"></i>Oppurtunity
-                    </p>
-
-                    <h6>25985</h6>
-                  </div>
-                </div>
-
-                <div className="content">
-                  <div className="content">
-                    <p className="content">
-                      <i className="content"></i>Not Contacted
-                    </p>
-
-                    <h6>12566</h6>
-                  </div>
-                </div>
-
-                <div className="content">
-                  <div className="content">
-                    <p className="content">
-                      <i className="content"></i>Closed
-                    </p>
-
-                    <h6>8965</h6>
-                  </div>
-                </div>
-
-                <div className="content">
-                  <div className="content">
-                    <p className="content">
-                      <i className="content"></i>Lost
-                    </p>
-
-                    <h6>2452</h6>
-                  </div>
+              <div className="col-md-6">
+                <div className="card border p-3" style={{ borderRadius: 10 }}>
+                  <label className="form-label fw-bold text-dark mb-1" style={{ fontSize: "0.95rem" }}>Max Failed Login Attempts</label>
+                  <p className="text-muted small mb-2">Number of wrong attempts allowed before temporary lockout.</p>
+                  <input
+                    type="number"
+                    min="1"
+                    className="form-control animate-focus"
+                    style={{ borderRadius: 8, height: 42 }}
+                    value={form.maxLoginAttempts}
+                    onChange={(e) => setForm((p) => ({ ...p, maxLoginAttempts: e.target.value }))}
+                  />
                 </div>
               </div>
 
-              <div id="revenue-income"></div>
-            </div>
-          </div>
-        </div>
-
-        <div className="content">
-          <div className="content">
-            <div className="content">
-              <div className="content">
-                <h5>New Leads</h5>
-
-                <div className="content">
-                  <a href="#" className="content" data-bs-toggle="dropdown">
-                    <i className="content"></i>This Week
-                  </a>
-
-                  <ul className="content">
-                    <li>
-                      <a href="#" className="content">
-                        This Week
-                      </a>
-                    </li>
-
-                    <li>
-                      <a href="#" className="content">
-                        This Month
-                      </a>
-                    </li>
-
-                    <li>
-                      <a href="#" className="content">
-                        This Year
-                      </a>
-                    </li>
-                  </ul>
+              <div className="col-md-6">
+                <div className="card border p-3" style={{ borderRadius: 10 }}>
+                  <label className="form-label fw-bold text-dark mb-1" style={{ fontSize: "0.95rem" }}>Lockout Duration (Minutes)</label>
+                  <p className="text-muted small mb-2">How long the user is blocked after exceeding failed attempts limit.</p>
+                  <input
+                    type="number"
+                    min="1"
+                    className="form-control animate-focus"
+                    style={{ borderRadius: 8, height: 42 }}
+                    value={form.lockoutDurationMinutes}
+                    onChange={(e) => setForm((p) => ({ ...p, lockoutDurationMinutes: e.target.value }))}
+                  />
                 </div>
               </div>
-            </div>
 
-            <div className="content">
-              <div id="heat_chart"></div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="content">
-        <div className="content">
-          <div className="content">
-            <div className="content">
-              <div className="content">
-                <h5>Lost Leads By Reason</h5>
-
-                <div className="content">
-                  <a
-                    href="#"
-                    className="content"
-                    data-bs-toggle="dropdown"
-                    aria-expanded="false"
-                  >
-                    Sales Pipeline
-                  </a>
-
-                  <ul className="content">
-                    <li>
-                      <a href="#" className="content">
-                        This Month
-                      </a>
-                    </li>
-
-                    <li>
-                      <a href="#" className="content">
-                        This Week
-                      </a>
-                    </li>
-
-                    <li>
-                      <a href="#" className="content">
-                        Last Week
-                      </a>
-                    </li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-
-            <div className="content">
-              <div>
-                <div id="leads_stage"></div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="content">
-          <div className="content">
-            <div className="content">
-              <div className="content">
-                <h5>Leads By Companies</h5>
-
-                <div className="content">
-                  <a href="#" className="content" data-bs-toggle="dropdown">
-                    <i className="content"></i>This Week
-                  </a>
-
-                  <ul className="content">
-                    <li>
-                      <a href="#" className="content">
-                        This Month
-                      </a>
-                    </li>
-
-                    <li>
-                      <a href="#" className="content">
-                        This Week
-                      </a>
-                    </li>
-
-                    <li>
-                      <a href="#" className="content">
-                        Last Week
-                      </a>
-                    </li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-
-            <div className="content">
-              <div>
-                <div className="content">
-                  <div className="content">
-                    <div className="content">
-                      <a href="#" className="content">
-                        <img
-                          src="/core-assets/images/company/company-24.svg"
-                          className="content"
-                          alt="Img"
-                        />
-                      </a>
-
-                      <div>
-                        <h6 className="content">Pitch</h6>
-
-                        <p className="content">Value : $45,985</p>
-                      </div>
+              {/* Switches */}
+              <div className="col-md-6">
+                <div className="card border p-3" style={{ borderRadius: 10 }}>
+                  <div className="d-flex justify-content-between align-items-center">
+                    <div>
+                      <label className="form-label fw-bold text-dark mb-1" style={{ fontSize: "0.95rem" }}>Require Uppercase Letters</label>
+                      <p className="text-muted small mb-0">Password must contain at least one uppercase letter (A-Z).</p>
                     </div>
-
-                    <span className="content">
-                      <i className="content"></i> Not Contacted
-                    </span>
-                  </div>
-                </div>
-
-                <div className="content">
-                  <div className="content">
-                    <div className="content">
-                      <a href="#" className="content">
-                        <img
-                          src="/core-assets/images/company/company-25.svg"
-                          className="content"
-                          alt="Img"
-                        />
-                      </a>
-
-                      <div>
-                        <h6 className="content">Initech</h6>
-
-                        <p className="content">Value : $21,145</p>
-                      </div>
-                    </div>
-
-                    <span className="content">
-                      <i className="content"></i>Closed
-                    </span>
-                  </div>
-                </div>
-
-                <div className="content">
-                  <div className="content">
-                    <div className="content">
-                      <a href="#" className="content">
-                        <img
-                          src="/core-assets/images/company/company-26.svg"
-                          className="content"
-                          alt="Img"
-                        />
-                      </a>
-
-                      <div>
-                        <h6 className="content">Umbrella Corp</h6>
-
-                        <p className="content">Value : $15,685</p>
-                      </div>
-                    </div>
-
-                    <span className="content">
-                      <i className="content"></i>Contacted
-                    </span>
-                  </div>
-                </div>
-
-                <div className="content">
-                  <div className="content">
-                    <div className="content">
-                      <a href="#" className="content">
-                        <img
-                          src="/core-assets/images/company/company-27.svg"
-                          className="content"
-                          alt="Img"
-                        />
-                      </a>
-
-                      <div>
-                        <h6 className="content">Capital Partners</h6>
-
-                        <p className="content">Value : $12,105</p>
-                      </div>
-                    </div>
-
-                    <span className="content">
-                      <i className="content"></i>Contacted
-                    </span>
-                  </div>
-                </div>
-
-                <div className="content">
-                  <div className="content">
-                    <div className="content">
-                      <a href="#" className="content">
-                        <img
-                          src="/core-assets/images/company/company-28.svg"
-                          className="content"
-                          alt="Img"
-                        />
-                      </a>
-
-                      <div>
-                        <h6 className="content">Massive Dynamic</h6>
-
-                        <p className="content">Value : $2,546</p>
-                      </div>
-                    </div>
-
-                    <span className="content">
-                      <i className="content"></i>Lost
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="content">
-          <div className="content">
-            <div className="content">
-              <div className="content">
-                <h5>Leads by Source</h5>
-
-                <div className="content">
-                  <a href="#" className="content" data-bs-toggle="dropdown">
-                    <i className="content"></i>This Week
-                  </a>
-
-                  <ul className="content">
-                    <li>
-                      <a href="#" className="content">
-                        This Month
-                      </a>
-                    </li>
-
-                    <li>
-                      <a href="#" className="content">
-                        This Week
-                      </a>
-                    </li>
-
-                    <li>
-                      <a href="#" className="content">
-                        Last Week
-                      </a>
-                    </li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-
-            <div className="content">
-              <div id="donut-chart-2"></div>
-
-              <div>
-                <h6 className="content">Status</h6>
-
-                <div className="content">
-                  <p className="content">
-                    <i className="content"></i>Google
-                  </p>
-
-                  <p className="content">40%</p>
-                </div>
-
-                <div className="content">
-                  <p className="content">
-                    <i className="content"></i>Paid
-                  </p>
-
-                  <p className="content">35%</p>
-                </div>
-
-                <div className="content">
-                  <p className="content">
-                    <i className="content"></i>Campaigns
-                  </p>
-
-                  <p className="content">15%</p>
-                </div>
-
-                <div className="content">
-                  <p className="content">
-                    <i className="content"></i>Referals
-                  </p>
-
-                  <p className="content">10%</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="content">
-        <div className="content">
-          <div className="content">
-            <div className="content">
-              <div className="content">
-                <h5>Recent Follow Up</h5>
-
-                <div>
-                  <a href="#" className="content">
-                    View All
-                  </a>
-                </div>
-              </div>
-            </div>
-
-            <div className="content">
-              <div className="content">
-                <div className="content">
-                  <a href="#" className="content">
-                    <img
-                      src="/core-assets/images/users/user-27.jpg"
-                      className="content"
-                      alt="img"
-                    />
-                  </a>
-
-                  <div className="content">
-                    <h6 className="content">
-                      <a href="#">Alexander Jermai</a>
-                    </h6>
-
-                    <p className="content">UI/UX Designer</p>
-                  </div>
-                </div>
-
-                <div className="content">
-                  <a href="#" className="content">
-                    <i className="content"></i>
-                  </a>
-                </div>
-              </div>
-
-              <div className="content">
-                <div className="content">
-                  <a href="#" className="content">
-                    <img
-                      src="/core-assets/images/users/user-42.jpg"
-                      className="content"
-                      alt="img"
-                    />
-                  </a>
-
-                  <div className="content">
-                    <h6 className="content">
-                      <a href="#">Doglas Martini</a>
-                    </h6>
-
-                    <p className="content">Product Designer</p>
-                  </div>
-                </div>
-
-                <div className="content">
-                  <a href="#" className="content">
-                    <i className="content"></i>
-                  </a>
-                </div>
-              </div>
-
-              <div className="content">
-                <div className="content">
-                  <a href="#" className="content">
-                    <img
-                      src="/core-assets/images/users/user-43.jpg"
-                      className="content"
-                      alt="img"
-                    />
-                  </a>
-
-                  <div className="content">
-                    <h6 className="content">
-                      <a href="#">Daniel Esbella</a>
-                    </h6>
-
-                    <p className="content">Project Manager</p>
-                  </div>
-                </div>
-
-                <div className="content">
-                  <a href="#" className="content">
-                    <i className="content"></i>
-                  </a>
-                </div>
-              </div>
-
-              <div className="content">
-                <div className="content">
-                  <a href="#" className="content">
-                    <img
-                      src="/core-assets/images/users/user-11.jpg"
-                      className="content"
-                      alt="img"
-                    />
-                  </a>
-
-                  <div className="content">
-                    <h6 className="content">
-                      <a href="#">Daniel Esbella</a>
-                    </h6>
-
-                    <p className="content">Team Lead</p>
-                  </div>
-                </div>
-
-                <div className="content">
-                  <a href="#" className="content">
-                    <i className="content"></i>
-                  </a>
-                </div>
-              </div>
-
-              <div className="content">
-                <div className="content">
-                  <a href="#" className="content">
-                    <img
-                      src="/core-assets/images/users/user-45.jpg"
-                      className="content"
-                      alt="img"
-                    />
-                  </a>
-
-                  <div className="content">
-                    <h6 className="content">
-                      <a href="#">Doglas Martini</a>
-                    </h6>
-
-                    <p className="content">Team Lead</p>
-                  </div>
-                </div>
-
-                <div className="content">
-                  <a href="#" className="content">
-                    <i className="content"></i>
-                  </a>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="content">
-          <div className="content">
-            <div className="content">
-              <div className="content">
-                <h5>Recent Activities</h5>
-
-                <div>
-                  <a href="activity.html" className="content">
-                    View All
-                  </a>
-                </div>
-              </div>
-            </div>
-
-            <div className="content">
-              <div className="content">
-                <div className="content">
-                  <i className="content"></i>
-                </div>
-
-                <div className="content">
-                  <p className="content">
-                    <a href="activity.html">
-                      Drain responded to your appointment schedule question.
-                    </a>
-                  </p>
-
-                  <span>09:25 PM</span>
-                </div>
-              </div>
-
-              <div className="content">
-                <div className="content">
-                  <i className="content"></i>
-                </div>
-
-                <div className="content">
-                  <p className="content">
-                    <a href="activity.html">You sent 1 Message to the James.</a>
-                  </p>
-
-                  <span>10:25 PM</span>
-                </div>
-              </div>
-
-              <div className="content">
-                <div className="content">
-                  <i className="content"></i>
-                </div>
-
-                <div className="content">
-                  <p className="content">
-                    <a href="activity.html">
-                      Denwar responded to your appointment on 25 Jan 2025, 08:15
-                      PM
-                    </a>
-                  </p>
-
-                  <span>09:25 PM</span>
-                </div>
-              </div>
-
-              <div className="content">
-                <div className="content">
-                  <i className="content"></i>
-                </div>
-
-                <div className="content">
-                  <p className="content">
-                    <a href="activity.html" className="content">
-                      Meeting With{" "}
-                      <img
-                        src="/core-assets/images/users/user-58.jpg"
-                        className="content"
-                        alt="Img"
+                    <div className="form-check form-switch m-0">
+                      <input
+                        className="form-check-input"
+                        type="checkbox"
+                        checked={!!form.requireUppercase}
+                        onChange={(e) => setForm((p) => ({ ...p, requireUppercase: e.target.checked }))}
+                        style={{ width: "2.5em", height: "1.25em", cursor: "pointer" }}
                       />
-                      Abraham
-                    </a>
-                  </p>
-
-                  <span>09:25 PM</span>
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
-          </div>
-        </div>
 
-        <div className="content">
-          <div className="content">
-            <div className="content">
-              <div className="content">
-                <h5>Notifications</h5>
-
-                <div>
-                  <a href="#" className="content">
-                    View All
-                  </a>
-                </div>
-              </div>
-            </div>
-
-            <div className="content">
-              <div className="content">
-                <a href="#" className="content">
-                  <img
-                    src="/core-assets/images/users/user-27.jpg"
-                    className="content"
-                    alt="img"
-                  />
-                </a>
-
-                <div className="content">
-                  <h6 className="content">
-                    Lex Murphy requested access to UNIX{" "}
-                  </h6>
-
-                  <p className="content">Today at 9:42 AM</p>
-
-                  <div className="content">
-                    <a href="#" className="content">
-                      <img
-                        src="/core-assets/images/social/pdf-icon.svg"
-                        className="content"
-                        alt="Img"
+              <div className="col-md-6">
+                <div className="card border p-3" style={{ borderRadius: 10 }}>
+                  <div className="d-flex justify-content-between align-items-center">
+                    <div>
+                      <label className="form-label fw-bold text-dark mb-1" style={{ fontSize: "0.95rem" }}>Require Lowercase Letters</label>
+                      <p className="text-muted small mb-0">Password must contain at least one lowercase letter (a-z).</p>
+                    </div>
+                    <div className="form-check form-switch m-0">
+                      <input
+                        className="form-check-input"
+                        type="checkbox"
+                        checked={!!form.requireLowercase}
+                        onChange={(e) => setForm((p) => ({ ...p, requireLowercase: e.target.checked }))}
+                        style={{ width: "2.5em", height: "1.25em", cursor: "pointer" }}
                       />
-                    </a>
+                    </div>
+                  </div>
+                </div>
+              </div>
 
-                    <h6 className="content">
-                      <a href="#">EY_review.pdf</a>
-                    </h6>
+              <div className="col-md-6">
+                <div className="card border p-3" style={{ borderRadius: 10 }}>
+                  <div className="d-flex justify-content-between align-items-center">
+                    <div>
+                      <label className="form-label fw-bold text-dark mb-1" style={{ fontSize: "0.95rem" }}>Require Numbers</label>
+                      <p className="text-muted small mb-0">Password must contain at least one digit (0-9).</p>
+                    </div>
+                    <div className="form-check form-switch m-0">
+                      <input
+                        className="form-check-input"
+                        type="checkbox"
+                        checked={!!form.requireNumbers}
+                        onChange={(e) => setForm((p) => ({ ...p, requireNumbers: e.target.checked }))}
+                        style={{ width: "2.5em", height: "1.25em", cursor: "pointer" }}
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
 
-              <div className="content">
-                <a href="#" className="content">
-                  <img
-                    src="/core-assets/images/users/user-28.jpg"
-                    className="content"
-                    alt="img"
-                  />
-                </a>
-
-                <div className="content">
-                  <h6 className="content">
-                    Lex Murphy requested access to UNIX{" "}
-                  </h6>
-
-                  <p className="content">Today at 10:00 AM</p>
-                </div>
-              </div>
-
-              <div className="content">
-                <a href="#" className="content">
-                  <img
-                    src="/core-assets/images/users/user-29.jpg"
-                    className="content"
-                    alt="img"
-                  />
-                </a>
-
-                <div className="content">
-                  <h6 className="content">
-                    Lex Murphy requested access to UNIX{" "}
-                  </h6>
-
-                  <p className="content">Today at 10:50 AM</p>
-
-                  <div className="content">
-                    <a href="#" className="content">
-                      Approve
-                    </a>
-
-                    <a href="#" className="content">
-                      Decline
-                    </a>
-                  </div>
-                </div>
-              </div>
-
-              <div className="content">
-                <a href="#" className="content">
-                  <img
-                    src="/core-assets/images/users/user-33.jpg"
-                    className="content"
-                    alt="img"
-                  />
-                </a>
-
-                <div className="content">
-                  <h6 className="content">
-                    Lex Murphy requested access to UNIX{" "}
-                  </h6>
-
-                  <p className="content">Today at 05:00 PM</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="content">
-        <div className="content">
-          <div className="content">
-            <div className="content">
-              <div className="content">
-                <h5>Top Countries</h5>
-
-                <div className="content">
-                  <a
-                    href="#"
-                    className="content"
-                    data-bs-toggle="dropdown"
-                    aria-expanded="false"
-                  >
-                    Referrals
-                  </a>
-
-                  <ul className="content">
-                    <li>
-                      <a href="#" className="content">
-                        Referrals
-                      </a>
-                    </li>
-
-                    <li>
-                      <a href="#" className="content">
-                        Sales Pipeline
-                      </a>
-                    </li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-
-            <div className="content">
-              <div className="content">
-                <div className="content">
-                  <div className="content">
-                    <div className="content">
-                      <span className="content">
-                        <i className="content"></i>
-                      </span>
-
-                      <a href="countries.html" className="content">
-                        <img
-                          src="/core-assets/images/payment-gateway/country-03.svg"
-                          className="content"
-                          alt="img"
-                        />
-                      </a>
-
-                      <div className="content">
-                        <h6 className="content">
-                          <a href="countries.html">Singapore</a>
-                        </h6>
-
-                        <span className="content">Leads : 236</span>
-                      </div>
+              <div className="col-md-6">
+                <div className="card border p-3" style={{ borderRadius: 10 }}>
+                  <div className="d-flex justify-content-between align-items-center">
+                    <div>
+                      <label className="form-label fw-bold text-dark mb-1" style={{ fontSize: "0.95rem" }}>Require Special Characters</label>
+                      <p className="text-muted small mb-0">Password must contain at least one special character (e.g. !, @, #, $, etc.).</p>
                     </div>
-
-                    <div className="content">
-                      <span className="content">
-                        <i className="content"></i>
-                      </span>
-
-                      <a href="countries.html" className="content">
-                        <img
-                          src="/core-assets/images/payment-gateway/country-04.svg"
-                          className="content"
-                          alt="img"
-                        />
-                      </a>
-
-                      <div className="content">
-                        <h6 className="content">
-                          <a href="countries.html">France</a>
-                        </h6>
-
-                        <span className="content">Leads : 589</span>
-                      </div>
-                    </div>
-
-                    <div className="content">
-                      <span className="content">
-                        <i className="content"></i>
-                      </span>
-
-                      <a href="countries.html" className="content">
-                        <img
-                          src="/core-assets/images/payment-gateway/country-05.svg"
-                          className="content"
-                          alt="img"
-                        />
-                      </a>
-
-                      <div className="content">
-                        <h6 className="content">
-                          <a href="countries.html">Norway</a>
-                        </h6>
-
-                        <span className="content">Leads : 221</span>
-                      </div>
-                    </div>
-
-                    <div className="content">
-                      <span className="content">
-                        <i className="content"></i>
-                      </span>
-
-                      <a href="countries.html" className="content">
-                        <img
-                          src="/core-assets/images/payment-gateway/country-01.svg"
-                          className="content"
-                          alt="img"
-                        />
-                      </a>
-
-                      <div className="content">
-                        <h6 className="content">
-                          <a href="countries.html">USA</a>
-                        </h6>
-
-                        <span className="content">Leads : 350</span>
-                      </div>
-                    </div>
-
-                    <div className="content">
-                      <span className="content">
-                        <i className="content"></i>
-                      </span>
-
-                      <a href="countries.html" className="content">
-                        <img
-                          src="/core-assets/images/payment-gateway/country-02.svg"
-                          className="content"
-                          alt="img"
-                        />
-                      </a>
-
-                      <div className="content">
-                        <h6 className="content">
-                          <a href="countries.html">UAE</a>
-                        </h6>
-
-                        <span className="content">Leads : 221</span>
-                      </div>
+                    <div className="form-check form-switch m-0">
+                      <input
+                        className="form-check-input"
+                        type="checkbox"
+                        checked={!!form.requireSpecialChars}
+                        onChange={(e) => setForm((p) => ({ ...p, requireSpecialChars: e.target.checked }))}
+                        style={{ width: "2.5em", height: "1.25em", cursor: "pointer" }}
+                      />
                     </div>
                   </div>
                 </div>
-
-                <div className="content">
-                  <div id="donut-chart-3"></div>
-                </div>
               </div>
             </div>
-          </div>
-        </div>
-
-        <div className="content">
-          <div className="content">
-            <div className="content">
-              <h5>Recent Leads</h5>
-
-              <div className="content">
-                <div>
-                  <a href="leads.html" className="content">
-                    View All
-                  </a>
-                </div>
-              </div>
-            </div>
-
-            <div className="content">
-              <div className="content">
-                <table className="content">
-                  <thead>
-                    <tr>
-                      <th>Lead Name</th>
-
-                      <th>Company Name</th>
-
-                      <th>Stage</th>
-
-                      <th>Created Date</th>
-
-                      <th>Lead Owner</th>
-                    </tr>
-                  </thead>
-
-                  <tbody>
-                    <tr>
-                      <td>
-                        <h6 className="content">
-                          <a href="leads-details.html">Collins</a>
-                        </h6>
-                      </td>
-
-                      <td>
-                        <div className="content">
-                          <a href="company-details.html" className="content">
-                            <img
-                              src="/core-assets/images/company/company-01.svg"
-                              className="content"
-                              alt="img"
-                            />
-                          </a>
-
-                          <div className="content">
-                            <h6 className="content">
-                              <a href="company-details.html">
-                                BrightWave Innovations
-                              </a>
-                            </h6>
-                          </div>
-                        </div>
-                      </td>
-
-                      <td>
-                        <span className="content">
-                          <i className="content"></i>
-                          Contacted
-                        </span>
-                      </td>
-
-                      <td>14 Jan 2024</td>
-
-                      <td>Hendry</td>
-                    </tr>
-
-                    <tr>
-                      <td>
-                        <h6 className="content">
-                          <a href="leads-details.html">Konopelski</a>
-                        </h6>
-                      </td>
-
-                      <td>
-                        <div className="content">
-                          <a href="company-details.html" className="content">
-                            <img
-                              src="/core-assets/images/company/company-02.svg"
-                              className="content"
-                              alt="img"
-                            />
-                          </a>
-
-                          <div className="content">
-                            <h6 className="content">
-                              <a href="company-details.html">
-                                Stellar Dynamics
-                              </a>
-                            </h6>
-                          </div>
-                        </div>
-                      </td>
-
-                      <td>
-                        <span className="content">
-                          <i className="content"></i>
-                          Closed
-                        </span>
-                      </td>
-
-                      <td>21 Jan 2024</td>
-
-                      <td>Guilory</td>
-                    </tr>
-
-                    <tr>
-                      <td>
-                        <h6 className="content">
-                          <a href="leads-details.html">Adams</a>
-                        </h6>
-                      </td>
-
-                      <td>
-                        <div className="content">
-                          <a href="company-details.html" className="content">
-                            <img
-                              src="/core-assets/images/company/company-03.svg"
-                              className="content"
-                              alt="img"
-                            />
-                          </a>
-
-                          <div className="content">
-                            <h6 className="content">
-                              <a href="company-details.html">Quantum Nexus</a>
-                            </h6>
-                          </div>
-                        </div>
-                      </td>
-
-                      <td>
-                        <span className="content">
-                          <i className="content"></i>
-                          Lost
-                        </span>
-                      </td>
-
-                      <td>20 Feb 2024</td>
-
-                      <td>Jami</td>
-                    </tr>
-
-                    <tr>
-                      <td>
-                        <h6 className="content">
-                          <a href="leads-details.html">Schumm</a>
-                        </h6>
-                      </td>
-
-                      <td>
-                        <div className="content">
-                          <a href="company-details.html" className="content">
-                            <img
-                              src="/core-assets/images/company/company-04.svg"
-                              className="content"
-                              alt="img"
-                            />
-                          </a>
-
-                          <div className="content">
-                            <h6 className="content">
-                              <a href="company-details.html">
-                                EcoVision Enterprises
-                              </a>
-                            </h6>
-                          </div>
-                        </div>
-                      </td>
-
-                      <td>
-                        <span className="content">
-                          <i className="content"></i>
-                          Not Contacted
-                        </span>
-                      </td>
-
-                      <td>15 Mar 2024</td>
-
-                      <td>Theresa</td>
-                    </tr>
-
-                    <tr>
-                      <td>
-                        <h6 className="content">
-                          <a href="leads-details.html">Wisozk</a>
-                        </h6>
-                      </td>
-
-                      <td>
-                        <div className="content">
-                          <a href="company-details.html" className="content">
-                            <img
-                              src="/core-assets/images/company/company-05.svg"
-                              className="content"
-                              alt="img"
-                            />
-                          </a>
-
-                          <div className="content">
-                            <h6 className="content">
-                              <a href="company-details.html">
-                                Aurora Technologies
-                              </a>
-                            </h6>
-                          </div>
-                        </div>
-                      </td>
-
-                      <td>
-                        <span className="content">
-                          <i className="content"></i>
-                          Closed
-                        </span>
-                      </td>
-
-                      <td>12 Apr 2024</td>
-
-                      <td>Smith</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="content">
-        <div className="content">
-          <div className="content">
-            <div className="content">
-              <div className="content">
-                <h4>Project Status</h4>
-                <div className="content">
-                  <select className="content" defaultValue="">
-                    <option value="">All Projects</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-            <div className="content">
-              <div className="content">
-                <div className="content">
-                  <a href="#">
-                    <div className="content">
-                      <div className="content">
-                        <i className="content"></i>
-                        <h6>Today Leads</h6>
-                        <p>0</p>
-                      </div>
-                    </div>
-                  </a>
-                </div>
-                <div className="content">
-                  <a href="#">
-                    <div className="content">
-                      <div className="content">
-                        <i className="content"></i>
-                        <h6>New Lead</h6>
-                        <p>20</p>
-                      </div>
-                    </div>
-                  </a>
-                </div>
-                <div className="content">
-                  <a href="#">
-                    <div className="content">
-                      <div className="content">
-                        <i className="content"></i>
-                        <h6>Attempted</h6>
-                        <p>73</p>
-                      </div>
-                    </div>
-                  </a>
-                </div>
-                <div className="content">
-                  <a href="#">
-                    <div className="content">
-                      <div className="content">
-                        <i className="content"></i>
-                        <h6>Interested</h6>
-                        <p>41</p>
-                      </div>
-                    </div>
-                  </a>
-                </div>
-                <div className="content">
-                  <a href="#">
-                    <div className="content">
-                      <div className="content">
-                        <i className="content"></i>
-                        <h6>Allocate</h6>
-                        <p>0</p>
-                      </div>
-                    </div>
-                  </a>
-                </div>
-                <div className="content">
-                  <a href="#">
-                    <div className="content">
-                      <div className="content">
-                        <i className="content"></i>
-                        <h6>Site Visit</h6>
-                        <p>8</p>
-                      </div>
-                    </div>
-                  </a>
-                </div>
-                <div className="content">
-                  <a href="#">
-                    <div className="content">
-                      <div className="content">
-                        <i className="content"></i>
-                        <h6>Rejected</h6>
-                        <p>31</p>
-                      </div>
-                    </div>
-                  </a>
-                </div>
-                <div className="content">
-                  <a href="#">
-                    <div className="content">
-                      <div className="content">
-                        <i className="content"></i>
-                        <h6>Duplicate</h6>
-                        <p>12</p>
-                      </div>
-                    </div>
-                  </a>
-                </div>
-                <div className="content">
-                  <a href="#">
-                    <div className="content">
-                      <div className="content">
-                        <i className="content"></i>
-                        <h6>Opportunity</h6>
-                        <p>0</p>
-                      </div>
-                    </div>
-                  </a>
-                </div>
-                <div className="content">
-                  <a href="#">
-                    <div className="content">
-                      <div className="content">
-                        <i className="content"></i>
-                        <h6>Missed Follow Up</h6>
-                        <p>117</p>
-                      </div>
-                    </div>
-                  </a>
-                </div>
-                <div className="content">
-                  <a href="#">
-                    <div className="content">
-                      <div className="content">
-                        <i className="content"></i>
-                        <h6>Site Visit Done</h6>
-                        <p>6</p>
-                      </div>
-                    </div>
-                  </a>
-                </div>
-                <div className="content">
-                  <a href="#">
-                    <div className="content">
-                      <div className="content">
-                        <i className="content"></i>
-                        <h6>Site Visit Confirmed</h6>
-                        <p>0</p>
-                      </div>
-                    </div>
-                  </a>
-                </div>
-                <div className="content">
-                  <a href="#">
-                    <div className="content">
-                      <div className="content">
-                        <i className="content"></i>
-                        <h6>Re Scheduled Visit</h6>
-                        <p>0</p>
-                      </div>
-                    </div>
-                  </a>
-                </div>
-                <div className="content">
-                  <a href="#">
-                    <div className="content">
-                      <div className="content">
-                        <i className="content"></i>
-                        <h6>Site Visit Scheduled</h6>
-                        <p>2</p>
-                      </div>
-                    </div>
-                  </a>
-                </div>
-              </div>
-            </div>
-          </div>
+          )}
         </div>
       </div>
     </div>
   );
 }
-
-export default LeadsDashboardPage;

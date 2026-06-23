@@ -9,6 +9,9 @@ import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import com.nexorcrm.backend.entity.SessionSettings;
+import com.nexorcrm.backend.repo.SessionSettingsRepository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -33,6 +36,9 @@ public class JwtUtil {
     @Value("${auth.access-token.expiry-minutes:60}")
     private long accessTokenExpiryMinutes;
 
+    @Autowired
+    private SessionSettingsRepository sessionSettingsRepository;
+
     private SecretKey secretKey;
 
     @PostConstruct
@@ -48,8 +54,13 @@ public class JwtUtil {
         log.info("JwtUtil initialized successfully");
     }
 
-    public String generateAccessToken(User user) {
+    public String generateAccessToken(User user, String sessionId) {
         Instant now = Instant.now();
+        SessionSettings sessionSettings = sessionSettingsRepository.findAll().stream().findFirst().orElse(null);
+        int timeout = sessionSettings != null ? sessionSettings.getSessionTimeoutMinutes() : 60;
+        int warning = sessionSettings != null ? sessionSettings.getWarningBeforeLogoutSeconds() : 60;
+        long expiryMinutes = sessionSettings != null ? sessionSettings.getSessionTimeoutMinutes() : accessTokenExpiryMinutes;
+
         return Jwts.builder()
                 .subject(user.getEmail())
                 .claim(TOKEN_TYPE_CLAIM, TOKEN_TYPE_USER)
@@ -57,8 +68,11 @@ public class JwtUtil {
                 .claim("email", user.getEmail())
                 .claim("role", user.getRole().name())
                 .claim("forcePasswordChange", user.isForcePasswordChange())
+                .claim("sessionId", sessionId)
+                .claim("sessionTimeout", timeout)
+                .claim("sessionWarning", warning)
                 .issuedAt(Date.from(now))
-                .expiration(Date.from(now.plusSeconds(accessTokenExpiryMinutes * 60)))
+                .expiration(Date.from(now.plusSeconds(expiryMinutes * 60)))
                 .signWith(secretKey)
                 .compact();
     }

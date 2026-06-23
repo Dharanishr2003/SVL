@@ -14,6 +14,9 @@ import com.nexorcrm.backend.entity.RefreshToken;
 import com.nexorcrm.backend.entity.User;
 import com.nexorcrm.backend.repo.EmployeeRepository;
 import com.nexorcrm.backend.repo.UserRepository;
+import com.nexorcrm.backend.entity.SessionSettings;
+import com.nexorcrm.backend.repo.SessionSettingsRepository;
+import com.nexorcrm.backend.repo.RefreshTokenRepository;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Value;
@@ -45,6 +48,8 @@ public class AuthService {
     private final SecuritySettingsService securitySettingsService;
     private final AuditService auditService;
     private final HttpServletRequest request;
+    private final SessionSettingsRepository sessionSettingsRepository;
+    private final RefreshTokenRepository refreshTokenRepository;
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
     @Value("${app.upload-dir:uploads}")
@@ -59,7 +64,9 @@ public class AuthService {
                        RefreshTokenService refreshTokenService,
                        SecuritySettingsService securitySettingsService,
                        AuditService auditService,
-                       HttpServletRequest request) {
+                       HttpServletRequest request,
+                       SessionSettingsRepository sessionSettingsRepository,
+                       RefreshTokenRepository refreshTokenRepository) {
         this.userRepository = userRepository;
         this.employeeRepository = employeeRepository;
         this.jwtUtil = jwtUtil;
@@ -67,6 +74,8 @@ public class AuthService {
         this.securitySettingsService = securitySettingsService;
         this.auditService = auditService;
         this.request = request;
+        this.sessionSettingsRepository = sessionSettingsRepository;
+        this.refreshTokenRepository = refreshTokenRepository;
     }
 
     public LoginResponse login(LoginRequest request) {
@@ -102,8 +111,24 @@ public class AuthService {
         }
         userRepository.save(user);
 
-        String accessToken = jwtUtil.generateAccessToken(user);
+        SessionSettings sessionSettings = sessionSettingsRepository.findAll().stream().findFirst().orElse(null);
+        if (sessionSettings != null) {
+            if (Boolean.TRUE.equals(sessionSettings.getPreventConcurrentLogins())) {
+                refreshTokenService.revokeAllUserTokens(user);
+            } else if (sessionSettings.getMaxConcurrentSessions() != null) {
+                List<RefreshToken> activeTokens = refreshTokenRepository.findByUserAndRevokedFalseOrderByExpiryDateDesc(user);
+                int limit = sessionSettings.getMaxConcurrentSessions();
+                if (limit > 0 && activeTokens.size() >= limit) {
+                    int toRemoveCount = activeTokens.size() - limit + 1;
+                    for (int i = activeTokens.size() - 1; i >= activeTokens.size() - toRemoveCount; i--) {
+                        refreshTokenRepository.delete(activeTokens.get(i));
+                    }
+                }
+            }
+        }
+
         RefreshToken refreshToken = refreshTokenService.createRefreshToken(user);
+        String accessToken = jwtUtil.generateAccessToken(user, refreshToken.getToken());
 
         auditService.logAsActor("LOGIN", user.getEmail(), "User login", user.getEmail());
         return toLoginResponse(user, accessToken, refreshToken.getToken());
@@ -121,7 +146,7 @@ public class AuthService {
         if (user.getActivationStatus() == ActivationStatus.PENDING) {
             throw new AccessDeniedException("Your account is awaiting admin activation");
         }
-        String accessToken = jwtUtil.generateAccessToken(user);
+        String accessToken = jwtUtil.generateAccessToken(user, refreshToken);
         return toLoginResponse(user, accessToken, refreshToken);
     }
 

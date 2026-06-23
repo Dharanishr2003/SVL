@@ -5,6 +5,7 @@ import com.nexorcrm.backend.entity.User;
 import com.nexorcrm.backend.entity.Vendor;
 import com.nexorcrm.backend.repo.UserRepository;
 import com.nexorcrm.backend.repo.VendorRepository;
+import com.nexorcrm.backend.repo.RefreshTokenRepository;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -28,12 +29,14 @@ public class JwtFilter extends OncePerRequestFilter {
     private final JwtUtil jwtUtil;
     private final UserRepository userRepository;
     private final VendorRepository vendorRepository;
+    private final RefreshTokenRepository refreshTokenRepository;
     private final ObjectMapper objectMapper;
 
-    public JwtFilter(JwtUtil jwtUtil, UserRepository userRepository, VendorRepository vendorRepository, ObjectMapper objectMapper) {
+    public JwtFilter(JwtUtil jwtUtil, UserRepository userRepository, VendorRepository vendorRepository, RefreshTokenRepository refreshTokenRepository, ObjectMapper objectMapper) {
         this.jwtUtil = jwtUtil;
         this.userRepository = userRepository;
         this.vendorRepository = vendorRepository;
+        this.refreshTokenRepository = refreshTokenRepository;
         this.objectMapper = objectMapper;
     }
 
@@ -80,6 +83,18 @@ public class JwtFilter extends OncePerRequestFilter {
                     writeUnauthorized(response, "User not found for token");
                     return;
                 }
+
+                String sessionId = jwtUtil.extractAllClaims(token).get("sessionId", String.class);
+                if (sessionId != null) {
+                    boolean sessionValid = refreshTokenRepository.findByToken(sessionId)
+                            .map(rt -> !rt.isRevoked() && rt.getExpiryDate().isAfter(LocalDateTime.now()))
+                            .orElse(false);
+                    if (!sessionValid) {
+                        writeUnauthorized(response, "Session has been invalidated due to concurrent login");
+                        return;
+                    }
+                }
+
                 authentication = new UsernamePasswordAuthenticationToken(
                         user.getEmail(),
                         null,
