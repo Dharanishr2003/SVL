@@ -382,9 +382,9 @@ public class AuthService {
             String pathStr = user.getProfilePhotoPath().replace("\\", "/");
             int uploadsIdx = pathStr.indexOf("uploads/");
             if (uploadsIdx >= 0) {
-                res.setProfilePhotoUrl("/" + pathStr.substring(uploadsIdx));
+                res.setProfilePhotoUrl("/api/" + pathStr.substring(uploadsIdx));
             } else {
-                res.setProfilePhotoUrl("/uploads/profile-photos/" + Path.of(user.getProfilePhotoPath()).getFileName());
+                res.setProfilePhotoUrl("/api/uploads/profile-photos/" + Path.of(user.getProfilePhotoPath()).getFileName());
             }
         }
 

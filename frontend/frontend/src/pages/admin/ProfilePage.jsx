@@ -14,8 +14,7 @@ import {
 } from "../../utils/phoneUtils";
 import { useToast } from "../../components/system/ToastProvider";
 import { useAuth } from "../../context/AuthContext";
-
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8082";
+import { resolveMediaUrl } from "../../utils/mediaUrl";
 
 export default function ProfilePage() {
   const { showSuccess, showError } = useToast();
@@ -137,9 +136,7 @@ export default function ProfilePage() {
     ? [profile.firstName, profile.lastName].filter(Boolean).join(" ") || profile.username
     : "—";
 
-  const photoUrl = profile?.profilePhotoUrl
-    ? `${API_BASE}${profile.profilePhotoUrl}`
-    : "/assets/img/profiles/avatar-12.jpg";
+  const photoUrl = resolveMediaUrl(profile?.profilePhotoUrl) || "/assets/img/profiles/avatar-12.jpg";
   const selectedCountry = getCountryOptionByValue(form.countryCode || defaultCountryOption.value);
   const phoneMaxLen =
     getCountryDisplayMaxLength(form.countryCode || defaultCountryOption.value) || selectedCountry?.maxLength;

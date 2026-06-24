@@ -1,19 +1,7 @@
 import api from "../utils/api";
 import { dashboardData } from "../mock/dashboardData";
 import { employeeDashboardData } from "../mock/employeeDashboardData";
-
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8082";
-
-function resolveAbsoluteUrl(value) {
-  const raw = String(value || "").trim();
-  if (!raw) {
-    return "";
-  }
-  if (/^https?:\/\//i.test(raw)) {
-    return raw;
-  }
-  return `${API_BASE}${raw.startsWith("/") ? raw : `/${raw}`}`;
-}
+import { resolveMediaUrl } from "../utils/mediaUrl";
 
 function normalizeDashboardResponse(payload) {
   if (!payload || typeof payload !== "object") {
@@ -25,7 +13,7 @@ function normalizeDashboardResponse(payload) {
     welcome: payload.welcome
       ? {
           ...payload.welcome,
-          avatar: resolveAbsoluteUrl(payload.welcome.avatar),
+          avatar: resolveMediaUrl(payload.welcome.avatar),
         }
       : dashboardData.welcome,
     topStats: Array.isArray(payload.topStats) && payload.topStats.length > 0

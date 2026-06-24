@@ -79,7 +79,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/recovery/**").permitAll()
                         .requestMatchers("/api/policies/*/file").permitAll()
                         .requestMatchers("/api/public/employee-form/**").permitAll()
-                        .requestMatchers("/uploads/**").permitAll()
+                        .requestMatchers("/uploads/**", "/api/uploads/**").permitAll()
                         .requestMatchers("/api/settings/mail/**", "/api/settings/mail").hasAnyRole("SUPER_ADMIN", "ADMIN", "MANAGER", "TEAM_LEAD", "EMPLOYEE")
                         .requestMatchers("/api/settings/registration", "/api/settings/session", "/api/settings/user", "/api/settings/security-policy").hasAnyRole("SUPER_ADMIN", "ADMIN")
                         .requestMatchers("/api/settings/**").hasRole("SUPER_ADMIN")

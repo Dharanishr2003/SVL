@@ -10,11 +10,15 @@ import com.nexorcrm.backend.entity.ActivationStatus;
 import com.nexorcrm.backend.entity.Employee;
 import com.nexorcrm.backend.entity.EmployeeProfileStatus;
 import com.nexorcrm.backend.entity.EmployeeTokenScope;
+import com.nexorcrm.backend.entity.LeavePolicy;
+import com.nexorcrm.backend.entity.LeavePolicyEmployee;
 import com.nexorcrm.backend.entity.User;
 import com.nexorcrm.backend.repo.EmployeeProfileTokenRepository;
 import com.nexorcrm.backend.repo.DepartmentMasterRepository;
 import com.nexorcrm.backend.repo.EmployeeRepository;
 import com.nexorcrm.backend.repo.DesignationMasterRepository;
+import com.nexorcrm.backend.repo.LeavePolicyEmployeeRepository;
+import com.nexorcrm.backend.repo.LeavePolicyRepository;
 import com.nexorcrm.backend.repo.UserRepository;
 import com.nexorcrm.backend.util.PhoneValidationUtil;
 import jakarta.persistence.EntityNotFoundException;
@@ -26,6 +30,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.MediaTypeFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.multipart.MultipartFile;
@@ -46,6 +51,8 @@ import java.nio.file.StandardCopyOption;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -69,6 +76,8 @@ public class EmployeeService {
     private final EmployeeProfileTokenRepository employeeProfileTokenRepository;
     private final EmployeeSalaryRepository employeeSalaryRepository;
     private final ProvidentFundRepository providentFundRepository;
+    private final LeavePolicyRepository leavePolicyRepository;
+    private final LeavePolicyEmployeeRepository leavePolicyEmployeeRepository;
 
     @Value("${app.upload-dir:uploads}")
     private String uploadDir;
@@ -80,7 +89,9 @@ public class EmployeeService {
             DesignationMasterRepository designationMasterRepository,
             EmployeeProfileTokenRepository employeeProfileTokenRepository,
             EmployeeSalaryRepository employeeSalaryRepository,
-            ProvidentFundRepository providentFundRepository
+            ProvidentFundRepository providentFundRepository,
+            LeavePolicyRepository leavePolicyRepository,
+            LeavePolicyEmployeeRepository leavePolicyEmployeeRepository
     ) {
         this.employeeRepository = employeeRepository;
         this.userRepository = userRepository;
@@ -89,6 +100,8 @@ public class EmployeeService {
         this.employeeProfileTokenRepository = employeeProfileTokenRepository;
         this.employeeSalaryRepository = employeeSalaryRepository;
         this.providentFundRepository = providentFundRepository;
+        this.leavePolicyRepository = leavePolicyRepository;
+        this.leavePolicyEmployeeRepository = leavePolicyEmployeeRepository;
     }
 
     public List<EmployeeResponse> list() {
@@ -258,6 +271,7 @@ public class EmployeeService {
         }
     }
 
+    @Transactional
     public EmployeeResponse create(EmployeeRequest request) {
         validatePhoneNumber(request);
         Employee e = new Employee();
@@ -269,9 +283,11 @@ public class EmployeeService {
             e = employeeRepository.save(e);
         }
 
+        syncEmployeeLeavePolicies(e.getId(), request.getLeavePolicyIds(), request.getLeavePolicyIds() != null);
         return toResponse(e);
     }
 
+    @Transactional
     public EmployeeResponse update(Long id, EmployeeRequest request) {
         validatePhoneNumber(request);
         Employee e = employeeRepository.findById(id)
@@ -281,7 +297,9 @@ public class EmployeeService {
         }
 
         apply(e, request);
-        return toResponse(employeeRepository.save(e));
+        e = employeeRepository.save(e);
+        syncEmployeeLeavePolicies(e.getId(), request.getLeavePolicyIds(), request.getLeavePolicyIds() != null);
+        return toResponse(e);
     }
 
     public EmployeeResponse getById(Long id) {
@@ -303,6 +321,7 @@ public class EmployeeService {
         return toResponse(e, offerLetterLinkExpiresAt);
     }
 
+    @Transactional
     public EmployeeResponse onboard(EmployeeOnboardRequest request) {
         Employee e = new Employee();
         applyOnboard(e, request);
@@ -316,9 +335,11 @@ public class EmployeeService {
         applyOnboardFiles(e, request);
         e = employeeRepository.save(e);
         syncEmployeeSalary(e);
+        syncEmployeeLeavePolicies(e.getId(), request.getLeavePolicyIds(), Boolean.TRUE.equals(request.getLeavePolicyIdsProvided()));
         return toResponse(e);
     }
 
+    @Transactional
     public EmployeeResponse onboardUpdate(Long id, EmployeeOnboardRequest request) {
         Employee e = employeeRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Employee not found"));
@@ -330,6 +351,7 @@ public class EmployeeService {
         applyOnboardFilesUpdate(e, request);
         e = employeeRepository.save(e);
         syncEmployeeSalary(e);
+        syncEmployeeLeavePolicies(e.getId(), request.getLeavePolicyIds(), Boolean.TRUE.equals(request.getLeavePolicyIdsProvided()));
         return toResponse(e);
     }
 
@@ -338,6 +360,48 @@ public class EmployeeService {
                 .orElseThrow(() -> new EntityNotFoundException("Employee not found"));
         e.setDeleted(true);
         employeeRepository.save(e);
+    }
+
+    private void syncEmployeeLeavePolicies(Long employeeId, List<Long> leavePolicyIds, boolean replaceRequested) {
+        if (!replaceRequested || employeeId == null) return;
+
+        leavePolicyEmployeeRepository.deleteByEmployeeId(employeeId);
+        if (leavePolicyIds == null || leavePolicyIds.isEmpty()) return;
+
+        LinkedHashSet<Long> uniquePolicyIds = leavePolicyIds.stream()
+                .filter(id -> id != null && id > 0)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        if (uniquePolicyIds.isEmpty()) return;
+
+        List<LeavePolicy> policies = leavePolicyRepository.findAllById(uniquePolicyIds);
+        Map<Long, LeavePolicy> policyById = policies.stream()
+                .filter(policy -> !Boolean.TRUE.equals(policy.getDeleted()))
+                .collect(Collectors.toMap(LeavePolicy::getId, Function.identity()));
+
+        List<Long> invalidPolicyIds = uniquePolicyIds.stream()
+                .filter(policyId -> !policyById.containsKey(policyId))
+                .toList();
+        if (!invalidPolicyIds.isEmpty()) {
+            throw new EntityNotFoundException("Leave policy not found: " + invalidPolicyIds.get(0));
+        }
+
+        List<LeavePolicyEmployee> rows = new ArrayList<>();
+        for (Long policyId : uniquePolicyIds) {
+            LeavePolicyEmployee row = new LeavePolicyEmployee();
+            row.setPolicy(policyById.get(policyId));
+            row.setEmployeeId(employeeId);
+            rows.add(row);
+        }
+        leavePolicyEmployeeRepository.saveAll(rows);
+    }
+
+    private List<Long> getEmployeeLeavePolicyIds(Long employeeId) {
+        if (employeeId == null) return List.of();
+        return leavePolicyEmployeeRepository.findByEmployeeId(employeeId)
+                .stream()
+                .filter(row -> row.getPolicy() != null && !Boolean.TRUE.equals(row.getPolicy().getDeleted()))
+                .map(row -> row.getPolicy().getId())
+                .toList();
     }
 
     private void validatePhoneNumber(EmployeeRequest request) {
@@ -854,6 +918,7 @@ public class EmployeeService {
         r.setImg(e.getImg());
         r.setOfferLetterSent(offerLetterLinkExpiresAt != null);
         r.setOfferLetterLinkExpiresAt(offerLetterLinkExpiresAt);
+        r.setLeavePolicyIds(getEmployeeLeavePolicyIds(e.getId()));
 
         r.setBasic(e.getBasic());
         r.setDa(e.getDa());

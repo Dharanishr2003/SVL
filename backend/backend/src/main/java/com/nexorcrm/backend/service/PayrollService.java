@@ -14,6 +14,7 @@ import jakarta.mail.internet.MimeMessage;
 import jakarta.persistence.EntityNotFoundException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.mail.MailAuthenticationException;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.JavaMailSenderImpl;
 import org.springframework.mail.javamail.MimeMessageHelper;
@@ -342,7 +343,12 @@ public class PayrollService {
         helper.addAttachment(String.format("Payslip_%s_%s.pdf", p.getMonth().replace(" ", "_"), emp.getName().replace(" ", "_")),
                 new org.springframework.core.io.ByteArrayResource(pdfBytes));
 
-        sender.send(message);
+        try {
+            sender.send(message);
+        } catch (MailAuthenticationException ex) {
+            log.warn("SMTP authentication failed using stored mail settings for employee {}. Retrying with application mail sender.", emp.getName());
+            defaultMailSender.send(message);
+        }
 
         p.setStatus("Sent");
         payslipRepository.save(p);

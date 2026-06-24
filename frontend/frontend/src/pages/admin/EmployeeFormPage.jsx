@@ -5,6 +5,7 @@ import { getDepartmentsMasterByBranch } from "../../api/departmentsApi";
 import { getDesignations } from "../../api/designationsApi";
 import { getEmployeeById, onboardEmployee, updateOnboardEmployee } from "../../api/employeesApi";
 import { getHeadOffices } from "../../api/headOfficesApi";
+import { getLeavePolicies } from "../../api/leaveSettingsApi";
 import { getAdditions, getDeductions } from "../../api/payrollItemsApi";
 import { extractApiErrorMessage } from "../../utils/errorMessage";
 import { useToast } from "../../components/system/ToastProvider";
@@ -121,6 +122,7 @@ const EMPTY_FORM = {
   pf: "",
   leaveDeduction: "",
   netSalary: "",
+  leavePolicyIds: [],
 };
 
 const EMPTY_FILE_PATHS = {
@@ -281,6 +283,9 @@ function normalizeEmployee(raw = {}) {
     pf: raw?.pf || "",
     leaveDeduction: raw?.leaveDeduction || "",
     netSalary: raw?.netSalary || "",
+    leavePolicyIds: Array.isArray(raw?.leavePolicyIds)
+      ? raw.leavePolicyIds.filter((value) => value !== null && value !== undefined).map((value) => Number(value))
+      : [],
   };
 
   const existingFiles = {
@@ -424,6 +429,7 @@ const FORM_TABS = [
   { id: "org-details", label: "Organization" },
   { id: "basic-details", label: "Basic Details" },
   { id: "salary-details", label: "Salary Details" },
+  { id: "leave-details", label: "Leave Details" },
   { id: "family-details", label: "Family Details" },
   { id: "address-details", label: "Address Details" },
   { id: "education-details", label: "Education Details" },
@@ -442,6 +448,7 @@ export default function EmployeeFormPage() {
 
   const [additionsList, setAdditionsList] = useState([]);
   const [deductionsList, setDeductionsList] = useState([]);
+  const [leavePolicies, setLeavePolicies] = useState([]);
 
   const isFieldActive = (fieldKey) => {
     if (["basic", "da", "hra", "conveyance"].includes(fieldKey)) {
@@ -488,6 +495,8 @@ export default function EmployeeFormPage() {
   const [existingFiles, setExistingFiles] = useState(EMPTY_FILE_PATHS);
   const [sections, setSections] = useState(EMPTY_SECTIONS);
   const [activeTab, setActiveTab] = useState("org-details");
+  const [leavePolicyDropdownOpen, setLeavePolicyDropdownOpen] = useState(false);
+  const leavePolicyDropdownRef = useRef(null);
 
   const apiBase = useMemo(
     () => (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || "http://localhost:8082").replace(/\/+$/, ""),
@@ -500,6 +509,31 @@ export default function EmployeeFormPage() {
   const sortedDesignations = [...designations].sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
 
   const selectedDesignation = sortedDesignations.find((item) => String(item.id) === String(designationId));
+  const selectedLeavePolicyIds = useMemo(
+    () => new Set((form.leavePolicyIds || []).map((value) => Number(value))),
+    [form.leavePolicyIds],
+  );
+  const selectedLeavePolicies = useMemo(
+    () =>
+      (leavePolicies || [])
+        .filter((policy) => selectedLeavePolicyIds.has(Number(policy?.id)))
+        .sort((a, b) => String(a?.name || "").localeCompare(String(b?.name || ""))),
+    [leavePolicies, selectedLeavePolicyIds],
+  );
+  const groupedLeavePolicies = useMemo(() => {
+    const groups = new Map();
+    (leavePolicies || []).forEach((policy) => {
+      const groupName = policy?.leaveTypeName || "Other Leave Policies";
+      if (!groups.has(groupName)) groups.set(groupName, []);
+      groups.get(groupName).push(policy);
+    });
+    return Array.from(groups.entries())
+      .map(([leaveTypeName, policies]) => ({
+        leaveTypeName,
+        policies: [...policies].sort((a, b) => String(a?.name || "").localeCompare(String(b?.name || ""))),
+      }))
+      .sort((a, b) => a.leaveTypeName.localeCompare(b.leaveTypeName));
+  }, [leavePolicies]);
   const educationVisibility = useMemo(
     () => getEducationVisibilityRules(form.educationQualification),
     [form.educationQualification],
@@ -522,6 +556,19 @@ export default function EmployeeFormPage() {
       setForm((prev) => ({ ...prev, netSalary }));
     }
   }, [form.basic, form.da, form.hra, form.conveyance, form.tds, form.esi, form.pf, form.leaveDeduction, form.netSalary]);
+
+  useEffect(() => {
+    if (!leavePolicyDropdownOpen) return undefined;
+
+    const handleClickOutside = (event) => {
+      if (!leavePolicyDropdownRef.current?.contains(event.target)) {
+        setLeavePolicyDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [leavePolicyDropdownOpen]);
 
   const handleNumericChange = (key, rawValue) => {
     const sanitized = rawValue.replace(/[^0-9.]/g, "");
@@ -635,15 +682,17 @@ export default function EmployeeFormPage() {
     async function load() {
       setLoading(true);
       try {
-        const [offices, additions, deductions] = await Promise.all([
+        const [offices, additions, deductions, policies] = await Promise.all([
           getHeadOffices(),
           getAdditions(),
-          getDeductions()
+          getDeductions(),
+          getLeavePolicies()
         ]);
         if (!active) return;
         setHeadOffices(Array.isArray(offices) ? offices : []);
         setAdditionsList(Array.isArray(additions) ? additions : []);
         setDeductionsList(Array.isArray(deductions) ? deductions : []);
+        setLeavePolicies(Array.isArray(policies) ? policies : []);
 
         if (!isEdit || !id) {
           setForm(EMPTY_FORM);
@@ -799,6 +848,20 @@ export default function EmployeeFormPage() {
     setSections((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
+  const toggleLeavePolicy = (policyId) => {
+    const numericId = Number(policyId);
+    if (!Number.isFinite(numericId)) return;
+    setForm((prev) => {
+      const current = new Set((prev.leavePolicyIds || []).map((value) => Number(value)));
+      if (current.has(numericId)) {
+        current.delete(numericId);
+      } else {
+        current.add(numericId);
+      }
+      return { ...prev, leavePolicyIds: Array.from(current) };
+    });
+  };
+
   const validate = () => {
     if (!headOfficeId) return "Head Office is required";
     if (!branchId) return "Branch is required";
@@ -847,6 +910,7 @@ export default function EmployeeFormPage() {
 
     Object.entries(normalizedForm).forEach(([key, value]) => {
       if (key.endsWith("Path")) return;
+      if (key === "leavePolicyIds") return;
       if (
         key.startsWith("upload") &&
         ["uploadCertificate", "uploadGraduationCertificate", "uploadGraduationMarksheet", "uploadHscMarkSheet", "uploadSslcMarkSheet"].includes(key) &&
@@ -865,6 +929,13 @@ export default function EmployeeFormPage() {
         return;
       }
       appendIfPresent(fd, key, value);
+    });
+    fd.append("leavePolicyIdsProvided", "true");
+    (form.leavePolicyIds || []).forEach((policyId) => {
+      const numericId = Number(policyId);
+      if (Number.isFinite(numericId)) {
+        fd.append("leavePolicyIds", String(numericId));
+      }
     });
 
     setSaving(true);
@@ -1230,6 +1301,139 @@ export default function EmployeeFormPage() {
                   </div>
                 </div>
 
+                {/* Leave Details */}
+                <div id="leave-details" className="form-section-card card mt-4">
+                  <div className="card-body">
+                    <div className="d-flex align-items-start justify-content-between gap-3 flex-wrap">
+                      <div>
+                        <p className="avm-section-title mb-1">Leave Details</p>
+                        <p className="text-muted small mb-3">
+                          Select the leave policies applicable for this employee.
+                        </p>
+                      </div>
+                      <span className="badge bg-light text-dark border">
+                        {selectedLeavePolicyIds.size} selected
+                      </span>
+                    </div>
+
+                    <div className="employee-leave-dropdown" ref={leavePolicyDropdownRef}>
+                      <button
+                        type="button"
+                        className="employee-leave-dropdown-toggle"
+                        onClick={() => setLeavePolicyDropdownOpen((open) => !open)}
+                        disabled={groupedLeavePolicies.length === 0}
+                        aria-expanded={leavePolicyDropdownOpen}
+                      >
+                        <span>
+                          {selectedLeavePolicyIds.size > 0
+                            ? `${selectedLeavePolicyIds.size} policies selected`
+                            : "Select leave policies"}
+                        </span>
+                        <i className={`ti ti-chevron-down ${leavePolicyDropdownOpen ? "rotate" : ""}`} />
+                      </button>
+
+                      {leavePolicyDropdownOpen && groupedLeavePolicies.length > 0 && (
+                        <div className="employee-leave-dropdown-menu">
+                          {groupedLeavePolicies.map((group) => (
+                            <div className="employee-leave-dropdown-group" key={group.leaveTypeName}>
+                              <div className="employee-leave-dropdown-group-title">{group.leaveTypeName}</div>
+                              {group.policies.map((policy) => {
+                                const policyId = Number(policy?.id);
+                                const checked = selectedLeavePolicyIds.has(policyId);
+                                return (
+                                  <label className="employee-leave-dropdown-option" key={policy.id}>
+                                    <input
+                                      type="checkbox"
+                                      className="form-check-input"
+                                      checked={checked}
+                                      onChange={() => toggleLeavePolicy(policyId)}
+                                    />
+                                    <span className="employee-leave-dropdown-option-body">
+                                      <span className="employee-leave-dropdown-option-name">{policy.name}</span>
+                                      <span className="employee-leave-dropdown-option-meta">
+                                        {Number(policy.daysPerYear || 0)} days/year
+                                        {policy.maxDaysPerRequest ? ` - Max ${policy.maxDaysPerRequest}/request` : ""}
+                                        {policy.carryForwardEnabled ? " - Carry forward" : ""}
+                                      </span>
+                                    </span>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {groupedLeavePolicies.length === 0 ? (
+                      <div className="employee-leave-empty mt-3">
+                        No leave policies are configured yet. Create policies from Leave Settings first.
+                      </div>
+                    ) : selectedLeavePolicies.length === 0 ? (
+                      <div className="employee-leave-selected-empty mt-3">No leave policies selected.</div>
+                    ) : (
+                      <div className="employee-leave-selected-list mt-3">
+                        {selectedLeavePolicies.map((policy) => (
+                          <span className="employee-leave-selected-chip" key={policy.id}>
+                            <span>
+                              <strong>{policy.name}</strong>
+                              <small>{policy.leaveTypeName || "Other Leave Policies"}</small>
+                            </span>
+                            <button
+                              type="button"
+                              className="employee-leave-selected-remove"
+                              onClick={() => toggleLeavePolicy(policy.id)}
+                              aria-label={`Remove ${policy.name}`}
+                            >
+                              x
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
+                    {false && (groupedLeavePolicies.length === 0 ? (
+                      <div className="employee-leave-empty">
+                        No leave policies are configured yet. Create policies from Leave Settings first.
+                      </div>
+                    ) : (
+                      <div className="employee-leave-groups">
+                        {groupedLeavePolicies.map((group) => (
+                          <div className="employee-leave-group" key={group.leaveTypeName}>
+                            <div className="employee-leave-group-title">{group.leaveTypeName}</div>
+                            <div className="row g-3">
+                              {group.policies.map((policy) => {
+                                const policyId = Number(policy?.id);
+                                const checked = selectedLeavePolicyIds.has(policyId);
+                                return (
+                                  <div className="col-lg-6" key={policy.id}>
+                                    <label className={`employee-leave-policy ${checked ? "selected" : ""}`}>
+                                      <input
+                                        type="checkbox"
+                                        className="form-check-input"
+                                        checked={checked}
+                                        onChange={() => toggleLeavePolicy(policyId)}
+                                      />
+                                      <span className="employee-leave-policy-body">
+                                        <span className="employee-leave-policy-name">{policy.name}</span>
+                                        <span className="employee-leave-policy-meta">
+                                          {Number(policy.daysPerYear || 0)} days/year
+                                          {policy.maxDaysPerRequest ? ` · Max ${policy.maxDaysPerRequest}/request` : ""}
+                                          {policy.carryForwardEnabled ? " · Carry forward" : ""}
+                                        </span>
+                                      </span>
+                                    </label>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
                 {/* Family Details */}
                 <div id="family-details" className="form-section-card card mt-4">
                   <div className="card-body">
@@ -1589,7 +1793,7 @@ export default function EmployeeFormPage() {
                       </div>
                       <div className="col-md-6">
                         <div className="avm-field">
-                          <label className="avm-label">Salary at the Time of Joining</label>
+                          <label className="avm-label">Salary at the Time of Joining (₹)</label>
                           <input
                             type="number"
                             step="any"
@@ -1601,7 +1805,7 @@ export default function EmployeeFormPage() {
                       </div>
                       <div className="col-md-6">
                         <div className="avm-field">
-                          <label className="avm-label">Salary at the Time of Relieving</label>
+                          <label className="avm-label">Salary at the Time of Relieving (₹)</label>
                           <input
                             type="number"
                             step="any"

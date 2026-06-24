@@ -1,0 +1,1 @@
+import{F as a}from"./index-CDVPlDdT.js";async function n(){return(await a.get("/api/quotation-template")).data}async function s(t){return(await a.post("/api/quotation-template",t)).data}export{n as g,s};

@@ -4,6 +4,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDate;
 import java.math.BigDecimal;
+import java.util.List;
 
 public class EmployeeOnboardRequest {
 
@@ -93,6 +94,8 @@ public class EmployeeOnboardRequest {
     private BigDecimal pf;
     private BigDecimal leaveDeduction;
     private BigDecimal netSalary;
+    private Boolean leavePolicyIdsProvided;
+    private List<Long> leavePolicyIds;
 
     private MultipartFile candidatePhoto;
     private MultipartFile uploadCandidateAadharCard;
@@ -375,4 +378,10 @@ public class EmployeeOnboardRequest {
 
     public BigDecimal getNetSalary() { return netSalary; }
     public void setNetSalary(BigDecimal netSalary) { this.netSalary = netSalary; }
+
+    public Boolean getLeavePolicyIdsProvided() { return leavePolicyIdsProvided; }
+    public void setLeavePolicyIdsProvided(Boolean leavePolicyIdsProvided) { this.leavePolicyIdsProvided = leavePolicyIdsProvided; }
+
+    public List<Long> getLeavePolicyIds() { return leavePolicyIds; }
+    public void setLeavePolicyIds(List<Long> leavePolicyIds) { this.leavePolicyIds = leavePolicyIds; }
 }

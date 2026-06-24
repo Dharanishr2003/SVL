@@ -3,6 +3,7 @@ package com.nexorcrm.backend.service;
 import com.nexorcrm.backend.entity.EmailNotificationLog;
 import com.nexorcrm.backend.repo.EmailNotificationLogRepository;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.mail.MailAuthenticationException;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.JavaMailSenderImpl;
@@ -147,7 +148,16 @@ public class EmailNotificationService {
         }
         message.setSubject(subject);
         message.setText(body);
-        sender.send(message);
+        try {
+            sender.send(new SimpleMailMessage(message));
+        } catch (MailAuthenticationException ex) {
+            if (db == null) {
+                throw ex;
+            }
+
+            log.warn("SMTP authentication failed using stored mail settings for {}. Retrying with application mail sender.", normalizedRecipientEmail);
+            mailSender.send(new SimpleMailMessage(message));
+        }
     }
 
     private static String[] splitEmails(String value) {

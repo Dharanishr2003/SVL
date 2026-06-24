@@ -203,7 +203,9 @@ public class UserGroupService {
             "customer",
             "report",
             // Compatibility aliases
-            "shift-assignment"
+            "shift-assignment",
+            "payslip-template",
+            "settings-workflow-teams"
     );
     private static final Set<String> ALLOWED_PAGE_KEYS = Set.copyOf(DEFAULT_PAGE_KEYS);
 

@@ -7,9 +7,9 @@ import api, {
 } from "../utils/api";
 import { useIdleTimer } from "../hooks/useIdleTimer";
 import IdleTimeoutModal from "../components/common/IdleTimeoutModal";
+import { resolveMediaUrl } from "../utils/mediaUrl";
 
 export const AuthContext = createContext(null);
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8082";
 
 function normalizeRole(value) {
   const raw = String(value || "")
@@ -32,13 +32,6 @@ function parseTokenPayload(token) {
   } catch {
     return null;
   }
-}
-
-function resolveProfilePhotoUrl(value) {
-  const raw = String(value || "").trim();
-  if (!raw) return "";
-  if (/^https?:\/\//i.test(raw)) return raw;
-  return `${API_BASE}${raw.startsWith("/") ? raw : `/${raw}`}`;
 }
 
 function userFromToken(token, fallbackEmail = "", responseData = null) {
@@ -81,7 +74,7 @@ function userFromToken(token, fallbackEmail = "", responseData = null) {
         ? Boolean(responseData.forcePasswordChange)
         : Boolean(payload?.forcePasswordChange),
     isProfileIncomplete: Boolean(responseData?.isProfileIncomplete),
-    profilePhotoUrl: resolveProfilePhotoUrl(
+    profilePhotoUrl: resolveMediaUrl(
       responseUser?.profilePhotoUrl || responseData?.profilePhotoUrl || "",
     ),
     employeeId: responseUser?.employeeId ?? responseData?.employeeId ?? null,
@@ -111,7 +104,7 @@ function mergeProfileIntoUser(currentUser, profileData) {
       profileData.isProfileIncomplete !== undefined
         ? Boolean(profileData.isProfileIncomplete)
         : Boolean(currentUser?.isProfileIncomplete),
-    profilePhotoUrl: resolveProfilePhotoUrl(
+    profilePhotoUrl: resolveMediaUrl(
       profileData.profilePhotoUrl ?? currentUser?.profilePhotoUrl ?? "",
     ),
     employeeId: profileData.employeeId ?? currentUser?.employeeId ?? null,

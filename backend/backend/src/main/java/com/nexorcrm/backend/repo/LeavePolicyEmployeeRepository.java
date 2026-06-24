@@ -11,7 +11,13 @@ import java.util.List;
 public interface LeavePolicyEmployeeRepository extends JpaRepository<LeavePolicyEmployee, Long> {
     List<LeavePolicyEmployee> findByPolicy_Id(Long policyId);
 
+    List<LeavePolicyEmployee> findByEmployeeId(Long employeeId);
+
     @Modifying(flushAutomatically = true)
     @Query("delete from LeavePolicyEmployee e where e.policy.id = :policyId")
     void deleteByPolicyId(@Param("policyId") Long policyId);
+
+    @Modifying(flushAutomatically = true)
+    @Query("delete from LeavePolicyEmployee e where e.employeeId = :employeeId")
+    void deleteByEmployeeId(@Param("employeeId") Long employeeId);
 }

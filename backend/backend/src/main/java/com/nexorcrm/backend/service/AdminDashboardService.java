@@ -255,9 +255,9 @@ public class AdminDashboardService {
         String pathStr = actor.getProfilePhotoPath().replace("\\", "/");
         int uploadsIdx = pathStr.indexOf("uploads/");
         if (uploadsIdx >= 0) {
-            return "/" + pathStr.substring(uploadsIdx);
+            return "/api/" + pathStr.substring(uploadsIdx);
         }
-        return "/uploads/profile-photos/" + Path.of(actor.getProfilePhotoPath()).getFileName();
+        return "/api/uploads/profile-photos/" + Path.of(actor.getProfilePhotoPath()).getFileName();
     }
 
     private User resolveActor(String actorPrincipal) {

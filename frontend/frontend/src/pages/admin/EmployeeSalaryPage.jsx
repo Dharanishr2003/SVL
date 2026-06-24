@@ -260,7 +260,7 @@ const EmployeeSalaryPage = () => {
     const doc = new jsPDF();
     doc.text("Employee Salaries List", 14, 15);
     const headers = [["Emp ID", "Name", "Email", "Phone", "Designation", "Joining Date", "Salary"]];
-    const body = targetRows.map((r) => [r.employeeCode, r.name, r.email, r.phone, r.designation, r.joinDate, `$${r.netSalary}`]);
+    const body = targetRows.map((r) => [r.employeeCode, r.name, r.email, r.phone, r.designation, r.joinDate, `₹${r.netSalary}`]);
     autoTable(doc, {
       head: headers,
       body: body,
@@ -539,7 +539,7 @@ const EmployeeSalaryPage = () => {
                             <span className="badge bg-light text-dark">{row.designation}</span>
                           </td>
                           <td>{row.joinDate}</td>
-                          <td>${row.netSalary}</td>
+                          <td>₹{row.netSalary}</td>
                           <td>
                             <Link to="/payslip" className="badge badge-dark badge-md text-decoration-none">
                               Generate Slip

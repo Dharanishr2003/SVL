@@ -9,19 +9,6 @@ import dashboardService from "../../services/dashboardService";
 import { dashboardData } from "../../mock/dashboardData";
 import { useAuth } from "../../context/AuthContext";
 
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8082";
-
-function resolveImageSrc(value) {
-  const raw = String(value || "").trim();
-  if (!raw) {
-    return "";
-  }
-  if (/^https?:\/\//i.test(raw)) {
-    return raw;
-  }
-  return `${API_BASE}${raw.startsWith("/") ? raw : `/${raw}`}`;
-}
-
 export default function AdminDashboardPage() {
   const { user } = useAuth();
   const { data: queryData, isLoading, error, refetch } = useQuery({
@@ -39,7 +26,7 @@ export default function AdminDashboardPage() {
 
   const data = hasValidData ? queryData : dashboardData;
   const welcomeAvatar = user?.profilePhotoUrl
-    || (hasValidData ? resolveImageSrc(data.welcome?.avatar) : data.welcome?.avatar)
+    || data.welcome?.avatar
     || "/assets/img/profiles/avatar-31.jpg";
   const welcomeName =
     [user?.firstName, user?.lastName].filter(Boolean).join(" ").trim() ||
@@ -1115,7 +1102,7 @@ export default function AdminDashboardPage() {
                   </td>
                   <td>
                     <p className="fs-13 mb-1">Payment</p>
-                    <h6 className="fw-medium">$3560</h6>
+                    <h6 className="fw-medium">₹3560</h6>
                   </td>
                   <td className="px-0 text-end">
                     <span className="badge badge-danger-transparent badge-xs d-inline-flex align-items-center"><i className="ti ti-circle-filled fs-5 me-1" />Unpaid</span>
@@ -1135,7 +1122,7 @@ export default function AdminDashboardPage() {
                   </td>
                   <td>
                     <p className="fs-13 mb-1">Payment</p>
-                    <h6 className="fw-medium">$4175</h6>
+                    <h6 className="fw-medium">₹4175</h6>
                   </td>
                   <td className="px-0 text-end">
                     <span className="badge badge-danger-transparent badge-xs d-inline-flex align-items-center"><i className="ti ti-circle-filled fs-5 me-1" />Unpaid</span>
@@ -1155,7 +1142,7 @@ export default function AdminDashboardPage() {
                   </td>
                   <td>
                     <p className="fs-13 mb-1">Payment</p>
-                    <h6 className="fw-medium">$6985</h6>
+                    <h6 className="fw-medium">₹6985</h6>
                   </td>
                   <td className="px-0 text-end">
                     <span className="badge badge-danger-transparent badge-xs d-inline-flex align-items-center"><i className="ti ti-circle-filled fs-5 me-1" />Unpaid</span>
@@ -1175,7 +1162,7 @@ export default function AdminDashboardPage() {
                   </td>
                   <td>
                     <p className="fs-13 mb-1">Payment</p>
-                    <h6 className="fw-medium">$1457</h6>
+                    <h6 className="fw-medium">₹1457</h6>
                   </td>
                   <td className="px-0 text-end">
                     <span className="badge badge-danger-transparent badge-xs d-inline-flex align-items-center"><i className="ti ti-circle-filled fs-5 me-1" />Unpaid</span>
@@ -1195,7 +1182,7 @@ export default function AdminDashboardPage() {
                   </td>
                   <td>
                     <p className="fs-13 mb-1">Payment</p>
-                    <h6 className="fw-medium">$6458</h6>
+                    <h6 className="fw-medium">₹6458</h6>
                   </td>
                   <td className="px-0 text-end">
                     <span className="badge badge-success-transparent badge-xs d-inline-flex align-items-center"><i className="ti ti-circle-filled fs-5 me-1" />Paid</span>
@@ -1728,7 +1715,6 @@ export default function AdminDashboardPage() {
     </>
   );
 }
-
 
 
 

@@ -19,7 +19,7 @@ public class WebMvcConfig implements WebMvcConfigurer {
         Path uploadPath = Paths.get(uploadDir).toAbsolutePath().normalize();
         String location = uploadPath.toUri().toString();
 
-        registry.addResourceHandler("/uploads/**")
+        registry.addResourceHandler("/uploads/**", "/api/uploads/**")
                 .addResourceLocations(location)
                 .setCachePeriod(3600);
     }

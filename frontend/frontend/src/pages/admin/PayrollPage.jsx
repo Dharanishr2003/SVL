@@ -169,7 +169,7 @@ const PayrollPage = () => {
       body = targetRows.map((r) => [r.name, r.category, r.status || "Active"]);
     } else if (activeTab === "overtimes") {
       headers = [["Name", "Rate Type", "Rate"]];
-      body = targetRows.map((r) => [r.name, r.rateType, `$${r.rate}`]);
+      body = targetRows.map((r) => [r.name, r.rateType, `₹${r.rate}`]);
     } else {
       headers = [["Name", "Status"]];
       body = targetRows.map((r) => [r.name, r.status || "Active"]);
@@ -434,7 +434,7 @@ const PayrollPage = () => {
                           <td className="fw-semibold text-dark">{row.name}</td>
                           {activeTab === "additions" && <td>{row.category}</td>}
                           {activeTab === "overtimes" && <td>{row.rateType}</td>}
-                          {activeTab === "overtimes" && <td>${row.rate}</td>}
+                          {activeTab === "overtimes" && <td>₹{row.rate}</td>}
                           {(activeTab === "additions" || activeTab === "deductions") && (
                             <td>
                               <div className="form-check form-switch mb-0 d-flex align-items-center">

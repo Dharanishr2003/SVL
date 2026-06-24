@@ -3,6 +3,7 @@ package com.nexorcrm.backend.dto;
 import jakarta.validation.constraints.NotBlank;
 import com.nexorcrm.backend.validation.ValidPhoneNumber;
 import java.time.LocalDate;
+import java.util.List;
 
 public class EmployeeRequest {
 
@@ -100,6 +101,7 @@ public class EmployeeRequest {
     private LocalDate joinDate;
     private String status;
     private String img;
+    private List<Long> leavePolicyIds;
 	public String getName() {
 		return name;
 	}
@@ -343,6 +345,14 @@ public class EmployeeRequest {
 	public void setImg(String img) {
 		this.img = img;
 	}
+
+    public List<Long> getLeavePolicyIds() {
+        return leavePolicyIds;
+    }
+
+    public void setLeavePolicyIds(List<Long> leavePolicyIds) {
+        this.leavePolicyIds = leavePolicyIds;
+    }
 
     
 }

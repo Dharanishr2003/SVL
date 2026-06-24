@@ -4,6 +4,7 @@ import jakarta.persistence.EntityNotFoundException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.mail.MailAuthenticationException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.DisabledException;
@@ -84,6 +85,14 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<Map<String, Object>> handleIllegalArgument(IllegalArgumentException ex) {
         return buildError(HttpStatus.BAD_REQUEST, "Bad Request", ex.getMessage());
+    }
+
+    @ExceptionHandler(MailAuthenticationException.class)
+    public ResponseEntity<Map<String, Object>> handleMailAuthentication(MailAuthenticationException ex) {
+        log.warn("Mail authentication failed: {}", ex.getMessage());
+        return buildError(HttpStatus.BAD_GATEWAY,
+                "Bad Gateway",
+                "Mail authentication failed. Please verify the SMTP username/password or app password on the server.");
     }
 
     @ExceptionHandler(DataIntegrityViolationException.class)

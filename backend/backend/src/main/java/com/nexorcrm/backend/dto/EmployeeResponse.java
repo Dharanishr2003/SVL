@@ -3,6 +3,7 @@ package com.nexorcrm.backend.dto;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.math.BigDecimal;
+import java.util.List;
 import com.nexorcrm.backend.entity.EmployeeProfileStatus;
 
 public class EmployeeResponse {
@@ -111,6 +112,7 @@ public class EmployeeResponse {
     private String img;
     private boolean offerLetterSent;
     private LocalDateTime offerLetterLinkExpiresAt;
+    private List<Long> leavePolicyIds;
 	public Long getId() {
 		return id;
 	}
@@ -188,6 +190,14 @@ public class EmployeeResponse {
 
     public void setOfferLetterLinkExpiresAt(LocalDateTime offerLetterLinkExpiresAt) {
         this.offerLetterLinkExpiresAt = offerLetterLinkExpiresAt;
+    }
+
+    public List<Long> getLeavePolicyIds() {
+        return leavePolicyIds;
+    }
+
+    public void setLeavePolicyIds(List<Long> leavePolicyIds) {
+        this.leavePolicyIds = leavePolicyIds;
     }
 	public String getDept() {
 		return dept;

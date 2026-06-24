@@ -27,7 +27,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -166,14 +165,7 @@ public class PageAccessService {
         List<String> defaults = defaultKeys();
         permissionRepository.findByRoleAndScopeTypeAndScopeId(role, GLOBAL_SCOPE_TYPE, null)
                 .ifPresentOrElse(existing -> {
-                    List<String> current = parseKeys(existing);
-                    Set<String> merged = new LinkedHashSet<>(current);
-                    merged.addAll(defaults);
-                    String mergedCsv = String.join(",", merged);
-                    if (!Objects.equals(existing.getPageKeysCsv(), mergedCsv)) {
-                        existing.setPageKeysCsv(mergedCsv);
-                        permissionRepository.save(existing);
-                    }
+                    // Existing rows may have been edited from the Page Access Matrix.
                 }, () -> {
                     RoleScopePagePermission permission = new RoleScopePagePermission();
                     permission.setRole(role);
