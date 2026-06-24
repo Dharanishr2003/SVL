@@ -182,7 +182,8 @@ function withInactiveSelected(items, selectedId) {
 }
 
 function hasText(value) {
-  return typeof value === "string" && value.trim().length > 0;
+  if (value === null || value === undefined) return false;
+  return String(value).trim().length > 0;
 }
 
 function hasAnyText(source, keys) {

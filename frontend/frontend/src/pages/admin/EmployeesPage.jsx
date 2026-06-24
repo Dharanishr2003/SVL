@@ -1634,13 +1634,6 @@ ${rowsHtml}
                       </th>
                       <th
                         className="text-muted"
-                        style={{ minWidth: "110px", fontWeight: "600", fontSize: "0.85rem", cursor: "pointer", userSelect: "none" }}
-                        onClick={() => handleSort("joinDate")}
-                      >
-                        Join Date {sortField === "joinDate" && <span className="ms-1 sort-indicator text-muted">{sortOrder === "asc" ? "▲" : "▼"}</span>}
-                      </th>
-                      <th
-                        className="text-muted"
                         style={{ minWidth: "100px", fontWeight: "600", fontSize: "0.85rem", cursor: "pointer", userSelect: "none" }}
                         onClick={() => handleSort("status")}
                       >
@@ -1659,11 +1652,11 @@ ${rowsHtml}
                   <tbody>
                     {loading ? (
                       <tr>
-                        <td colSpan="9" className="text-center py-4 text-muted">Loading employees...</td>
+                        <td colSpan="8" className="text-center py-4 text-muted">Loading employees...</td>
                       </tr>
                     ) : pagedRows.length === 0 ? (
                       <tr>
-                        <td colSpan="9" className="text-center py-4 text-muted">
+                        <td colSpan="8" className="text-center py-4 text-muted">
                           No employees found
                         </td>
                       </tr>
@@ -1687,7 +1680,6 @@ ${rowsHtml}
                           <td style={{ color: "#475569", fontSize: "0.9rem" }}>{emp.email || "-"}</td>
                           <td style={{ color: "#475569", fontSize: "0.9rem" }}>{emp.dept || "-"}</td>
                           <td style={{ color: "#475569", fontSize: "0.9rem" }}>{emp.designation}</td>
-                          <td style={{ color: "#475569", fontSize: "0.9rem" }}>{emp.joinDate || "-"}</td>
                           <td>
                             <span
                               className={`badge d-inline-flex align-items-center badge-xs ${

@@ -18,6 +18,8 @@ import org.springframework.security.web.authentication.WebAuthenticationDetailsS
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
+import com.nexorcrm.backend.service.SecuritySettingsService;
+
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -30,19 +32,27 @@ public class JwtFilter extends OncePerRequestFilter {
     private final UserRepository userRepository;
     private final VendorRepository vendorRepository;
     private final RefreshTokenRepository refreshTokenRepository;
+    private final SecuritySettingsService securitySettingsService;
     private final ObjectMapper objectMapper;
 
-    public JwtFilter(JwtUtil jwtUtil, UserRepository userRepository, VendorRepository vendorRepository, RefreshTokenRepository refreshTokenRepository, ObjectMapper objectMapper) {
+    public JwtFilter(JwtUtil jwtUtil, UserRepository userRepository, VendorRepository vendorRepository, RefreshTokenRepository refreshTokenRepository, SecuritySettingsService securitySettingsService, ObjectMapper objectMapper) {
         this.jwtUtil = jwtUtil;
         this.userRepository = userRepository;
         this.vendorRepository = vendorRepository;
         this.refreshTokenRepository = refreshTokenRepository;
+        this.securitySettingsService = securitySettingsService;
         this.objectMapper = objectMapper;
     }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
+        String loginIp = resolveIpAddress(request);
+        if (securitySettingsService.isIpBanned(loginIp)) {
+            writeForbidden(response, "Access is blocked from this IP address");
+            return;
+        }
+
         String authHeader = request.getHeader("Authorization");
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             filterChain.doFilter(request, response);
@@ -118,5 +128,26 @@ public class JwtFilter extends OncePerRequestFilter {
                 "timestamp", LocalDateTime.now().toString()
         );
         response.getWriter().write(objectMapper.writeValueAsString(body));
+    }
+
+    private void writeForbidden(HttpServletResponse response, String message) throws IOException {
+        response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+        Map<String, Object> body = Map.of(
+                "status", 403,
+                "error", "Forbidden",
+                "message", message,
+                "timestamp", LocalDateTime.now().toString()
+        );
+        response.getWriter().write(objectMapper.writeValueAsString(body));
+    }
+
+    private String resolveIpAddress(HttpServletRequest request) {
+        String forwarded = request.getHeader("X-Forwarded-For");
+        if (org.springframework.util.StringUtils.hasText(forwarded)) {
+            int comma = forwarded.indexOf(',');
+            return comma > -1 ? forwarded.substring(0, comma).trim() : forwarded.trim();
+        }
+        return request.getRemoteAddr();
     }
 }

@@ -46,6 +46,7 @@ public class AuthService {
     private final JwtUtil jwtUtil;
     private final RefreshTokenService refreshTokenService;
     private final SecuritySettingsService securitySettingsService;
+    private final SecurityPolicySettingsService securityPolicySettingsService;
     private final AuditService auditService;
     private final HttpServletRequest request;
     private final SessionSettingsRepository sessionSettingsRepository;
@@ -63,6 +64,7 @@ public class AuthService {
                        JwtUtil jwtUtil,
                        RefreshTokenService refreshTokenService,
                        SecuritySettingsService securitySettingsService,
+                       SecurityPolicySettingsService securityPolicySettingsService,
                        AuditService auditService,
                        HttpServletRequest request,
                        SessionSettingsRepository sessionSettingsRepository,
@@ -72,6 +74,7 @@ public class AuthService {
         this.jwtUtil = jwtUtil;
         this.refreshTokenService = refreshTokenService;
         this.securitySettingsService = securitySettingsService;
+        this.securityPolicySettingsService = securityPolicySettingsService;
         this.auditService = auditService;
         this.request = request;
         this.sessionSettingsRepository = sessionSettingsRepository;
@@ -92,11 +95,30 @@ public class AuthService {
             throw new AccessDeniedException("This account has been deleted");
         }
 
+        if (securitySettingsService.isUsernameDisallowed(user.getUsername())) {
+            throw new AccessDeniedException("This username is disallowed and blocked from logging in");
+        }
+
         if (user.getActivationStatus() == ActivationStatus.PENDING) {
             throw new AccessDeniedException("Your account is awaiting admin activation");
         }
 
+        com.nexorcrm.backend.entity.SecurityPolicySettings policy = securityPolicySettingsService.getPolicySettings();
+        if (user.getLockoutEnd() != null && LocalDateTime.now().isBefore(user.getLockoutEnd())) {
+            long minutesRemaining = java.time.Duration.between(LocalDateTime.now(), user.getLockoutEnd()).toMinutes() + 1;
+            throw new AccessDeniedException("Account is locked. Please try again after " + minutesRemaining + " minutes.");
+        }
+
         if (!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
+            int attempts = (user.getFailedLoginAttempts() == null ? 0 : user.getFailedLoginAttempts()) + 1;
+            user.setFailedLoginAttempts(attempts);
+            if (attempts >= policy.getMaxLoginAttempts()) {
+                user.setLockoutEnd(LocalDateTime.now().plusMinutes(policy.getLockoutDurationMinutes()));
+                user.setFailedLoginAttempts(0); // Reset attempts after lockout is set
+                userRepository.save(user);
+                throw new AccessDeniedException("Account is locked due to too many failed login attempts. Locked for " + policy.getLockoutDurationMinutes() + " minutes.");
+            }
+            userRepository.save(user);
             throw new BadCredentialsException("Invalid username/email or password");
         }
 
@@ -104,6 +126,16 @@ public class AuthService {
             throw new DisabledException("Account is deactivated");
         }
 
+        // Check password expiry
+        if (user.getPasswordUpdatedAt() != null && policy.getPasswordExpiryDays() != null) {
+            LocalDateTime expiryDate = user.getPasswordUpdatedAt().plusDays(policy.getPasswordExpiryDays());
+            if (LocalDateTime.now().isAfter(expiryDate)) {
+                user.setForcePasswordChange(true);
+            }
+        }
+
+        user.setFailedLoginAttempts(0);
+        user.setLockoutEnd(null);
         user.setLastLoginAt(LocalDateTime.now());
         user.setLastActiveIp(loginIp);
         if (!StringUtils.hasText(user.getRegisteredIp())) {
@@ -158,8 +190,11 @@ public class AuthService {
             throw new BadCredentialsException("Old password is incorrect");
         }
 
+        securityPolicySettingsService.validatePassword(request.getNewPassword());
+
         user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
         user.setForcePasswordChange(false);
+        user.setPasswordUpdatedAt(LocalDateTime.now());
         userRepository.save(user);
 
         refreshTokenService.revokeAllUserTokens(user);
@@ -179,8 +214,11 @@ public class AuthService {
             throw new AccessDeniedException("Forced password change is not required");
         }
 
+        securityPolicySettingsService.validatePassword(newPassword);
+
         user.setPasswordHash(passwordEncoder.encode(newPassword));
         user.setForcePasswordChange(false);
+        user.setPasswordUpdatedAt(LocalDateTime.now());
         userRepository.save(user);
 
         refreshTokenService.revokeAllUserTokens(user);

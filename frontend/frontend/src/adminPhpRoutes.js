@@ -786,6 +786,10 @@ export const adminPhpRoutes = [
     component: "PayslipReportPage",
   },
   {
+    path: "payslip-template",
+    component: "PayslipTemplatePage",
+  },
+  {
     path: "performance-appraisal",
     component: "PerformanceAppraisalPage",
   },

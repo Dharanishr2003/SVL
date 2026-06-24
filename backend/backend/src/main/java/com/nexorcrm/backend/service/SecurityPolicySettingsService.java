@@ -27,6 +27,34 @@ public class SecurityPolicySettingsService {
         return toResponse(settings);
     }
 
+    @Transactional(readOnly = true)
+    public void validatePassword(String password) {
+        if (!org.springframework.util.StringUtils.hasText(password)) {
+            throw new IllegalStateException("Password cannot be empty");
+        }
+        SecurityPolicySettings settings = getOrCreateDefault();
+        if (password.length() < settings.getMinPasswordLength()) {
+            throw new IllegalStateException("Password must be at least " + settings.getMinPasswordLength() + " characters long");
+        }
+        if (Boolean.TRUE.equals(settings.getRequireUppercase()) && !password.matches(".*[A-Z].*")) {
+            throw new IllegalStateException("Password must contain at least one uppercase letter (A-Z)");
+        }
+        if (Boolean.TRUE.equals(settings.getRequireLowercase()) && !password.matches(".*[a-z].*")) {
+            throw new IllegalStateException("Password must contain at least one lowercase letter (a-z)");
+        }
+        if (Boolean.TRUE.equals(settings.getRequireNumbers()) && !password.matches(".*\\d.*")) {
+            throw new IllegalStateException("Password must contain at least one number (0-9)");
+        }
+        if (Boolean.TRUE.equals(settings.getRequireSpecialChars()) && !password.matches(".*[^A-Za-z\\d].*")) {
+            throw new IllegalStateException("Password must contain at least one special character");
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public SecurityPolicySettings getPolicySettings() {
+        return getOrCreateDefault();
+    }
+
     public SecurityPolicySettingsResponse updateSettings(SecurityPolicySettingsUpdateRequest request, String updatedBy) {
         SecurityPolicySettings settings = getOrCreateDefault();
         settings.setMinPasswordLength(request.getMinPasswordLength());

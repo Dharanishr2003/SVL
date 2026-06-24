@@ -1,1 +1,0 @@
-import{j as s}from"./index-BcrxHJSP.js";function n(){return s.jsx("div",{className:"card",children:s.jsxs("div",{className:"card-body",children:[s.jsx("h4",{className:"mb-2",children:"Under Construction"}),s.jsx("p",{className:"mb-0",children:"Layout working confirmation."})]})})}export{n as default};

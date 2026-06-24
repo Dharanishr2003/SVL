@@ -85,10 +85,22 @@ public class User {
     @Column(name = "employee_id")
     private Long employeeId;
 
+    @Column(name = "failed_login_attempts", nullable = false)
+    private Integer failedLoginAttempts = 0;
+
+    @Column(name = "lockout_end")
+    private LocalDateTime lockoutEnd;
+
+    @Column(name = "password_updated_at")
+    private LocalDateTime passwordUpdatedAt;
+
     @PrePersist
     void onCreate() {
         if (createdAt == null) {
             createdAt = LocalDateTime.now();
+        }
+        if (passwordUpdatedAt == null) {
+            passwordUpdatedAt = LocalDateTime.now();
         }
     }
 
@@ -268,4 +280,27 @@ public class User {
         this.employeeId = employeeId;
     }
 
+    public Integer getFailedLoginAttempts() {
+        return failedLoginAttempts;
+    }
+
+    public void setFailedLoginAttempts(Integer failedLoginAttempts) {
+        this.failedLoginAttempts = failedLoginAttempts;
+    }
+
+    public LocalDateTime getLockoutEnd() {
+        return lockoutEnd;
+    }
+
+    public void setLockoutEnd(LocalDateTime lockoutEnd) {
+        this.lockoutEnd = lockoutEnd;
+    }
+
+    public LocalDateTime getPasswordUpdatedAt() {
+        return passwordUpdatedAt;
+    }
+
+    public void setPasswordUpdatedAt(LocalDateTime passwordUpdatedAt) {
+        this.passwordUpdatedAt = passwordUpdatedAt;
+    }
 }

@@ -61,6 +61,7 @@ public class SuperAdminService {
     private final UserGroupMemberRepository userGroupMemberRepository;
     private final RefreshTokenService refreshTokenService;
     private final SecuritySettingsService securitySettingsService;
+    private final SecurityPolicySettingsService securityPolicySettingsService;
     private final AuditService auditService;
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
     private final SecureRandom random = new SecureRandom();
@@ -75,6 +76,7 @@ public class SuperAdminService {
                              UserGroupMemberRepository userGroupMemberRepository,
                              RefreshTokenService refreshTokenService,
                              SecuritySettingsService securitySettingsService,
+                             SecurityPolicySettingsService securityPolicySettingsService,
                              AuditService auditService) {
         this.userRepository = userRepository;
         this.auditLogRepository = auditLogRepository;
@@ -86,6 +88,7 @@ public class SuperAdminService {
         this.userGroupMemberRepository = userGroupMemberRepository;
         this.refreshTokenService = refreshTokenService;
         this.securitySettingsService = securitySettingsService;
+        this.securityPolicySettingsService = securityPolicySettingsService;
         this.auditService = auditService;
     }
 
@@ -103,6 +106,8 @@ public class SuperAdminService {
             throw new IllegalStateException("Email already exists");
         }
 
+        securityPolicySettingsService.validatePassword(request.getPassword());
+
         User user = new User();
         user.setUsername(username);
         user.setEmail(email);
@@ -113,6 +118,7 @@ public class SuperAdminService {
         user.setActivationStatus(ActivationStatus.PENDING);
         user.setActive(true);
         user.setForcePasswordChange(false);
+        user.setPasswordUpdatedAt(LocalDateTime.now());
         user.setCreatedBy("SYSTEM");
 
         User saved = userRepository.save(user);
@@ -148,6 +154,8 @@ public class SuperAdminService {
             throw new IllegalStateException("Password and Confirm Password do not match");
         }
 
+        securityPolicySettingsService.validatePassword(request.getPassword());
+
         Role requestedRole = parseRequestedRole(request);
 
         if (requestedRole == Role.CUSTOMER) {
@@ -161,6 +169,7 @@ public class SuperAdminService {
             user.setActivationStatus(ActivationStatus.ACTIVE);
             user.setActive(true);
             user.setForcePasswordChange(false);
+            user.setPasswordUpdatedAt(LocalDateTime.now());
             user.setCreatedBy(actor.getEmail());
 
             User saved = userRepository.save(user);
@@ -228,6 +237,7 @@ public class SuperAdminService {
         user.setActivationStatus(ActivationStatus.PENDING);
         user.setActive(false);
         user.setForcePasswordChange(false);
+        user.setPasswordUpdatedAt(LocalDateTime.now());
         user.setCreatedBy(actor.getEmail());
 
         User saved = userRepository.save(user);
@@ -373,9 +383,7 @@ public class SuperAdminService {
             if (!newPassword.equals(confirmPassword)) {
                 throw new IllegalStateException("New Password and Confirm Password do not match");
             }
-            if (!newPassword.matches(STRONG_PASSWORD_PATTERN)) {
-                throw new IllegalStateException("Password must contain at least one uppercase letter, one number, and one special character");
-            }
+            securityPolicySettingsService.validatePassword(newPassword);
         }
 
         target.setUsername(username);
@@ -415,6 +423,7 @@ public class SuperAdminService {
         if (StringUtils.hasText(newPassword)) {
             target.setPasswordHash(passwordEncoder.encode(newPassword));
             target.setForcePasswordChange(false);
+            target.setPasswordUpdatedAt(LocalDateTime.now());
             refreshTokenService.revokeAllUserTokens(target);
             auditService.log("PASSWORD_SET", "Password updated via profile edit", target.getEmail());
         }
@@ -472,6 +481,7 @@ public class SuperAdminService {
         String tempPassword = generateTemporaryPassword();
         target.setPasswordHash(passwordEncoder.encode(tempPassword));
         target.setForcePasswordChange(true);
+        target.setPasswordUpdatedAt(LocalDateTime.now());
         userRepository.save(target);
 
         refreshTokenService.revokeAllUserTokens(target);

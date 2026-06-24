@@ -236,9 +236,10 @@ public class EmployeeService {
                     .map(user -> user.getEmail().toLowerCase().trim())
                     .collect(Collectors.toSet());
 
-            // Get all non-deleted employees and filter out those with existing user accounts
+            // Get all non-deleted verified employees and filter out those with existing user accounts
             return employeeRepository.findByDeletedFalseOrderByIdDesc()
                     .stream()
+                    .filter(emp -> emp.getProfileStatus() == EmployeeProfileStatus.VERIFIED)
                     .filter(emp -> resolveEmployeeEmail(emp) != null)
                     .filter(emp -> !userEmails.contains(resolveEmployeeEmail(emp)))
                     .filter(emp -> matchesHeadOfficeId(emp.getHeadOfficeId(), normalizedHeadOfficeId))

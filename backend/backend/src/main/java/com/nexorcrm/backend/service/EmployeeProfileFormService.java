@@ -35,6 +35,10 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.multipart.MultipartHttpServletRequest;
 import org.springframework.web.server.ResponseStatusException;
 
+import com.nexorcrm.backend.repo.UserRepository;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.Authentication;
+
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.net.URI;
@@ -57,7 +61,7 @@ public class EmployeeProfileFormService {
 
     private static final String HMAC_ALG = "HmacSHA256";
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
-    private static final Pattern HANDLEBARS_TOKEN_PATTERN = Pattern.compile("\\{\\{\\s*([A-Za-z0-9_]+)\\s*\\}\\}");
+    private static final Pattern HANDLEBARS_TOKEN_PATTERN = Pattern.compile("\\{\\{\\s*([A-Za-z0-9_\\s\\-\\.\\(\\)]+)\\s*\\}\\}");
 
     private static final Set<EmployeePublicFieldKey> EXCLUDED_PUBLIC_FIELDS = EnumSet.of(
             EmployeePublicFieldKey.INSTITUTION,
@@ -84,6 +88,7 @@ public class EmployeeProfileFormService {
     private final UploadStorageService uploadStorageService;
     private final EmployeeSalaryRepository employeeSalaryRepository;
     private final ProvidentFundRepository providentFundRepository;
+    private final UserRepository userRepository;
 
     @Value("${app.employee-form.token-secret:${EMPLOYEE_FORM_TOKEN_SECRET:change-me}}")
     private String tokenSecret;
@@ -119,7 +124,8 @@ public class EmployeeProfileFormService {
             EmailTemplateService emailTemplateService,
             UploadStorageService uploadStorageService,
             EmployeeSalaryRepository employeeSalaryRepository,
-            ProvidentFundRepository providentFundRepository
+            ProvidentFundRepository providentFundRepository,
+            UserRepository userRepository
     ) {
         this.employeeRepository = employeeRepository;
         this.tokenRepository = tokenRepository;
@@ -134,6 +140,7 @@ public class EmployeeProfileFormService {
         this.uploadStorageService = uploadStorageService;
         this.employeeSalaryRepository = employeeSalaryRepository;
         this.providentFundRepository = providentFundRepository;
+        this.userRepository = userRepository;
     }
 
     @Transactional
@@ -407,6 +414,53 @@ public class EmployeeProfileFormService {
         tokens.put("employeeName", employeeName);
         tokens.put("companyName", companyName);
 
+        // Autofill HR Name and Contact Details of current user
+        String hrName = "";
+        String hrContact = "";
+        try {
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            if (authentication != null && StringUtils.hasText(authentication.getName())) {
+                String actorEmail = authentication.getName().trim();
+                Optional<com.nexorcrm.backend.entity.User> userOpt = userRepository.findByEmailAndIsDeletedFalse(actorEmail);
+                if (userOpt.isPresent()) {
+                    com.nexorcrm.backend.entity.User userObj = userOpt.get();
+                    hrName = (String.valueOf(userObj.getFirstName() == null ? "" : userObj.getFirstName()).trim() + " " +
+                             String.valueOf(userObj.getLastName() == null ? "" : userObj.getLastName()).trim()).trim();
+                    if (!StringUtils.hasText(hrName)) {
+                        hrName = userObj.getUsername();
+                    }
+                    hrContact = userObj.getEmail();
+
+                    // If linked to an employee record, prefer their contact details (e.g. phone)
+                    if (userObj.getEmployeeId() != null) {
+                        Optional<Employee> hrEmpOpt = employeeRepository.findById(userObj.getEmployeeId());
+                        if (hrEmpOpt.isPresent()) {
+                            Employee hrEmp = hrEmpOpt.get();
+                            String phone = StringUtils.hasText(hrEmp.getPhone()) ? hrEmp.getPhone().trim() : "";
+                            String emailVal = StringUtils.hasText(hrEmp.getPersonalEmail()) ? hrEmp.getPersonalEmail().trim() :
+                                              (StringUtils.hasText(hrEmp.getEmail()) ? hrEmp.getEmail().trim() : "");
+                            if (StringUtils.hasText(phone) && StringUtils.hasText(emailVal)) {
+                                hrContact = emailVal + " | Phone: " + phone;
+                            } else if (StringUtils.hasText(phone)) {
+                                hrContact = "Phone: " + phone;
+                            } else if (StringUtils.hasText(emailVal)) {
+                                hrContact = emailVal;
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            logger.error("Failed to resolve current HR user details: ", e);
+        }
+
+        tokens.put("HR Name", hrName);
+        tokens.put("hr_name", hrName);
+        tokens.put("hrName", hrName);
+        tokens.put("Contact Details", hrContact);
+        tokens.put("contact_details", hrContact);
+        tokens.put("contactDetails", hrContact);
+
         // Common bracket placeholders present in seeded templates.
         text = replaceBracket(text, "Profile Completion Link", profileCompletionUrl == null ? "" : profileCompletionUrl);
         text = replaceBracket(text, "Expiry Date", expiry);
@@ -415,6 +469,8 @@ public class EmployeeProfileFormService {
         text = replaceBracket(text, "dept", deptName);
         text = replaceBracket(text, "Branch Name", branchName);
         text = replaceBracket(text, "Designation", designation);
+        text = replaceBracket(text, "HR Name", hrName);
+        text = replaceBracket(text, "Contact Details", hrContact);
 
         String empIdVal = "";
         if (employee != null) {
@@ -479,14 +535,19 @@ public class EmployeeProfileFormService {
         }
 
         String amountVal = annualCtc.stripTrailingZeros().toPlainString();
+        tokens.put("CTC", amountVal);
+        tokens.put("ctc", amountVal);
+        tokens.put("Amount", amountVal);
+        tokens.put("amount", amountVal);
+
         text = replaceBracket(text, "Amount", amountVal);
         text = replaceBracket(text, "CTC", amountVal);
         text = replaceBracket(text, "ctc", amountVal);
         text = replaceBracket(text, "Salary", amountVal);
         text = replaceBracket(text, "Annual CTC", amountVal);
 
-        // Replace hardcoded numbers following "CTC"
-        String ctcRegex = "(?i)(CTC\\s*:\\s*(?:₹|Rs\\.?|INR)?\\s*)([\\d,]+(?:\\.\\d+)?)";
+        // Replace hardcoded numbers or bracket placeholders following "CTC" (like "CTC : ₹ per annum" or "CTC : ₹[Amount] per annum")
+        String ctcRegex = "(?i)(CTC\\s*:\\s*(?:₹|Rs\\.?|INR)?\\s*)(?:\\[\\s*Amount\\s*\\]|[\\d,]+(?:\\.\\d+)?|(?=\\s*per\\s+annum))";
         text = text.replaceAll(ctcRegex, "$1" + amountVal);
 
         // Replace {{tokens}} last so templates that contain bracket placeholders inside tokens still work.
@@ -546,7 +607,7 @@ public class EmployeeProfileFormService {
         Matcher m = HANDLEBARS_TOKEN_PATTERN.matcher(template);
         StringBuffer out = new StringBuffer(template.length());
         while (m.find()) {
-            String key = m.group(1);
+            String key = m.group(1).trim();
             String replacement = values.getOrDefault(key, "");
             m.appendReplacement(out, Matcher.quoteReplacement(replacement == null ? "" : replacement));
         }

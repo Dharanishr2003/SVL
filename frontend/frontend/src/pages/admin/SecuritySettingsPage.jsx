@@ -203,11 +203,12 @@ export default function SecuritySettingsPage() {
                 <div className="card border p-3" style={{ borderRadius: 10 }}>
                   <div className="d-flex justify-content-between align-items-center">
                     <div>
-                      <label className="form-label fw-bold text-dark mb-1" style={{ fontSize: "0.95rem" }}>Require Uppercase Letters</label>
+                      <label htmlFor="requireUppercaseSwitch" className="form-label fw-bold text-dark mb-1" style={{ fontSize: "0.95rem", cursor: "pointer" }}>Require Uppercase Letters</label>
                       <p className="text-muted small mb-0">Password must contain at least one uppercase letter (A-Z).</p>
                     </div>
                     <div className="form-check form-switch m-0">
                       <input
+                        id="requireUppercaseSwitch"
                         className="form-check-input"
                         type="checkbox"
                         checked={!!form.requireUppercase}
@@ -223,11 +224,12 @@ export default function SecuritySettingsPage() {
                 <div className="card border p-3" style={{ borderRadius: 10 }}>
                   <div className="d-flex justify-content-between align-items-center">
                     <div>
-                      <label className="form-label fw-bold text-dark mb-1" style={{ fontSize: "0.95rem" }}>Require Lowercase Letters</label>
+                      <label htmlFor="requireLowercaseSwitch" className="form-label fw-bold text-dark mb-1" style={{ fontSize: "0.95rem", cursor: "pointer" }}>Require Lowercase Letters</label>
                       <p className="text-muted small mb-0">Password must contain at least one lowercase letter (a-z).</p>
                     </div>
                     <div className="form-check form-switch m-0">
                       <input
+                        id="requireLowercaseSwitch"
                         className="form-check-input"
                         type="checkbox"
                         checked={!!form.requireLowercase}
@@ -243,11 +245,12 @@ export default function SecuritySettingsPage() {
                 <div className="card border p-3" style={{ borderRadius: 10 }}>
                   <div className="d-flex justify-content-between align-items-center">
                     <div>
-                      <label className="form-label fw-bold text-dark mb-1" style={{ fontSize: "0.95rem" }}>Require Numbers</label>
+                      <label htmlFor="requireNumbersSwitch" className="form-label fw-bold text-dark mb-1" style={{ fontSize: "0.95rem", cursor: "pointer" }}>Require Numbers</label>
                       <p className="text-muted small mb-0">Password must contain at least one digit (0-9).</p>
                     </div>
                     <div className="form-check form-switch m-0">
                       <input
+                        id="requireNumbersSwitch"
                         className="form-check-input"
                         type="checkbox"
                         checked={!!form.requireNumbers}
@@ -263,11 +266,12 @@ export default function SecuritySettingsPage() {
                 <div className="card border p-3" style={{ borderRadius: 10 }}>
                   <div className="d-flex justify-content-between align-items-center">
                     <div>
-                      <label className="form-label fw-bold text-dark mb-1" style={{ fontSize: "0.95rem" }}>Require Special Characters</label>
+                      <label htmlFor="requireSpecialCharsSwitch" className="form-label fw-bold text-dark mb-1" style={{ fontSize: "0.95rem", cursor: "pointer" }}>Require Special Characters</label>
                       <p className="text-muted small mb-0">Password must contain at least one special character (e.g. !, @, #, $, etc.).</p>
                     </div>
                     <div className="form-check form-switch m-0">
                       <input
+                        id="requireSpecialCharsSwitch"
                         className="form-check-input"
                         type="checkbox"
                         checked={!!form.requireSpecialChars}

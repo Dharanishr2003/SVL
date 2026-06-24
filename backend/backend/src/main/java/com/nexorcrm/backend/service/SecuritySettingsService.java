@@ -9,6 +9,7 @@ import com.nexorcrm.backend.entity.Role;
 import com.nexorcrm.backend.entity.SecurityBannedIp;
 import com.nexorcrm.backend.entity.SecurityDisallowedUsername;
 import com.nexorcrm.backend.entity.User;
+import com.nexorcrm.backend.repo.RefreshTokenRepository;
 import com.nexorcrm.backend.repo.SecurityBannedIpRepository;
 import com.nexorcrm.backend.repo.SecurityDisallowedUsernameRepository;
 import com.nexorcrm.backend.repo.UserRepository;
@@ -27,15 +28,18 @@ public class SecuritySettingsService {
     private final SecurityDisallowedUsernameRepository disallowedUsernameRepository;
     private final SecurityBannedIpRepository bannedIpRepository;
     private final UserRepository userRepository;
+    private final RefreshTokenRepository refreshTokenRepository;
     private final AuditService auditService;
 
     public SecuritySettingsService(SecurityDisallowedUsernameRepository disallowedUsernameRepository,
                                    SecurityBannedIpRepository bannedIpRepository,
                                    UserRepository userRepository,
+                                   RefreshTokenRepository refreshTokenRepository,
                                    AuditService auditService) {
         this.disallowedUsernameRepository = disallowedUsernameRepository;
         this.bannedIpRepository = bannedIpRepository;
         this.userRepository = userRepository;
+        this.refreshTokenRepository = refreshTokenRepository;
         this.auditService = auditService;
     }
 
@@ -64,6 +68,10 @@ public class SecuritySettingsService {
             row.setUsername(username);
             disallowedUsernameRepository.save(row);
             auditService.log("SECURITY_DISALLOWED_USERNAME_ADD", "Added disallowed username", actor.getEmail());
+
+            userRepository.findByUsernameAndIsDeletedFalse(username).ifPresent(user -> {
+                refreshTokenRepository.deleteByUser(user);
+            });
         }
         return getSettings(actorPrincipal);
     }
