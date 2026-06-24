@@ -1,1 +1,0 @@
-import{j as s}from"./index-CDVPlDdT.js";function a(){return s.jsx("div",{className:"card",children:s.jsxs("div",{className:"card-body",children:[s.jsx("h4",{className:"mb-2",children:"Register 3"}),s.jsx("p",{className:"mb-0",children:"Layout working confirmation."})]})})}export{a as default};
