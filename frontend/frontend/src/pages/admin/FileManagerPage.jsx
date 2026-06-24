@@ -1,6 +1,8 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { useToast } from "../../components/system/ToastProvider";
-import { getFiles, createFileRecord, deleteFileRecord } from "../../api/fileManagerApi";
+import { getFiles, createFileRecord, deleteFileRecord, uploadFileRecord } from "../../api/fileManagerApi";
+
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8082';
 
 export default function FileManagerPage() {
   const { showSuccess, showError } = useToast();
@@ -12,9 +14,8 @@ export default function FileManagerPage() {
 
   // Modal / Form states
   const [folderName, setFolderName] = useState("");
-  const [fileName, setFileName] = useState("");
-  const [fileType, setFileType] = useState("pdf");
-  const [fileSize, setFileSize] = useState(1); // in MB
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [uploading, setUploading] = useState(false);
 
   const loadFiles = async () => {
     setLoading(true);
@@ -62,22 +63,16 @@ export default function FileManagerPage() {
 
   const handleUploadFile = async (e) => {
     e.preventDefault();
-    if (!fileName.trim()) {
-      showError("File name is required");
+    if (!selectedFile) {
+      showError("Please select a file to upload");
       return;
     }
+    setUploading(true);
     try {
-      const payload = {
-        name: `${fileName.trim()}.${fileType}`,
-        isDirectory: false,
-        size: fileSize * 1024 * 1024, // Convert MB to Bytes
-        type: fileType,
-        parentId: currentFolderId,
-      };
-      const created = await createFileRecord(payload);
+      const created = await uploadFileRecord(selectedFile, currentFolderId);
       if (created) {
         setFiles((prev) => [...prev, created]);
-        setFileName("");
+        setSelectedFile(null);
         showSuccess("File uploaded successfully");
         const modalEl = document.getElementById("upload_file");
         if (modalEl) {
@@ -87,6 +82,8 @@ export default function FileManagerPage() {
       }
     } catch (e) {
       showError("Failed to upload file");
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -273,42 +270,66 @@ export default function FileManagerPage() {
                     <tbody>
                       {files.map((file) => (
                         <tr key={file.id}>
-                          <td>
-                            {file.isDirectory ? (
-                              <button
-                                type="button"
-                                className="btn btn-link p-0 text-dark fw-semibold d-flex align-items-center gap-2"
-                                style={{ textDecoration: "none" }}
-                                onClick={() => handleFolderClick(file)}
-                              >
-                                <i className="ti ti-folder text-warning fs-4"></i>
-                                {file.name}
-                              </button>
-                            ) : (
-                              <span className="d-flex align-items-center gap-2 text-dark">
-                                <i className="ti ti-file-text text-primary fs-4"></i>
-                                {file.name}
-                              </span>
-                            )}
-                          </td>
-                          <td style={{ verticalAlign: "middle" }}>
-                            {file.isDirectory ? "-" : formatBytes(file.size)}
-                          </td>
-                          <td style={{ verticalAlign: "middle" }}>
-                            {file.isDirectory ? "Folder" : file.type?.toUpperCase()}
-                          </td>
-                          <td style={{ verticalAlign: "middle" }}>
-                            {new Date(file.createdAt).toLocaleDateString()}
-                          </td>
-                          <td className="text-end" style={{ verticalAlign: "middle" }}>
-                            <button
-                              type="button"
-                              className="btn btn-sm btn-outline-danger btn-circle"
-                              onClick={() => handleDeleteFile(file.id)}
-                            >
-                              <i className="ti ti-trash"></i>
-                            </button>
-                          </td>
+                           <td>
+                             {file.isDirectory ? (
+                               <button
+                                 type="button"
+                                 className="btn btn-link p-0 text-dark fw-semibold d-flex align-items-center gap-2"
+                                 style={{ textDecoration: "none" }}
+                                 onClick={() => handleFolderClick(file)}
+                               >
+                                 <i className="ti ti-folder text-warning fs-4"></i>
+                                 {file.name}
+                               </button>
+                             ) : (
+                               file.path ? (
+                                 <a
+                                   href={`${API_BASE}${file.path}`}
+                                   target="_blank"
+                                   rel="noopener noreferrer"
+                                   className="d-flex align-items-center gap-2 text-primary fw-semibold"
+                                   style={{ textDecoration: "none" }}
+                                 >
+                                   <i className="ti ti-file-text text-primary fs-4"></i>
+                                   {file.name}
+                                 </a>
+                               ) : (
+                                 <span className="d-flex align-items-center gap-2 text-dark">
+                                   <i className="ti ti-file-text text-primary fs-4"></i>
+                                   {file.name}
+                                 </span>
+                               )
+                             )}
+                           </td>
+                           <td style={{ verticalAlign: "middle" }}>
+                             {file.isDirectory ? "-" : formatBytes(file.size)}
+                           </td>
+                           <td style={{ verticalAlign: "middle" }}>
+                             {file.isDirectory ? "Folder" : file.type?.toUpperCase()}
+                           </td>
+                           <td style={{ verticalAlign: "middle" }}>
+                             {new Date(file.createdAt).toLocaleDateString()}
+                           </td>
+                           <td className="text-end" style={{ verticalAlign: "middle" }}>
+                             {!file.isDirectory && file.path && (
+                               <a
+                                 href={`${API_BASE}${file.path}`}
+                                 target="_blank"
+                                 rel="noopener noreferrer"
+                                 className="btn btn-sm btn-outline-primary btn-circle me-2"
+                                 title="View / Download"
+                               >
+                                 <i className="ti ti-download"></i>
+                               </a>
+                             )}
+                             <button
+                               type="button"
+                               className="btn btn-sm btn-outline-danger btn-circle"
+                               onClick={() => handleDeleteFile(file.id)}
+                             >
+                               <i className="ti ti-trash"></i>
+                             </button>
+                           </td>
                         </tr>
                       ))}
                     </tbody>
@@ -357,52 +378,65 @@ export default function FileManagerPage() {
           <div className="modal-content" style={{ borderRadius: 12 }}>
             <div className="modal-header border-bottom">
               <h5 className="modal-title fw-bold text-dark">Upload File</h5>
-              <button type="button" className="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+              <button 
+                type="button" 
+                className="btn-close" 
+                data-bs-dismiss="modal" 
+                aria-label="Close"
+                onClick={() => setSelectedFile(null)}
+              ></button>
             </div>
             <form onSubmit={handleUploadFile}>
               <div className="modal-body p-4">
                 <div className="mb-3">
-                  <label className="form-label fw-semibold text-dark">File Name</label>
+                  <label className="form-label fw-semibold text-dark">Select File from Device</label>
                   <input
-                    type="text"
+                    type="file"
                     className="form-control"
-                    placeholder="Enter file name (without extension)"
-                    value={fileName}
-                    onChange={(e) => setFileName(e.target.value)}
+                    onChange={(e) => {
+                      if (e.target.files && e.target.files.length > 0) {
+                        setSelectedFile(e.target.files[0]);
+                      } else {
+                        setSelectedFile(null);
+                      }
+                    }}
                     required
                   />
                 </div>
-                <div className="row">
-                  <div className="col-md-6 mb-3">
-                    <label className="form-label fw-semibold text-dark">Extension</label>
-                    <select
-                      className="form-select"
-                      value={fileType}
-                      onChange={(e) => setFileType(e.target.value)}
-                    >
-                      <option value="pdf">PDF Document (.pdf)</option>
-                      <option value="png">PNG Image (.png)</option>
-                      <option value="zip">ZIP Archive (.zip)</option>
-                      <option value="docx">Word Doc (.docx)</option>
-                      <option value="xlsx">Excel Sheet (.xlsx)</option>
-                    </select>
+                {selectedFile && (
+                  <div className="mt-3 p-3 bg-light rounded" style={{ fontSize: "0.9rem" }}>
+                    <div className="d-flex justify-content-between mb-1">
+                      <span className="text-muted">Name:</span>
+                      <span className="fw-semibold text-dark text-truncate ms-2" style={{ maxWidth: "250px" }}>{selectedFile.name}</span>
+                    </div>
+                    <div className="d-flex justify-content-between mb-1">
+                      <span className="text-muted">Size:</span>
+                      <span className="fw-semibold text-dark">{formatBytes(selectedFile.size)}</span>
+                    </div>
+                    <div className="d-flex justify-content-between">
+                      <span className="text-muted">Type:</span>
+                      <span className="fw-semibold text-dark">{selectedFile.name.split('.').pop()?.toUpperCase() || "Unknown"}</span>
+                    </div>
                   </div>
-                  <div className="col-md-6 mb-3">
-                    <label className="form-label fw-semibold text-dark">Size (MB)</label>
-                    <input
-                      type="number"
-                      className="form-control"
-                      value={fileSize}
-                      onChange={(e) => setFileSize(Number(e.target.value))}
-                      min="1"
-                      required
-                    />
-                  </div>
-                </div>
+                )}
               </div>
               <div className="modal-footer border-top">
-                <button type="button" className="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="submit" className="btn btn-primary" style={{ backgroundColor: "#3b82f6", borderColor: "#3b82f6" }}>Upload</button>
+                <button 
+                  type="button" 
+                  className="btn btn-outline-secondary" 
+                  data-bs-dismiss="modal"
+                  onClick={() => setSelectedFile(null)}
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit" 
+                  className="btn btn-primary" 
+                  style={{ backgroundColor: "#3b82f6", borderColor: "#3b82f6" }}
+                  disabled={uploading}
+                >
+                  {uploading ? "Uploading..." : "Upload"}
+                </button>
               </div>
             </form>
           </div>

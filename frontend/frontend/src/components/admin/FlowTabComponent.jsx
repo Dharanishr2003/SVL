@@ -197,10 +197,17 @@ export default function FlowTabComponent({
   const updateNextGroup = (status, nextStatus, groupId) => {
     setRules((prev) =>
       prev.map((r) => {
-        if (r.status !== status) return r;
-        const next = { ...(r.next || {}) };
-        next[nextStatus] = groupId ? Number(groupId) : null;
-        return { ...r, next };
+        // Update the next map on the source status
+        if (r.status === status) {
+          const next = { ...(r.next || {}) };
+          next[nextStatus] = groupId ? Number(groupId) : null;
+          return { ...r, next };
+        }
+        // Auto-fill handledByGroupId on the TARGET status row when a real group is chosen
+        if (r.status === nextStatus && groupId) {
+          return { ...r, handledByGroupId: String(groupId) };
+        }
+        return r;
       }),
     );
   };

@@ -1002,6 +1002,14 @@ export const adminPhpRoutes = [
     component: "TodoPage",
   },
   {
+    path: "tasks",
+    component: "TasksPage",
+  },
+  {
+    path: "task-board",
+    component: "TaskBoardPage",
+  },
+  {
     path: "two-step-verification",
     component: "TwoStepVerificationPage",
   },

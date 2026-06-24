@@ -83,8 +83,8 @@ const PayslipPage = () => {
     setRunning(true);
     try {
       const result = await runPayroll(monthString);
+      setPayslips(Array.isArray(result) ? result : []);
       showSuccess(`Payroll run complete — ${Array.isArray(result) ? result.length : 0} payslip(s) generated for ${monthString}`);
-      await loadPayslips();
     } catch (e) {
       showError(extractApiErrorMessage(e, "Payroll run failed"));
     } finally {

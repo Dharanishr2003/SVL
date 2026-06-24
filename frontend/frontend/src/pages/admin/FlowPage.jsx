@@ -24,7 +24,7 @@ function findByName(rows, name) {
 export default function FlowPage() {
   const { user } = useAuth();
   const role = String(user?.role || "").toUpperCase();
-  const canEdit = role === "SUPER_ADMIN";
+  const canEdit = role === "SUPER_ADMIN" || role === "ADMIN";
   const [loading, setLoading] = useState(true);
   const [initializingScope, setInitializingScope] = useState(true);
   const [groups, setGroups] = useState([]);
@@ -172,7 +172,7 @@ export default function FlowPage() {
             hiddenFromTableStatuses={[]}
             hiddenFromSelectedStatuses={[]}
             hiddenFromAddStatuses={[]}
-            readOnlyGroupStatuses={["Not Attempted", "Attempted", "Interested", "Rejected", "Requirement"]}
+            readOnlyGroupStatuses={[]}
             onStatusAdd={(status) => setLeadStatuses((prev) => [...prev, status])}
             onStatusRemove={(status) => setLeadStatuses((prev) => prev.filter((s) => s !== status))}
           />

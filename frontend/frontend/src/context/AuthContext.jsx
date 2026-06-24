@@ -281,7 +281,7 @@ export function AuthProvider({ children }) {
       clearTokens();
       setUser(null);
       setAccessTokenState(null);
-      if (window.location.pathname !== "/login") {
+      if (window.location.pathname !== "/login" && !isPublicUnauthenticatedRoute(window.location.pathname)) {
         window.location.assign("/login");
       }
     }
@@ -294,7 +294,7 @@ export function AuthProvider({ children }) {
     timeoutMs: (user?.sessionTimeout ?? 15) * 60 * 1000,
     warningMs: (user?.sessionWarning ?? 120) * 1000,
     onTimeout: logout,
-    enabled: isAuthenticated,
+    enabled: isAuthenticated && !isPublicUnauthenticatedRoute(window.location.pathname),
   });
 
   const updateUserProfile = (profileData) => {

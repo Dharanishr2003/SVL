@@ -158,7 +158,7 @@ export default function TodoPage() {
               className="btn btn-primary d-flex align-items-center gap-2"
               data-bs-toggle="modal"
               data-bs-target="#add_todo"
-              style={{ backgroundColor: "#3b82f6", borderColor: "#3b82f6", fontWeight: "600", padding: "10px 20px", borderRadius: "10px" }}
+              style={{ backgroundColor: "#3b82f6", borderColor: "#3b82f6", fontWeight: "600", padding: "10px 20px", borderRadius: "10px", height: 42, whiteSpace: "nowrap" }}
             >
               <i className="ti ti-plus" style={{ fontSize: "1.1rem" }}></i>
               New Task
