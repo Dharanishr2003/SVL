@@ -25,6 +25,7 @@ import { getPrimarySources, createPrimarySource } from "../../api/primarySourceA
 import { getSecondarySources, createSecondarySource } from "../../api/secondarySourceApi";
 import { getTertiarySources } from "../../api/tertiarySourceApi";
 import { getGroupMembers, getUserGroups } from "../../api/userGroupApi";
+import { getCampaignLeads, assignCampaignLead, submitTestLead } from "../../api/campaignLeadsApi";
 import { getProjects } from "../../api/projectApi";
 import { getLeadFlow } from "../../api/flowApi";
 import { getBranches } from "../../api/branchesApi";
@@ -350,9 +351,11 @@ export default function LeadsPage() {
     projects: [],
     primarySources: [],
     leadStatuses: [],
+    leadStatusCounts: {},
     svStatuses: [],
     owners: [],
   });
+  const [leadStatusScopeRows, setLeadStatusScopeRows] = useState([]);
   const [leadStatusOptions, setLeadStatusOptions] = useState([]);
 
   const [activeMainTab, setActiveMainTab] = useState('leads');
@@ -360,12 +363,53 @@ export default function LeadsPage() {
   const [duplicateLeads, setDuplicateLeads] = useState([]);
   const [dupLoading, setDupLoading] = useState(false);
   const [dupError, setDupError] = useState('');
+  const [dupFilters, setDupFilters] = useState({
+    search: "",
+    primary: "",
+    status: "",
+    svStatus: "",
+    owner: "",
+    quickDate: "",
+  });
+  const [dupFilterOpen, setDupFilterOpen] = useState(false);
+  const [dupPage, setDupPage] = useState(1);
+  const [dupPageSize, setDupPageSize] = useState(25);
   const [convertingLeadId, setConvertingLeadId] = useState(null);
   const [convertConfirm, setConvertConfirm] = useState(null);
   const [dupWarnLead, setDupWarnLead] = useState(null);
 
+  // ── Campaign Leads tab ──────────────────────────────────────────────────────
+  const [campaignLeads, setCampaignLeads] = useState([]);
+  const [campaignLoading, setCampaignLoading] = useState(false);
+  const [campaignError, setCampaignError] = useState('');
+  const [campaignSearch, setCampaignSearch] = useState('');
+  const [campaignSourceFilter, setCampaignSourceFilter] = useState('');
+  const [campaignSelectedIds, setCampaignSelectedIds] = useState(new Set());
+  const [campaignAssignOpen, setCampaignAssignOpen] = useState(false);
+  const [campaignAssignBranchId, setCampaignAssignBranchId] = useState('');
+  const [campaignAssignGroupId, setCampaignAssignGroupId] = useState('');
+  const [campaignAssignUserId, setCampaignAssignUserId] = useState('');
+  const [campaignAssignLoading, setCampaignAssignLoading] = useState(false);
+  const [campaignGroupMembers, setCampaignGroupMembers] = useState([]);
+  const [campaignAssignGroupLoading, setCampaignAssignGroupLoading] = useState(false);
+
   const [activeActionsRow, setActiveActionsRow] = useState(null);
   const [actionsMenuPos, setActionsMenuPos] = useState({ top: 0, left: 0 });
+
+  // Test form state
+  const [campaignTestOpen, setCampaignTestOpen] = useState(false);
+  const [campaignTestLoading, setCampaignTestLoading] = useState(false);
+  const [campaignTestForm, setCampaignTestForm] = useState({
+    fullName: "",
+    phone: "",
+    email: "",
+    city: "",
+    moq: "",
+    industry: "",
+    platform: "ig",
+    adName: "Corrugated box_ Ad 1",
+    campaignName: "Leads Campaign_corrugated boxes J - 18"
+  });
 
   // Bulk Operations State
   const [bulkAssignOpen, setBulkAssignOpen] = useState(false);
@@ -638,6 +682,76 @@ export default function LeadsPage() {
     if (page !== clampedPage) setPage(clampedPage);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clampedPage]);
+
+  const filteredDuplicateLeads = useMemo(() => {
+    const searchTerm = String(dupFilters.search || "").trim().toLowerCase();
+    const primaryTerm = String(dupFilters.primary || "").trim().toLowerCase();
+    const statusTerm = String(dupFilters.status || "").trim().toLowerCase();
+    const ownerTerm = String(dupFilters.owner || "").trim().toLowerCase();
+    const quickDate = String(dupFilters.quickDate || "").trim().toLowerCase();
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const startOfWeek = startOfToday - (6 * 24 * 60 * 60 * 1000);
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+
+    return (Array.isArray(duplicateLeads) ? duplicateLeads : []).filter((lead) => {
+      const searchable = [
+        lead?.name,
+        lead?.mobile,
+        lead?.email,
+        lead?.primarySource,
+        lead?.secondarySource,
+        lead?.owner,
+        lead?.status,
+        lead?.svStatus,
+        lead?.duplicateOfLeadRef,
+        lead?.duplicateOfLeadName,
+      ]
+        .map((value) => String(value || "").toLowerCase())
+        .join(" ");
+
+      if (searchTerm && !searchable.includes(searchTerm)) return false;
+
+      if (primaryTerm) {
+        const sourceValue = String(lead?.secondarySource || lead?.primarySource || "").trim().toLowerCase();
+        if (!sourceValue.includes(primaryTerm)) return false;
+      }
+
+      if (statusTerm) {
+        const leadStatus = String(lead?.status || "").trim().toLowerCase();
+        if (!leadStatus.includes(statusTerm)) return false;
+      }
+
+      if (ownerTerm) {
+        const ownerValue = String(lead?.owner || "").trim().toLowerCase();
+        if (!ownerValue.includes(ownerTerm)) return false;
+      }
+
+      if (quickDate) {
+        const createdAt = lead?.createdAt ? new Date(lead.createdAt).getTime() : 0;
+        if (!createdAt) return false;
+        if (quickDate === "today" && createdAt < startOfToday) return false;
+        if (quickDate === "weekly" && createdAt < startOfWeek) return false;
+        if (quickDate === "monthly" && createdAt < startOfMonth) return false;
+      }
+
+      return true;
+    });
+  }, [dupFilters, duplicateLeads]);
+
+  const dupTotalRows = filteredDuplicateLeads.length;
+  const dupPageCount = Math.max(1, Math.ceil(dupTotalRows / Math.max(1, dupPageSize)));
+  const dupClampedPage = Math.min(Math.max(1, dupPage), dupPageCount);
+  const dupPageOffset = (dupClampedPage - 1) * dupPageSize;
+  const dupPagedRows = useMemo(
+    () => filteredDuplicateLeads.slice(dupPageOffset, dupPageOffset + dupPageSize),
+    [filteredDuplicateLeads, dupPageOffset, dupPageSize],
+  );
+
+  useEffect(() => {
+    if (dupPage !== dupClampedPage) setDupPage(dupClampedPage);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dupClampedPage]);
   const createFlowScope = useMemo(
     () => (
       role === "SUPER_ADMIN" || !actorInstitutionName
@@ -661,25 +775,47 @@ export default function LeadsPage() {
     setLoading(true);
     setError("");
     try {
-      const baseData = await getLeads(nextFilters);
-      if (Array.isArray(baseData)) {
+      const normalizeRows = (input) => {
+        const rowsData = Array.isArray(input) ? input : [];
         const seen = new Set();
-        setRows(baseData.filter((r) => {
-          if (seen.has(r.id)) return false;
-          seen.add(r.id);
+        return rowsData.filter((row) => {
+          const rowId = row?.id;
+          if (rowId == null) return true;
+          if (seen.has(rowId)) return false;
+          seen.add(rowId);
           return true;
-        }));
-      } else {
-        setRows([]);
-      }
+        });
+      };
+      const scopeFilters = { ...nextFilters, status: "" };
+      const shouldLoadStatusScope = String(nextFilters?.status || "").trim() !== "";
+      const scopePromise = shouldLoadStatusScope
+        ? getLeads(scopeFilters).catch(() => null)
+        : Promise.resolve(null);
+      const [baseData, scopeData] = await Promise.all([
+        getLeads(nextFilters),
+        scopePromise,
+      ]);
+      setRows(normalizeRows(baseData));
+      setLeadStatusScopeRows(normalizeRows(shouldLoadStatusScope ? (scopeData ?? baseData) : baseData));
       setSelectedLeadIds(new Set());
       setPage(1);
     } catch (e) {
       setRows([]);
+      setLeadStatusScopeRows([]);
       setError(extractApiErrorMessage(e, "Failed to load leads"));
     } finally {
       setLoading(false);
     }
+  };
+
+  const promoteLeadToTop = (prevRows, updatedLead) => {
+    if (!updatedLead?.id) return prevRows;
+    const updatedId = String(updatedLead.id);
+    const nextRow = { ...updatedLead };
+    const nextRows = (Array.isArray(prevRows) ? prevRows : []).filter(
+      (row) => String(row?.id) !== updatedId,
+    );
+    return [nextRow, ...nextRows];
   };
 
   useEffect(() => {
@@ -772,6 +908,10 @@ export default function LeadsPage() {
           leadStatuses: Array.isArray(filterPayload?.leadStatuses)
             ? filterPayload.leadStatuses
             : [],
+          leadStatusCounts:
+            filterPayload?.leadStatusCounts && typeof filterPayload.leadStatusCounts === "object"
+              ? filterPayload.leadStatusCounts
+              : {},
           svStatuses: Array.isArray(filterPayload?.svStatuses)
             ? filterPayload.svStatuses
             : [],
@@ -885,6 +1025,204 @@ export default function LeadsPage() {
     };
     setFilters(cleared);
     await loadLeads(cleared);
+  };
+
+  const leadStatusMenuItems = useMemo(() => {
+    const statuses = Array.isArray(leadFilters.leadStatuses) ? leadFilters.leadStatuses : [];
+    const countsByStatus = new Map();
+
+    (Array.isArray(leadStatusScopeRows) ? leadStatusScopeRows : []).forEach((row) => {
+      const rawStatus = String(row?.status || "").trim();
+      if (!rawStatus) return;
+      const key = rawStatus.toLowerCase();
+      countsByStatus.set(key, (countsByStatus.get(key) || 0) + 1);
+    });
+
+    return statuses
+      .map((status) => ({
+        status,
+        count: countsByStatus.get(String(status || "").trim().toLowerCase()) || 0,
+      }))
+      .filter((item) => item && item.count > 0);
+  }, [leadFilters.leadStatuses, leadStatusScopeRows]);
+
+  const leadStatusMenuTotal = useMemo(() => leadStatusScopeRows.length, [leadStatusScopeRows]);
+
+  const handleLeadStatusBarClick = async (status) => {
+    const nextFilters = { ...filters, status };
+    setFilters(nextFilters);
+    await loadLeads(nextFilters);
+  };
+
+  const leadStatusMenuLabel = filters.status
+    ? formatStatusLabel(filters.status)
+    : "All Statuses";
+
+  const leadStatusMenuSelectedCount = useMemo(() => {
+    if (!filters.status) return leadStatusMenuTotal;
+    const match = leadStatusMenuItems.find(
+      (item) => String(item.status || "").trim().toLowerCase() === String(filters.status || "").trim().toLowerCase(),
+    );
+    return Number(match?.count ?? 0);
+  }, [filters.status, leadStatusMenuItems, leadStatusMenuTotal]);
+
+  const applyDuplicateFilters = async () => {
+    setDupFilterOpen(false);
+    setDupPage(1);
+  };
+
+  const resetDuplicateFilters = async () => {
+    setDupFilters({
+      search: "",
+      primary: "",
+      status: "",
+      svStatus: "",
+      owner: "",
+      quickDate: "",
+    });
+    setDupFilterOpen(false);
+    setDupPage(1);
+  };
+
+  const exportDuplicateCsv = () => {
+    const headers = [
+      "Lead ID",
+      "Name",
+      "Mobile",
+      "Primary Source",
+      "Status",
+      "Owner",
+      "Matched Lead",
+      "Created Date",
+    ];
+    const body = filteredDuplicateLeads.map((row) => [
+      row.leadId || row.id || "",
+      row.name || "",
+      row.mobile || "",
+      row.primarySource || row.secondarySource || "",
+      row.status || "",
+      row.owner || "",
+      row.duplicateOfLeadName || row.duplicateOfLeadRef || "",
+      row.createdAt || "",
+    ]);
+    const csv = [headers, ...body]
+      .map((line) =>
+        line
+          .map((cell) => `"${String(cell ?? "").replace(/"/g, '""')}"`)
+          .join(","),
+      )
+      .join("\n");
+    downloadTextFile(`duplicate-leads-${Date.now()}.csv`, csv, "text/csv;charset=utf-8;");
+  };
+
+  const exportDuplicateExcel = () => {
+    const headers = [
+      "Lead ID",
+      "Name",
+      "Mobile",
+      "Primary Source",
+      "Status",
+      "Owner",
+      "Matched Lead",
+      "Created Date",
+    ];
+    const escapeXml = (unsafe) =>
+      String(unsafe ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&apos;");
+
+    const headerHtml = `      <tr>
+        ${headers.map((h) => `<th>${escapeXml(h)}</th>`).join("\n        ")}
+      </tr>`;
+
+    const rowsHtml = filteredDuplicateLeads
+      .map(
+        (row) => `      <tr>
+        <td>${escapeXml(row.leadId || row.id || "")}</td>
+        <td>${escapeXml(row.name || "")}</td>
+        <td>${escapeXml(row.mobile || "")}</td>
+        <td>${escapeXml(row.primarySource || row.secondarySource || "")}</td>
+        <td>${escapeXml(row.status || "")}</td>
+        <td>${escapeXml(row.owner || "")}</td>
+        <td>${escapeXml(row.duplicateOfLeadName || row.duplicateOfLeadRef || "")}</td>
+        <td>${escapeXml(row.createdAt || "")}</td>
+      </tr>`,
+      )
+      .join("\n");
+
+    const template = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+<head>
+<!--[if gte mso 9]>
+<xml>
+  <x:ExcelWorkbook>
+    <x:ExcelWorksheets>
+      <x:ExcelWorksheet>
+        <x:Name>DuplicateLeads</x:Name>
+        <x:WorksheetOptions>
+          <x:DisplayGridlines/>
+        </x:WorksheetOptions>
+      </x:ExcelWorksheet>
+    </x:ExcelWorksheets>
+  </x:ExcelWorkbook>
+</xml>
+<![endif]-->
+<meta http-equiv="content-type" content="text/plain; charset=UTF-8"/>
+</head>
+<body>
+  <table>
+    <thead>
+${headerHtml}
+    </thead>
+    <tbody>
+${rowsHtml}
+    </tbody>
+  </table>
+</body>
+</html>`;
+
+    downloadTextFile(`duplicate-leads-${Date.now()}.xls`, template, "application/vnd.ms-excel;charset=utf-8;");
+  };
+
+  const exportDuplicatePdf = () => {
+    const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
+    doc.setFontSize(14);
+    doc.text("Duplicate Leads Export", 40, 40);
+    doc.setFontSize(10);
+    doc.text(`Generated: ${new Date().toLocaleString()}`, 40, 58);
+
+    const headers = [[
+      "Lead ID",
+      "Name",
+      "Mobile",
+      "Primary Source",
+      "Status",
+      "Owner",
+      "Matched Lead",
+      "Created Date",
+    ]];
+
+    const body = filteredDuplicateLeads.map((row) => [
+      row.leadId || row.id || "",
+      row.name || "",
+      row.mobile || "",
+      row.primarySource || row.secondarySource || "",
+      row.status || "",
+      row.owner || "",
+      row.duplicateOfLeadName || row.duplicateOfLeadRef || "",
+      row.createdAt || "",
+    ]);
+
+    autoTable(doc, {
+      head: headers,
+      body,
+      startY: 70,
+      styles: { fontSize: 8 },
+    });
+
+    doc.save(`duplicate-leads-${Date.now()}.pdf`);
   };
 
   const leadPageKey = CRM_PAGE_OPTIONS.find((item) => item.key === "leads")?.key || "leads";
@@ -1052,6 +1390,7 @@ export default function LeadsPage() {
     try {
       const data = await getDuplicateLeads();
       setDuplicateLeads(Array.isArray(data) ? data : []);
+      setDupPage(1);
     } catch (e) {
       setDupError(extractApiErrorMessage(e, 'Failed to load duplicate leads.'));
     } finally {
@@ -1085,7 +1424,169 @@ export default function LeadsPage() {
     if (activeMainTab === 'duplicates') {
       loadDuplicateLeads();
     }
+    if (activeMainTab === 'campaign') {
+      loadCampaignLeads();
+    }
   }, [activeMainTab]);
+
+  const loadCampaignLeads = async () => {
+    setCampaignLoading(true);
+    setCampaignError('');
+    try {
+      const data = await getCampaignLeads();
+      setCampaignLeads(Array.isArray(data) ? data : []);
+    } catch (e) {
+      setCampaignError('Failed to load campaign leads.');
+    } finally {
+      setCampaignLoading(false);
+    }
+  };
+
+  const loadCampaignEmployees = async () => {
+    try {
+      const list = await getImportableEmployees();
+      setCampaignEmployees(Array.isArray(list) ? list : []);
+    } catch (_) { /* ignore */ }
+  };
+
+  const openCampaignAssign = (preselectedId = null) => {
+    if (preselectedId) setCampaignSelectedIds(new Set([preselectedId]));
+    setCampaignAssignBranchId('');
+    setCampaignAssignGroupId('');
+    setCampaignAssignUserId('');
+    setCampaignGroupMembers([]);
+    // For non-SUPER_ADMIN, auto-resolve the flow group immediately
+    if (role !== 'SUPER_ADMIN') {
+      loadCampaignFlowGroup(null);
+    }
+    setCampaignAssignOpen(true);
+  };
+
+  // Resolve the "New Lead" group from the flow config for the given branch
+  const loadCampaignFlowGroup = async (branchId) => {
+    setCampaignAssignGroupLoading(true);
+    setCampaignAssignUserId('');
+    setCampaignGroupMembers([]);
+    try {
+      const flowPayload = await getLeadFlow(
+        branchId ? { branchId, institutionName: '' } : {}
+      );
+      const rules = Array.isArray(flowPayload?.rules) ? flowPayload.rules : [];
+      const newLeadRule = rules.find(
+        (r) => String(r?.status || '').trim().toLowerCase() === 'new lead'
+      );
+      const groupId = newLeadRule?.handledByGroupId
+        ? String(newLeadRule.handledByGroupId)
+        : '';
+      setCampaignAssignGroupId(groupId);
+      if (groupId) {
+        const members = await getGroupMembers(groupId);
+        setCampaignGroupMembers(Array.isArray(members) ? members : []);
+      }
+    } catch (_) {
+      setCampaignAssignGroupId('');
+      setCampaignGroupMembers([]);
+    } finally {
+      setCampaignAssignGroupLoading(false);
+    }
+  };
+
+  const onCampaignBranchChange = (branchId) => {
+    setCampaignAssignBranchId(branchId);
+    setCampaignAssignGroupId('');
+    setCampaignAssignUserId('');
+    setCampaignGroupMembers([]);
+    if (branchId) loadCampaignFlowGroup(branchId);
+  };
+
+  const submitCampaignAssign = async () => {
+    if (!campaignAssignUserId) { showError('Please select an employee.'); return; }
+    if (!campaignAssignGroupId) { showError('Could not resolve lead group. Please select a branch.'); return; }
+    setCampaignAssignLoading(true);
+    try {
+      for (const campaignLeadId of Array.from(campaignSelectedIds)) {
+        await assignCampaignLead(
+          campaignLeadId,
+          Number(campaignAssignUserId),
+          Number(campaignAssignGroupId)
+        );
+      }
+      showSuccess(`${campaignSelectedIds.size} campaign lead(s) assigned successfully.`);
+      setCampaignAssignOpen(false);
+      setCampaignAssignBranchId('');
+      setCampaignAssignGroupId('');
+      setCampaignAssignUserId('');
+      setCampaignSelectedIds(new Set());
+      loadCampaignLeads();
+      if (typeof handleRefresh === 'function') handleRefresh();
+    } catch (e) {
+      showError(e?.response?.data?.message || 'Failed to assign lead. Please try again.');
+    } finally {
+      setCampaignAssignLoading(false);
+    }
+  };
+
+  const submitCampaignTest = async () => {
+    if (!campaignTestForm.fullName.trim() || !campaignTestForm.phone.trim()) {
+      showError("Name and Phone number are required to submit a test lead.");
+      return;
+    }
+    setCampaignTestLoading(true);
+    try {
+      // Send snake_case keys – matches what the backend reads from the Map<String,String>
+      const payload = {
+        lead_id:       "TEST_" + Date.now() + "_" + Math.floor(Math.random() * 1000),
+        full_name:     campaignTestForm.fullName,
+        phone:         campaignTestForm.phone,
+        email:         campaignTestForm.email,
+        city:          campaignTestForm.city,
+        moq:           campaignTestForm.moq,
+        industry:      campaignTestForm.industry,
+        platform:      campaignTestForm.platform,
+        ad_name:       campaignTestForm.adName,
+        campaign_name: campaignTestForm.campaignName,
+      };
+      await submitTestLead(payload);
+      showSuccess("Test lead submitted! It now appears in the Campaign Leads list.");
+      setCampaignTestOpen(false);
+      setCampaignTestForm({
+        fullName: "",
+        phone: "",
+        email: "",
+        city: "",
+        moq: "",
+        industry: "",
+        platform: "ig",
+        adName: "Corrugated box_ Ad 1",
+        campaignName: "Leads Campaign_corrugated boxes J - 18"
+      });
+      // Small delay to let the DB write complete, then refresh
+      setTimeout(() => loadCampaignLeads(), 300);
+    } catch (e) {
+      showError("Failed to submit test lead. Make sure the backend is running.");
+    } finally {
+      setCampaignTestLoading(false);
+    }
+  };
+
+
+  const toggleCampaignSelect = (id) => {
+    setCampaignSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleAllCampaign = (list) => {
+    if (campaignSelectedIds.size === list.length && list.length > 0) {
+      setCampaignSelectedIds(new Set());
+    } else {
+      setCampaignSelectedIds(new Set(list.map((l) => l.id)));
+    }
+  };
+
+
 
   const goToNextCreateStep = () => {
     const errors = { name: "", primarySource: "" };
@@ -1177,7 +1678,7 @@ export default function LeadsPage() {
 
   const openStatusModal = (lead) => {
     setStatusLead(lead);
-    setStatusValue("");
+    setStatusValue(String(lead?.status || "").trim());
     setDesignStartAt(toInputDateTime(lead?.designStartAt || ""));
     setDesignEndAt(toInputDateTime(lead?.designEndAt || ""));
     setAttemptedOpenReason("");
@@ -1205,6 +1706,10 @@ export default function LeadsPage() {
       });
   };
 
+  const handleStatusBadgeClick = (lead) => {
+    openStatusModal(lead);
+  };
+
   const resolveNextGroupIdForStatus = (status) => {
     if (!Array.isArray(flowRules)) return null;
     const targetRule = flowRules.find(
@@ -1229,11 +1734,8 @@ export default function LeadsPage() {
 
     const nextLead = await updateLeadRowStatus(activeLead.id, statusValue, nextGroupId);
 
-    setRows((prev) =>
-      prev.map((row) =>
-        String(row.id) === String(activeLead.id) ? { ...row, ...nextLead } : row,
-      ),
-    );
+    setRows((prev) => promoteLeadToTop(prev, nextLead));
+    setLeadStatusScopeRows((prev) => promoteLeadToTop(prev, nextLead));
     setShowStatusModal(false);
     setShowDesignDurationModal(false);
     setStatusLead(null);
@@ -1309,6 +1811,14 @@ export default function LeadsPage() {
       return;
     }
 
+    if (nextKey === "requirement") {
+      setShowStatusModal(false);
+      setStatusLead(null);
+      setError("");
+      navigate(`/leads/${statusLead.id}?openRequirement=1&pendingRequirementStatus=requirement`);
+      return;
+    }
+
     if (nextKey === "design" && (!statusLead?.designStartAt || !statusLead?.designEndAt)) {
       setShowStatusModal(false);
       setShowDesignDurationModal(true);
@@ -1359,11 +1869,8 @@ export default function LeadsPage() {
           }
         }
 
-        setRows((prev) =>
-          prev.map((row) =>
-            String(row.id) === String(statusLead.id) ? { ...row, ...nextLead } : row,
-          ),
-        );
+        setRows((prev) => promoteLeadToTop(prev, nextLead));
+        setLeadStatusScopeRows((prev) => promoteLeadToTop(prev, nextLead));
         setShowStatusModal(false);
         setStatusLead(null);
         showSuccess(
@@ -1414,15 +1921,9 @@ export default function LeadsPage() {
         });
       }
 
-      setRows((prev) =>
-        prev.map((row) =>
-          String(row.id) === String(statusLead.id) ? { ...row, ...nextLead } : row,
-        ),
-      );
+      setRows((prev) => promoteLeadToTop(prev, nextLead));
+      setLeadStatusScopeRows((prev) => promoteLeadToTop(prev, nextLead));
       setShowStatusModal(false);
-      if (nextKey === "requirement") {
-        navigate(`/leads/${statusLead.id}?openRequirement=1`);
-      }
       setStatusLead(null);
       showSuccess("Lead status updated");
       // Reset form fields
@@ -1892,17 +2393,70 @@ ${rowsHtml}
             )}
           </button>
         </li>
+        <li className="nav-item">
+          <button
+            className={`nav-link ${activeMainTab === 'campaign' ? 'active' : ''}`}
+            onClick={() => setActiveMainTab('campaign')}
+          >
+            <i className="ti ti-speakerphone me-1" style={{ fontSize: '0.9rem' }} />
+            Campaign Leads
+            {campaignLeads.length > 0 && (
+              <span className="badge bg-primary ms-2" style={{ fontSize: '0.72rem' }}>{campaignLeads.length}</span>
+            )}
+          </button>
+        </li>
       </ul>
+
       {activeMainTab === 'leads' && (
       <div className="leads-page-body">
           {/* Redesigned Controls Row */}
           <div className="leads-controls-bar d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4">
-            {/* Search Input on the Left */}
-            <LeadSearch
-              search={filters.search}
-              setSearch={(val) => setFilters((prev) => ({ ...prev, search: val }))}
-              applyFilters={applyFilters}
-            />
+            <div className="d-flex flex-wrap align-items-center gap-2">
+              <LeadSearch
+                search={filters.search}
+                setSearch={(val) => setFilters((prev) => ({ ...prev, search: val }))}
+                applyFilters={applyFilters}
+              />
+
+              <div className="dropdown lead-status-dropdown">
+                <button
+                  className="btn btn-outline-filter dropdown-toggle d-flex align-items-center gap-2"
+                  type="button"
+                  id="leadStatusDropdown"
+                  data-bs-toggle="dropdown"
+                  aria-expanded="false"
+                  style={{ height: 42, padding: "0 18px", borderRadius: 10, fontWeight: "500", fontSize: "0.9rem" }}
+                >
+                  <i className="ti ti-adjustments-horizontal" style={{ fontSize: "1rem" }} />
+                  <span className="lead-status-dropdown-label text-truncate">{leadStatusMenuLabel}</span>
+                  <span className="badge bg-primary lead-status-dropdown-count">{leadStatusMenuSelectedCount}</span>
+                </button>
+                <ul className="dropdown-menu shadow border-0 lead-status-dropdown-menu" aria-labelledby="leadStatusDropdown">
+                  <li>
+                    <button
+                      type="button"
+                      className={`dropdown-item py-2 d-flex align-items-center justify-content-between ${!filters.status ? "active" : ""}`}
+                      onClick={() => handleLeadStatusBarClick("")}
+                    >
+                      <span>All Statuses</span>
+                      <span className="badge bg-light text-dark">{leadStatusMenuTotal}</span>
+                    </button>
+                  </li>
+                  {leadStatusMenuItems.map(({ status, count }) => (
+                    <li key={status}>
+                      <button
+                        type="button"
+                        className={`dropdown-item py-2 d-flex align-items-center justify-content-between ${String(filters.status || "").trim().toLowerCase() === String(status || "").trim().toLowerCase() ? "active" : ""}`}
+                        onClick={() => handleLeadStatusBarClick(status)}
+                      >
+                        <span>{formatStatusLabel(status)}</span>
+                        <span className="badge bg-light text-dark">{count}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
  
             {/* Actions & Toggles on the Right */}
             <div className="d-flex align-items-center gap-2 flex-wrap">
@@ -1980,14 +2534,15 @@ ${rowsHtml}
               toggleSelectAll={toggleSelectAll}
               toggleLeadSelection={toggleLeadSelection}
               pageOffset={pageOffset}
-              activeActionsRow={activeActionsRow}
-              setActiveActionsRow={setActiveActionsRow}
-              setActionsMenuPos={setActionsMenuPos}
               getStatusClass={getStatusClass}
+              onStatusBadgeClick={handleStatusBadgeClick}
               formatCreatedOn={formatCreatedOn}
               sortField={sortField}
               sortOrder={sortOrder}
               onSort={handleSort}
+              navigate={navigate}
+              onDeleteLead={handleDeleteLead}
+              role={role}
             />
           ) : (
             <LeadGridView
@@ -1995,12 +2550,12 @@ ${rowsHtml}
               loading={loading}
               selectedLeadIds={selectedLeadIds}
               toggleLeadSelection={toggleLeadSelection}
-              activeActionsRow={activeActionsRow}
-              setActiveActionsRow={setActiveActionsRow}
-              setActionsMenuPos={setActionsMenuPos}
               getStatusClass={getStatusClass}
+              onStatusBadgeClick={handleStatusBadgeClick}
               formatCreatedOn={formatCreatedOn}
               navigate={navigate}
+              onDeleteLead={handleDeleteLead}
+              role={role}
             />
           )}
 
@@ -2103,27 +2658,73 @@ ${rowsHtml}
       )}
 
       {activeMainTab === 'duplicates' && (
-        <div className="duplicates-tab-container">
-          <div className="d-flex justify-content-between align-items-center mb-4">
-            <h5 className="mb-0 fw-bold" style={{ color: "#0f172a", fontSize: "1.1rem" }}>Duplicate Leads</h5>
-            <button
+        <div className="leads-page-body">
+          
+
+          <div className="leads-controls-bar d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4">
+            <LeadSearch
+              search={dupFilters.search}
+              setSearch={(val) => {
+                setDupPage(1);
+                setDupFilters((prev) => ({ ...prev, search: val }));
+              }}
+              applyFilters={applyDuplicateFilters}
+              placeholder="Search duplicate leads..."
+            />
+
+            <div className="d-flex align-items-center gap-2 flex-wrap">
+              <button
+                className={`btn btn-outline-filter d-flex align-items-center gap-2 ${dupFilterOpen ? 'active' : ''}`}
+                style={{ height: 42, padding: "0 18px", borderRadius: 10, fontWeight: "500", fontSize: "0.9rem" }}
+                onClick={() => setDupFilterOpen((prev) => !prev)}
+              >
+                <i className="ti ti-filter" style={{ fontSize: "1rem" }} />
+                Filters
+              </button>
+
+              <LeadExportDropdown
+                exportExcel={exportDuplicateExcel}
+                exportCsv={exportDuplicateCsv}
+                exportPdf={exportDuplicatePdf}
+              />
+               <button
               className="btn btn-outline-filter d-flex align-items-center gap-2"
-              style={{ height: 38, padding: "0 16px", borderRadius: 8, fontWeight: "500", fontSize: "0.85rem" }}
+              style={{ height: 42, padding: "0 18px", borderRadius: 10, fontWeight: "500", fontSize: "0.9rem" }}
               onClick={loadDuplicateLeads}
             >
               <i className="ti ti-refresh" /> Refresh
             </button>
+            </div>
           </div>
+
+          <LeadFilters
+            filterOpen={dupFilterOpen}
+            filters={dupFilters}
+            setFilters={(updater) => {
+              setDupPage(1);
+              setDupFilters((prev) => (
+                typeof updater === "function" ? updater(prev) : updater
+              ));
+            }}
+            leadFilters={leadFilters}
+            primaryOptions={primaryOptions}
+            resetFilters={resetDuplicateFilters}
+            applyFilters={applyDuplicateFilters}
+          />
+
           {dupError && <div className="alert alert-danger py-2">{dupError}</div>}
+
           {dupLoading ? (
             <div className="text-center py-5 border-0 shadow-sm bg-white" style={{ borderRadius: 12 }}>
               <div className="spinner-border spinner-border-sm text-primary mb-2" />
-              <div className="text-muted small">Loading duplicates…</div>
+              <div className="text-muted small">Loading duplicates...</div>
             </div>
-          ) : duplicateLeads.length === 0 ? (
+          ) : dupPagedRows.length === 0 ? (
             <div className="text-center py-5 text-muted border-0 shadow-sm bg-white" style={{ borderRadius: 12 }}>
               <i className="ti ti-circle-check text-success" style={{ fontSize: 36 }} />
-              <div className="mt-2 fw-medium">No duplicate leads found</div>
+              <div className="mt-2 fw-medium">
+                {dupTotalRows === 0 ? "No duplicate leads found" : "No duplicate leads match your search"}
+              </div>
             </div>
           ) : (
             <div
@@ -2144,13 +2745,13 @@ ${rowsHtml}
                   </tr>
                 </thead>
                 <tbody>
-                  {duplicateLeads.map((lead, idx) => (
+                  {dupPagedRows.map((lead, idx) => (
                     <tr key={lead.id}>
-                      <td className="text-muted" style={{ fontSize: "0.9rem" }}>{idx + 1}</td>
-                      <td className="fw-semibold" style={{ color: "#1e293b", fontSize: "0.9rem" }}>{lead.name}</td>
-                      <td style={{ fontSize: "0.9rem", color: "#475569" }}>{lead.mobile}</td>
-                      <td style={{ fontSize: "0.9rem", color: "#475569" }}>{lead.primarySource}</td>
-                      <td style={{ fontSize: "0.9rem", color: "#475569" }}>{lead.owner}</td>
+                      <td className="text-muted" style={{ fontSize: "0.9rem" }}>{dupPageOffset + idx + 1}</td>
+                      <td className="fw-semibold" style={{ color: "#1e293b", fontSize: "0.9rem" }}>{lead.name || "—"}</td>
+                      <td style={{ fontSize: "0.9rem", color: "#475569" }}>{lead.mobile || "—"}</td>
+                      <td style={{ fontSize: "0.9rem", color: "#475569" }}>{lead.primarySource || lead.secondarySource || "—"}</td>
+                      <td style={{ fontSize: "0.9rem", color: "#475569" }}>{lead.owner || "—"}</td>
                       <td style={{ fontSize: "0.9rem" }}>
                         {lead.duplicateOfLeadRef || lead.duplicateOfLeadName ? (
                           <span className="small text-danger d-inline-flex align-items-center">
@@ -2165,7 +2766,7 @@ ${rowsHtml}
                         )}
                       </td>
                       <td className="text-muted" style={{ fontSize: "0.9rem" }}>
-                        {lead.createdAt ? new Date(lead.createdAt).toLocaleDateString() : '—'}
+                        {formatCreatedOn(lead.createdAt)}
                       </td>
                       <td>
                         <div className="dropdown">
@@ -2214,10 +2815,487 @@ ${rowsHtml}
               </table>
             </div>
           )}
+
+          <div className="leads-pagination-footer d-flex flex-wrap align-items-center justify-content-between gap-3 p-3 border-top">
+            <span className="entries-info text-muted small">
+              {dupTotalRows === 0
+                ? "Showing 0 to 0 of 0 entries"
+                : `Showing ${dupPageOffset + 1} to ${Math.min(dupPageOffset + dupPageSize, dupTotalRows)} of ${dupTotalRows} entries`}
+            </span>
+
+            <div className="pagination-numbers-container d-flex align-items-center gap-1">
+              <button
+                type="button"
+                className="btn-pagination-arrow btn btn-sm btn-light border-0 d-flex align-items-center justify-content-center"
+                style={{ width: 32, height: 32, borderRadius: 6 }}
+                onClick={() => setDupPage((p) => Math.max(1, p - 1))}
+                disabled={dupClampedPage <= 1}
+              >
+                <i className="ti ti-chevron-left" />
+              </button>
+
+              {(() => {
+                const buttons = [];
+                const maxVisible = 5;
+                let startPage = Math.max(1, dupClampedPage - 2);
+                let endPage = Math.min(dupPageCount, startPage + maxVisible - 1);
+                if (maxVisible - 1 > endPage - startPage) {
+                  startPage = Math.max(1, endPage - maxVisible + 1);
+                }
+
+                for (let pageNum = startPage; pageNum <= endPage; pageNum += 1) {
+                  buttons.push(
+                    <button
+                      key={pageNum}
+                      type="button"
+                      className={`btn-pagination-num btn btn-sm border-0 ${dupClampedPage === pageNum ? "active" : "btn-light"}`}
+                      style={{ width: 32, height: 32, borderRadius: 6 }}
+                      onClick={() => setDupPage(pageNum)}
+                    >
+                      {pageNum}
+                    </button>,
+                  );
+                }
+
+                return buttons;
+              })()}
+
+              <button
+                type="button"
+                className="btn-pagination-arrow btn btn-sm btn-light border-0 d-flex align-items-center justify-content-center"
+                style={{ width: 32, height: 32, borderRadius: 6 }}
+                onClick={() => setDupPage((p) => Math.min(dupPageCount, p + 1))}
+                disabled={dupClampedPage >= dupPageCount}
+              >
+                <i className="ti ti-chevron-right" />
+              </button>
+            </div>
+
+            <PageSizeSelector
+              pageSize={dupPageSize}
+              setPageSize={setDupPageSize}
+              setPage={setDupPage}
+            />
+          </div>
         </div>
       )}
 
+      {/* ── Campaign Leads Tab ──────────────────────────────────────────────── */}
+      {activeMainTab === 'campaign' && (() => {
+        const filteredCampaignLeads = campaignLeads.filter((l) => {
+          const q = campaignSearch.toLowerCase();
+          const matchSearch = !q ||
+            String(l.fullName || '').toLowerCase().includes(q) ||
+            String(l.phone || '').toLowerCase().includes(q) ||
+            String(l.email || '').toLowerCase().includes(q);
+          const matchSource = !campaignSourceFilter ||
+            String(l.platform || '').toLowerCase().includes(campaignSourceFilter.toLowerCase());
+          return matchSearch && matchSource;
+        });
+        return (
+          <div className="duplicates-tab-container">
+            {/* Header */}
+            <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+                
+                <div className="text-muted small mt-1">Leads from Facebook, Instagram, Google Ads &amp; other campaigns</div>
+              
+              <div className="d-flex align-items-center gap-2 flex-wrap">
+                <button
+                  className="btn btn-outline-primary d-flex align-items-center gap-2"
+                  style={{ height: 38, padding: '0 16px', borderRadius: 8, fontWeight: '500', fontSize: '0.85rem' }}
+                  onClick={() => setCampaignTestOpen(true)}
+                >
+                  <i className="ti ti-plus" /> Test Lead Form
+                </button>
+                <select
+                  className="form-select form-select-sm"
+                  style={{ width: 170, borderRadius: 8, fontSize: '0.85rem' }}
+                  value={campaignSourceFilter}
+                  onChange={(e) => setCampaignSourceFilter(e.target.value)}
+                >
+                  <option value="">All Platforms</option>
+                  <option value="fb">Facebook (fb)</option>
+                  <option value="ig">Instagram (ig)</option>
+                </select>
+                {campaignSelectedIds.size > 0 && (
+                  <button
+                    className="btn btn-primary btn-sm d-flex align-items-center gap-1"
+                    style={{ borderRadius: 8, fontSize: '0.85rem', padding: '6px 14px' }}
+                    onClick={() => openCampaignAssign()}
+                  >
+                    <i className="ti ti-user-check" /> Assign ({campaignSelectedIds.size})
+                  </button>
+                )}
+                <button
+                  className="btn btn-outline-filter d-flex align-items-center gap-2"
+                  style={{ height: 38, padding: '0 16px', borderRadius: 8, fontWeight: '500', fontSize: '0.85rem' }}
+                  onClick={loadCampaignLeads}
+                >
+                  <i className="ti ti-refresh" /> Refresh
+                </button>
+              </div>
+            </div>
+
+            {/* Search */}
+            <div className="mb-3" style={{ maxWidth: 340 }}>
+              <div className="position-relative">
+                <i className="ti ti-search position-absolute" style={{ left: 12, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontSize: '1rem' }} />
+                <input
+                  type="text"
+                  className="form-control"
+                  style={{ paddingLeft: 36, borderRadius: 10, fontSize: '0.9rem', border: '1px solid #e2e8f0' }}
+                  placeholder="Search by name, mobile, email…"
+                  value={campaignSearch}
+                  onChange={(e) => setCampaignSearch(e.target.value)}
+                />
+              </div>
+            </div>
+
+            {campaignError && <div className="alert alert-danger py-2">{campaignError}</div>}
+
+            {campaignLoading ? (
+              <div className="text-center py-5 border-0 shadow-sm bg-white" style={{ borderRadius: 12 }}>
+                <div className="spinner-border spinner-border-sm text-primary mb-2" />
+                <div className="text-muted small">Loading campaign leads…</div>
+              </div>
+            ) : filteredCampaignLeads.length === 0 ? (
+              <div className="text-center py-5 text-muted border-0 shadow-sm bg-white" style={{ borderRadius: 12 }}>
+                <i className="ti ti-speakerphone" style={{ fontSize: 40, color: '#cbd5e1' }} />
+                <div className="mt-2 fw-medium">No pending campaign leads found</div>
+                <div className="small mt-1">Incoming Meta leads awaiting assignment will appear here</div>
+              </div>
+            ) : (
+              <div
+                className="table-responsive leads-table-wrap border-0 shadow-sm mb-4"
+                style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', touchAction: 'pan-x', borderRadius: 12, minHeight: '260px' }}
+              >
+                <table className="table table-hover align-middle leads-table mb-0">
+                  <thead>
+                    <tr>
+                      <th style={{ width: 44 }}>
+                        <input
+                          type="checkbox"
+                          className="form-check-input"
+                          checked={campaignSelectedIds.size === filteredCampaignLeads.length && filteredCampaignLeads.length > 0}
+                          onChange={() => toggleAllCampaign(filteredCampaignLeads)}
+                        />
+                      </th>
+                      <th className="text-muted" style={{ fontWeight: '600', fontSize: '0.85rem', width: 50 }}>#</th>
+                      <th className="text-muted" style={{ fontWeight: '600', fontSize: '0.85rem' }}>Name</th>
+                      <th className="text-muted" style={{ fontWeight: '600', fontSize: '0.85rem' }}>Mobile</th>
+                      <th className="text-muted" style={{ fontWeight: '600', fontSize: '0.85rem' }}>Email</th>
+                      <th className="text-muted" style={{ fontWeight: '600', fontSize: '0.85rem' }}>Platform</th>
+                      <th className="text-muted" style={{ fontWeight: '600', fontSize: '0.85rem' }}>Campaign</th>
+                      <th className="text-muted" style={{ fontWeight: '600', fontSize: '0.85rem' }}>MOQ</th>
+                      <th className="text-muted" style={{ fontWeight: '600', fontSize: '0.85rem' }}>Industry</th>
+                      <th className="text-muted" style={{ fontWeight: '600', fontSize: '0.85rem' }}>City</th>
+                      <th className="text-muted" style={{ fontWeight: '600', fontSize: '0.85rem' }}>Created On</th>
+                      <th className="text-muted" style={{ fontWeight: '600', fontSize: '0.85rem', width: 80 }}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredCampaignLeads.map((lead, idx) => {
+                      const srcLower = String(lead.platform || '').toLowerCase();
+                      const isFb = srcLower.includes('fb') || srcLower.includes('facebook');
+                      const isIg = srcLower.includes('ig') || srcLower.includes('instagram');
+                      const srcIcon = isFb ? 'ti-brand-facebook' : isIg ? 'ti-brand-instagram' : 'ti-speakerphone';
+                      const srcColor = isFb ? '#1877F2' : isIg ? '#E1306C' : '#64748b';
+                      return (
+                        <tr key={lead.id} style={{ background: campaignSelectedIds.has(lead.id) ? '#f0f7ff' : undefined }}>
+                          <td>
+                            <input
+                              type="checkbox"
+                              className="form-check-input"
+                              checked={campaignSelectedIds.has(lead.id)}
+                              onChange={() => toggleCampaignSelect(lead.id)}
+                            />
+                          </td>
+                          <td className="text-muted" style={{ fontSize: '0.9rem' }}>{idx + 1}</td>
+                          <td className="fw-semibold" style={{ color: '#1e293b', fontSize: '0.9rem' }}>{lead.fullName || 'Ad Lead'}</td>
+                          <td style={{ fontSize: '0.9rem', color: '#475569' }}>{lead.phone || '—'}</td>
+                          <td style={{ fontSize: '0.9rem', color: '#475569' }}>{lead.email || '—'}</td>
+                          <td style={{ fontSize: '0.9rem' }}>
+                            <span className="d-inline-flex align-items-center gap-1">
+                              <i className={`ti ${srcIcon}`} style={{ color: srcColor, fontSize: '1rem' }} />
+                              <span style={{ color: '#475569' }}>{lead.platform || 'Meta'}</span>
+                            </span>
+                          </td>
+                          <td style={{ fontSize: '0.9rem', color: '#475569' }}>{lead.campaignName || '—'}</td>
+                          <td style={{ fontSize: '0.9rem', color: '#475569' }}>{lead.moq || '—'}</td>
+                          <td style={{ fontSize: '0.9rem', color: '#475569' }}>{lead.industry || '—'}</td>
+                          <td style={{ fontSize: '0.9rem', color: '#475569' }}>{lead.city || '—'}</td>
+                          <td className="text-muted" style={{ fontSize: '0.9rem' }}>
+                            {lead.createdAt ? new Date(lead.createdAt).toLocaleDateString() : '—'}
+                          </td>
+                          <td>
+                            <div className="dropdown">
+                              <button
+                                className="btn btn-kebab-actions d-flex align-items-center justify-content-center dropdown-toggle no-caret"
+                                style={{ width: 32, height: 32, borderRadius: '50%', border: 'none', backgroundColor: 'transparent', color: '#64748b' }}
+                                data-bs-toggle="dropdown"
+                                aria-expanded="false"
+                              >
+                                <i className="ti ti-dots-vertical" style={{ fontSize: '1.15rem' }} />
+                              </button>
+                              <ul className="dropdown-menu dropdown-menu-end shadow border-0" style={{ borderRadius: 10, minWidth: 160 }}>
+                                <li>
+                                  <button
+                                    className="dropdown-item py-2 d-flex align-items-center gap-2"
+                                    style={{ fontSize: '0.85rem' }}
+                                    onClick={() => openCampaignAssign(lead.id)}
+                                  >
+                                    <i className="ti ti-user-check text-success" style={{ fontSize: '0.95rem' }} /> Assign Lead
+                                  </button>
+                                </li>
+                              </ul>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
+      {/* Campaign Assign Modal */}
+      {campaignAssignOpen && (
+        <>
+          <div className="modal fade show" style={{ display: 'block', zIndex: 1060 }} tabIndex="-1">
+            <div className="modal-dialog modal-dialog-centered" style={{ maxWidth: 460 }}>
+              <div className="modal-content">
+                <div className="modal-header">
+                  <h5 className="modal-title">
+                    <i className="ti ti-user-check me-2 text-primary" />
+                    Assign Campaign Lead
+                  </h5>
+                  <button
+                    className="btn-close"
+                    onClick={() => {
+                      setCampaignAssignOpen(false);
+                      setCampaignAssignBranchId('');
+                      setCampaignAssignGroupId('');
+                      setCampaignAssignUserId('');
+                    }}
+                  />
+                </div>
+                <div className="modal-body">
+                  <p className="text-muted small mb-3">
+                    Assigning <strong>{campaignSelectedIds.size}</strong> campaign lead(s) as a <em>New Lead</em>.
+                  </p>
+
+                  {/* Branch selector — SUPER_ADMIN only */}
+                  {role === 'SUPER_ADMIN' && (
+                    <div className="mb-3">
+                      <label className="form-label fw-semibold">
+                        Branch <span className="text-danger">*</span>
+                      </label>
+                      <select
+                        className="form-select"
+                        value={campaignAssignBranchId}
+                        onChange={(e) => onCampaignBranchChange(e.target.value)}
+                      >
+                        <option value="">Select Branch</option>
+                        {branchOptions.map((b) => (
+                          <option key={b.id ?? b.branchId} value={b.id ?? b.branchId}>
+                            {b.name ?? b.branchName}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {/* Employee selector */}
+                  <div className="mb-2">
+                    <label className="form-label fw-semibold">
+                      Employee <span className="text-danger">*</span>
+                    </label>
+                    {campaignAssignGroupLoading ? (
+                      <div className="text-muted small py-2">
+                        <span className="spinner-border spinner-border-sm me-2" />
+                        Loading employees…
+                      </div>
+                    ) : (
+                      <select
+                        className="form-select"
+                        value={campaignAssignUserId}
+                        onChange={(e) => setCampaignAssignUserId(e.target.value)}
+                        disabled={!campaignAssignGroupId || campaignAssignGroupLoading}
+                      >
+                        <option value="">
+                          {role === 'SUPER_ADMIN' && !campaignAssignBranchId
+                            ? 'Select a branch first'
+                            : campaignGroupMembers.length === 0
+                              ? 'No employees in this group'
+                              : 'Select Employee'}
+                        </option>
+                        {campaignGroupMembers.map((m) => (
+                          <option key={m.userId} value={m.userId}>
+                            {m.username || m.name || m.email}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+                </div>
+                <div className="modal-footer">
+                  <button
+                    className="btn btn-light"
+                    onClick={() => {
+                      setCampaignAssignOpen(false);
+                      setCampaignAssignBranchId('');
+                      setCampaignAssignGroupId('');
+                      setCampaignAssignUserId('');
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    className="btn btn-primary"
+                    onClick={submitCampaignAssign}
+                    disabled={campaignAssignLoading || !campaignAssignUserId || !campaignAssignGroupId}
+                  >
+                    {campaignAssignLoading
+                      ? <><span className="spinner-border spinner-border-sm me-1" />Assigning…</>
+                      : 'Assign Lead'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="modal-backdrop fade show" style={{ zIndex: 1055 }} />
+        </>
+      )}
+
+      {/* Campaign Test Lead Modal */}
+      {campaignTestOpen && (
+        <>
+          <div className="modal fade show" style={{ display: 'block', zIndex: 1060 }} tabIndex="-1">
+            <div className="modal-dialog modal-dialog-centered modal-lg">
+              <div className="modal-content">
+                <div className="modal-header">
+                  <h5 className="modal-title">
+                    <i className="ti ti-speakerphone me-2 text-primary" />
+                    Submit Test Campaign Lead
+                  </h5>
+                  <button className="btn-close" onClick={() => setCampaignTestOpen(false)} />
+                </div>
+                <div className="modal-body">
+                  <p className="text-muted small">
+                    This form simulates an ad submission from Instagram or Facebook. Submitting this form calls the public API endpoint to store a new pending lead in your CRM.
+                  </p>
+                  <div className="row g-3">
+                    <div className="col-md-6">
+                      <label className="form-label fw-semibold">Full Name *</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        placeholder="e.g. Premanand"
+                        value={campaignTestForm.fullName}
+                        onChange={(e) => setCampaignTestForm(p => ({ ...p, fullName: e.target.value }))}
+                      />
+                    </div>
+                    <div className="col-md-6">
+                      <label className="form-label fw-semibold">Phone *</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        placeholder="e.g. +919159083513"
+                        value={campaignTestForm.phone}
+                        onChange={(e) => setCampaignTestForm(p => ({ ...p, phone: e.target.value }))}
+                      />
+                    </div>
+                    <div className="col-md-6">
+                      <label className="form-label fw-semibold">Email</label>
+                      <input
+                        type="email"
+                        className="form-control"
+                        placeholder="e.g. amanandhere@gmail.com"
+                        value={campaignTestForm.email}
+                        onChange={(e) => setCampaignTestForm(p => ({ ...p, email: e.target.value }))}
+                      />
+                    </div>
+                    <div className="col-md-6">
+                      <label className="form-label fw-semibold">City</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        placeholder="e.g. Chennai"
+                        value={campaignTestForm.city}
+                        onChange={(e) => setCampaignTestForm(p => ({ ...p, city: e.target.value }))}
+                      />
+                    </div>
+                    <div className="col-md-6">
+                      <label className="form-label fw-semibold">Required MOQ (Custom Question)</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        placeholder="e.g. below_300"
+                        value={campaignTestForm.moq}
+                        onChange={(e) => setCampaignTestForm(p => ({ ...p, moq: e.target.value }))}
+                      />
+                    </div>
+                    <div className="col-md-6">
+                      <label className="form-label fw-semibold">Industry Sector (Custom Question)</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        placeholder="e.g. _food_business"
+                        value={campaignTestForm.industry}
+                        onChange={(e) => setCampaignTestForm(p => ({ ...p, industry: e.target.value }))}
+                      />
+                    </div>
+                    <div className="col-md-4">
+                      <label className="form-label fw-semibold">Ad Platform</label>
+                      <select
+                        className="form-select"
+                        value={campaignTestForm.platform}
+                        onChange={(e) => setCampaignTestForm(p => ({ ...p, platform: e.target.value }))}
+                      >
+                        <option value="ig">Instagram (ig)</option>
+                        <option value="fb">Facebook (fb)</option>
+                      </select>
+                    </div>
+                    <div className="col-md-4">
+                      <label className="form-label fw-semibold">Ad Name</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        value={campaignTestForm.adName}
+                        onChange={(e) => setCampaignTestForm(p => ({ ...p, adName: e.target.value }))}
+                      />
+                    </div>
+                    <div className="col-md-4">
+                      <label className="form-label fw-semibold">Campaign Name</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        value={campaignTestForm.campaignName}
+                        onChange={(e) => setCampaignTestForm(p => ({ ...p, campaignName: e.target.value }))}
+                      />
+                    </div>
+                  </div>
+                </div>
+                <div className="modal-footer">
+                  <button className="btn btn-light" onClick={() => setCampaignTestOpen(false)}>
+                    Cancel
+                  </button>
+                  <button className="btn btn-primary" onClick={submitCampaignTest} disabled={campaignTestLoading}>
+                    {campaignTestLoading ? 'Submitting…' : 'Submit Test Lead'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="modal-backdrop fade show" style={{ zIndex: 1055 }} />
+        </>
+      )}
+
       {showCreate && (
+
         <>
           <div className="modal fade show lead-create-modal" style={{ display: "block" }} tabIndex="-1">
             <div className="modal-dialog modal-lg">
@@ -2291,8 +3369,7 @@ ${rowsHtml}
                         transition={{ duration: 0.26, ease: "easeOut" }}
                         className="row g-3 lead-wizard-step-panel"
                       >
-                        <div className="col-md-6">
-                          <div className="lead-form-stack">
+                        <div className="col-12">
                           <div className="lead-form-field">
                             <label className="form-label">Full Name</label>
                             <input
@@ -2308,7 +3385,10 @@ ${rowsHtml}
                               <small className="text-danger">{createStep0Errors.name}</small>
                             )}
                           </div>
+                        </div>
 
+                        <div className="col-md-6">
+                          <div className="lead-form-stack">
                           <div className="lead-form-field">
                             <label className="form-label">
                               Mobile Number <span className="text-danger">*</span>
@@ -2365,7 +3445,11 @@ ${rowsHtml}
                               {createMobileError && <small className="text-danger">{createMobileError}</small>}
                             </div>
                           </div>
+                          </div>
+                        </div>
 
+                        <div className="col-md-6">
+                          <div className="lead-form-stack">
                           <div className="lead-form-field">
                             <label className="form-label">Email Address</label>
                             <input
@@ -2375,18 +3459,6 @@ ${rowsHtml}
                                 setCreateForm((prev) => ({ ...prev, email: e.target.value }))
                               }
                               placeholder="E-mail Id"
-                            />
-                          </div>
-
-                          <div className="lead-form-field">
-                            <label className="form-label">GSTIN Number</label>
-                            <input
-                              className="form-control"
-                              value={createForm.gstin || ""}
-                              onChange={(e) =>
-                                setCreateForm((prev) => ({ ...prev, gstin: e.target.value }))
-                              }
-                              placeholder="GSTIN Number"
                             />
                           </div>
                           </div>
@@ -2428,7 +3500,11 @@ ${rowsHtml}
                               <small className="text-danger">{createStep0Errors.primarySource}</small>
                             )}
                           </div>
+                          </div>
+                        </div>
 
+                        <div className="col-md-6">
+                          <div className="lead-form-stack">
                           <div className="lead-form-field">
                             <div className="lead-source-label-row">
                               <label className="form-label mb-0">Secondary Source</label>
@@ -2455,15 +3531,33 @@ ${rowsHtml}
                                   secondarySource: e.target.value,
                                 }))
                               }
-                              >
-                                <option value="">Select Secondary Source</option>
+                            >
+                              <option value="">Select Secondary Source</option>
                               {createSecondarySourceOptions.map((item) => (
-                                  <option key={item} value={item}>
-                                    {item}
-                                  </option>
-                                ))}
-                              </select>
+                                <option key={item} value={item}>
+                                  {item}
+                                </option>
+                              ))}
+                            </select>
                           </div>
+                          </div>
+                        </div>
+
+                        <div className="col-md-6">
+                          <div className="lead-form-field">
+                            <label className="form-label">GSTIN Number</label>
+                            <input
+                              className="form-control"
+                              value={createForm.gstin || ""}
+                              onChange={(e) =>
+                                setCreateForm((prev) => ({ ...prev, gstin: e.target.value }))
+                              }
+                              placeholder="GSTIN Number"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="col-md-6">
                           <div className="lead-form-field">
                             <label className="form-label">Company Name</label>
                             <input
@@ -2475,21 +3569,22 @@ ${rowsHtml}
                               placeholder="Company Name"
                             />
                           </div>
-                          </div>
                         </div>
 
                         <div className="col-12">
-                          <label className="form-label">Type of Product</label>
-                          <textarea
-                            className="form-control"
-                            value={createForm.productType}
-                            onChange={(e) =>
-                              setCreateForm((prev) => ({ ...prev, productType: e.target.value }))
-                            }
-                            placeholder="e.g. Visiting Card, Zipper pouch, Poster, etc"
-                            rows="2"
-                            style={{ resize: "vertical" }}
-                          />
+                          <div className="lead-form-field">
+                            <label className="form-label">Type of Product</label>
+                            <textarea
+                              className="form-control"
+                              value={createForm.productType}
+                              onChange={(e) =>
+                                setCreateForm((prev) => ({ ...prev, productType: e.target.value }))
+                              }
+                              placeholder="e.g. Visiting Card, Zipper pouch, Poster, etc"
+                              rows="2"
+                              style={{ resize: "vertical" }}
+                            />
+                          </div>
                         </div>
 
                         {role !== "EMPLOYEE" && (
@@ -2554,77 +3649,84 @@ ${rowsHtml}
                           </div>
                         </div>
                         <div className="col-12">
-                          <label className="form-label">Street Address</label>
-                          <textarea
-                            className="form-control"
-                            value={createForm.streetAddress}
-                            onChange={(e) =>
-                              setCreateForm((prev) => ({ ...prev, streetAddress: e.target.value }))
-                            }
-                            placeholder="Enter street address"
-                            rows="2"
-                            style={{ resize: "vertical" }}
-                          />
+                          <div className="lead-form-field">
+                            <label className="form-label">Street Address</label>
+                            <textarea
+                              className="form-control"
+                              value={createForm.streetAddress}
+                              onChange={(e) =>
+                                setCreateForm((prev) => ({ ...prev, streetAddress: e.target.value }))
+                              }
+                              placeholder="Enter street address"
+                              rows="2"
+                              style={{ resize: "vertical" }}
+                            />
+                          </div>
                         </div>
 
-                        {role !== "EMPLOYEE" && shouldSelectCreateLeadGroup && (
-                          <div className="col-md-6">
-                            <label className="form-label">Branch</label>
-                            <select
-                              className="form-select"
-                              value={createForm.createBranchId}
-                              onChange={(e) =>
-                                setCreateForm((prev) => {
-                                  const selected = createBranchOptions.find(
-                                    (branch) => String(branch.id) === String(e.target.value),
-                                  );
-                                  return {
-                                    ...prev,
-                                    createBranchId: e.target.value,
-                                    createBranchName: selected?.name || "",
-                                    leadGroupId: "",
-                                    assignedUserId: "",
-                                  };
-                                })
-                              }
-                            >
-                              <option value="">Select Branch</option>
-                              {createBranchOptions.map((branch) => (
-                                <option key={branch.id} value={branch.id}>
-                                  {branch.name}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                        )}
+                        {role !== "EMPLOYEE" && shouldSelectCreateLeadGroup ? (
+                          <>
+                            <div className="col-md-6">
+                              <div className="lead-form-field">
+                                <label className="form-label">Branch</label>
+                                <select
+                                  className="form-select"
+                                  value={createForm.createBranchId}
+                                  onChange={(e) =>
+                                    setCreateForm((prev) => {
+                                      const selected = createBranchOptions.find(
+                                        (branch) => String(branch.id) === String(e.target.value),
+                                      );
+                                      return {
+                                        ...prev,
+                                        createBranchId: e.target.value,
+                                        createBranchName: selected?.name || "",
+                                        leadGroupId: "",
+                                        assignedUserId: "",
+                                      };
+                                    })
+                                  }
+                                >
+                                  <option value="">Select Branch</option>
+                                  {createBranchOptions.map((branch) => (
+                                    <option key={branch.id} value={branch.id}>
+                                      {branch.name}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                            </div>
 
-                        {role === "EMPLOYEE" ? (
+                            <div className="col-md-6">
+                              <div className="lead-form-field">
+                                <label className="form-label">Assign To Employee</label>
+                                <select
+                                  className="form-select"
+                                  value={createForm.assignedUserId}
+                                  onChange={(e) =>
+                                    setCreateForm((prev) => ({ ...prev, assignedUserId: e.target.value }))
+                                  }
+                                  disabled={!createForm.leadGroupId}
+                                >
+                                  <option value="">
+                                    {!createForm.leadGroupId ? "Select Branch first" : "Auto assign"}
+                                  </option>
+                                  {eligibleCreateGroupMembers.map((member) => (
+                                    <option key={member.userId} value={member.userId}>
+                                      {member.username || `User ${member.userId}`}
+                                    </option>
+                                  ))}
+                                </select>
+                                {createForm.leadGroupId && eligibleCreateGroupMembers.length === 0 && (
+                                  <small className="text-muted">No eligible employees in selected group.</small>
+                                )}
+                              </div>
+                            </div>
+                          </>
+                        ) : (
                           <div className="col-12">
                             <div className="lead-assignment-note alert alert-info py-2 mb-0">
                               This lead will be assigned to you.
-                            </div>
-                          </div>
-                        ) : createForm.leadGroupId && (
-                          <div className="col-12">
-                            <div className="lead-assignment-box">
-                              <label className="form-label">Assign To Employee</label>
-                              <select
-                                className="form-select"
-                                value={createForm.assignedUserId}
-                                onChange={(e) =>
-                                  setCreateForm((prev) => ({ ...prev, assignedUserId: e.target.value }))
-                                }
-                              >
-                                <option value="">Auto assign</option>
-                                {eligibleCreateGroupMembers.map((member) => (
-                                  <option key={member.userId} value={member.userId}>
-                                    {member.username || `User ${member.userId}`}
-                                  </option>
-                                ))}
-                              </select>
-                              {eligibleCreateGroupMembers.length === 0 && (
-                                <small className="text-muted">No eligible employees in selected group.</small>
-                              )}
                             </div>
                           </div>
                         )}

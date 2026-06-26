@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import PageHeader from "../../components/admin/PageHeader";
 import PageLoader from "../../components/common/PageLoader";
-import { PAGE_ACCESS_OPTIONS } from "../../constants/pageAccess";
+import { PAGE_ACCESS_OPTIONS, getEquivalentPageKeys, hasEquivalentPageKey } from "../../constants/pageAccess";
 import { extractApiErrorMessage } from "../../utils/errorMessage";
 import { useToast } from "../../components/system/ToastProvider";
 import {
@@ -32,9 +32,9 @@ export default function DesignationPermissionsPage() {
     () =>
       new Set(
         PAGE_ACCESS_OPTIONS.flatMap((option) => [
-          String(option.key || "").trim().toLowerCase(),
+          ...getEquivalentPageKeys(option.key),
           ...(Array.isArray(option.children)
-            ? option.children.map((child) => String(child.key || "").trim().toLowerCase())
+            ? option.children.flatMap((child) => getEquivalentPageKeys(child.key))
             : []),
         ]).filter(Boolean),
       ),
@@ -79,10 +79,12 @@ export default function DesignationPermissionsPage() {
     if (!allowedKeys.has(normalized)) return;
     setDraftMap((current) => {
       const existing = new Set(current[String(designationId)] || []);
-      if (existing.has(normalized)) {
-        existing.delete(normalized);
+      const equivalents = getEquivalentPageKeys(normalized);
+      const hasSelected = equivalents.some((equivalent) => existing.has(equivalent));
+      if (hasSelected) {
+        equivalents.forEach((equivalent) => existing.delete(equivalent));
       } else {
-        existing.add(normalized);
+        equivalents.forEach((equivalent) => existing.add(equivalent));
       }
       return { ...current, [String(designationId)]: Array.from(existing) };
     });
@@ -163,7 +165,7 @@ export default function DesignationPermissionsPage() {
                                 <input
                                   className="form-check-input"
                                   type="checkbox"
-                                  checked={(draftMap[String(designation.id)] || []).includes(option.key)}
+                                  checked={hasEquivalentPageKey(draftMap[String(designation.id)] || [], option.key)}
                                   onChange={() => toggleKey(designation.id, option.key)}
                                 />
                                 <span className="form-check-label">{option.label}</span>

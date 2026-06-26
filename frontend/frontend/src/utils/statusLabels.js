@@ -57,33 +57,33 @@ export function getStatusStyle(status) {
 
   // Color Mapping
   const colors = {
-    newLead: "#3B82F6",
-    attempted: "#64748B",
-    interested: "#84CC16",
-    notAttempted: "#E5E7EB",
-    rejected: "#DC2626",
-    requirementsCollected: "#0EA5E9",
-    budget: "#EAB308",
-    boq: "#A16207",
-    allocate: "#06B6D4",
-    design: "#EC4899",
-    production: "#2563EB",
+    newLead: "#2563EB",
+    attempted: "#F97316",
+    interested: "#22C55E",
+    notAttempted: "#8B5CF6",
+    rejected: "#EF4444",
+    requirementsCollected: "#06B6D4",
+    budget: "#F59E0B",
+    boq: "#EC4899",
+    allocate: "#14B8A6",
+    design: "#DB2777",
+    production: "#3B82F6",
     designProduction: "#7C3AED",
     productionResume: "#6366F1",
-    purchase: "#F59E0B",
-    stockRequest: "#F97316",
-    stockRequested: "#EA580C",
+    purchase: "#EA580C",
+    stockRequest: "#FB7185",
+    stockRequested: "#F97316",
     stockUpdated: "#10B981",
-    accounts: "#9333EA",
+    accounts: "#A855F7",
     accountsReview: "#8B5CF6",
-    approval: "#14B8A6",
-    payment: "#15803D",
-    deal: "#16A34A",
+    approval: "#0EA5E9",
+    payment: "#16A34A",
+    deal: "#84CC16",
     delivery: "#22C55E",
-    duplicate: "#FB7185",
+    duplicate: "#F43F5E",
   };
 
-  let hex = "#64748B"; // default attempted gray
+  let hex = "#64748B"; // default gray
 
   if (s.includes("new")) hex = colors.newLead;
   else if (s.includes("not attempted")) hex = colors.notAttempted;
@@ -110,20 +110,24 @@ export function getStatusStyle(status) {
   else if (s.includes("duplicate")) hex = colors.duplicate;
   else if (s.includes("reject")) hex = colors.rejected;
 
-  let textColor = hex;
-  if (hex === "#E5E7EB") {
-    textColor = "#475569";
-  } else if (hex === "#EAB308" || hex === "#F59E0B" || hex === "#F97316") {
-    textColor = "#854D0E";
-  }
+  const getReadableTextColor = (colorHex) => {
+    const r = parseInt(colorHex.substring(1, 3), 16);
+    const g = parseInt(colorHex.substring(3, 5), 16);
+    const b = parseInt(colorHex.substring(5, 7), 16);
+    const luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+    return luminance > 0.62 ? "#0f172a" : "#ffffff";
+  };
+
+  const textColor = getReadableTextColor(hex);
 
   const r = parseInt(hex.substring(1, 3), 16);
   const g = parseInt(hex.substring(3, 5), 16);
   const b = parseInt(hex.substring(5, 7), 16);
 
   return {
-    backgroundColor: `rgba(${r}, ${g}, ${b}, 0.12)`,
+    backgroundColor: hex,
     color: textColor,
-    border: `1px solid rgba(${r}, ${g}, ${b}, 0.2)`
+    border: `1px solid rgba(${r}, ${g}, ${b}, 0.9)`,
+    boxShadow: `0 1px 2px rgba(${r}, ${g}, ${b}, 0.18)`,
   };
 }

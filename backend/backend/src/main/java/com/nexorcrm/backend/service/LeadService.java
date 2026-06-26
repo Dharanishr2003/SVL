@@ -29,6 +29,7 @@ import com.nexorcrm.backend.entity.BranchMaster;
 import com.nexorcrm.backend.entity.DepartmentMaster;
 import com.nexorcrm.backend.entity.DesignationMaster;
 import com.nexorcrm.backend.entity.Employee;
+import com.nexorcrm.backend.entity.LeadStatus;
 import com.nexorcrm.backend.entity.PrimarySource;
 import com.nexorcrm.backend.entity.SecondarySource;
 import com.nexorcrm.backend.entity.Role;
@@ -487,10 +488,37 @@ public class LeadService {
                 .filter(row -> canViewLead(actor, row, visibleGroupIds))
                 .toList();
 
+        Map<String, String> leadStatusLabelsByKey = new LinkedHashMap<>();
+        leadStatusRepository.findByDeletedFalseOrderByCreatedAtDesc().stream()
+                .map(LeadStatus::getStatusName)
+                .filter(StringUtils::hasText)
+                .map(String::trim)
+                .forEach(status -> leadStatusLabelsByKey.putIfAbsent(normalizeKey(status), status));
+        all.stream()
+                .map(Lead::getStatus)
+                .filter(StringUtils::hasText)
+                .map(String::trim)
+                .forEach(status -> leadStatusLabelsByKey.putIfAbsent(normalizeKey(status), status));
+
+        Map<String, Long> leadStatusCountsByKey = all.stream()
+                .map(Lead::getStatus)
+                .filter(StringUtils::hasText)
+                .map(String::trim)
+                .collect(Collectors.groupingBy(
+                        this::normalizeKey,
+                        LinkedHashMap::new,
+                        Collectors.counting()
+                ));
+        LinkedHashMap<String, Long> orderedLeadStatusCounts = new LinkedHashMap<>();
+        for (Map.Entry<String, String> entry : leadStatusLabelsByKey.entrySet()) {
+            orderedLeadStatusCounts.put(entry.getValue(), leadStatusCountsByKey.getOrDefault(entry.getKey(), 0L));
+        }
+
         LeadFiltersResponse out = new LeadFiltersResponse();
         out.setProjects(distinctSorted(all.stream().map(Lead::getProjectName).toList()));
         out.setPrimarySources(distinctSorted(all.stream().map(Lead::getPrimarySource).toList()));
-        out.setLeadStatuses(distinctSorted(all.stream().map(Lead::getStatus).toList()));
+        out.setLeadStatuses(new java.util.ArrayList<>(orderedLeadStatusCounts.keySet()));
+        out.setLeadStatusCounts(orderedLeadStatusCounts);
         out.setSvStatuses(distinctSorted(all.stream().map(Lead::getSvStatus).toList()));
         out.setOwners(distinctSorted(all.stream().map(Lead::getOwner).toList()));
         return out;
@@ -3606,6 +3634,10 @@ public class LeadService {
                 .distinct()
                 .sorted(Comparator.comparing(String::toLowerCase))
                 .toList();
+    }
+
+    private String normalizeKey(String value) {
+        return StringUtils.hasText(value) ? value.trim().toLowerCase(Locale.ROOT) : "";
     }
 
     private boolean isHigherOfficial(Role role) {

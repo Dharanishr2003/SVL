@@ -354,6 +354,29 @@ function normalizePageKeys(pageKeys) {
     : [];
 }
 
+const PAGE_KEY_EQUIVALENTS = {
+  "payment-verifications": ["payment-verifications", "payment-verifications-page"],
+  "payment-verifications-page": ["payment-verifications-page", "payment-verifications"],
+  "budget-verifications": ["budget-verifications", "budget-verifications-page"],
+  "budget-verifications-page": ["budget-verifications-page", "budget-verifications"],
+  "shift-assignments": ["shift-assignments", "shift-assignment"],
+  "shift-assignment": ["shift-assignment", "shift-assignments"],
+};
+
+export function getEquivalentPageKeys(pageKey) {
+  const normalized = String(pageKey || "").trim().toLowerCase();
+  if (!normalized) return [];
+  return PAGE_KEY_EQUIVALENTS[normalized] || [normalized];
+}
+
+export function hasEquivalentPageKey(pageKeys, pageKey) {
+  const normalizedKeys =
+    pageKeys instanceof Set
+      ? pageKeys
+      : new Set(normalizePageKeys(pageKeys));
+  return getEquivalentPageKeys(pageKey).some((key) => normalizedKeys.has(key));
+}
+
 export function isAlwaysAllowedPath(path) {
   const normalized = normalizePath(path);
   if (normalized === "/") return true;
@@ -392,7 +415,7 @@ export function canAccessPathWithPageKeys(path, pageKeys, role) {
   const requiredKeys = getRequiredPageKeysForPath(path);
   if (!requiredKeys.length) return true;
 
-  return requiredKeys.some((key) => normalizedKeys.includes(String(key || "").trim().toLowerCase()));
+  return requiredKeys.some((key) => hasEquivalentPageKey(new Set(normalizedKeys), key));
 }
 
 export function getDefaultLandingPath(role, pageKeys) {

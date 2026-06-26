@@ -23,13 +23,36 @@ const CSV_COLUMNS = [
   'streetAddress', 'state', 'district',
 ];
 
+function cleanImportMobile(value) {
+  if (!value) return "";
+  // Strip URI prefixes like "p:" or "tel:"
+  let cleaned = String(value).replace(/^(p:|tel:)/i, "").trim();
+  // Strip all non-digits
+  cleaned = cleaned.replace(/\D/g, "");
+  // If it starts with 91 and has 12 digits, strip the 91 country code
+  if (cleaned.length === 12 && cleaned.startsWith("91")) {
+    cleaned = cleaned.slice(2);
+  }
+  // If it starts with 0 and has 11 digits, strip the 0
+  else if (cleaned.length === 11 && cleaned.startsWith("0")) {
+    cleaned = cleaned.slice(1);
+  }
+  return cleaned;
+}
+
 function parseCSV(text) {
   const lines = text.split(/\r?\n/).filter((l) => l.trim() && !l.trim().startsWith('#'));
   if (lines.length < 2) return [];
   return lines.slice(1).map((line, idx) => {
     const cols = line.split(',').map((c) => c.trim());
     const row = { _rowIndex: idx };
-    CSV_COLUMNS.forEach((col, i) => { row[col] = cols[i] || ''; });
+    CSV_COLUMNS.forEach((col, i) => {
+      let val = cols[i] || '';
+      if (col === 'mobile') {
+        val = cleanImportMobile(val);
+      }
+      row[col] = val;
+    });
     row._error = !row.name || !row.mobile || !row.primarySource ? 'Missing required field(s)' : null;
     return row;
   });
@@ -1023,6 +1046,9 @@ export default function LeadImportPage() {
         onSave={async (updatedData) => {
           const targetIndex = selectedRowForEdit._rowIndex;
           const isDupRow = !!(selectedRowForEdit._duplicate);
+          if (updatedData.mobile) {
+            updatedData.mobile = cleanImportMobile(updatedData.mobile);
+          }
           // Merge the update first
           const mergedRow = { ...selectedRowForEdit, ...updatedData };
           setRows((prevRows) =>

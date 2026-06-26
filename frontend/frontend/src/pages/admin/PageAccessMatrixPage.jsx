@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import PageHeader from "../../components/admin/PageHeader";
 import PageLoader from "../../components/common/PageLoader";
-import { PAGE_ACCESS_OPTIONS } from "../../constants/pageAccess";
+import { PAGE_ACCESS_OPTIONS, getEquivalentPageKeys, hasEquivalentPageKey } from "../../constants/pageAccess";
 import { extractApiErrorMessage } from "../../utils/errorMessage";
 import { useToast } from "../../components/system/ToastProvider";
 import {
@@ -160,7 +160,13 @@ export default function PageAccessMatrixPage() {
 
   const flatPageOptions = useMemo(() => flattenPageOptions(PAGE_ACCESS_OPTIONS), []);
   const groupedPageOptions = useMemo(() => groupByCategory(flatPageOptions), [flatPageOptions]);
-  const allowedKeys = useMemo(() => new Set(flatPageOptions.map((row) => normalize(row.key))), [flatPageOptions]);
+  const allowedKeys = useMemo(() => {
+    const keys = new Set();
+    flatPageOptions.forEach((row) => {
+      getEquivalentPageKeys(row.key).forEach((key) => keys.add(key));
+    });
+    return keys;
+  }, [flatPageOptions]);
 
   const departmentMap = useMemo(
     () =>
@@ -411,10 +417,12 @@ export default function PageAccessMatrixPage() {
     const normalized = normalize(pageKey);
     if (!allowedKeys.has(normalized)) return;
     const current = new Set(currentKeys.map((key) => normalize(key)));
-    if (current.has(normalized)) {
-      current.delete(normalized);
+    const equivalents = getEquivalentPageKeys(normalized);
+    const isSelected = equivalents.some((equivalent) => current.has(equivalent));
+    if (isSelected) {
+      equivalents.forEach((equivalent) => current.delete(equivalent));
     } else {
-      current.add(normalized);
+      equivalents.forEach((equivalent) => current.add(equivalent));
     }
     const nextKeys = Array.from(current);
 
@@ -438,7 +446,8 @@ export default function PageAccessMatrixPage() {
   const handleClearRow = (pageKey) => {
     const normalized = normalize(pageKey);
     if (!allowedKeys.has(normalized)) return;
-    const withoutKey = currentKeys.filter((key) => normalize(key) !== normalized);
+    const equivalents = new Set(getEquivalentPageKeys(normalized));
+    const withoutKey = currentKeys.filter((key) => !equivalents.has(normalize(key)));
     if (activeTab === "SUPER_ADMIN" || activeTab === "ADMIN") {
       setGlobalDrafts((prev) => ({ ...prev, [activeTab]: withoutKey }));
       return;
@@ -772,7 +781,7 @@ export default function PageAccessMatrixPage() {
                     </thead>
                     <tbody>
                       {items.map((item, index) => {
-                        const checked = currentKeySet.has(normalize(item.key));
+                        const checked = hasEquivalentPageKey(currentKeys, item.key);
                         return (
                           <tr key={item.key} className={index === items.length - 1 ? "border-bottom" : ""}>
                             <td className="py-3">

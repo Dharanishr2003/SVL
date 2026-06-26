@@ -399,16 +399,16 @@ public class PayrollService {
         PdfWriter writer = PdfWriter.getInstance(doc, baos);
         doc.open();
 
-        Font companyTitleFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 16, Font.BOLD, new java.awt.Color(11, 44, 88));
+        Font companyTitleFont = FontFactory.getFont(FontFactory.HELVETICA, 16, Font.NORMAL, new java.awt.Color(11, 44, 88));
         Font companyDetailFont = FontFactory.getFont(FontFactory.HELVETICA, 8, Font.NORMAL, java.awt.Color.DARK_GRAY);
-        Font titleFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 18, Font.BOLD, new java.awt.Color(11, 44, 88));
-        Font subTitleFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 11, Font.BOLD, new java.awt.Color(0, 126, 51));
-        Font headingFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 9, Font.BOLD, java.awt.Color.WHITE);
+        Font titleFont = FontFactory.getFont(FontFactory.HELVETICA, 18, Font.NORMAL, new java.awt.Color(11, 44, 88));
+        Font subTitleFont = FontFactory.getFont(FontFactory.HELVETICA, 11, Font.NORMAL, new java.awt.Color(0, 126, 51));
+        Font headingFont = FontFactory.getFont(FontFactory.HELVETICA, 9, Font.NORMAL, java.awt.Color.WHITE);
         Font normalFont = FontFactory.getFont(FontFactory.HELVETICA, 8, Font.NORMAL, java.awt.Color.BLACK);
-        Font boldFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 8, Font.BOLD, java.awt.Color.BLACK);
+        Font boldFont = FontFactory.getFont(FontFactory.HELVETICA, 8, Font.NORMAL, java.awt.Color.BLACK);
         Font netSalaryFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 12, Font.BOLD, java.awt.Color.WHITE);
-        Font netSalaryLabelFont = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 10, Font.BOLD, java.awt.Color.WHITE);
-        Font wordFont = FontFactory.getFont(FontFactory.HELVETICA, 9, Font.BOLD, java.awt.Color.BLACK);
+        Font netSalaryLabelFont = FontFactory.getFont(FontFactory.HELVETICA, 10, Font.NORMAL, java.awt.Color.WHITE);
+        Font wordFont = FontFactory.getFont(FontFactory.HELVETICA, 9, Font.NORMAL, java.awt.Color.BLACK);
 
         String addr = (template != null && template.getAddress() != null) ? template.getAddress() : "";
         String p1 = (template != null && template.getPhone1() != null) ? template.getPhone1() : "";
@@ -431,7 +431,7 @@ public class PayrollService {
 
                 // Draw dynamic text and circular icons overlaying the banner image (same way as quotation)
                 PdfContentByte cb = writer.getDirectContent();
-                BaseFont bfBold = BaseFont.createFont(BaseFont.HELVETICA_BOLD, BaseFont.CP1252, BaseFont.NOT_EMBEDDED);
+                BaseFont bfBold = BaseFont.createFont(BaseFont.HELVETICA, BaseFont.CP1252, BaseFont.NOT_EMBEDDED);
                 float pageHeight = PageSize.A4.getHeight();
                 float scale = 2.83465f; // 1 mm = 2.83465 points
 

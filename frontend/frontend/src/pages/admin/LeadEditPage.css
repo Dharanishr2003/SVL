@@ -29,7 +29,7 @@
   align-items: flex-start;
   width: 100%;
   margin-bottom: 1.75rem;
-  gap: 2rem;
+  gap: 1.75rem;
   position: relative;
   flex-wrap: wrap;
 }
@@ -41,6 +41,8 @@
   cursor: pointer;
   position: relative;
   z-index: 1;
+  flex: 0 0 auto;
+  min-width: max-content;
 }
 
 .lead-edit-wizard-circle {
@@ -76,7 +78,8 @@
   font-weight: 500;
   color: #34393f;
   text-align: center;
-  max-width: 80px;
+  max-width: none;
+  white-space: nowrap;
 }
 
 .lead-edit-wizard-step-panel {
@@ -91,6 +94,11 @@
   background: #ffffff;
 }
 
+.lead-info-section .row.g-4 {
+  --bs-gutter-x: 1rem;
+  --bs-gutter-y: 1rem;
+}
+
 .lead-info-section-title {
   margin-bottom: 0.9rem;
   font-size: 0.9rem;
@@ -101,7 +109,7 @@
 .lead-info-column {
   display: flex;
   flex-direction: column;
-  gap: 2rem;
+  gap: 1rem;
   height: 100%;
 }
 
@@ -141,9 +149,22 @@
 
 .lead-phone-input-wrap {
   display: flex;
-  gap: 0.25rem;
+  gap: 0;
   flex: 1;
   min-width: 0;
+  width: 100%;
+  border: 1px solid #d0d5dd;
+  border-radius: 1.5rem;
+  background-color: #ffffff;
+  overflow: hidden;
+  box-sizing: border-box;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+}
+
+.lead-phone-input-wrap:focus-within {
+  border-color: #45597a;
+  box-shadow: 0 0 0 0.2rem rgba(69, 89, 122, 0.15);
+  background-color: #ffffff;
 }
 
 .lead-phone-code-trigger {
@@ -151,10 +172,11 @@
   align-items: center;
   justify-content: space-between;
   gap: 0.45rem;
-  padding: 0.6rem 1rem;
-  border: 1px solid #d0d5dd;
-  border-radius: 1.5rem;
-  background-color: #ffffff;
+  height: 52px;
+  padding: 0 1rem;
+  border: 0;
+  border-radius: 0;
+  background-color: transparent;
   cursor: pointer;
   min-width: 110px;
   max-width: 128px;
@@ -162,11 +184,12 @@
   overflow: hidden;
   text-overflow: ellipsis;
   font-size: 0.95rem;
-  transition: border-color 0.2s ease, background-color 0.2s ease;
+  flex: 0 0 auto;
+  box-sizing: border-box;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 .lead-phone-code-trigger:hover {
-  border-color: #45597a;
   background-color: #f8fafc;
 }
 
@@ -176,13 +199,22 @@
 }
 
 .lead-phone-input {
-  width: 100%;
+  flex: 1;
+  height: 52px;
   min-width: 0;
-  padding: 0.6rem 1rem;
-  border: 1px solid #d0d5dd;
-  border-radius: 1.5rem;
-  background-color: #ffffff;
+  padding: 0 1rem;
+  border: 0;
+  border-left: 1px solid #d0d5dd;
+  border-radius: 0;
+  background-color: transparent;
   font-size: 0.95rem;
+  line-height: 1.2;
+  box-sizing: border-box;
+}
+
+.lead-phone-input:focus {
+  outline: none;
+  box-shadow: none;
 }
 
 .lead-phone-code-menu {
@@ -486,7 +518,8 @@
 
   .lead-edit-wizard-circle-label {
     font-size: 0.72rem;
-    max-width: 64px;
+    max-width: none;
+    white-space: nowrap;
   }
 
   .lead-edit-wizard-step-panel {

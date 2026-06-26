@@ -7,6 +7,9 @@ public class AdminDashboardResponse {
     private DashboardWelcomeResponse welcome;
     private List<DashboardStatResponse> topStats;
     private List<DashboardActivityResponse> recentActivities;
+    private AttendanceOverviewResponse attendanceOverview;
+    private List<ClockInOutItem> clockInOutList;
+    private List<ClockInOutItem> lateList;
 
     public DashboardHeaderResponse getHeader() {
         return header;
@@ -38,5 +41,29 @@ public class AdminDashboardResponse {
 
     public void setRecentActivities(List<DashboardActivityResponse> recentActivities) {
         this.recentActivities = recentActivities;
+    }
+
+    public AttendanceOverviewResponse getAttendanceOverview() {
+        return attendanceOverview;
+    }
+
+    public void setAttendanceOverview(AttendanceOverviewResponse attendanceOverview) {
+        this.attendanceOverview = attendanceOverview;
+    }
+
+    public List<ClockInOutItem> getClockInOutList() {
+        return clockInOutList;
+    }
+
+    public void setClockInOutList(List<ClockInOutItem> clockInOutList) {
+        this.clockInOutList = clockInOutList;
+    }
+
+    public List<ClockInOutItem> getLateList() {
+        return lateList;
+    }
+
+    public void setLateList(List<ClockInOutItem> lateList) {
+        this.lateList = lateList;
     }
 }

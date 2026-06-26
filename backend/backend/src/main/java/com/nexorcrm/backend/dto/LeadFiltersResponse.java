@@ -1,12 +1,15 @@
 package com.nexorcrm.backend.dto;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 public class LeadFiltersResponse {
     private List<String> projects = new ArrayList<>();
     private List<String> primarySources = new ArrayList<>();
     private List<String> leadStatuses = new ArrayList<>();
+    private Map<String, Long> leadStatusCounts = new LinkedHashMap<>();
     private List<String> svStatuses = new ArrayList<>();
     private List<String> owners = new ArrayList<>();
 
@@ -32,6 +35,14 @@ public class LeadFiltersResponse {
 
     public void setLeadStatuses(List<String> leadStatuses) {
         this.leadStatuses = leadStatuses;
+    }
+
+    public Map<String, Long> getLeadStatusCounts() {
+        return leadStatusCounts;
+    }
+
+    public void setLeadStatusCounts(Map<String, Long> leadStatusCounts) {
+        this.leadStatusCounts = leadStatusCounts;
     }
 
     public List<String> getSvStatuses() {

@@ -20,6 +20,9 @@ function normalizeDashboardResponse(payload) {
       ? payload.topStats
       : dashboardData.topStats,
     recentActivities: Array.isArray(payload.recentActivities) ? payload.recentActivities : [],
+    attendanceOverview: payload.attendanceOverview || null,
+    clockInOutList: Array.isArray(payload.clockInOutList) ? payload.clockInOutList : [],
+    lateList: Array.isArray(payload.lateList) ? payload.lateList : [],
   };
 }
 

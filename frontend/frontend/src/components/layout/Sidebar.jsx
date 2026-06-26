@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useRef } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { attachAdminNavigationHandlers } from "../../utils/adminNavigation";
 import { useAuth } from "../../context/AuthContext";
@@ -32,6 +32,32 @@ function matchesRoute(pathname, href) {
   return current === target || current.startsWith(`${target}/`);
 }
 
+function makeSubmenuKey(sectionKey, itemLabel) {
+  return `${sectionKey}::${itemLabel}`;
+}
+
+function hasRouteInTree(item, pathname) {
+  if (!item) return false;
+  if (matchesRoute(pathname, item.href)) {
+    return true;
+  }
+  return Array.isArray(item.children) && item.children.some((child) => hasRouteInTree(child, pathname));
+}
+
+function findOpenSubmenuKey(sections, pathname) {
+  for (const section of sections || []) {
+    for (const item of section.items || []) {
+      if (!Array.isArray(item.children) || item.children.length === 0) {
+        continue;
+      }
+      if (hasRouteInTree(item, pathname)) {
+        return makeSubmenuKey(section.key, item.label);
+      }
+    }
+  }
+  return null;
+}
+
 function formatDisplayName(user) {
   const firstName = String(user?.firstName || "").trim();
   const lastName = String(user?.lastName || "").trim();
@@ -51,6 +77,7 @@ function formatRoleLabel(role) {
 
 export default function Sidebar() {
   const containerRef = useRef(null);
+  const scrollSyncFrameRef = useRef(null);
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
@@ -83,17 +110,80 @@ export default function Sidebar() {
     () =>
       adminSidebarSections
         .filter((section) => hasMatchingRole(role, section.rolesAny))
-        .map((section) => ({
-          ...section,
-          items: (section.items || []).filter(isVisibleItem),
-        }))
+        .map((section) => {
+          let items = (section.items || []).filter(isVisibleItem);
+          
+          if (section.key === "dashboard" && role !== "SUPER_ADMIN") {
+            items = items.map((item) => ({
+              ...item,
+              label: "Dashboard",
+            }));
+          }
+          
+          return {
+            ...section,
+            items,
+          };
+        })
         .filter((section) => section.items.length > 0),
     [role, canAccess, user],
   );
 
+  const activeSubmenuKey = useMemo(
+    () => findOpenSubmenuKey(visibleSections, location.pathname),
+    [visibleSections, location.pathname],
+  );
+  const [transientOpenSubmenuKey, setTransientOpenSubmenuKey] = useState(null);
+
+  useEffect(() => {
+    setTransientOpenSubmenuKey(null);
+  }, [location.pathname]);
+
   useEffect(() => {
     return attachAdminNavigationHandlers(containerRef.current, navigate);
   }, [navigate, visibleSections]);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!(container instanceof HTMLElement)) {
+      return undefined;
+    }
+
+    const runScrollSync = () => {
+      const scrollContainer = container.querySelector(".sidebar-inner");
+      if (!(scrollContainer instanceof HTMLElement)) {
+        return;
+      }
+
+      const activeLink =
+        scrollContainer.querySelector("#sidebar-menu li.active.leaf-active > a") ||
+        scrollContainer.querySelector("#sidebar-menu a.active.leaf-link");
+
+      if (!(activeLink instanceof HTMLElement)) {
+        return;
+      }
+
+      activeLink.scrollIntoView({
+        block: "nearest",
+        inline: "nearest",
+      });
+    };
+
+    if (scrollSyncFrameRef.current) {
+      cancelAnimationFrame(scrollSyncFrameRef.current);
+    }
+
+    scrollSyncFrameRef.current = requestAnimationFrame(() => {
+      scrollSyncFrameRef.current = requestAnimationFrame(runScrollSync);
+    });
+
+    return () => {
+      if (scrollSyncFrameRef.current) {
+        cancelAnimationFrame(scrollSyncFrameRef.current);
+        scrollSyncFrameRef.current = null;
+      }
+    };
+  }, [location.pathname, activeSubmenuKey, transientOpenSubmenuKey, visibleSections]);
 
   const isItemActive = (item) => matchesRoute(location.pathname, item?.href);
 
@@ -107,27 +197,47 @@ export default function Sidebar() {
     );
   };
 
-  const renderItems = (items) =>
+  const renderItems = (items, sectionKey = "", level = 0) =>
     items.map((item) => {
       const visibleChildren = Array.isArray(item.children)
         ? item.children.filter(isVisibleItem)
         : [];
       const isActive = isItemActive(item);
-      const isOpen = visibleChildren.length > 0 && hasActiveDescendant(item);
+      const itemKey = visibleChildren.length > 0 ? makeSubmenuKey(sectionKey, item.label) : "";
+      const isOpen = visibleChildren.length > 0
+        ? (
+            level === 0
+              ? activeSubmenuKey === itemKey || transientOpenSubmenuKey === itemKey
+              : hasActiveDescendant(item)
+          )
+        : false;
 
       if (visibleChildren.length > 0) {
+        const shouldAnimatePanel = level === 0;
         return (
           <li key={item.label} className={`submenu${isOpen ? " parent-active" : ""}`}>
             <a
               href="javascript:void(0);"
-              className={isOpen ? "subdrop parent-link" : ""}
+              className={`${isOpen ? "subdrop " : ""}${shouldAnimatePanel ? "sidebar-submenu-trigger " : ""}parent-link`}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                if (level !== 0) return;
+                if (activeSubmenuKey === itemKey) return;
+                setTransientOpenSubmenuKey((prev) => (prev === itemKey ? null : itemKey));
+              }}
+              aria-expanded={isOpen}
             >
               {item.icon ? <i className={item.icon}></i> : null}
               <span>{item.label}</span>
               <span className="menu-arrow"></span>
             </a>
-            <ul style={{ display: isOpen ? "block" : "none" }}>
-              {renderItems(visibleChildren)}
+            <ul
+              className={shouldAnimatePanel ? `sidebar-submenu-panel${isOpen ? " is-open" : ""}` : ""}
+              style={shouldAnimatePanel ? undefined : { display: isOpen ? "block" : "none" }}
+              aria-hidden={!isOpen}
+            >
+              {renderItems(visibleChildren, sectionKey, level + 1)}
             </ul>
           </li>
         );
@@ -240,7 +350,7 @@ export default function Sidebar() {
                     <span>{section.title}</span>
                   </li>
                   <li key={`${section.key}-items`}>
-                    <ul>{renderItems(section.items)}</ul>
+                    <ul>{renderItems(section.items, section.key)}</ul>
                   </li>
                 </Fragment>
               ))}

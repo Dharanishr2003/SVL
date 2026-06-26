@@ -94,8 +94,11 @@ export default function UserGroupEditModal({
   const shouldReduceMotion = useReducedMotion();
   const lockDepartment = false;
   const lockTeam = false;
-  const employeeAssignableUsers = Array.isArray(assignableUsers)
-    ? assignableUsers.filter((userItem) => String(userItem?.role || "").toUpperCase() === "EMPLOYEE")
+  const memberAssignableUsers = Array.isArray(assignableUsers)
+    ? assignableUsers.filter((userItem) => {
+        const role = String(userItem?.role || "").toUpperCase();
+        return role === "EMPLOYEE" || role === "TEAM_LEAD";
+      })
     : [];
 
   return (
@@ -282,7 +285,7 @@ export default function UserGroupEditModal({
               onChange={(e) => onUserSelect(e.target.value)}
             >
               <option value="">Select Add Users</option>
-              {employeeAssignableUsers
+              {memberAssignableUsers
                 .filter((userItem) => !members.some((member) => String(member.userId) === String(userItem.id)))
                 .map((userItem) => (
                   <option key={userItem.id} value={userItem.id}>

@@ -17,13 +17,13 @@ export const adminSidebarSections = [
         accessAny: ["employee-dashboard"],
         rolesAny: ["EMPLOYEE", "TEAM_LEAD", "MANAGER","SUPER_ADMIN"],
       },
-      {
-        label: "Sales Dashboard",
-        href: "/dashboard",
-        icon: "ti ti-chart-donut-3",
-        accessAny: ["sales-dashboard"],
-        rolesAny: [],
-      },
+      // {
+      //   label: "Sales Dashboard",
+      //   href: "/dashboard",
+      //   icon: "ti ti-chart-donut-3",
+      //   accessAny: ["sales-dashboard"],
+      //   rolesAny: [],
+      // },
     ],
   },
   {
@@ -35,6 +35,13 @@ export const adminSidebarSections = [
         href: "/leads",
         icon: "ti ti-user-check",
         accessAny: ["leads"],
+      },
+      {
+        label: "Rejected Leads",
+        href: "/rejected-leads",
+        icon: "ti ti-circle-x",
+        accessAny: ["rejected-leads"],
+        excludeRoles: ["EMPLOYEE"],
       },
       {
         label: "Requirements",
@@ -71,13 +78,7 @@ export const adminSidebarSections = [
           },
         ],
       },
-      {
-        label: "Rejected Leads",
-        href: "/rejected-leads",
-        icon: "ti ti-circle-x",
-        accessAny: ["rejected-leads"],
-        excludeRoles: ["EMPLOYEE"],
-      },
+      
       {
         label: "Lead Source",
         icon: "ti ti-route",
@@ -95,34 +96,34 @@ export const adminSidebarSections = [
       },
     ],
   },
-  {
-    key: "project-management",
-    title: "Project Management",
-    items: [
-      {
-        label: "Projects",
-        icon: "ti ti-briefcase-2",
-        accessAny: ["projects", "projects-list", "project-status", "project-type"],
-        children: [
-          { label: "Projects List", href: "/projects-grid", accessAny: ["projects", "projects-list"] },
-          { label: "Project Status", href: "/project-status", accessAny: ["projects", "project-status"] },
-          { label: "Project Type", href: "/project-type", accessAny: ["projects", "project-type"] },
-        ],
-      },
-      {
-        label: "Tasks",
-        href: "/tasks",
-        icon: "ti ti-checklist",
-        accessAny: ["projects", "tasks"],
-      },
-      {
-        label: "Task Board",
-        href: "/task-board",
-        icon: "ti ti-layout-kanban",
-        accessAny: ["projects", "task-board"],
-      },
-    ],
-  },
+  // {
+  //   key: "project-management",
+  //   title: "Project Management",
+  //   items: [
+  //     {
+  //       label: "Projects",
+  //       icon: "ti ti-briefcase-2",
+  //       accessAny: ["projects", "projects-list", "project-status", "project-type"],
+  //       children: [
+  //         { label: "Projects List", href: "/projects-grid", accessAny: ["projects", "projects-list"] },
+  //         { label: "Project Status", href: "/project-status", accessAny: ["projects", "project-status"] },
+  //         { label: "Project Type", href: "/project-type", accessAny: ["projects", "project-type"] },
+  //       ],
+  //     },
+  //     {
+  //       label: "Tasks",
+  //       href: "/tasks",
+  //       icon: "ti ti-checklist",
+  //       accessAny: ["projects", "tasks"],
+  //     },
+  //     {
+  //       label: "Task Board",
+  //       href: "/task-board",
+  //       icon: "ti ti-layout-kanban",
+  //       accessAny: ["projects", "task-board"],
+  //     },
+  //   ],
+  // },
   {
     key: "operations",
     title: "Operations",

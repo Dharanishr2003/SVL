@@ -1,4 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
 import PageHeader from "../../components/admin/PageHeader";
 import PageLoader from "../../components/common/PageLoader";
 import { deleteLead, getLeads, updateLeadRowStatus } from "../../api/leadsApi";
@@ -6,6 +8,17 @@ import { useAuth } from "../../context/AuthContext";
 import { extractApiErrorMessage } from "../../utils/errorMessage";
 import { useToast } from "../../components/system/ToastProvider";
 import PageSizeSelector from "../../components/admin/PageSizeSelector";
+import LeadExportDropdown from "../../components/admin/LeadExportDropdown";
+
+function downloadTextFile(filename, content, mime) {
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+}
 
 export default function RejectedLeadsPage() {
   const { user } = useAuth();
@@ -113,6 +126,154 @@ export default function RejectedLeadsPage() {
     }
   };
 
+  const exportCsv = () => {
+    const targetRows = filteredRows;
+
+    const headers = [
+      "S.No",
+      "Name",
+      "Mobile",
+      "Email",
+      "Status",
+      "Owner",
+      "Created Date",
+    ];
+    const body = targetRows.map((row, idx) => [
+      idx + 1,
+      row.name || "",
+      row.mobile || "",
+      row.email || "",
+      row.status || "Rejected",
+      row.owner || row.ownerName || "",
+      row.createdAt || "",
+    ]);
+    const csv = [headers, ...body]
+      .map((line) =>
+        line
+          .map((cell) => `"${String(cell ?? "").replace(/"/g, '""')}"`)
+          .join(","),
+      )
+      .join("\n");
+    downloadTextFile(`rejected-leads-${Date.now()}.csv`, csv, "text/csv;charset=utf-8;");
+  };
+
+  const exportExcel = () => {
+    const targetRows = filteredRows;
+
+    const headers = [
+      "S.No",
+      "Name",
+      "Mobile",
+      "Email",
+      "Status",
+      "Owner",
+      "Created Date",
+    ];
+
+    const escapeXml = (unsafe) => {
+      return String(unsafe ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&apos;");
+    };
+
+    const headerHtml = `      <tr>
+        ${headers.map((h) => `<th>${escapeXml(h)}</th>`).join("\n        ")}
+      </tr>`;
+
+    const rowsHtml = targetRows
+      .map(
+        (row, idx) => `      <tr>
+        <td>${idx + 1}</td>
+        <td>${escapeXml(row.name)}</td>
+        <td>${escapeXml(row.mobile)}</td>
+        <td>${escapeXml(row.email)}</td>
+        <td>${escapeXml(row.status || "Rejected")}</td>
+        <td>${escapeXml(row.owner || row.ownerName)}</td>
+        <td>${escapeXml(row.createdAt)}</td>
+      </tr>`,
+      )
+      .join("\n");
+
+    const template = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+<head>
+<!--[if gte mso 9]>
+<xml>
+  <x:ExcelWorkbook>
+    <x:ExcelWorksheets>
+      <x:ExcelWorksheet>
+        <x:Name>Rejected Leads</x:Name>
+        <x:WorksheetOptions>
+          <x:DisplayGridlines/>
+        </x:WorksheetOptions>
+      </x:ExcelWorksheet>
+    </x:ExcelWorksheets>
+  </x:ExcelWorkbook>
+</xml>
+<![endif]-->
+<meta http-equiv="content-type" content="text/plain; charset=UTF-8"/>
+</head>
+<body>
+  <table>
+    <thead>
+${headerHtml}
+    </thead>
+    <tbody>
+${rowsHtml}
+    </tbody>
+  </table>
+</body>
+</html>`;
+
+    downloadTextFile(`rejected-leads-${Date.now()}.xls`, template, "application/vnd.ms-excel;charset=utf-8;");
+  };
+
+  const exportPdf = () => {
+    const targetRows = filteredRows;
+
+    const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
+    const title = "Rejected Leads Export";
+    const generatedAt = new Date().toLocaleString();
+    doc.setFontSize(14);
+    doc.text(title, 40, 40);
+    doc.setFontSize(10);
+    doc.text(`Generated: ${generatedAt}`, 40, 58);
+
+    const headers = [[
+      "S.No",
+      "Name",
+      "Mobile",
+      "Email",
+      "Status",
+      "Owner",
+      "Created Date",
+    ]];
+
+    const body = targetRows.map((row, idx) => [
+      idx + 1,
+      row.name || "",
+      row.mobile || "",
+      row.email || "",
+      row.status || "Rejected",
+      row.owner || row.ownerName || "",
+      row.createdAt || "",
+    ]);
+
+    autoTable(doc, {
+      head: headers,
+      body,
+      startY: 72,
+      styles: { fontSize: 8, cellPadding: 4 },
+      headStyles: { fillColor: [33, 37, 41] },
+      margin: { left: 24, right: 24 },
+      tableWidth: "auto",
+    });
+
+    doc.save(`rejected-leads-${Date.now()}.pdf`);
+  };
+
   return (
     <div className="container-fluid content">
       <div className="card border-0 shadow-sm p-4 mb-4 bg-white" style={{ borderRadius: 12 }}>
@@ -141,13 +302,18 @@ export default function RejectedLeadsPage() {
                 onChange={(e) => setSearchText(e.target.value)}
               />
             </div>
+            <LeadExportDropdown
+              exportExcel={exportExcel}
+              exportCsv={exportCsv}
+              exportPdf={exportPdf}
+            />
           </div>
 
           <div className="table-responsive leads-table-wrap border-0 shadow-sm mb-4" style={{ borderRadius: 12 }}>
             <table className="table table-hover align-middle leads-table mb-0">
               <thead>
                 <tr>
-                  <th className="text-muted" style={{ fontWeight: "600", fontSize: "0.85rem" }}>Lead ID</th>
+                  <th className="text-muted" style={{ fontWeight: "600", fontSize: "0.85rem" }}>S.No</th>
                   <th className="text-muted" style={{ fontWeight: "600", fontSize: "0.85rem" }}>Name</th>
                   <th className="text-muted" style={{ fontWeight: "600", fontSize: "0.85rem" }}>Mobile</th>
                   <th className="text-muted" style={{ fontWeight: "600", fontSize: "0.85rem" }}>Email</th>
@@ -165,9 +331,9 @@ export default function RejectedLeadsPage() {
                     </td>
                   </tr>
                 ) : (
-                  pagedRows.map((row) => (
+                  pagedRows.map((row, index) => (
                     <tr key={row.id || row.leadId || row.enquiryId}>
-                      <td className="fw-semibold" style={{ color: "#1e293b", fontSize: "0.9rem" }}>{row.leadId || row.enquiryId || row.id || "-"}</td>
+                      <td className="fw-semibold" style={{ color: "#1e293b", fontSize: "0.9rem" }}>{(page - 1) * pageSize + index + 1}</td>
                       <td style={{ fontSize: "0.9rem" }}>
                         <a href={`/leads/${row.id}`} className="link-default fw-semibold" style={{ color: "#3b82f6" }}>
                           {row.name || "-"}

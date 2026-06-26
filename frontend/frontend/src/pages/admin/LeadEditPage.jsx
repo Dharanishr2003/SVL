@@ -223,6 +223,7 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
   const [showLeadLogModal, setShowLeadLogModal] = useState(false);
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [showRequirementModal, setShowRequirementModal] = useState(false);
+  const [pendingRequirementStatus, setPendingRequirementStatus] = useState("");
   const [editingRequirement, setEditingRequirement] = useState(null);
   const [requirementModalKey, setRequirementModalKey] = useState(0);
   const [viewingSpecs, setViewingSpecs] = useState(null);
@@ -240,6 +241,7 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
   const [addressLoading, setAddressLoading] = useState(false);
   const [newAddressType, setNewAddressType] = useState("BILLING");
   const [streetAddress, setStreetAddress] = useState("");
+  const requirementFlowHandledRef = useRef(false);
   const showVariantQuantityFields =
     String(variant || "").trim() !== "" || String(quantity || "").trim() !== "";
 
@@ -557,14 +559,28 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
     if (!lead?.id) return;
     const params = new URLSearchParams(location.search || "");
     const shouldOpenRequirement = params.get("openRequirement") === "1";
-    const currentStatus = String(lead?.status || "").trim().toLowerCase();
-    if (!shouldOpenRequirement || currentStatus !== "requirement") return;
-    if (!statusNeedsModal("requirement")) return;
+    if (!shouldOpenRequirement) {
+      requirementFlowHandledRef.current = false;
+      return;
+    }
+    if (requirementFlowHandledRef.current) return;
+    requirementFlowHandledRef.current = true;
+    const pendingStatus = String(params.get("pendingRequirementStatus") || "").trim();
+    setPendingRequirementStatus(pendingStatus);
     setActiveTab("requirement");
     setEditingRequirement(null);
     setRequirementModalKey((k) => k + 1);
     setShowRequirementModal(true);
-    navigate(location.pathname, { replace: true });
+    params.delete("openRequirement");
+    params.delete("pendingRequirementStatus");
+    const nextSearch = params.toString();
+    navigate(
+      {
+        pathname: location.pathname,
+        search: nextSearch ? `?${nextSearch}` : "",
+      },
+      { replace: true },
+    );
   }, [lead?.id, lead?.status, location.pathname, location.search, navigate, requirements.length]);
 
   // Fetch primary and secondary source options on mount
@@ -660,34 +676,110 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
     fetchServiceMasterData();
   }, []);
 
+  const resolveNextGroupIdForStatus = (status) => {
+    if (!Array.isArray(flowRules)) return null;
+    const targetRule = flowRules.find(
+      (rule) =>
+        String(rule?.status || "").trim().toLowerCase() ===
+        String(status || "").trim().toLowerCase(),
+    );
+    return targetRule?.handledByGroupId ?? null;
+  };
+
+  const syncRequirementStatusIfNeeded = async (requirementRows, successMessage = "") => {
+    const rows = Array.isArray(requirementRows) ? requirementRows : [];
+    if (!lead?.id || rows.length === 0) return null;
+    if (String(lead?.status || "").trim().toLowerCase() === "requirement") return null;
+
+    try {
+      const updatedLead = await updateLeadRowStatus(
+        lead.id,
+        "Requirement",
+        resolveNextGroupIdForStatus("Requirement"),
+      );
+      setLead((prev) => ({ ...(prev || {}), ...updatedLead }));
+      setStatusValue((prev) => (String(prev || "").trim() ? prev : "Requirement"));
+      setActiveTab("requirement");
+      await refreshLeadLogs(lead.id);
+      if (successMessage) {
+        showSuccess(successMessage);
+      }
+      return updatedLead;
+    } catch (e) {
+      showError(extractApiErrorMessage(e, "Failed to update status"));
+      return null;
+    }
+  };
+
   // Fetch requirements for this lead
   useEffect(() => {
     if (!lead?.id) return;
-    const fetchReqs = async () => {
-      try {
-        const data = await getRequirementsByLeadId(lead.id);
-        setRequirements(Array.isArray(data) ? data : []);
-      } catch {
-        // silent
-      }
-    };
-    fetchReqs();
+    refreshRequirements();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lead?.id]);
 
-  const refreshRequirements = async () => {
-    if (!lead?.id) return;
+  const refreshRequirements = async (successMessage = "") => {
+    if (!lead?.id) return [];
     try {
       const data = await getRequirementsByLeadId(lead.id);
-      setRequirements(Array.isArray(data) ? data : []);
+      const rows = Array.isArray(data) ? data : [];
+      setRequirements(rows);
+      await syncRequirementStatusIfNeeded(rows, successMessage);
+      return rows;
     } catch {
       // silent
+      return [];
+    }
+  };
+
+  const openRequirementModal = (nextStatus = "") => {
+    setPendingRequirementStatus(String(nextStatus || "").trim());
+    setEditingRequirement(null);
+    setRequirementModalKey((k) => k + 1);
+    setShowRequirementModal(true);
+    setActiveTab("requirement");
+  };
+
+  const closeRequirementModal = () => {
+    setShowRequirementModal(false);
+    setEditingRequirement(null);
+    setPendingRequirementStatus("");
+  };
+
+  const handleRequirementSaved = async () => {
+    await refreshRequirements("Lead status updated");
+    const nextStatus = String(pendingRequirementStatus || "").trim();
+    if (!nextStatus) {
+      setPendingRequirementStatus("");
+      return;
+    }
+
+    if (normalizeKey(nextStatus) === "requirement") {
+      setPendingRequirementStatus("");
+      return;
+    }
+
+    if (normalizeKey(lead?.status) === normalizeKey(nextStatus)) {
+      setPendingRequirementStatus("");
+      return;
+    }
+
+    try {
+      const nextGroupId = resolveNextGroupIdForStatus(nextStatus);
+      const updatedLead = await updateLeadRowStatus(lead.id, nextStatus, nextGroupId);
+      setLead((prev) => ({ ...(prev || {}), ...updatedLead }));
+      setStatusValue(nextStatus);
+      setActiveTab("requirement");
+      showSuccess("Lead status updated");
+    } catch (e) {
+      showError(extractApiErrorMessage(e, "Failed to update status"));
+    } finally {
+      setPendingRequirementStatus("");
     }
   };
 
   const openAddRequirementModal = () => {
-    setEditingRequirement(null);
-    setRequirementModalKey((k) => k + 1);
-    setShowRequirementModal(true);
+    openRequirementModal("");
   };
 
   const openEditRequirementModal = (requirement) => {
@@ -1000,7 +1092,7 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
       ["Rating", leadTypeValue || "-"],
       ["Allocator", pickText(lead, ["Allocator", "allocator", "allocatorName", "createdByName", "createdBy", "createdByUsername", "creator"]) || "-"],
       ["Lead Owner", pickText(lead, ["ownerName", "owner", "ownerUsername", "ownerUserName"]) || "-"],
-      ["Enquiry Status", lead.status || "-"],
+      ["Enquiry Status", formatStatusLabel(lead.status) || "-"],
     ];
     autoTable(doc, {
       startY: 36,
@@ -1033,7 +1125,7 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
       ["Rating", leadTypeValue || ""],
       ["Allocator", pickText(lead, ["Allocator", "allocator", "allocatorName", "createdByName", "createdBy", "createdByUsername", "creator"]) || ""],
       ["Lead Owner", pickText(lead, ["ownerName", "owner", "ownerUsername", "ownerUserName"]) || ""],
-      ["Enquiry Status", lead.status || ""],
+      ["Enquiry Status", formatStatusLabel(lead.status) || ""],
     ];
     const csvContent = rows
       .map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(","))
@@ -1377,6 +1469,13 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
       return;
     }
     const normalizedKey = String(statusValue || "").trim().toLowerCase();
+    if (normalizedKey === "requirement") {
+      setError("");
+      setShowStatusModal(false);
+      openRequirementModal("Requirement");
+      setStatusSaving(false);
+      return;
+    }
 
     // Validate Attempted form fields if transitioning to Attempted
     if (normalizedKey === "attempted" && statusNeedsModal(normalizedKey)) {
@@ -2090,7 +2189,7 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
         <div className="d-flex flex-wrap gap-2 align-items-center w-100 w-md-auto justify-content-start justify-content-md-end">
           <div className="lead-current-status-box">
             <span className="lead-current-status-label">Current Status</span>
-            <strong>{lead?.isDuplicate ? "Duplicate" : (lead?.status || "-")}</strong>
+            <strong>{lead?.isDuplicate ? "Duplicate" : (formatStatusLabel(lead?.status || "-") || "-")}</strong>
           </div>
           {!lead?.isDuplicate && (
             <button
@@ -2619,6 +2718,7 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
                     animate={{ opacity: 1, x: 0, filter: "blur(0px)" }}
                     exit={{ opacity: 0, x: -18, filter: "blur(4px)" }}
                     transition={{ duration: 0.25 }}
+                    className="lead-edit-wizard-step-panel"
                   >
                     <h5 className="mb-3">Not Attempted Details</h5>
                     <div className="row g-3">
@@ -3569,12 +3669,9 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
 
       <RequirementFormModal
         show={showRequirementModal}
-        onClose={() => {
-          setShowRequirementModal(false);
-          setEditingRequirement(null);
-        }}
+        onClose={closeRequirementModal}
         leadId={lead?.id}
-        onSaved={refreshRequirements}
+        onSaved={handleRequirementSaved}
         initialRequirement={editingRequirement}
         serviceCategories={serviceCategories}
         serviceTypes={serviceTypes}

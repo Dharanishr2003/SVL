@@ -29,15 +29,19 @@ export default function LeadListView({
   toggleSelectAll,
   toggleLeadSelection,
   pageOffset,
-  activeActionsRow,
-  setActiveActionsRow,
-  setActionsMenuPos,
   getStatusClass,
+  onStatusBadgeClick,
   formatCreatedOn,
   sortField,
   sortOrder,
   onSort,
+  navigate,
+  onDeleteLead,
+  role,
 }) {
+  const isEmployee = role === "EMPLOYEE";
+  const ownerColumnLabel = isEmployee ? "Assigned By" : "Owner";
+
   return (
     <div
       className="table-responsive leads-table-wrap border-0 shadow-sm mb-4"
@@ -73,7 +77,7 @@ export default function LeadListView({
               Status
             </th>
             <th className="col-owner text-muted" style={{ fontWeight: "600", fontSize: "0.85rem" }}>
-              Owner
+              {ownerColumnLabel}
             </th>
             <th
               className="col-date text-muted"
@@ -130,37 +134,74 @@ export default function LeadListView({
                   </td>
                   <td className="col-source" style={{ fontSize: "0.9rem", color: "#475569" }}>{row.secondarySource || row.primarySource || "-"}</td>
                   <td className="col-status">
-                    <span
+                    <button
+                      type="button"
                       className={`status-pill ${getStatusClass(row.status)}`}
-                      style={getStatusStyle(row.status)}
+                      style={{
+                        ...getStatusStyle(row.status),
+                        cursor: "pointer",
+                        border: "none",
+                        appearance: "none",
+                        WebkitAppearance: "none",
+                        outline: "none",
+                      }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onStatusBadgeClick?.(row);
+                      }}
                     >
                       {formatStatusLabel(row.status) || "-"}
-                    </span>
+                    </button>
                   </td>
                   <td className="col-owner" style={{ fontSize: "0.9rem", color: "#475569" }}>
-                    {row.owner || "-"}
+                    {isEmployee ? row.allocator || "-" : row.owner || "-"}
                   </td>
                   <td className="col-date" style={{ fontSize: "0.9rem", color: "#475569" }}>{formatCreatedOn(row.createdAt)}</td>
                   <td className="col-actions">
-                    <button
-                      className="btn btn-kebab-actions d-flex align-items-center justify-content-center"
-                      style={{ width: 32, height: 32, borderRadius: "50%", border: "none", backgroundColor: "transparent", color: "#64748b" }}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (activeActionsRow?.id === row.id) {
-                          setActiveActionsRow(null);
-                        } else {
-                          const rect = e.currentTarget.getBoundingClientRect();
-                          setActionsMenuPos({
-                            top: rect.top + window.scrollY,
-                            left: rect.right + window.scrollX,
-                          });
-                          setActiveActionsRow(row);
-                        }
-                      }}
-                    >
-                      <i className="ti ti-dots-vertical" style={{ fontSize: "1.15rem" }} />
-                    </button>
+                    <div className="d-inline-flex align-items-center gap-2">
+                      <button
+                        type="button"
+                        className="btn d-inline-flex align-items-center justify-content-center"
+                        style={{
+                          width: 32,
+                          height: 32,
+                          borderRadius: 8,
+                          border: "1px solid #dbe3f0",
+                          backgroundColor: "#f8fbff",
+                          color: "#2563eb",
+                        }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate?.(`/leads/${row.id}`);
+                        }}
+                        title="Edit Lead"
+                        aria-label="Edit Lead"
+                      >
+                        <i className="ti ti-pencil" style={{ fontSize: "1rem" }} />
+                      </button>
+                      {role !== "EMPLOYEE" && (
+                        <button
+                          type="button"
+                          className="btn d-inline-flex align-items-center justify-content-center"
+                          style={{
+                            width: 32,
+                            height: 32,
+                            borderRadius: 8,
+                            border: "1px solid #ffd5ce",
+                            backgroundColor: "#fff5f3",
+                            color: "#ef4444",
+                          }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onDeleteLead?.(row);
+                          }}
+                          title="Delete Lead"
+                          aria-label="Delete Lead"
+                        >
+                          <i className="ti ti-trash" style={{ fontSize: "1rem" }} />
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               )

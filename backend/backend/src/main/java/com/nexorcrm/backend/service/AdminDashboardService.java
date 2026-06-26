@@ -6,6 +6,10 @@ import com.nexorcrm.backend.dto.DashboardBreadcrumbResponse;
 import com.nexorcrm.backend.dto.DashboardHeaderResponse;
 import com.nexorcrm.backend.dto.DashboardStatResponse;
 import com.nexorcrm.backend.dto.DashboardWelcomeResponse;
+import com.nexorcrm.backend.dto.AttendanceOverviewResponse;
+import com.nexorcrm.backend.dto.ClockInOutItem;
+import com.nexorcrm.backend.entity.Attendance;
+import com.nexorcrm.backend.entity.AttendanceStatus;
 import com.nexorcrm.backend.entity.Employee;
 import com.nexorcrm.backend.entity.Leave;
 import com.nexorcrm.backend.entity.Role;
@@ -29,6 +33,8 @@ import java.time.format.DateTimeFormatter;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
+import java.util.stream.Collectors;
 import java.util.Locale;
 
 @Service
@@ -92,6 +98,11 @@ public class AdminDashboardService {
                 attendanceToday
         ));
         response.setRecentActivities(buildRecentActivities(actorPrincipal));
+        
+        response.setAttendanceOverview(buildAttendanceOverview(actor));
+        response.setClockInOutList(buildClockInOutList(actor));
+        response.setLateList(buildLateList(response.getClockInOutList()));
+        
         return response;
     }
 
@@ -291,5 +302,133 @@ public class AdminDashboardService {
         String prettyAction = Character.toUpperCase(normalizedAction.charAt(0)) + normalizedAction.substring(1);
         String detail = StringUtils.hasText(description) ? description.trim() : StringUtils.hasText(targetUser) ? targetUser.trim() : "";
         return StringUtils.hasText(detail) ? prettyAction + " - " + detail : prettyAction;
+    }
+
+    private List<User> getScopeUsers(User actor) {
+        return userRepository.findByIsDeletedFalse().stream()
+                .filter(User::isActive)
+                .filter(u -> u.getActivationStatus() == null || u.getActivationStatus().name().equals("ACTIVE"))
+                .filter(u -> matchesScope(actor, u.getInstitutionName(), u.getDepartmentName(), u.getTeamName()))
+                .collect(Collectors.toList());
+    }
+
+    private AttendanceOverviewResponse buildAttendanceOverview(User actor) {
+        LocalDate today = LocalDate.now();
+        List<User> users = getScopeUsers(actor);
+        int totalEmployees = users.size();
+
+        List<Attendance> todayAttendances = attendanceRepository.findByAttendanceDateAndDeletedFalseOrderByCheckInTimeDesc(today);
+        List<Leave> activeLeaves = leaveRepository.findByDeletedFalseOrderByFromDateDesc().stream()
+                .filter(l -> "APPROVED".equalsIgnoreCase(l.getStatus()))
+                .filter(l -> !today.isBefore(l.getFromDate()) && !today.isAfter(l.getToDate()))
+                .collect(Collectors.toList());
+
+        int presentCount = 0;
+        int lateCount = 0;
+        int permissionCount = 0;
+        int absentCount = 0;
+        List<AttendanceOverviewResponse.AbsenteeDto> absentees = new ArrayList<>();
+
+        for (User user : users) {
+            Optional<Attendance> attOpt = todayAttendances.stream()
+                    .filter(a -> a.getUserId().equals(user.getId()))
+                    .findFirst();
+            if (attOpt.isPresent()) {
+                Attendance att = attOpt.get();
+                if (Boolean.TRUE.equals(att.getIsLate())) {
+                    lateCount++;
+                } else {
+                    presentCount++;
+                }
+            } else {
+                boolean hasLeave = activeLeaves.stream()
+                        .anyMatch(l -> (user.getEmployeeId() != null && user.getEmployeeId().equals(l.getEmployeeId()))
+                                || user.getEmail().equalsIgnoreCase(l.getEmployeeName())
+                        );
+                if (hasLeave) {
+                    permissionCount++;
+                } else {
+                    absentCount++;
+                    String name = resolveDisplayName(user);
+                    String avatar = resolveAvatarUrl(user);
+                    if (avatar == null || avatar.isEmpty()) {
+                        avatar = "/assets/img/profiles/avatar-31.jpg";
+                    }
+                    absentees.add(new AttendanceOverviewResponse.AbsenteeDto(name, avatar));
+                }
+            }
+        }
+
+        double presentPercentage = totalEmployees > 0 ? (presentCount * 100.0 / totalEmployees) : 0.0;
+        double latePercentage = totalEmployees > 0 ? (lateCount * 100.0 / totalEmployees) : 0.0;
+        double permissionPercentage = totalEmployees > 0 ? (permissionCount * 100.0 / totalEmployees) : 0.0;
+        double absentPercentage = totalEmployees > 0 ? (absentCount * 100.0 / totalEmployees) : 0.0;
+
+        presentPercentage = Math.round(presentPercentage * 10) / 10.0;
+        latePercentage = Math.round(latePercentage * 10) / 10.0;
+        permissionPercentage = Math.round(permissionPercentage * 10) / 10.0;
+        absentPercentage = Math.round(absentPercentage * 10) / 10.0;
+
+        AttendanceOverviewResponse overview = new AttendanceOverviewResponse();
+        overview.setTotalCount(presentCount + lateCount + permissionCount);
+        overview.setPresentPercentage(presentPercentage);
+        overview.setLatePercentage(latePercentage);
+        overview.setPermissionPercentage(permissionPercentage);
+        overview.setAbsentPercentage(absentPercentage);
+        overview.setAbsentees(absentees);
+        return overview;
+    }
+
+    private List<ClockInOutItem> buildClockInOutList(User actor) {
+        LocalDate today = LocalDate.now();
+        List<User> users = getScopeUsers(actor);
+        List<Attendance> todayAttendances = attendanceRepository.findByAttendanceDateAndDeletedFalseOrderByCheckInTimeDesc(today);
+
+        List<ClockInOutItem> items = new ArrayList<>();
+        DateTimeFormatter timeFormatter = DateTimeFormatter.ofPattern("hh:mm a", Locale.ENGLISH);
+
+        for (Attendance att : todayAttendances) {
+            Optional<User> userOpt = users.stream()
+                    .filter(u -> u.getId().equals(att.getUserId()))
+                    .findFirst();
+            if (userOpt.isPresent()) {
+                User user = userOpt.get();
+                ClockInOutItem item = new ClockInOutItem();
+                item.setEmployeeName(resolveDisplayName(user));
+                
+                String designation = "Employee";
+                if (user.getEmployeeId() != null) {
+                    Optional<Employee> empOpt = employeeRepository.findById(user.getEmployeeId());
+                    if (empOpt.isPresent()) {
+                        designation = empOpt.get().getDesignation();
+                    }
+                }
+                item.setDesignation(designation != null && !designation.isEmpty() ? designation : "Employee");
+
+                String avatar = resolveAvatarUrl(user);
+                item.setAvatar(avatar != null && !avatar.isEmpty() ? avatar : "/assets/img/profiles/avatar-31.jpg");
+                item.setStatus(att.getStatus() != null ? att.getStatus().name() : "CHECKED_IN");
+                item.setCheckInTime(att.getCheckInTime() != null ? timeFormatter.format(att.getCheckInTime()) : "");
+                item.setCheckOutTime(att.getCheckOutTime() != null ? timeFormatter.format(att.getCheckOutTime()) : "");
+                
+                Integer netMinutes = att.getNetWorkMinutes() != null ? att.getNetWorkMinutes() : 0;
+                item.setProductionHours(String.format("%02d:%02d Hrs", netMinutes / 60, netMinutes % 60));
+                
+                item.setLate(Boolean.TRUE.equals(att.getIsLate()));
+                item.setLateMinutes(att.getLateMinutes() != null ? att.getLateMinutes() : 0);
+                items.add(item);
+            }
+        }
+        return items;
+    }
+
+    private List<ClockInOutItem> buildLateList(List<ClockInOutItem> allItems) {
+        List<ClockInOutItem> lateItems = new ArrayList<>();
+        for (ClockInOutItem item : allItems) {
+            if (item.isLate()) {
+                lateItems.add(item);
+            }
+        }
+        return lateItems;
     }
 }

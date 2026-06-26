@@ -58,7 +58,7 @@ public class SecurityConfig {
                                     "error", "Unauthorized",
                                     "message", authException.getMessage(),
                                     "timestamp", LocalDateTime.now().toString()
-                            );
+                             );
                             response.getWriter().write(objectMapper.writeValueAsString(body));
                         })
                         .accessDeniedHandler((request, response, accessDeniedException) -> {
@@ -70,11 +70,17 @@ public class SecurityConfig {
                                     "message", "Access denied",
                                     "timestamp", LocalDateTime.now().toString()
                             );
-                            response.getWriter().write(objectMapper.writeValueAsString(body));
+                            try {
+                                response.getWriter().write(objectMapper.writeValueAsString(body));
+                            } catch (Exception e) {
+                                // ignore
+                            }
                         })
                 )
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/login", "/api/auth/refresh").permitAll()
+                        .requestMatchers("/api/v1/webhook/meta", "/api/v1/webhook/incoming-lead").permitAll()
+                        .requestMatchers("/api/v1/campaign-leads/incoming-lead").permitAll()
                         .requestMatchers("/api/vendor-auth/login", "/api/vendor-auth/refresh", "/api/vendor-auth/logout").permitAll()
                         .requestMatchers("/api/recovery/**").permitAll()
                         .requestMatchers("/api/policies/*/file").permitAll()

@@ -43,6 +43,7 @@ const PayslipPage = () => {
   const [sendingAll, setSendingAll] = useState(false);
   const [sendingId, setSendingId] = useState(null);
   const [downloadingId, setDownloadingId] = useState(null);
+  const [printingId, setPrintingId] = useState(null);
   const [bulkSending, setBulkSending] = useState(false);
   const [bulkDeleting, setBulkDeleting] = useState(false);
 
@@ -144,6 +145,65 @@ const PayslipPage = () => {
       showError(extractApiErrorMessage(e, "Failed to preview PDF"));
     } finally {
       setDownloadingId(null);
+    }
+  };
+
+  const handlePrintPdf = async (ps) => {
+    setPrintingId(ps.id);
+    try {
+      const blob = await downloadPayslipPdf(ps.id);
+      const url = URL.createObjectURL(blob);
+      const iframe = document.createElement("iframe");
+      iframe.style.position = "fixed";
+      iframe.style.right = "0";
+      iframe.style.bottom = "0";
+      iframe.style.width = "0";
+      iframe.style.height = "0";
+      iframe.style.border = "0";
+      iframe.style.opacity = "0";
+      iframe.src = url;
+      let cleanupTimer = null;
+
+      const cleanup = () => {
+        if (cleanupTimer) {
+          window.clearTimeout(cleanupTimer);
+          cleanupTimer = null;
+        }
+        if (iframe.parentNode) {
+          iframe.parentNode.removeChild(iframe);
+        }
+        URL.revokeObjectURL(url);
+        setPrintingId(null);
+      };
+
+      iframe.onload = () => {
+        setTimeout(() => {
+          try {
+            const pdfWindow = iframe.contentWindow;
+            if (!pdfWindow) {
+              cleanup();
+              showError("Unable to open the PDF print dialog");
+              return;
+            }
+            pdfWindow.addEventListener("afterprint", cleanup, { once: true });
+            cleanupTimer = window.setTimeout(cleanup, 30000);
+            pdfWindow.focus?.();
+            pdfWindow.print?.();
+          } catch (_err) {
+            cleanup();
+            showError("Unable to open the PDF print dialog");
+          }
+        }, 250);
+      };
+      iframe.onerror = () => {
+        cleanup();
+        showError("Unable to open the PDF print dialog");
+      };
+
+      document.body.appendChild(iframe);
+    } catch (e) {
+      showError(extractApiErrorMessage(e, "Failed to print PDF"));
+      setPrintingId(null);
     }
   };
 
@@ -357,10 +417,11 @@ const PayslipPage = () => {
               <button
                 className="btn btn-light border d-flex align-items-center gap-2"
                 style={{ fontWeight: 600, padding: "10px 20px", borderRadius: 10 }}
-                onClick={() => window.print()}
+                onClick={() => handlePrintPdf(ps)}
+                disabled={printingId === ps.id}
               >
                 <i className="ti ti-printer" style={{ fontSize: "1.1rem" }} />
-                Print
+                {printingId === ps.id ? "Printing..." : "Print"}
               </button>
             </div>
           </div>
@@ -371,7 +432,7 @@ const PayslipPage = () => {
           <div className="card-body p-4">
             {/* Company / Title */}
             <div className="text-center border-bottom pb-3 mb-4">
-              <h3 style={{ fontWeight: 700, color: "#0f172a", letterSpacing: 1 }}>SVL ENTERPRISES</h3>
+              <h3 style={{ fontWeight: 600, color: "#0f172a", letterSpacing: 1 }}>SVL ENTERPRISES</h3>
               <p style={{ color: "#64748b", margin: 0 }}>PAYSLIP — {ps.month?.toUpperCase()}</p>
             </div>
 
@@ -387,8 +448,8 @@ const PayslipPage = () => {
               ].map(([label, value]) => (
                 <div className="col-md-6 mb-2" key={label}>
                   <div className="d-flex">
-                    <span style={{ fontWeight: 600, color: "#334155", minWidth: 160 }}>{label}:</span>
-                    <span style={{ color: "#475569" }}>{value}</span>
+                    <span style={{ fontWeight: 500, color: "#475569", minWidth: 160 }}>{label}:</span>
+                    <span style={{ color: "#475569", fontWeight: 400 }}>{value}</span>
                   </div>
                 </div>
               ))}
@@ -400,7 +461,7 @@ const PayslipPage = () => {
               <div className="col-md-6 mb-4">
                 <div className="rounded" style={{ border: "1px solid #e2e8f0", overflow: "hidden" }}>
                   <div className="px-3 py-2" style={{ backgroundColor: "#f1f5f9" }}>
-                    <strong style={{ color: "#0f172a" }}>EARNINGS</strong>
+                    <span style={{ color: "#0f172a", fontWeight: 600, letterSpacing: 0.6 }}>EARNINGS</span>
                   </div>
                   {[
                     ["Basic Salary", ps.basic],
@@ -410,13 +471,13 @@ const PayslipPage = () => {
                     ["Overtime", ps.overtime],
                   ].map(([label, val]) => (
                     <div key={label} className="d-flex justify-content-between px-3 py-2 border-top">
-                      <span style={{ color: "#475569" }}>{label}</span>
-                      <span style={{ fontWeight: 500 }}>{fmt(val)}</span>
+                      <span style={{ color: "#475569", fontWeight: 400 }}>{label}</span>
+                      <span style={{ fontWeight: 400, color: "#0f172a" }}>{fmt(val)}</span>
                     </div>
                   ))}
                   <div className="d-flex justify-content-between px-3 py-2 border-top" style={{ backgroundColor: "#f8fafc" }}>
-                    <strong style={{ color: "#0f172a" }}>Gross Salary</strong>
-                    <strong style={{ color: "#0f172a" }}>{fmt(totalEarnings)}</strong>
+                    <span style={{ color: "#0f172a", fontWeight: 600 }}>Gross Salary</span>
+                    <span style={{ color: "#0f172a", fontWeight: 600 }}>{fmt(totalEarnings)}</span>
                   </div>
                 </div>
               </div>
@@ -425,7 +486,7 @@ const PayslipPage = () => {
               <div className="col-md-6 mb-4">
                 <div className="rounded" style={{ border: "1px solid #e2e8f0", overflow: "hidden" }}>
                   <div className="px-3 py-2" style={{ backgroundColor: "#fef2f2" }}>
-                    <strong style={{ color: "#0f172a" }}>DEDUCTIONS</strong>
+                    <span style={{ color: "#0f172a", fontWeight: 600, letterSpacing: 0.6 }}>DEDUCTIONS</span>
                   </div>
                   {[
                     ["Provident Fund (PF)", ps.pf],
@@ -434,13 +495,13 @@ const PayslipPage = () => {
                     ["Leave Deduction (LOP)", ps.leaveDeduction],
                   ].map(([label, val]) => (
                     <div key={label} className="d-flex justify-content-between px-3 py-2 border-top">
-                      <span style={{ color: "#475569" }}>{label}</span>
-                      <span style={{ fontWeight: 500, color: "#dc2626" }}>{fmt(val)}</span>
+                      <span style={{ color: "#475569", fontWeight: 400 }}>{label}</span>
+                      <span style={{ fontWeight: 400, color: "#dc2626" }}>{fmt(val)}</span>
                     </div>
                   ))}
                   <div className="d-flex justify-content-between px-3 py-2 border-top" style={{ backgroundColor: "#fef2f2" }}>
-                    <strong style={{ color: "#0f172a" }}>Total Deductions</strong>
-                    <strong style={{ color: "#dc2626" }}>{fmt(totalDeductions)}</strong>
+                    <span style={{ color: "#0f172a", fontWeight: 600 }}>Total Deductions</span>
+                    <span style={{ color: "#dc2626", fontWeight: 600 }}>{fmt(totalDeductions)}</span>
                   </div>
                 </div>
               </div>
@@ -451,19 +512,19 @@ const PayslipPage = () => {
               className="d-flex justify-content-between align-items-center p-3 rounded"
               style={{ backgroundColor: "#f0fdf4", border: "1px solid #bbf7d0" }}
             >
-              <span style={{ fontWeight: 700, fontSize: "1.1rem", color: "#166534" }}>NET SALARY (PAID)</span>
+              <span style={{ fontWeight: 600, fontSize: "1.05rem", color: "#166534" }}>NET SALARY (PAID)</span>
               <span style={{ fontWeight: 700, fontSize: "1.3rem", color: "#166534" }}>{fmt(ps.netSalary)}</span>
             </div>
 
             {/* Signatures */}
             <div className="row mt-5">
               <div className="col-md-6">
-                <div style={{ borderTop: "1px solid #334155", paddingTop: 8, color: "#64748b", fontSize: "0.9rem" }}>
+                <div style={{ borderTop: "1px solid #334155", paddingTop: 8, color: "#64748b", fontSize: "0.9rem", fontWeight: 400 }}>
                   Employee Signature
                 </div>
               </div>
               <div className="col-md-6 text-end">
-                <div style={{ borderTop: "1px solid #334155", paddingTop: 8, color: "#64748b", fontSize: "0.9rem" }}>
+                <div style={{ borderTop: "1px solid #334155", paddingTop: 8, color: "#64748b", fontSize: "0.9rem", fontWeight: 400 }}>
                   Authorized Signatory
                 </div>
               </div>

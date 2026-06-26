@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
 import { useAuth } from "../../context/AuthContext";
 import { createPortal } from "react-dom";
 import LoadingSpinner from "../../components/common/LoadingSpinner";
+import LeadExportDropdown from "../../components/admin/LeadExportDropdown";
 import {
   approveQuotation,
   deleteQuotation,
@@ -28,6 +31,18 @@ import {
 import { getQuotationTemplate } from "../../api/quotationTemplateApi";
 import PageSizeSelector from "../../components/admin/PageSizeSelector";
 import "./QuotationListPage.css";
+
+function downloadTextFile(filename, content, mime) {
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  document.body.removeChild(anchor);
+  URL.revokeObjectURL(url);
+}
 
 function formatDate(value) {
   if (!value) {
@@ -76,6 +91,44 @@ function getStatusUi(status) {
     default:
       return { label: "Draft", className: "badge bg-secondary" };
   }
+}
+
+function getDisplayQuotationStatus(quotation) {
+  const status = quotation?.status || QUOTATION_STATUS_DRAFT;
+  if (status === QUOTATION_STATUS_VERIFICATION_PENDING && quotation?.negotiatingAt) {
+    return "Re-verification Pending";
+  }
+  if (status === QUOTATION_STATUS_APPROVED && quotation?.negotiatingAt) {
+    return "Re-verification Approved";
+  }
+  return getStatusUi(status).label;
+}
+
+function matchesQuickDate(value, quickDate) {
+  if (!quickDate) {
+    return true;
+  }
+
+  const rawDate = value ? new Date(value) : null;
+  if (!rawDate || Number.isNaN(rawDate.getTime())) {
+    return false;
+  }
+
+  const today = new Date();
+  const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const rowDate = new Date(rawDate.getFullYear(), rawDate.getMonth(), rawDate.getDate());
+  const diffDays = Math.floor((startOfToday - rowDate) / (1000 * 60 * 60 * 24));
+
+  if (quickDate === "today") {
+    return diffDays === 0;
+  }
+  if (quickDate === "weekly") {
+    return diffDays >= 0 && diffDays < 7;
+  }
+  if (quickDate === "monthly") {
+    return diffDays >= 0 && diffDays < 30;
+  }
+  return true;
 }
 
 function canTeamLeadApproveQuotation(quotation, user) {
@@ -135,6 +188,15 @@ export default function QuotationListPage() {
 
   // New state variables for search, sorting, and pagination
   const [searchText, setSearchText] = useState("");
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [filters, setFilters] = useState({
+    status: "",
+    quickDate: "",
+  });
+  const [filterDraft, setFilterDraft] = useState({
+    status: "",
+    quickDate: "",
+  });
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [sortField, setSortField] = useState("date");
@@ -193,6 +255,10 @@ export default function QuotationListPage() {
     const timer = setTimeout(() => setSuccessMessage(""), 4000);
     return () => clearTimeout(timer);
   }, [successMessage]);
+
+  useEffect(() => {
+    setFilterDraft(filters);
+  }, [filters]);
 
   const updateSingleQuotation = (updatedQuotation) => {
     setQuotations((previous) =>
@@ -425,7 +491,18 @@ export default function QuotationListPage() {
   // Reset to first page when search changes
   useEffect(() => {
     setPage(1);
-  }, [searchText]);
+  }, [searchText, filters.status, filters.quickDate]);
+
+  const quotationStatusOptions = useMemo(() => (
+    Array.from(
+      new Set(
+        quotations
+          .map((quotation) => quotation?.status || QUOTATION_STATUS_DRAFT)
+          .map((status) => String(status || "").trim())
+          .filter(Boolean),
+      ),
+    )
+  ), [quotations]);
 
   const filteredQuotations = useMemo(() => {
     const term = searchText.toLowerCase().trim();
@@ -437,6 +514,17 @@ export default function QuotationListPage() {
         const status = (q.status || "").toLowerCase();
         return qNo.includes(term) || customer.includes(term) || status.includes(term);
       });
+    }
+
+    if (filters.status) {
+      const selectedStatus = String(filters.status || "").trim().toLowerCase();
+      result = result.filter((quotation) => String(quotation?.status || "").trim().toLowerCase() === selectedStatus);
+    }
+
+    if (filters.quickDate) {
+      result = result.filter((quotation) =>
+        matchesQuickDate(quotation?.quotationDate || quotation?.createdAt, filters.quickDate),
+      );
     }
 
     return [...result].sort((a, b) => {
@@ -468,7 +556,139 @@ export default function QuotationListPage() {
       }
       return 0;
     });
-  }, [quotations, searchText, sortField, sortOrder]);
+  }, [quotations, searchText, filters.status, filters.quickDate, sortField, sortOrder]);
+
+  const exportCsv = () => {
+    const headers = [
+      "Quotation No.",
+      "Customer",
+      "Status",
+      "Date",
+      "Total",
+      "Employee Notes",
+      "Branch Head Notes",
+    ];
+
+    const body = filteredQuotations.map((quotation) => [
+      quotation.quotationNumber || "",
+      quotation.clientName || quotation.customerName || "",
+      getDisplayQuotationStatus(quotation),
+      formatDate(quotation.quotationDate || quotation.createdAt),
+      Number(quotation.grandTotal ?? quotation.totals?.grandTotal ?? 0).toFixed(2),
+      quotation.verificationRequestNotes || "",
+      quotation.approvalNotes || "",
+    ]);
+
+    const csv = [headers, ...body]
+      .map((line) =>
+        line
+          .map((cell) => `"${String(cell ?? "").replace(/"/g, '""')}"`)
+          .join(","),
+      )
+      .join("\n");
+
+    downloadTextFile(`quotation-list-${Date.now()}.csv`, csv, "text/csv;charset=utf-8;");
+  };
+
+  const exportExcel = () => {
+    const headers = [
+      "Quotation No.",
+      "Customer",
+      "Status",
+      "Date",
+      "Total",
+      "Employee Notes",
+      "Branch Head Notes",
+    ];
+
+    const escapeXml = (unsafe) =>
+      String(unsafe ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&apos;");
+
+    const headerHtml = `      <tr>${headers.map((header) => `<th>${escapeXml(header)}</th>`).join("")}</tr>`;
+    const rowsHtml = filteredQuotations
+      .map((quotation) => `      <tr>
+        <td>${escapeXml(quotation.quotationNumber)}</td>
+        <td>${escapeXml(quotation.clientName || quotation.customerName)}</td>
+        <td>${escapeXml(getDisplayQuotationStatus(quotation))}</td>
+        <td>${escapeXml(formatDate(quotation.quotationDate || quotation.createdAt))}</td>
+        <td>${escapeXml(Number(quotation.grandTotal ?? quotation.totals?.grandTotal ?? 0).toFixed(2))}</td>
+        <td>${escapeXml(quotation.verificationRequestNotes)}</td>
+        <td>${escapeXml(quotation.approvalNotes)}</td>
+      </tr>`)
+      .join("\n");
+
+    const template = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+<head>
+  <meta charset="utf-8" />
+</head>
+<body>
+  <table>
+${headerHtml}
+${rowsHtml}
+  </table>
+</body>
+</html>`;
+
+    downloadTextFile(`quotation-list-${Date.now()}.xls`, template, "application/vnd.ms-excel;charset=utf-8;");
+  };
+
+  const exportPdf = () => {
+    const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
+    const title = "Quotation List Export";
+    const head = [["Quotation No.", "Customer", "Status", "Date", "Total", "Employee Notes", "Branch Head Notes"]];
+    const body = filteredQuotations.map((quotation) => [
+      quotation.quotationNumber || "",
+      quotation.clientName || quotation.customerName || "",
+      getDisplayQuotationStatus(quotation),
+      formatDate(quotation.quotationDate || quotation.createdAt),
+      `Rs. ${Number(quotation.grandTotal ?? quotation.totals?.grandTotal ?? 0).toFixed(2)}`,
+      quotation.verificationRequestNotes || "-",
+      quotation.approvalNotes || "-",
+    ]);
+
+    doc.setFontSize(16);
+    doc.text(title, 40, 40);
+
+    autoTable(doc, {
+      startY: 60,
+      head,
+      body,
+      styles: {
+        fontSize: 9,
+        cellPadding: 6,
+        valign: "middle",
+      },
+      headStyles: {
+        fillColor: [226, 232, 240],
+        textColor: [15, 23, 42],
+        fontStyle: "bold",
+      },
+      alternateRowStyles: {
+        fillColor: [248, 250, 252],
+      },
+      margin: { left: 24, right: 24, bottom: 24 },
+      theme: "grid",
+    });
+
+    doc.save(`quotation-list-${Date.now()}.pdf`);
+  };
+
+  const applyFilters = () => {
+    setFilters(filterDraft);
+    setFilterOpen(false);
+  };
+
+  const resetFilters = () => {
+    const cleared = { status: "", quickDate: "" };
+    setFilterDraft(cleared);
+    setFilters(cleared);
+    setFilterOpen(false);
+  };
 
   const totalPages = Math.ceil(filteredQuotations.length / pageSize);
   const pagedQuotations = useMemo(() => {
@@ -518,21 +738,88 @@ export default function QuotationListPage() {
 
         <div className="card table-list-card border-0 shadow-sm" style={{ borderRadius: 12 }}>
           <div className="card-body">
-            {/* Redesigned Controls Row */}
             <div className="leads-controls-bar d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4">
-              {/* Search Box */}
-              <div className="d-flex align-items-center gap-2 p-1 border" style={{ borderRadius: 12, backgroundColor: "#f8fafc", width: "100%", maxWidth: 350 }}>
-                <i className="ti ti-search text-muted ms-2" style={{ fontSize: "1.1rem" }} />
-                <input
-                  type="text"
-                  className="form-control border-0 bg-transparent shadow-none"
-                  placeholder="Search by quotation no., customer, status..."
-                  style={{ height: 36, fontSize: "0.9rem" }}
-                  value={searchText}
-                  onChange={(e) => setSearchText(e.target.value)}
+              <div className="flex-grow-1" style={{ minWidth: 260, maxWidth: 420 }}>
+                <div className="d-flex align-items-center gap-2 p-1 border" style={{ borderRadius: 12, backgroundColor: "#f8fafc", width: "100%" }}>
+                  <i className="ti ti-search text-muted ms-2" style={{ fontSize: "1.1rem" }} />
+                  <input
+                    type="text"
+                    className="form-control border-0 bg-transparent shadow-none"
+                    placeholder="Search by quotation no., customer, status..."
+                    style={{ height: 36, fontSize: "0.9rem" }}
+                    value={searchText}
+                    onChange={(e) => setSearchText(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="d-flex align-items-center gap-2 flex-wrap">
+                <button
+                  type="button"
+                  className={`btn btn-outline-filter d-flex align-items-center gap-2 ${filterOpen ? "active" : ""}`}
+                  style={{ height: 42, padding: "0 18px", borderRadius: 10, fontWeight: "500", fontSize: "0.9rem" }}
+                  onClick={() => setFilterOpen((prev) => !prev)}
+                >
+                  <i className="ti ti-filter" style={{ fontSize: "1rem" }} />
+                  Filters
+                </button>
+
+                <LeadExportDropdown
+                  exportExcel={exportExcel}
+                  exportCsv={exportCsv}
+                  exportPdf={exportPdf}
                 />
               </div>
             </div>
+
+            {filterOpen && (
+              <div className="card border-0 shadow-sm filter-drawer-card mb-4" style={{ borderRadius: 14, backgroundColor: "#f8fafc" }}>
+                <div className="card-body p-4">
+                  <div className="row g-3">
+                    <div className="col-md-6">
+                      <label className="form-label fw-semibold text-dark mb-2" style={{ fontSize: "0.88rem" }}>Status</label>
+                      <select
+                        className="form-select custom-filter-select"
+                        style={{ height: 42, borderRadius: 8 }}
+                        value={filterDraft.status}
+                        onChange={(e) => setFilterDraft((prev) => ({ ...prev, status: e.target.value }))}
+                      >
+                        <option value="">All Statuses</option>
+                        {quotationStatusOptions.map((status) => (
+                          <option key={status} value={status}>
+                            {getStatusUi(status).label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="col-md-6">
+                      <label className="form-label fw-semibold text-dark mb-2" style={{ fontSize: "0.88rem" }}>Date Range</label>
+                      <select
+                        className="form-select custom-filter-select"
+                        style={{ height: 42, borderRadius: 8 }}
+                        value={filterDraft.quickDate}
+                        onChange={(e) => setFilterDraft((prev) => ({ ...prev, quickDate: e.target.value }))}
+                      >
+                        <option value="">All Dates</option>
+                        <option value="today">Today</option>
+                        <option value="weekly">Last 7 Days</option>
+                        <option value="monthly">Last 30 Days</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="d-flex justify-content-end gap-2 mt-4">
+                    <button className="btn btn-filter-reset" style={{ height: 40, padding: "0 20px", borderRadius: 8, fontWeight: "500" }} onClick={resetFilters}>
+                      Reset
+                    </button>
+                    <button className="btn btn-filter-apply text-white" style={{ height: 40, padding: "0 20px", borderRadius: 8, fontWeight: "500", backgroundColor: "#3b82f6" }} onClick={applyFilters}>
+                      Apply Filters
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {loading ? (
               <div className="py-5 text-center text-muted">

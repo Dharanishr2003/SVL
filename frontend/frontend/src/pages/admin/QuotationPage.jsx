@@ -4,7 +4,6 @@ import { useAuth } from "../../context/AuthContext";
 import { getLeadByCustomerUserId, getLeadById, getLeads } from "../../api/leadsApi";
 import { getRequirementsByLeadId } from "../../api/requirementApi";
 import { approveQuotation, getQuotationById, saveQuotation } from "../../api/quotationApi";
-import { getQuotationTemplate } from "../../api/quotationTemplateApi";
 import { getPriceList, normalizePriceListEntries } from "../../api/priceListApi";
 import { getActiveGstMasters, createGstMaster } from "../../api/gstMasterApi";
 import { getUsers } from "../../api/userAdminApi";
@@ -17,7 +16,6 @@ import {
   buildDesignFeePricing,
   clearQuotationDraft,
   createQuotationPayload,
-  downloadQuotationPdf,
   buildQuotationTaxSummary,
   extractTaxGroupCode,
   getQuotationDraft,
@@ -165,6 +163,75 @@ function getEditVal(editingPrices, itemId, field, item) {
 
 function normalizeLineItem(item, options = {}) {
   return normalizeQuotationLineItem(item, options);
+}
+
+function buildLineItemsFromRequirements(requirements, priceList, options = {}) {
+  return (requirements || []).map((req, index) => {
+    const matchedPrice = (priceList || []).find((entry) =>
+      Number(entry.typeId) === Number(req.typeId) &&
+      (entry.subtypeId == null
+        ? req.subtypeId == null
+        : Number(entry.subtypeId) === Number(req.subtypeId))
+    ) || null;
+
+    const quantity = Number(req.quantity) || 1;
+    const slab = matchedPrice?.quantitySlabs?.find((item) =>
+      quantity >= Number(item.minQty) && quantity <= Number(item.maxQty)
+    ) || null;
+
+    const unitPrice = slab ? Number(slab.pricePerPiece) : 0;
+    const pricingStatus = slab ? "PRICED" : "UNPRICED";
+    const variantSummary = matchedPrice ? getVariantSummary(matchedPrice.variantFields) : "";
+    const productName = [req.typeName, req.subtypeName].filter(Boolean).join(" - ") || "Unknown Product";
+
+    const rawLineItem = req.designStatus === "design_only"
+      ? {
+          id: `req-auto-${req.id}-${index}`,
+          productId: matchedPrice?.id ?? null,
+          categoryId: req.categoryId ?? null,
+          typeId: req.typeId,
+          subtypeId: req.subtypeId ?? null,
+          typeName: req.typeName,
+          subtypeName: req.subtypeName ?? null,
+          productName,
+          quantity: 0,
+          unitPrice: 0,
+          pricePerUnit: 0,
+          designCost: 0,
+          lineTotal: 0,
+          pricingStatus,
+          specs: safeJsonParse(req.specs, {}),
+          variantFields: matchedPrice?.variantFields ?? {},
+          variantSummary,
+          sourceRequirementId: req.id,
+          designStatus: req.designStatus || null,
+          priceEntryId: matchedPrice?.id ?? null,
+        }
+      : {
+          id: `req-auto-${req.id}-${index}`,
+          productId: matchedPrice?.id ?? null,
+          categoryId: req.categoryId ?? null,
+          typeId: req.typeId,
+          subtypeId: req.subtypeId ?? null,
+          typeName: req.typeName,
+          subtypeName: req.subtypeName ?? null,
+          productName,
+          quantity,
+          unitPrice,
+          pricePerUnit: unitPrice,
+          designCost: 0,
+          lineTotal: quantity * unitPrice,
+          pricingStatus,
+          specs: safeJsonParse(req.specs, {}),
+          variantFields: matchedPrice?.variantFields ?? {},
+          optionsSummary: variantSummary,
+          priceListEntryId: matchedPrice?.id ?? null,
+          requirementId: req.id,
+          designStatus: req.designStatus || null,
+        };
+
+    return normalizeLineItem(rawLineItem, options);
+  });
 }
 
 function applyEdit(itemId, field, rawValue, setLineItems, setEditingPrices, options = {}) {
@@ -481,7 +548,6 @@ export default function QuotationPage() {
   const [gstAddContext, setGstAddContext] = useState({ mode: "summary", itemId: null });
   const [saveMessage, setSaveMessage] = useState("");
   const [isSaving, setIsSaving] = useState(false);
-  const [quotationTemplate, setQuotationTemplate] = useState(null);
 
   const suggestionRef = useRef(null);
   const customerSuggestionRef = useRef(null);
@@ -691,12 +757,6 @@ export default function QuotationPage() {
     fontSize: 13,
     color: "#0f172a",
   };
-
-  useEffect(() => {
-    getQuotationTemplate()
-      .then((data) => setQuotationTemplate(data))
-      .catch(() => setQuotationTemplate({}));
-  }, []);
 
   useEffect(() => {
     setLeadsLoading(true);
@@ -958,24 +1018,10 @@ export default function QuotationPage() {
     const numericId = selectedLead?.id;
     if (!numericId || (partyMode !== "lead" && partyMode !== "customer")) {
       setRequirements([]);
+      setRequirementsError("");
       if (!skipAutoGenerateRef.current) {
         setLineItems([]);
       }
-      return;
-    }
-
-    // Wait for price list to be ready before building line items
-    if (priceListLoading) return;
-
-    // Skip auto-generation when restoring a saved quotation draft
-    // (placed AFTER priceListLoading guard so the flag isn't consumed prematurely)
-    if (skipAutoGenerateRef.current) {
-      skipAutoGenerateRef.current = false;
-      restoringDraftRef.current = false;
-      // Still fetch requirements for display, but don't overwrite lineItems
-      getRequirementsByLeadId(numericId)
-        .then((data) => setRequirements(Array.isArray(data) ? data : []))
-        .catch(() => setRequirements([]));
       return;
     }
 
@@ -986,97 +1032,42 @@ export default function QuotationPage() {
       .then((data) => {
         const reqs = Array.isArray(data) ? data : [];
         setRequirements(reqs);
-
-        if (!reqs.length) {
-          setLineItems([]);
-          return;
-        }
-
-        // Auto-build line items from requirements
-        const autoItems = reqs.map((req, i) => {
-          // Match price list: same typeId + subtypeId
-          const match = priceList.find((p) =>
-            Number(p.typeId) === Number(req.typeId) &&
-            (p.subtypeId == null
-              ? req.subtypeId == null
-              : Number(p.subtypeId) === Number(req.subtypeId))
-          ) || null;
-
-          // Find slab price for the requirement quantity
-          const qty = Number(req.quantity) || 1;
-          const slab = match?.quantitySlabs?.find((s) =>
-            qty >= Number(s.minQty) && qty <= Number(s.maxQty)
-          ) || null;
-
-          const unitPrice = slab ? Number(slab.pricePerPiece) : 0;
-          const pricingStatus = slab ? "PRICED" : "UNPRICED";
-          const variantSummary = match ? getVariantSummary(match.variantFields) : "";
-          const productName = [req.typeName, req.subtypeName]
-            .filter(Boolean).join(" - ") || "Unknown Product";
-
-          if (req.designStatus === "design_only") {
-            return {
-              id: `req-auto-${req.id}-${i}`,
-              productId: match?.id ?? null,
-              categoryId: req.categoryId ?? null,
-              typeId: req.typeId,
-              subtypeId: req.subtypeId ?? null,
-              typeName: req.typeName,
-              subtypeName: req.subtypeName ?? null,
-              productName,
-              quantity: 0,
-              unitPrice: 0,
-              pricePerUnit: 0,
-              designCost: 0,
-              lineTotal: 0,
-              pricingStatus,
-              specs: safeJsonParse(req.specs, {}),
-              variantFields: match?.variantFields ?? {},
-              variantSummary,
-              sourceRequirementId: req.id,
-              designStatus: req.designStatus || null,
-              priceEntryId: match?.id ?? null,
-            };
-          }
-
-          return {
-            id: `req-auto-${req.id}-${i}`,
-            productId: match?.id ?? null,
-            categoryId: req.categoryId ?? null,
-            typeId: req.typeId,
-            subtypeId: req.subtypeId ?? null,
-            typeName: req.typeName,
-            subtypeName: req.subtypeName ?? null,
-            productName,
-            quantity: qty,
-            unitPrice,
-            pricePerUnit: unitPrice,
-            designCost: 0,
-            lineTotal: qty * unitPrice,
-            pricingStatus,
-            specs: safeJsonParse(req.specs, {}),
-            variantFields: match?.variantFields ?? {},
-            optionsSummary: variantSummary,
-            priceListEntryId: match?.id ?? null,
-            requirementId: req.id,
-            designStatus: req.designStatus || null,
-          };
-        });
-
-        setLineItems(autoItems.map((item) => normalizeLineItem(item, {
-          isTamilNadu,
-          defaultDiscountPct: 0,
-          defaultGstPct: parseNonNegativeNumber(gstPct, 0),
-          defaultGstMasterId,
-        })));
-        setEditingPrices({});
       })
       .catch(() => {
         setRequirements([]);
         setRequirementsError("Failed to load requirements for this lead.");
       })
       .finally(() => setRequirementsLoading(false));
-  }, [selectedLead?.id, partyMode, priceListLoading]);
+  }, [selectedLead?.id, partyMode]);
+
+  useEffect(() => {
+    const numericId = selectedLead?.id;
+    if (!numericId || (partyMode !== "lead" && partyMode !== "customer") || priceListLoading) {
+      return;
+    }
+
+    if (skipAutoGenerateRef.current) {
+      skipAutoGenerateRef.current = false;
+      restoringDraftRef.current = false;
+      return;
+    }
+
+    if (!requirements.length) {
+      setLineItems([]);
+      setEditingPrices({});
+      return;
+    }
+
+    const autoItems = buildLineItemsFromRequirements(requirements, priceList, {
+      isTamilNadu,
+      defaultDiscountPct: 0,
+      defaultGstPct: parseNonNegativeNumber(gstPct, 0),
+      defaultGstMasterId,
+    });
+
+    setLineItems(autoItems);
+    setEditingPrices({});
+  }, [selectedLead?.id, partyMode, priceListLoading, requirements, priceList, isTamilNadu, gstPct, defaultGstMasterId]);
 
   const handleLeadSelect = (lead) => {
     setSelectedLead(lead);
@@ -1374,31 +1365,6 @@ export default function QuotationPage() {
     }
 
     await executeSaveQuotation();
-  };
-
-  const handleDownloadPdf = async () => {
-    if (!lineItems.length) {
-      setConfigError("Please add at least one item before downloading.");
-      return;
-    }
-
-    if (partyMode === "customer" && !resolvedLeadId) {
-      setConfigError(
-        customerLeadLoading
-          ? "Loading linked lead for this customer. Please wait and try again."
-          : "This customer is not linked to a lead yet, so the quotation cannot be downloaded."
-      );
-      return;
-    }
-
-    try {
-      const payload = buildCurrentQuotation();
-      await downloadQuotationPdf(payload, quotationTemplate || {});
-      setQuotationNumber(payload.quotationNumber);
-    } catch (error) {
-      console.error("Failed to download quotation PDF", error);
-      setConfigError("Failed to download quotation PDF.");
-    }
   };
 
   const handleGoToList = () => {
@@ -2756,14 +2722,6 @@ export default function QuotationPage() {
             <div className="qp-actions-bar-amount">₹{grandTotal.toFixed(2)}</div>
           </div>
           <div className="qp-actions-bar-btns">
-            <button
-              type="button"
-              className="qp-btn-outline-white"
-              onClick={handleDownloadPdf}
-            >
-              <i className="ti ti-download" style={{ fontSize: 14 }} />
-              Download PDF
-            </button>
             {canApproveCurrentQuotation && (
               <button
                 type="button"

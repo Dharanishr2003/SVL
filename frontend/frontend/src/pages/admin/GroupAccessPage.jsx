@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import PageHeader from "../../components/admin/PageHeader";
 import PageLoader from "../../components/common/PageLoader";
 import { getUserGroups, updateUserGroup } from "../../api/userGroupApi";
-import { PAGE_ACCESS_OPTIONS } from "../../constants/pageAccess";
+import { PAGE_ACCESS_OPTIONS, getEquivalentPageKeys, hasEquivalentPageKey } from "../../constants/pageAccess";
 import { extractApiErrorMessage } from "../../utils/errorMessage";
 import { useToast } from "../../components/system/ToastProvider";
 import "./GroupAccessPage.css";
@@ -18,18 +18,18 @@ function groupByCategory(options) {
 
 function countSelectedChildren(option, draftPageKeys) {
   if (!option.children?.length) return 0;
-  return option.children.filter((child) => draftPageKeys.includes(child.key)).length;
+  return option.children.filter((child) => hasEquivalentPageKey(draftPageKeys, child.key)).length;
 }
 
 function isOptionFullySelected(option, draftPageKeys) {
-  if (draftPageKeys.includes(option.key)) return true;
+  if (hasEquivalentPageKey(draftPageKeys, option.key)) return true;
   if (!option.children?.length) return false;
-  return option.children.every((child) => draftPageKeys.includes(child.key));
+  return option.children.every((child) => hasEquivalentPageKey(draftPageKeys, child.key));
 }
 
 function isOptionPartiallySelected(option, draftPageKeys) {
   if (!option.children?.length || isOptionFullySelected(option, draftPageKeys)) return false;
-  return option.children.some((child) => draftPageKeys.includes(child.key));
+  return option.children.some((child) => hasEquivalentPageKey(draftPageKeys, child.key));
 }
 
 function normalizePageKeys(pageKeys, allowedKeys) {
@@ -61,10 +61,10 @@ export default function GroupAccessPage() {
   const allowedPageKeys = useMemo(() => {
     const keys = new Set();
     PAGE_ACCESS_OPTIONS.forEach((option) => {
-      keys.add(String(option.key || "").trim().toLowerCase());
+      getEquivalentPageKeys(option.key).forEach((key) => keys.add(key));
       if (Array.isArray(option.children)) {
         option.children.forEach((child) =>
-          keys.add(String(child.key || "").trim().toLowerCase()),
+          getEquivalentPageKeys(child.key).forEach((key) => keys.add(key)),
         );
       }
     });
@@ -133,17 +133,22 @@ export default function GroupAccessPage() {
       const next = new Set(current);
       const childKeys = Array.isArray(children) ? children.map((child) => child.key) : [];
       const isSelected =
-        current.includes(key) ||
-        (childKeys.length > 0 && childKeys.every((childKey) => current.includes(childKey)));
+        hasEquivalentPageKey(current, key) ||
+        (childKeys.length > 0 && childKeys.every((childKey) => hasEquivalentPageKey(current, childKey)));
+      const equivalents = getEquivalentPageKeys(key);
 
       if (isSelected) {
-        next.delete(key);
-        childKeys.forEach((childKey) => next.delete(childKey));
+        equivalents.forEach((equivalent) => next.delete(equivalent));
+        childKeys.forEach((childKey) => {
+          getEquivalentPageKeys(childKey).forEach((equivalent) => next.delete(equivalent));
+        });
         return Array.from(next);
       }
 
-      next.add(key);
-      childKeys.forEach((childKey) => next.add(childKey));
+      equivalents.forEach((equivalent) => next.add(equivalent));
+      childKeys.forEach((childKey) => {
+        getEquivalentPageKeys(childKey).forEach((equivalent) => next.add(equivalent));
+      });
       return Array.from(next);
     });
 
@@ -157,16 +162,18 @@ export default function GroupAccessPage() {
       const next = new Set(current);
       // Parent keys with children should not force all submenu pages.
       // If a child is edited, clear parent and keep explicit child selections only.
-      next.delete(parentKey);
-      if (next.has(childKey)) {
-        next.delete(childKey);
+      getEquivalentPageKeys(parentKey).forEach((equivalent) => next.delete(equivalent));
+      const equivalents = getEquivalentPageKeys(childKey);
+      const childSelected = equivalents.some((equivalent) => next.has(equivalent));
+      if (childSelected) {
+        equivalents.forEach((equivalent) => next.delete(equivalent));
       } else {
-        next.add(childKey);
+        equivalents.forEach((equivalent) => next.add(equivalent));
       }
       const childKeys = Array.isArray(siblings) ? siblings.map((child) => child.key) : [];
-      const hasAnyChildSelected = childKeys.some((key) => next.has(key));
+      const hasAnyChildSelected = childKeys.some((key) => hasEquivalentPageKey(next, key));
       if (!hasAnyChildSelected) {
-        next.delete(parentKey);
+        getEquivalentPageKeys(parentKey).forEach((equivalent) => next.delete(equivalent));
       }
       return Array.from(next);
     });
@@ -365,7 +372,7 @@ export default function GroupAccessPage() {
                                           id={`group-${selectedGroup.id}-${child.key}`}
                                           className="form-check-input"
                                           type="checkbox"
-                                          checked={draftPageKeys.includes(child.key)}
+                                          checked={hasEquivalentPageKey(draftPageKeys, child.key)}
                                           onChange={() =>
                                             toggleChildPage(child.key, option.key, option.children)
                                           }

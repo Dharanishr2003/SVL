@@ -136,13 +136,20 @@ export default function AdminDashboardPage() {
         const existingChart = window.Chart.getChart(attEl);
         if (existingChart) existingChart.destroy();
 
+        // Use live data if available, otherwise fallback to placeholders
+        const overview = queryData?.attendanceOverview;
+        const lateVal = overview ? overview.latePercentage : 21;
+        const presentVal = overview ? overview.presentPercentage : 59;
+        const permissionVal = overview ? overview.permissionPercentage : 2;
+        const absentVal = overview ? overview.absentPercentage : 15;
+
         attendanceChart = new window.Chart(ctx, {
           type: "doughnut",
           data: {
             labels: ["Late", "Present", "Permission", "Absent"],
             datasets: [{
               label: "Semi Donut",
-              data: [40, 20, 30, 10],
+              data: [lateVal, presentVal, permissionVal, absentVal],
               backgroundColor: ["#0C4B5E", "#03C95A", "#FFC107", "#E70D0D"],
               borderWidth: 5,
               borderRadius: 10,
@@ -527,53 +534,72 @@ export default function AdminDashboardPage() {
           </div>
         </div>
         <div className="card-body">
-          <div className="chartjs-wrapper-demo position-relative mb-4">
-            <canvas id="attendance" height={200} />
-            <div className="position-absolute text-center attendance-canvas">
-              <p className="fs-13 mb-1">Total Attendance</p>
-              <h3>120</h3>
-            </div>
-          </div>
-          <h6 className="mb-3">Status</h6>
-          <div className="d-flex align-items-center justify-content-between">
-            <p className="f-13 mb-2"><i className="ti ti-circle-filled text-success me-1" />Present</p>
-            <p className="f-13 fw-medium text-gray-9 mb-2">59%</p>
-          </div>
-          <div className="d-flex align-items-center justify-content-between">
-            <p className="f-13 mb-2"><i className="ti ti-circle-filled text-secondary me-1" />Late</p>
-            <p className="f-13 fw-medium text-gray-9 mb-2">21%</p>
-          </div>
-          <div className="d-flex align-items-center justify-content-between">
-            <p className="f-13 mb-2"><i className="ti ti-circle-filled text-warning me-1" />Permission</p>
-            <p className="f-13 fw-medium text-gray-9 mb-2">2%</p>
-          </div>
-          <div className="d-flex align-items-center justify-content-between mb-2">
-            <p className="f-13 mb-2"><i className="ti ti-circle-filled text-danger me-1" />Absent</p>
-            <p className="f-13 fw-medium text-gray-9 mb-2">15%</p>
-          </div>
-          <div className="bg-light br-5 box-shadow-xs p-2 pb-0 d-flex align-items-center justify-content-between flex-wrap">
-            <div className="d-flex align-items-center">
-              <p className="mb-2 me-2">Total Absenties</p>
-              <div className="avatar-list-stacked avatar-group-sm mb-2">
-                <span className="avatar avatar-rounded">
-                  <img className="border border-white" src="assets/img/profiles/avatar-27.jpg" alt="img" />
-                </span>
-                <span className="avatar avatar-rounded">
-                  <img className="border border-white" src="assets/img/profiles/avatar-30.jpg" alt="img" />
-                </span>
-                <span className="avatar avatar-rounded">
-                  <img src="assets/img/profiles/avatar-14.jpg" alt="img" />
-                </span>
-                <span className="avatar avatar-rounded">
-                  <img src="assets/img/profiles/avatar-29.jpg" alt="img" />
-                </span>
-                <a className="avatar bg-primary avatar-rounded text-fixed-white fs-10" href="javascript:void(0);">
-                  +1
-                </a>
-              </div>
-            </div>
-            <a href="leaves.php" className="fs-13 link-primary text-decoration-underline mb-2">View Details</a>
-          </div>
+          {(() => {
+            const overview = data.attendanceOverview;
+            const totalCount = overview ? overview.totalCount : 120;
+            const presentPct = overview ? overview.presentPercentage : 59;
+            const latePct = overview ? overview.latePercentage : 21;
+            const permissionPct = overview ? overview.permissionPercentage : 2;
+            const absentPct = overview ? overview.absentPercentage : 15;
+            const absentees = overview?.absentees || [];
+            const visibleAbsentees = absentees.slice(0, 4);
+            const extraAbsentees = absentees.length > 4 ? absentees.length - 4 : 0;
+            return (
+              <>
+                <div className="chartjs-wrapper-demo position-relative mb-4">
+                  <canvas id="attendance" height={200} />
+                  <div className="position-absolute text-center attendance-canvas">
+                    <p className="fs-13 mb-1">Total Attendance</p>
+                    <h3>{totalCount}</h3>
+                  </div>
+                </div>
+                <h6 className="mb-3">Status</h6>
+                <div className="d-flex align-items-center justify-content-between">
+                  <p className="f-13 mb-2"><i className="ti ti-circle-filled text-success me-1" />Present</p>
+                  <p className="f-13 fw-medium text-gray-9 mb-2">{presentPct}%</p>
+                </div>
+                <div className="d-flex align-items-center justify-content-between">
+                  <p className="f-13 mb-2"><i className="ti ti-circle-filled text-secondary me-1" />Late</p>
+                  <p className="f-13 fw-medium text-gray-9 mb-2">{latePct}%</p>
+                </div>
+                <div className="d-flex align-items-center justify-content-between">
+                  <p className="f-13 mb-2"><i className="ti ti-circle-filled text-warning me-1" />Permission</p>
+                  <p className="f-13 fw-medium text-gray-9 mb-2">{permissionPct}%</p>
+                </div>
+                <div className="d-flex align-items-center justify-content-between mb-2">
+                  <p className="f-13 mb-2"><i className="ti ti-circle-filled text-danger me-1" />Absent</p>
+                  <p className="f-13 fw-medium text-gray-9 mb-2">{absentPct}%</p>
+                </div>
+                <div className="bg-light br-5 box-shadow-xs p-2 pb-0 d-flex align-items-center justify-content-between flex-wrap">
+                  <div className="d-flex align-items-center">
+                    <p className="mb-2 me-2">Total Absenties</p>
+                    {absentees.length > 0 ? (
+                      <div className="avatar-list-stacked avatar-group-sm mb-2">
+                        {visibleAbsentees.map((ab, idx) => (
+                          <span key={idx} className="avatar avatar-rounded">
+                            <img
+                              className="border border-white"
+                              src={ab.avatar || "/assets/img/profiles/avatar-31.jpg"}
+                              alt={ab.name}
+                              title={ab.name}
+                            />
+                          </span>
+                        ))}
+                        {extraAbsentees > 0 && (
+                          <a className="avatar bg-primary avatar-rounded text-fixed-white fs-10" href="javascript:void(0);">
+                            +{extraAbsentees}
+                          </a>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-muted small mb-2">None today</span>
+                    )}
+                  </div>
+                  <a href="/leaves" className="fs-13 link-primary text-decoration-underline mb-2">View Details</a>
+                </div>
+              </>
+            );
+          })()}
         </div>
       </div>
     </div>
@@ -619,85 +645,116 @@ export default function AdminDashboardPage() {
           </div>
         </div>
         <div className="card-body">
-          <div>
-            <div className="d-flex align-items-center justify-content-between mb-3 p-2 border border-dashed br-5">
-              <div className="d-flex align-items-center">
-                <a href="javascript:void(0);" className="avatar flex-shrink-0">
-                  <img src="assets/img/profiles/avatar-24.jpg" className="rounded-circle border border-2" alt="img" />
-                </a>
-                <div className="ms-2">
-                  <h6 className="fs-14 fw-medium text-truncate">Daniel Esbella</h6>
-                  <p className="fs-13">UI/UX Designer</p>
-                </div>
-              </div>
-              <div className="d-flex align-items-center">
-                <a href="javascript:void(0);" className="link-default me-2"><i className="ti ti-clock-share" /></a>
-                <span className="fs-10 fw-medium d-inline-flex align-items-center badge badge-success"><i className="ti ti-circle-filled fs-5 me-1" />09:15</span>
-              </div>
-            </div>
-            <div className="d-flex align-items-center justify-content-between mb-3 p-2 border br-5">
-              <div className="d-flex align-items-center">
-                <a href="javascript:void(0);" className="avatar flex-shrink-0">
-                  <img src="assets/img/profiles/avatar-23.jpg" className="rounded-circle border border-2" alt="img" />
-                </a>
-                <div className="ms-2">
-                  <h6 className="fs-14 fw-medium">Doglas Martini</h6>
-                  <p className="fs-13">Project Manager</p>
-                </div>
-              </div>
-              <div className="d-flex align-items-center">
-                <a href="javascript:void(0);" className="link-default me-2"><i className="ti ti-clock-share" /></a>
-                <span className="fs-10 fw-medium d-inline-flex align-items-center badge badge-success"><i className="ti ti-circle-filled fs-5 me-1" />09:36</span>
-              </div>
-            </div>
-            <div className="mb-3 p-2 border br-5">
-              <div className="d-flex align-items-center justify-content-between">
-                <div className="d-flex align-items-center">
-                  <a href="javascript:void(0);" className="avatar flex-shrink-0">
-                    <img src="assets/img/profiles/avatar-27.jpg" className="rounded-circle border border-2" alt="img" />
-                  </a>
-                  <div className="ms-2">
-                    <h6 className="fs-14 fw-medium text-truncate">Brian Villalobos</h6>
-                    <p className="fs-13">PHP Developer</p>
-                  </div>
-                </div>
-                <div className="d-flex align-items-center">
-                  <a href="javascript:void(0);" className="link-default me-2"><i className="ti ti-clock-share" /></a>
-                  <span className="fs-10 fw-medium d-inline-flex align-items-center badge badge-success"><i className="ti ti-circle-filled fs-5 me-1" />09:15</span>
-                </div>
-              </div>
-              <div className="d-flex align-items-center justify-content-between flex-wrap mt-2 border br-5 p-2 pb-0">
+          {(() => {
+            const clockList = data.clockInOutList || [];
+            const lateList = data.lateList || [];
+            // Show up to 3 on-time or checked-in employees with detail for the last one
+            const onTimeList = clockList.filter(e => !e.late);
+            const simpleRows = onTimeList.slice(0, 2);
+            const detailRow = onTimeList[2] || null;
+
+            const getStatusBadge = (item) => {
+              const isOut = item.status === "CHECKED_OUT" || item.status === "AUTO_CHECKOUT";
+              const badgeClass = isOut ? "badge-danger" : "badge-success";
+              const time = isOut ? (item.checkOutTime || "-") : (item.checkInTime || "-");
+              return (
+                <span className={`fs-10 fw-medium d-inline-flex align-items-center badge ${badgeClass}`}>
+                  <i className="ti ti-circle-filled fs-5 me-1" />{time}
+                </span>
+              );
+            };
+
+            return (
+              <>
                 <div>
-                  <p className="mb-1 d-inline-flex align-items-center"><i className="ti ti-circle-filled text-success fs-5 me-1" />Clock In</p>
-                  <h6 className="fs-13 fw-normal mb-2">10:30 AM</h6>
+                  {simpleRows.map((emp, idx) => (
+                    <div key={idx} className="d-flex align-items-center justify-content-between mb-3 p-2 border border-dashed br-5">
+                      <div className="d-flex align-items-center">
+                        <a href="javascript:void(0);" className="avatar flex-shrink-0">
+                          <img src={emp.avatar || "/assets/img/profiles/avatar-31.jpg"} className="rounded-circle border border-2" alt="img" />
+                        </a>
+                        <div className="ms-2">
+                          <h6 className="fs-14 fw-medium text-truncate">{emp.employeeName}</h6>
+                          <p className="fs-13">{emp.designation}</p>
+                        </div>
+                      </div>
+                      <div className="d-flex align-items-center">
+                        <a href="javascript:void(0);" className="link-default me-2"><i className="ti ti-clock-share" /></a>
+                        {getStatusBadge(emp)}
+                      </div>
+                    </div>
+                  ))}
+                  {detailRow && (
+                    <div className="mb-3 p-2 border br-5">
+                      <div className="d-flex align-items-center justify-content-between">
+                        <div className="d-flex align-items-center">
+                          <a href="javascript:void(0);" className="avatar flex-shrink-0">
+                            <img src={detailRow.avatar || "/assets/img/profiles/avatar-31.jpg"} className="rounded-circle border border-2" alt="img" />
+                          </a>
+                          <div className="ms-2">
+                            <h6 className="fs-14 fw-medium text-truncate">{detailRow.employeeName}</h6>
+                            <p className="fs-13">{detailRow.designation}</p>
+                          </div>
+                        </div>
+                        <div className="d-flex align-items-center">
+                          <a href="javascript:void(0);" className="link-default me-2"><i className="ti ti-clock-share" /></a>
+                          {getStatusBadge(detailRow)}
+                        </div>
+                      </div>
+                      <div className="d-flex align-items-center justify-content-between flex-wrap mt-2 border br-5 p-2 pb-0">
+                        <div>
+                          <p className="mb-1 d-inline-flex align-items-center"><i className="ti ti-circle-filled text-success fs-5 me-1" />Clock In</p>
+                          <h6 className="fs-13 fw-normal mb-2">{detailRow.checkInTime || "-"}</h6>
+                        </div>
+                        <div>
+                          <p className="mb-1 d-inline-flex align-items-center"><i className="ti ti-circle-filled text-danger fs-5 me-1" />Clock Out</p>
+                          <h6 className="fs-13 fw-normal mb-2">{detailRow.checkOutTime || "-"}</h6>
+                        </div>
+                        <div>
+                          <p className="mb-1 d-inline-flex align-items-center"><i className="ti ti-circle-filled text-warning fs-5 me-1" />Production</p>
+                          <h6 className="fs-13 fw-normal mb-2">{detailRow.productionHours || "00:00 Hrs"}</h6>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  {clockList.length === 0 && (
+                    <p className="text-muted text-center py-3 small">No clock-in records for today</p>
+                  )}
                 </div>
-                <div>
-                  <p className="mb-1 d-inline-flex align-items-center"><i className="ti ti-circle-filled text-danger fs-5 me-1" />Clock Out</p>
-                  <h6 className="fs-13 fw-normal mb-2">09:45 AM</h6>
-                </div>
-                <div>
-                  <p className="mb-1 d-inline-flex align-items-center"><i className="ti ti-circle-filled text-warning fs-5 me-1" />Production</p>
-                  <h6 className="fs-13 fw-normal mb-2">09:21 Hrs</h6>
-                </div>
-              </div>
-            </div>
-          </div>
-          <h6 className="mb-2">Late</h6>
-          <div className="d-flex align-items-center justify-content-between mb-3 p-2 border border-dashed br-5">
-            <div className="d-flex align-items-center">
-              <span className="avatar flex-shrink-0">
-                <img src="assets/img/profiles/avatar-29.jpg" className="rounded-circle border border-2" alt="img" />
-              </span>
-              <div className="ms-2">
-                <h6 className="fs-14 fw-medium text-truncate">Anthony Lewis <span className="fs-10 fw-medium d-inline-flex align-items-center badge badge-success"><i className="ti ti-clock-hour-11 me-1" />30 Min</span></h6>
-                <p className="fs-13">Marketing Head</p>
-              </div>
-            </div>
-            <div className="d-flex align-items-center">
-              <a href="javascript:void(0);" className="link-default me-2"><i className="ti ti-clock-share" /></a>
-              <span className="fs-10 fw-medium d-inline-flex align-items-center badge badge-danger"><i className="ti ti-circle-filled fs-5 me-1" />08:35</span>
-            </div>
-          </div>
+                {lateList.length > 0 && (
+                  <>
+                    <h6 className="mb-2">Late</h6>
+                    {lateList.slice(0, 3).map((emp, idx) => (
+                      <div key={idx} className="d-flex align-items-center justify-content-between mb-3 p-2 border border-dashed br-5">
+                        <div className="d-flex align-items-center">
+                          <span className="avatar flex-shrink-0">
+                            <img src={emp.avatar || "/assets/img/profiles/avatar-31.jpg"} className="rounded-circle border border-2" alt="img" />
+                          </span>
+                          <div className="ms-2">
+                            <h6 className="fs-14 fw-medium text-truncate">
+                              {emp.employeeName}{" "}
+                              {emp.lateMinutes > 0 && (
+                                <span className="fs-10 fw-medium d-inline-flex align-items-center badge badge-success">
+                                  <i className="ti ti-clock-hour-11 me-1" />{emp.lateMinutes} Min
+                                </span>
+                              )}
+                            </h6>
+                            <p className="fs-13">{emp.designation}</p>
+                          </div>
+                        </div>
+                        <div className="d-flex align-items-center">
+                          <a href="javascript:void(0);" className="link-default me-2"><i className="ti ti-clock-share" /></a>
+                          <span className="fs-10 fw-medium d-inline-flex align-items-center badge badge-danger">
+                            <i className="ti ti-circle-filled fs-5 me-1" />{emp.checkInTime || "-"}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </>
+                )}
+              </>
+            );
+          })()}
           <a href="attendance-report.php" className="btn btn-light btn-md w-100">View All Attendance</a>
         </div>
       </div>

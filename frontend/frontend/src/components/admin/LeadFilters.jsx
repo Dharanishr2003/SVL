@@ -1,4 +1,5 @@
 import React from "react";
+import { formatStatusLabel } from "../../utils/statusLabels";
 
 export default function LeadFilters({
   filterOpen,
@@ -28,7 +29,7 @@ export default function LeadFilters({
               <option value="">All Statuses</option>
               {(leadFilters.leadStatuses || []).map((item) => (
                 <option key={item} value={item}>
-                  {item}
+                  {formatStatusLabel(item)}
                 </option>
               ))}
             </select>

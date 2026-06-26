@@ -27,13 +27,16 @@ export default function LeadGridView({
   loading,
   selectedLeadIds,
   toggleLeadSelection,
-  activeActionsRow,
-  setActiveActionsRow,
-  setActionsMenuPos,
   getStatusClass,
+  onStatusBadgeClick,
   formatCreatedOn,
   navigate,
+  onDeleteLead,
+  role,
 }) {
+  const isEmployee = role === "EMPLOYEE";
+  const ownerLabel = isEmployee ? "Assigned By" : "Owner";
+
   return (
     <div className="leads-grid-view row g-3 mb-4">
       {loading ? (
@@ -66,25 +69,50 @@ export default function LeadGridView({
                           />
                         )}
                       </div>
-                      <button
-                        className="btn btn-kebab-actions d-flex align-items-center justify-content-center"
-                        style={{ width: 28, height: 28, borderRadius: "50%", border: "none", backgroundColor: "transparent", color: "#64748b" }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (activeActionsRow?.id === row.id) {
-                            setActiveActionsRow(null);
-                          } else {
-                            const rect = e.currentTarget.getBoundingClientRect();
-                            setActionsMenuPos({
-                              top: rect.top + window.scrollY,
-                              left: rect.right + window.scrollX,
-                            });
-                            setActiveActionsRow(row);
-                          }
-                        }}
-                      >
-                        <i className="ti ti-dots-vertical" style={{ fontSize: "1.1rem" }} />
-                      </button>
+                      <div className="d-inline-flex align-items-center gap-2">
+                        <button
+                          type="button"
+                          className="btn d-inline-flex align-items-center justify-content-center"
+                          style={{
+                            width: 30,
+                            height: 30,
+                            borderRadius: 8,
+                            border: "1px solid #dbe3f0",
+                            backgroundColor: "#f8fbff",
+                            color: "#2563eb",
+                          }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate?.(`/leads/${row.id}`);
+                          }}
+                          title="Edit Lead"
+                          aria-label="Edit Lead"
+                        >
+                          <i className="ti ti-pencil" style={{ fontSize: "1rem" }} />
+                        </button>
+                        {role !== "EMPLOYEE" && (
+                          <button
+                            type="button"
+                            className="btn d-inline-flex align-items-center justify-content-center"
+                            style={{
+                              width: 30,
+                              height: 30,
+                              borderRadius: 8,
+                              border: "1px solid #ffd5ce",
+                              backgroundColor: "#fff5f3",
+                              color: "#ef4444",
+                            }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onDeleteLead?.(row);
+                            }}
+                            title="Delete Lead"
+                            aria-label="Delete Lead"
+                          >
+                            <i className="ti ti-trash" style={{ fontSize: "1rem" }} />
+                          </button>
+                        )}
+                      </div>
                     </div>
 
                     {/* Lead Name and Status */}
@@ -92,12 +120,27 @@ export default function LeadGridView({
                       <h6 className="fw-semibold mb-0" style={{ color: "#1e293b", fontSize: "0.95rem", lineHeight: "1.3" }}>
                         {row.name || "-"}
                       </h6>
-                      <span
+                      <button
+                        type="button"
                         className={`status-pill ${getStatusClass(row.status)}`}
-                        style={{ ...getStatusStyle(row.status), fontSize: "0.75rem", padding: "4px 8px", whiteSpace: "nowrap" }}
+                        style={{
+                          ...getStatusStyle(row.status),
+                          fontSize: "0.75rem",
+                          padding: "4px 8px",
+                          whiteSpace: "nowrap",
+                          cursor: "pointer",
+                          border: "none",
+                          appearance: "none",
+                          WebkitAppearance: "none",
+                          outline: "none",
+                        }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onStatusBadgeClick?.(row);
+                        }}
                       >
                         {formatStatusLabel(row.status) || "-"}
-                      </span>
+                      </button>
                     </div>
 
                     {/* Details */}
@@ -121,7 +164,10 @@ export default function LeadGridView({
                       </div>
                       <div className="d-flex align-items-center gap-2 mb-2">
                         <i className="ti ti-user text-muted" style={{ fontSize: "0.95rem" }} />
-                        <span style={{ fontSize: "0.85rem" }}>{row.owner || "-"}</span>
+                        <span style={{ fontSize: "0.85rem" }}>
+                          <span className="me-1">{ownerLabel}:</span>
+                          {isEmployee ? row.allocator || "-" : row.owner || "-"}
+                        </span>
                       </div>
                     </div>
                   </div>

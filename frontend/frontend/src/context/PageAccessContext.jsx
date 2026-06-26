@@ -5,6 +5,7 @@ import {
   getRequiredPageKeysForPath,
   isAdminOnlyPath,
   isAlwaysAllowedPath,
+  hasEquivalentPageKey,
 } from "../constants/pageAccess";
 
 const PageAccessContext = createContext({
@@ -19,14 +20,6 @@ function normalizePageKeys(keys) {
   return Array.isArray(keys)
     ? keys.map((key) => String(key || "").trim().toLowerCase()).filter(Boolean)
     : [];
-}
-
-function getEquivalentPageKeys(pageKey) {
-  const normalized = String(pageKey || "").trim().toLowerCase();
-  if (!normalized) return [];
-  if (normalized === "shift-assignments") return ["shift-assignments", "shift-assignment"];
-  if (normalized === "shift-assignment") return ["shift-assignment", "shift-assignments"];
-  return [normalized];
 }
 
 export function PageAccessProvider({ children }) {
@@ -116,9 +109,7 @@ export function PageAccessProvider({ children }) {
   const canAccess = useMemo(() => {
     return (pageKey) => {
       if (!user) return false;
-      const equivalents = getEquivalentPageKeys(pageKey);
-      if (!equivalents.length) return false;
-      return equivalents.some((key) => visiblePageKeys.includes(key));
+      return hasEquivalentPageKey(visiblePageKeys, pageKey);
     };
   }, [user, role, visiblePageKeys]);
 

@@ -807,7 +807,9 @@ export default function RequirementFormModal({
             .catch(() => {});
         });
       }
-      if (onSaved) onSaved();
+      if (onSaved) {
+        await onSaved();
+      }
       onClose();
     } catch (e) {
       const msg =
