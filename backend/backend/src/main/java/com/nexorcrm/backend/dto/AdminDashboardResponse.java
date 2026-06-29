@@ -10,6 +10,8 @@ public class AdminDashboardResponse {
     private AttendanceOverviewResponse attendanceOverview;
     private List<ClockInOutItem> clockInOutList;
     private List<ClockInOutItem> lateList;
+    private List<DashboardEmployeeResponse> employees;
+    private List<DashboardBirthdayGroupResponse> birthdays;
 
     public DashboardHeaderResponse getHeader() {
         return header;
@@ -65,5 +67,21 @@ public class AdminDashboardResponse {
 
     public void setLateList(List<ClockInOutItem> lateList) {
         this.lateList = lateList;
+    }
+
+    public List<DashboardEmployeeResponse> getEmployees() {
+        return employees;
+    }
+
+    public void setEmployees(List<DashboardEmployeeResponse> employees) {
+        this.employees = employees;
+    }
+
+    public List<DashboardBirthdayGroupResponse> getBirthdays() {
+        return birthdays;
+    }
+
+    public void setBirthdays(List<DashboardBirthdayGroupResponse> birthdays) {
+        this.birthdays = birthdays;
     }
 }

@@ -98,17 +98,11 @@ export default function RequirementsPage() {
   };
 
   const openAddRequirementModal = (lead) => {
-    setEditingRequirement(null);
-    setModalLeadId(lead.id);
-    setRequirementModalKey((k) => k + 1);
-    setShowRequirementModal(true);
+    navigate(`/requirements/add?leadId=${lead.id}`);
   };
 
   const openEditRequirementModal = (lead, req) => {
-    setSelectedLead(lead);
-    setEditingRequirement(req);
-    setRequirementModalKey((k) => k + 1);
-    setShowRequirementModal(true);
+    navigate(`/requirements/${req.id}/edit?leadId=${lead.id}`);
   };
 
   const handleDeleteRequirement = async (lead, req) => {
@@ -561,38 +555,6 @@ ${rowsHtml}
           </div>
         </div>
 
-        {/* Requirement Form Modal - Leads List */}
-        <RequirementFormModal
-          key={requirementModalKey}
-          show={showRequirementModal && !selectedLead && modalLeadId}
-          leadId={modalLeadId}
-          initialRequirement={editingRequirement}
-          onClose={() => {
-            setShowRequirementModal(false);
-            setModalLeadId(null);
-          }}
-          onSaved={async () => {
-            try {
-              setShowRequirementModal(false);
-              const tempLeadId = modalLeadId;
-              setModalLeadId(null);
-
-              // Refresh the specific lead's requirements first
-              const reqs = await getRequirementsByLeadId(tempLeadId);
-              setRequirementMap((prev) => ({
-                ...prev,
-                [tempLeadId]: Array.isArray(reqs) ? reqs : [],
-              }));
-
-              showSuccess("Requirement added successfully");
-            } catch (error) {
-              showError("Failed to update requirements count");
-              console.error("Error refreshing requirements:", error);
-            }
-          }}
-          serviceCategories={serviceCategories}
-          serviceTypes={serviceTypes}
-        />
       </div>
     );
   }
@@ -600,22 +562,30 @@ ${rowsHtml}
   // REQUIREMENTS DETAIL VIEW
   return (
     <div className="content">
-      <div className="page-header">
-        <div className="add-item d-flex">
-          <div className="page-title">
-            <a
-              onClick={() => setSelectedLead(null)}
-              style={{ cursor: "pointer" }}
-              className="me-2"
-            >
-              <i className="ti ti-arrow-left"></i>
-            </a>
-            <h4>{selectedLead.name}'s Requirements</h4>
+      {/* Header Block */}
+      <div className="card border-0 shadow-sm p-4 mb-4 bg-white" style={{ borderRadius: 12 }}>
+        <div className="d-flex align-items-center justify-content-between flex-wrap gap-3">
+          <div>
+            <h2 className="leads-header-title mb-1" style={{ fontSize: "1.4rem", fontWeight: "700", color: "#0f172a" }}>
+              {selectedLead.name}&apos;s Requirements
+            </h2>
+            <p className="leads-header-subtitle text-muted mb-0" style={{ fontSize: "0.9rem" }}>
+              View and manage customer requirements.
+            </p>
           </div>
+          <button
+            type="button"
+            className="btn btn-outline-secondary"
+            style={{ fontWeight: "600", padding: "10px 20px", borderRadius: "10px" }}
+            onClick={() => setSelectedLead(null)}
+          >
+            Back
+          </button>
         </div>
       </div>
 
-      <div className="card">
+      {/* Main Content Card */}
+      <div className="card table-list-card border-0 shadow-sm" style={{ borderRadius: 12 }}>
         <div className="card-body">
           <div className="d-flex justify-content-between align-items-center mb-3">
             <h6 className="mb-0">Requirements</h6>
@@ -772,30 +742,6 @@ ${rowsHtml}
         </div>
       )}
 
-      {/* Requirement Form Modal */}
-      <RequirementFormModal
-        key={requirementModalKey}
-        show={showRequirementModal}
-        leadId={selectedLead?.id}
-        initialRequirement={editingRequirement}
-        onClose={() => setShowRequirementModal(false)}
-        onSaved={async () => {
-          try {
-            setShowRequirementModal(false);
-            const reqs = await getRequirementsByLeadId(selectedLead.id);
-            setRequirementMap((prev) => ({
-              ...prev,
-              [selectedLead.id]: Array.isArray(reqs) ? reqs : [],
-            }));
-            showSuccess("Requirement saved successfully");
-          } catch (error) {
-            showError("Failed to update requirements");
-            console.error("Error refreshing requirements:", error);
-          }
-        }}
-        serviceCategories={serviceCategories}
-        serviceTypes={serviceTypes}
-      />
     </div>
   );
 }

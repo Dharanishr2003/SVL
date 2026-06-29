@@ -23,6 +23,23 @@ function normalizeDashboardResponse(payload) {
     attendanceOverview: payload.attendanceOverview || null,
     clockInOutList: Array.isArray(payload.clockInOutList) ? payload.clockInOutList : [],
     lateList: Array.isArray(payload.lateList) ? payload.lateList : [],
+    employees: Array.isArray(payload.employees)
+      ? payload.employees.map((item) => ({
+          ...item,
+          avatar: resolveMediaUrl(item.avatar),
+        }))
+      : dashboardData.employees || [],
+    birthdays: Array.isArray(payload.birthdays)
+      ? payload.birthdays.map((group) => ({
+          ...group,
+          items: Array.isArray(group.items)
+            ? group.items.map((item) => ({
+                ...item,
+                avatar: resolveMediaUrl(item.avatar),
+              }))
+            : [],
+        }))
+      : dashboardData.birthdays || [],
   };
 }
 
@@ -37,6 +54,9 @@ function normalizeEmployeeDashboardResponse(payload) {
     attendanceSummary: payload.attendanceSummary || employeeDashboardData.attendanceSummary,
     todayAttendance: payload.todayAttendance || null,
     leaveSummary: payload.leaveSummary || employeeDashboardData.leaveSummary,
+    performanceSummary: payload.performanceSummary || employeeDashboardData.performanceSummary,
+    nextHoliday: payload.nextHoliday || employeeDashboardData.nextHoliday,
+    leavePolicySummary: payload.leavePolicySummary || employeeDashboardData.leavePolicySummary,
     quickStats: Array.isArray(payload.quickStats) && payload.quickStats.length > 0
       ? payload.quickStats
       : employeeDashboardData.quickStats,

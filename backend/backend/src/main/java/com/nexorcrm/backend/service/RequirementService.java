@@ -7,6 +7,7 @@ import com.nexorcrm.backend.entity.Requirement;
 import com.nexorcrm.backend.entity.RequirementFile;
 import com.nexorcrm.backend.entity.ServiceCategory;
 import com.nexorcrm.backend.entity.ServiceType;
+import com.nexorcrm.backend.repo.LeadRepository;
 import com.nexorcrm.backend.repo.RequirementFileRepository;
 import com.nexorcrm.backend.repo.RequirementRepository;
 import com.nexorcrm.backend.repo.ServiceCategoryRepository;
@@ -23,6 +24,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -41,6 +43,9 @@ public class RequirementService {
     @Autowired
     private ServiceTypeRepository serviceTypeRepository;
 
+    @Autowired
+    private LeadRepository leadRepository;
+
     @Value("${app.upload-dir:uploads}")
     private String uploadDir;
 
@@ -55,6 +60,7 @@ public class RequirementService {
         requirement.setEmployeeId(userId);
 
         Requirement saved = requirementRepository.save(requirement);
+        promoteLeadToRequirementStatus(saved.getLeadId());
 
         // Handle file uploads
         List<RequirementFile> savedFiles = new ArrayList<>();
@@ -73,6 +79,7 @@ public class RequirementService {
         mapRequestToEntity(request, requirement);
 
         Requirement saved = requirementRepository.save(requirement);
+        promoteLeadToRequirementStatus(saved.getLeadId());
 
         // Handle new file uploads (append, don't replace)
         if (files != null && !files.isEmpty()) {
@@ -208,6 +215,40 @@ public class RequirementService {
         entity.setBrandColours(request.getBrandColours());
         entity.setDeliveryDate(request.getDeliveryDate());
         entity.setSpecialInstructions(request.getSpecialInstructions());
+    }
+
+    private void promoteLeadToRequirementStatus(Long leadId) {
+        if (leadId == null) {
+            return;
+        }
+        leadRepository.findByIdAndDeletedFalse(leadId).ifPresent(lead -> {
+            String currentStatus = normalizeStatusKey(lead.getStatus());
+            if (currentStatus.equals("requirement")
+                    || currentStatus.equals("budget")
+                    || currentStatus.equals("payment")
+                    || currentStatus.equals("design")
+                    || currentStatus.equals("production")
+                    || currentStatus.equals("deal")
+                    || currentStatus.equals("delivery")
+                    || currentStatus.equals("accounts")
+                    || currentStatus.equals("completed")
+                    || currentStatus.equals("rejected")) {
+                return;
+            }
+            lead.setStatus("Requirement");
+            leadRepository.save(lead);
+        });
+    }
+
+    private String normalizeStatusKey(String value) {
+        String key = String.valueOf(value == null ? "" : value).trim().toLowerCase(Locale.ROOT);
+        return switch (key) {
+            case "new" -> "new lead";
+            case "requirement collected", "requirements collected" -> "requirement";
+            case "design & production", "design and production" -> "design + production";
+            case "stock requested" -> "stock request";
+            default -> key;
+        };
     }
 
     private RequirementResponse mapEntityToResponse(Requirement entity, List<RequirementFile> files) {

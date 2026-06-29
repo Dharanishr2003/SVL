@@ -434,7 +434,6 @@ export default function RequirementFormModal({
   const specificationStepCount = specificationSteps.length;
   const firstSpecificationStep = 1;
   const designStep = firstSpecificationStep + specificationStepCount;
-  const deliveryStep = designStep + 1;
   const isSpecificationStep = step >= firstSpecificationStep && step < designStep;
   const isFirstSpecificationStep = step === firstSpecificationStep;
   const currentSpecification = specificationSteps[
@@ -445,7 +444,6 @@ export default function RequirementFormModal({
     "Product",
     ...specificationSteps.map((section) => section.section || "Specification"),
     "Design",
-    "Delivery",
   ]), [specificationSteps]);
 
   // Breadcrumb
@@ -743,7 +741,7 @@ export default function RequirementFormModal({
       return;
     }
     setError("");
-    setStep((s) => Math.min(s + 1, deliveryStep));
+    setStep((s) => Math.min(s + 1, designStep));
   };
 
   const handleBack = () => {
@@ -1324,60 +1322,6 @@ export default function RequirementFormModal({
                       </motion.div>
                     )}
 
-                    {/* Step 3: Delivery */}
-                    {step === deliveryStep && (
-                      <motion.div
-                        key={`step-delivery-${step}`}
-                        initial={shouldReduceMotion ? false : { opacity: 0, x: 18, filter: "blur(4px)" }}
-                        animate={shouldReduceMotion ? {} : { opacity: 1, x: 0, filter: "blur(0px)" }}
-                        exit={shouldReduceMotion ? false : { opacity: 0, x: -18, filter: "blur(4px)" }}
-                        transition={{ duration: 0.26, ease: "easeOut" }}
-                        className="row g-3 lead-wizard-step-panel"
-                      >
-                        <div className="col-md-6">
-                          <div className="lead-form-field">
-                            <label className="form-label">Delivery Date</label>
-                            <input
-                              type="date"
-                              max="9999-12-31"
-                              className="form-control"
-                              value={deliveryDate}
-                              onChange={(e) => {
-                                const nextValue = normalizeIsoDateWithFourDigitYear(e.target.value);
-                                if (nextValue && isSundayIsoDate(nextValue)) {
-                                  setDeliveryDate("");
-                                  setError("Sunday delivery dates are not allowed.");
-                                  return;
-                                }
-                                setError("");
-                                setDeliveryDate(nextValue);
-                              }}
-                            />
-                            <small className="text-muted d-block mt-1">
-                              Sunday delivery dates are not allowed.
-                            </small>
-                          </div>
-                        </div>
-
-                        <div className="col-12">
-                          <label className="form-label">Special Instructions</label>
-                          <textarea
-                            className="form-control"
-                            rows={3}
-                            value={specialInstructions}
-                            onChange={(e) => setSpecialInstructions(e.target.value)}
-                            placeholder="Any special instructions for this order"
-                            style={{ resize: "vertical" }}
-                          />
-                        </div>
-
-                        <div className="col-12">
-                          <div className="alert alert-secondary py-2 mb-0">
-                            Files are handled in the Design step. No extra file upload is needed here.
-                          </div>
-                        </div>
-                      </motion.div>
-                    )}
                   </AnimatePresence>
                 </motion.div>
 
@@ -1408,7 +1352,7 @@ export default function RequirementFormModal({
                   ) : (
                     <div />
                   )}
-                  {step < deliveryStep ? (
+                  {step < designStep ? (
                     <button
                       type="button"
                       className="btn btn-primary"

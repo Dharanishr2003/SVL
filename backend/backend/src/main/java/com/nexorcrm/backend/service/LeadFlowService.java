@@ -109,20 +109,21 @@ public class LeadFlowService {
         User actor = resolveActor(actorPrincipal);
         Scope scope = resolveScope(actor, request.getBranchId(), request.getInstitutionName());
         LeadFlowConfig config = loadConfig();
+        List<Map<String, Object>> sanitizedRules = sanitizeFlowRules(request.getRules(), request.getStatuses());
         if (scope.isGlobal()) {
             config.setDefaultGroupId(request.getDefaultGroupId());
-            config.setRulesJson(serializeRules(request.getRules()));
+            config.setRulesJson(serializeRules(sanitizedRules));
             config.setStatusesJson(serializeStatuses(request.getStatuses()));
             if (StringUtils.hasText(actorPrincipal)) {
                 config.setUpdatedBy(actorPrincipal);
             }
             config.setUpdatedAt(LocalDateTime.now());
             LeadFlowConfig saved = leadFlowConfigRepository.save(config);
-            syncStatusesFromFlowRules(request.getRules());
+            syncStatusesFromFlowRules(sanitizedRules);
             try {
                 LeadService leadService = leadServiceProvider.getIfAvailable();
                 if (leadService != null) {
-                    leadService.reassignLeadsForFlow(request.getRules());
+                    leadService.reassignLeadsForFlow(sanitizedRules);
                 }
             } catch (Exception ignore) {
                 // don't let reassign failures block the flow update
@@ -136,7 +137,7 @@ public class LeadFlowService {
             scopedState = new ScopedFlowState();
         }
         scopedState.defaultGroupId = request.getDefaultGroupId();
-        scopedState.rules = request.getRules();
+        scopedState.rules = sanitizedRules;
         scopedState.statuses = request.getStatuses();
         scopedState.updatedBy = actorPrincipal;
         scopedState.updatedAt = LocalDateTime.now();
@@ -147,7 +148,7 @@ public class LeadFlowService {
         }
         config.setUpdatedAt(LocalDateTime.now());
         LeadFlowConfig saved = leadFlowConfigRepository.save(config);
-        syncStatusesFromFlowRules(request.getRules());
+        syncStatusesFromFlowRules(sanitizedRules);
         return toResponse(saved, scope);
     }
 
@@ -239,6 +240,67 @@ public class LeadFlowService {
         }
     }
 
+    private List<Map<String, Object>> sanitizeFlowRules(List<Map<String, Object>> rules, List<String> statuses) {
+        if (rules == null) {
+            return Collections.emptyList();
+        }
+
+        Map<String, String> selectedStatusByKey = new LinkedHashMap<>();
+        if (statuses != null) {
+            for (String status : statuses) {
+                if (!StringUtils.hasText(status)) continue;
+                selectedStatusByKey.putIfAbsent(normalizeStatusKey(status), status.trim());
+            }
+        }
+        if (selectedStatusByKey.isEmpty()) {
+            for (Map<String, Object> rule : rules) {
+                if (rule == null) continue;
+                Object status = rule.get("status");
+                if (status == null || !StringUtils.hasText(status.toString())) continue;
+                selectedStatusByKey.putIfAbsent(normalizeStatusKey(status.toString()), status.toString().trim());
+            }
+        }
+
+        List<Map<String, Object>> sanitized = new java.util.ArrayList<>();
+        for (Map<String, Object> rule : rules) {
+            if (rule == null) continue;
+            Object statusValue = rule.get("status");
+            if (statusValue == null || !StringUtils.hasText(statusValue.toString())) continue;
+
+            String statusKey = normalizeStatusKey(statusValue.toString());
+            String canonicalStatus = selectedStatusByKey.get(statusKey);
+            if (!StringUtils.hasText(canonicalStatus)) continue;
+
+            Map<String, Object> cleanRule = new LinkedHashMap<>(rule);
+            cleanRule.put("status", canonicalStatus);
+            cleanRule.put("next", sanitizeNextMap(rule.get("next"), statusKey, selectedStatusByKey));
+            sanitized.add(cleanRule);
+        }
+        return sanitized;
+    }
+
+    private Map<String, Object> sanitizeNextMap(Object rawNext,
+                                                String currentStatusKey,
+                                                Map<String, String> selectedStatusByKey) {
+        Map<String, Object> sanitized = new LinkedHashMap<>();
+        if (!(rawNext instanceof Map<?, ?> nextMap)) {
+            return sanitized;
+        }
+        for (Map.Entry<?, ?> entry : nextMap.entrySet()) {
+            if (entry.getKey() == null) continue;
+            String nextKey = normalizeStatusKey(entry.getKey().toString());
+            if (!StringUtils.hasText(nextKey) || nextKey.equals(currentStatusKey) || nextKey.equals("new lead")) {
+                continue;
+            }
+            String canonicalNextStatus = selectedStatusByKey.get(nextKey);
+            if (!StringUtils.hasText(canonicalNextStatus)) {
+                continue;
+            }
+            sanitized.put(canonicalNextStatus, entry.getValue());
+        }
+        return sanitized;
+    }
+
     private void syncStatusesFromFlowRules(List<Map<String, Object>> rules) {
         if (rules == null) return;
 
@@ -312,6 +374,18 @@ public class LeadFlowService {
 
     private String normalize(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
+    }
+
+    private String normalizeStatusKey(String value) {
+        if (!StringUtils.hasText(value)) return "";
+        String key = value.trim().toLowerCase(Locale.ROOT);
+        return switch (key) {
+            case "new" -> "new lead";
+            case "requirement collected", "requirements collected" -> "requirement";
+            case "design & production", "design and production" -> "design + production";
+            case "stock requested" -> "stock request";
+            default -> key;
+        };
     }
 
     private ScopedFlowState resolveScopedState(Map<String, ScopedFlowState> scopedFlows, Scope scope) {

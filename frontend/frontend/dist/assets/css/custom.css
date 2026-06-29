@@ -2778,5 +2778,36 @@ table.dataTable.dtr-inline.collapsed
     scrollbar-color: #f26522 #f8fafc;
 }
 
+/* Admin sidebar top-level dropdown transition */
+#sidebar .sidebar-menu > ul > li > ul > li.submenu > a.sidebar-submenu-trigger .menu-arrow {
+    transition: transform 0.22s ease;
+    transform-origin: center;
+}
+
+#sidebar .sidebar-menu > ul > li > ul > li.submenu > a.sidebar-submenu-trigger .menu-arrow::before {
+    transition: border-color 0.22s ease;
+}
+
+#sidebar .sidebar-menu > ul > li > ul > li.submenu > a.sidebar-submenu-trigger.subdrop .menu-arrow,
+#sidebar .sidebar-menu > ul > li > ul > li.submenu.parent-active > a.sidebar-submenu-trigger .menu-arrow {
+    transform: rotate(90deg);
+}
+
+#sidebar .sidebar-menu > ul > li > ul > li.submenu > ul.sidebar-submenu-panel {
+    display: block !important;
+    max-height: 0;
+    opacity: 0;
+    overflow: hidden;
+    pointer-events: none;
+    transition: max-height 0.24s ease, opacity 0.18s ease;
+    will-change: max-height, opacity;
+}
+
+#sidebar .sidebar-menu > ul > li > ul > li.submenu > ul.sidebar-submenu-panel.is-open {
+    max-height: 420px;
+    opacity: 1;
+    pointer-events: auto;
+}
+
 
 

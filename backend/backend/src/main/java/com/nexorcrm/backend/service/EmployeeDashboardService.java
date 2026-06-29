@@ -6,12 +6,19 @@ import com.nexorcrm.backend.dto.AttendanceSummaryResponse;
 import com.nexorcrm.backend.dto.DashboardBreadcrumbResponse;
 import com.nexorcrm.backend.dto.DashboardHeaderResponse;
 import com.nexorcrm.backend.dto.DashboardStatResponse;
+import com.nexorcrm.backend.dto.EmployeeDashboardHolidayResponse;
+import com.nexorcrm.backend.dto.EmployeeDashboardPerformanceResponse;
 import com.nexorcrm.backend.dto.EmployeeDashboardResponse;
 import com.nexorcrm.backend.dto.EmployeeLeaveSummaryResponse;
+import com.nexorcrm.backend.dto.LeaveEligibilityResponse;
 import com.nexorcrm.backend.dto.LeaveResponse;
 import com.nexorcrm.backend.dto.MyProfileResponse;
+import com.nexorcrm.backend.entity.Holiday;
 import com.nexorcrm.backend.entity.Leave;
+import com.nexorcrm.backend.entity.PerformanceAppraisal;
+import com.nexorcrm.backend.repo.HolidayRepository;
 import com.nexorcrm.backend.repo.LeaveRepository;
+import com.nexorcrm.backend.repo.PerformanceAppraisalRepository;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
@@ -23,8 +30,8 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 @Transactional(readOnly = true)
@@ -35,15 +42,24 @@ public class EmployeeDashboardService {
     private final AuthService authService;
     private final AttendanceService attendanceService;
     private final LeaveRepository leaveRepository;
+    private final LeaveSettingsService leaveSettingsService;
+    private final HolidayRepository holidayRepository;
+    private final PerformanceAppraisalRepository performanceAppraisalRepository;
     private final SuperAdminService superAdminService;
 
     public EmployeeDashboardService(AuthService authService,
                                     AttendanceService attendanceService,
                                     LeaveRepository leaveRepository,
+                                    LeaveSettingsService leaveSettingsService,
+                                    HolidayRepository holidayRepository,
+                                    PerformanceAppraisalRepository performanceAppraisalRepository,
                                     SuperAdminService superAdminService) {
         this.authService = authService;
         this.attendanceService = attendanceService;
         this.leaveRepository = leaveRepository;
+        this.leaveSettingsService = leaveSettingsService;
+        this.holidayRepository = holidayRepository;
+        this.performanceAppraisalRepository = performanceAppraisalRepository;
         this.superAdminService = superAdminService;
     }
 
@@ -53,6 +69,9 @@ public class EmployeeDashboardService {
         AttendanceResponse todayAttendance = attendanceService.getToday(profile.getId());
         List<Leave> leaves = loadLeaves(profile.getEmployeeId());
         EmployeeLeaveSummaryResponse leaveSummary = buildLeaveSummary(leaves);
+        LeaveEligibilityResponse leavePolicySummary = buildLeavePolicySummary(profile.getEmployeeId());
+        EmployeeDashboardPerformanceResponse performanceSummary = buildPerformanceSummary(profile.getEmployeeId());
+        EmployeeDashboardHolidayResponse nextHoliday = buildNextHoliday();
         List<LeaveResponse> recentLeaves = leaves.stream()
                 .limit(5)
                 .map(this::toLeaveResponse)
@@ -67,6 +86,9 @@ public class EmployeeDashboardService {
         response.setAttendanceSummary(attendanceSummary);
         response.setTodayAttendance(todayAttendance);
         response.setLeaveSummary(leaveSummary);
+        response.setLeavePolicySummary(leavePolicySummary);
+        response.setPerformanceSummary(performanceSummary);
+        response.setNextHoliday(nextHoliday);
         response.setQuickStats(buildQuickStats(attendanceSummary, leaveSummary, recentLeaves.size()));
         response.setRecentLeaves(recentLeaves);
         response.setRecentActivities(recentActivities);
@@ -119,6 +141,102 @@ public class EmployeeDashboardService {
                 .reduce(BigDecimal.ZERO, BigDecimal::add));
         summary.setLatestStatus(thisYear.isEmpty() ? null : thisYear.get(0).getStatus());
         return summary;
+    }
+
+    private LeaveEligibilityResponse buildLeavePolicySummary(Long employeeId) {
+        if (employeeId == null) {
+            return null;
+        }
+        List<LeaveEligibilityResponse> eligiblePolicies = leaveSettingsService.getEligibility(employeeId);
+        return eligiblePolicies.isEmpty() ? null : eligiblePolicies.get(0);
+    }
+
+    private EmployeeDashboardPerformanceResponse buildPerformanceSummary(Long employeeId) {
+        EmployeeDashboardPerformanceResponse response = new EmployeeDashboardPerformanceResponse();
+        if (employeeId == null) {
+            response.setCompletionPercent(0);
+            response.setSummary("No appraisal available yet.");
+            return response;
+        }
+
+        Optional<PerformanceAppraisal> latest = performanceAppraisalRepository
+                .findByEmployeeIdAndDeletedFalseOrderByCreatedAtDesc(employeeId)
+                .stream()
+                .findFirst();
+
+        if (latest.isEmpty()) {
+            response.setCompletionPercent(0);
+            response.setSummary("No appraisal available yet.");
+            return response;
+        }
+
+        PerformanceAppraisal appraisal = latest.get();
+        List<com.nexorcrm.backend.dto.PerformanceAppraisalCompetency> technical = parseCompetencies(appraisal.getTechnicalJson());
+        List<com.nexorcrm.backend.dto.PerformanceAppraisalCompetency> organizational = parseCompetencies(appraisal.getOrganizationalJson());
+        int totalCompetencies = technical.size() + organizational.size();
+        int answeredCompetencies = countAnswered(technical) + countAnswered(organizational);
+        int percent = totalCompetencies == 0 ? 0 : (int) Math.round((answeredCompetencies * 100.0d) / totalCompetencies);
+
+        response.setAppraisalId(appraisal.getId());
+        response.setStatus(appraisal.getStatus());
+        response.setReviewDate(appraisal.getAppraisalDate());
+        response.setTechnicalCompetencies(technical.size());
+        response.setOrganizationalCompetencies(organizational.size());
+        response.setCompletionPercent(Math.max(0, Math.min(100, percent)));
+        response.setSummary(buildPerformanceSummaryText(appraisal, totalCompetencies, answeredCompetencies));
+        return response;
+    }
+
+    private EmployeeDashboardHolidayResponse buildNextHoliday() {
+        LocalDate today = LocalDate.now(APP_ZONE);
+        return holidayRepository.findByDeletedFalseOrderByDateAsc().stream()
+                .filter(holiday -> holiday.getDate() != null && !holiday.getDate().isBefore(today))
+                .findFirst()
+                .map(holiday -> toHolidayResponse(holiday, today))
+                .orElseGet(() -> {
+                    List<Holiday> all = holidayRepository.findByDeletedFalseOrderByDateAsc();
+                    if (all.isEmpty()) {
+                        return null;
+                    }
+                    return toHolidayResponse(all.get(0), today);
+                });
+    }
+
+    private EmployeeDashboardHolidayResponse toHolidayResponse(Holiday holiday, LocalDate today) {
+        EmployeeDashboardHolidayResponse response = new EmployeeDashboardHolidayResponse();
+        response.setId(holiday.getId());
+        response.setTitle(holiday.getTitle());
+        response.setDate(holiday.getDate());
+        response.setDescription(holiday.getDescription());
+        if (holiday.getDate() != null) {
+            response.setDaysAway((int) java.time.temporal.ChronoUnit.DAYS.between(today, holiday.getDate()));
+        }
+        return response;
+    }
+
+    private List<com.nexorcrm.backend.dto.PerformanceAppraisalCompetency> parseCompetencies(String json) {
+        try {
+            if (!StringUtils.hasText(json)) {
+                return List.of();
+            }
+            return new com.fasterxml.jackson.databind.ObjectMapper().readValue(
+                    json,
+                    new com.fasterxml.jackson.core.type.TypeReference<List<com.nexorcrm.backend.dto.PerformanceAppraisalCompetency>>() {}
+            );
+        } catch (Exception ex) {
+            return List.of();
+        }
+    }
+
+    private int countAnswered(List<com.nexorcrm.backend.dto.PerformanceAppraisalCompetency> competencies) {
+        return (int) competencies.stream()
+                .filter(item -> StringUtils.hasText(item.getSetValue()))
+                .count();
+    }
+
+    private String buildPerformanceSummaryText(PerformanceAppraisal appraisal, int totalCompetencies, int answeredCompetencies) {
+        String reviewDate = appraisal.getAppraisalDate() != null ? appraisal.getAppraisalDate().toString() : "unknown date";
+        return "Latest appraisal on " + reviewDate + " with " + answeredCompetencies + " of " + totalCompetencies + " competencies completed.";
     }
 
     private List<DashboardStatResponse> buildQuickStats(AttendanceSummaryResponse attendanceSummary,

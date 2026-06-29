@@ -1,9 +1,12 @@
 package com.nexorcrm.backend.service;
 
 import com.nexorcrm.backend.dto.AdminDashboardResponse;
+import com.nexorcrm.backend.dto.DashboardBirthdayGroupResponse;
+import com.nexorcrm.backend.dto.DashboardBirthdayItemResponse;
 import com.nexorcrm.backend.dto.DashboardActivityResponse;
 import com.nexorcrm.backend.dto.DashboardBreadcrumbResponse;
 import com.nexorcrm.backend.dto.DashboardHeaderResponse;
+import com.nexorcrm.backend.dto.DashboardEmployeeResponse;
 import com.nexorcrm.backend.dto.DashboardStatResponse;
 import com.nexorcrm.backend.dto.DashboardWelcomeResponse;
 import com.nexorcrm.backend.dto.AttendanceOverviewResponse;
@@ -30,8 +33,13 @@ import org.springframework.util.StringUtils;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.time.MonthDay;
+import java.time.temporal.ChronoUnit;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -102,6 +110,8 @@ public class AdminDashboardService {
         response.setAttendanceOverview(buildAttendanceOverview(actor));
         response.setClockInOutList(buildClockInOutList(actor));
         response.setLateList(buildLateList(response.getClockInOutList()));
+        response.setEmployees(buildEmployeeHighlights(actor));
+        response.setBirthdays(buildBirthdayGroups(actor));
         
         return response;
     }
@@ -430,5 +440,128 @@ public class AdminDashboardService {
             }
         }
         return lateItems;
+    }
+
+    private List<DashboardEmployeeResponse> buildEmployeeHighlights(User actor) {
+        return employeeRepository.findByDeletedFalseOrderByIdDesc().stream()
+                .filter(employee -> matchesScope(actor, employee.getInstitution(), employee.getDepartmentName(), employee.getTeam()))
+                .limit(5)
+                .map(employee -> {
+                    DashboardEmployeeResponse item = new DashboardEmployeeResponse();
+                    item.setEmployeeId(employee.getId());
+                    item.setEmployeeName(resolveEmployeeDisplayName(employee));
+                    item.setDesignation(resolveEmployeeDesignation(employee));
+                    item.setDepartmentName(resolveEmployeeDepartment(employee));
+                    item.setAvatar(resolveEmployeeAvatarUrl(employee));
+                    return item;
+                })
+                .collect(Collectors.toList());
+    }
+
+    private List<DashboardBirthdayGroupResponse> buildBirthdayGroups(User actor) {
+        LocalDate today = LocalDate.now();
+        DateTimeFormatter labelFormatter = DateTimeFormatter.ofPattern("d MMM yyyy", Locale.ENGLISH);
+
+        Map<String, DashboardBirthdayGroupResponse> groups = new LinkedHashMap<>();
+        employeeRepository.findByDeletedFalseOrderByIdDesc().stream()
+                .filter(employee -> matchesScope(actor, employee.getInstitution(), employee.getDepartmentName(), employee.getTeam()))
+                .filter(employee -> employee.getDateOfBirth() != null)
+                .map(employee -> new BirthdayCandidate(employee, nextBirthday(employee.getDateOfBirth(), today)))
+                .sorted(Comparator.comparing(candidate -> candidate.nextBirthday))
+                .forEach(candidate -> {
+                    String label = formatBirthdayLabel(candidate.nextBirthday, today, labelFormatter);
+                    DashboardBirthdayGroupResponse group = groups.computeIfAbsent(label, key -> {
+                        DashboardBirthdayGroupResponse response = new DashboardBirthdayGroupResponse();
+                        response.setLabel(key);
+                        response.setItems(new ArrayList<>());
+                        return response;
+                    });
+
+                    DashboardBirthdayItemResponse item = new DashboardBirthdayItemResponse();
+                    item.setEmployeeId(candidate.employee.getId());
+                    item.setEmployeeName(resolveEmployeeDisplayName(candidate.employee));
+                    item.setDesignation(resolveEmployeeDesignation(candidate.employee));
+                    item.setAvatar(resolveEmployeeAvatarUrl(candidate.employee));
+                    group.getItems().add(item);
+                });
+
+        return groups.values().stream()
+                .limit(4)
+                .collect(Collectors.toList());
+    }
+
+    private LocalDate nextBirthday(LocalDate dateOfBirth, LocalDate today) {
+        MonthDay monthDay = MonthDay.from(dateOfBirth);
+        LocalDate nextBirthday = monthDay.atYear(today.getYear());
+        if (nextBirthday.isBefore(today)) {
+            nextBirthday = monthDay.atYear(today.getYear() + 1);
+        }
+        return nextBirthday;
+    }
+
+    private String formatBirthdayLabel(LocalDate birthday, LocalDate today, DateTimeFormatter labelFormatter) {
+        long daysUntil = ChronoUnit.DAYS.between(today, birthday);
+        if (daysUntil == 0) {
+            return "Today";
+        }
+        if (daysUntil == 1) {
+            return "Tomorrow";
+        }
+        return labelFormatter.format(birthday);
+    }
+
+    private String resolveEmployeeDisplayName(Employee employee) {
+        if (employee == null || !StringUtils.hasText(employee.getName())) {
+            return "Employee";
+        }
+        return employee.getName().trim();
+    }
+
+    private String resolveEmployeeDesignation(Employee employee) {
+        if (employee == null) {
+            return "Employee";
+        }
+        if (StringUtils.hasText(employee.getDesignation())) {
+            return employee.getDesignation().trim();
+        }
+        if (StringUtils.hasText(employee.getTeam())) {
+            return employee.getTeam().trim();
+        }
+        return "Employee";
+    }
+
+    private String resolveEmployeeDepartment(Employee employee) {
+        if (employee == null) {
+            return "Department";
+        }
+        if (StringUtils.hasText(employee.getDepartmentName())) {
+            return employee.getDepartmentName().trim();
+        }
+        if (StringUtils.hasText(employee.getDept())) {
+            return employee.getDept().trim();
+        }
+        return "Department";
+    }
+
+    private String resolveEmployeeAvatarUrl(Employee employee) {
+        if (employee == null || !StringUtils.hasText(employee.getCandidatePhotoPath())) {
+            return "/assets/img/profiles/avatar-31.jpg";
+        }
+        String pathStr = employee.getCandidatePhotoPath().replace("\\", "/");
+        int uploadsIdx = pathStr.indexOf("uploads/");
+        if (uploadsIdx >= 0) {
+            return "/api/" + pathStr.substring(uploadsIdx);
+        }
+        return "/api/employees/" + employee.getId() + "/files/candidate-photo";
+    }
+
+    private static final class BirthdayCandidate {
+        private final Employee employee;
+        private final LocalDate nextBirthday;
+
+        private BirthdayCandidate(Employee employee, LocalDate nextBirthday) {
+            this.employee = employee;
+            this.nextBirthday = nextBirthday;
+        }
     }
 }

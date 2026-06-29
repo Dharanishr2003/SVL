@@ -9,4 +9,5 @@ import java.util.List;
 @Repository
 public interface RequirementRepository extends JpaRepository<Requirement, Long> {
     List<Requirement> findByLeadIdOrderByCreatedAtDesc(Long leadId);
+    boolean existsByLeadId(Long leadId);
 }

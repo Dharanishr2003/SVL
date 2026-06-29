@@ -65,6 +65,23 @@ function formatHoursMinutes(hours, minutes) {
   return `${safeHours}h ${String(safeMinutes).padStart(2, "0")}m`;
 }
 
+function formatDayDistance(value) {
+  const safe = Number(value);
+  if (Number.isNaN(safe)) {
+    return "";
+  }
+  if (safe === 0) {
+    return "Today";
+  }
+  if (safe === 1) {
+    return "Tomorrow";
+  }
+  if (safe > 1) {
+    return `${safe} days away`;
+  }
+  return `${Math.abs(safe)} days ago`;
+}
+
 function getInitials(profile) {
   const first = profile?.firstName?.trim()?.[0] || "";
   const last = profile?.lastName?.trim()?.[0] || profile?.username?.trim()?.[0] || "";
@@ -150,11 +167,12 @@ export default function EmployeeDashboardPage() {
   const attendanceSummary = data.attendanceSummary || employeeDashboardData.attendanceSummary;
   const todayAttendance = data.todayAttendance || null;
   const leaveSummary = data.leaveSummary || employeeDashboardData.leaveSummary;
+  const performanceSummary = data.performanceSummary || employeeDashboardData.performanceSummary;
+  const nextHoliday = data.nextHoliday || employeeDashboardData.nextHoliday;
+  const leavePolicySummary = data.leavePolicySummary || employeeDashboardData.leavePolicySummary;
   const quickStats = buildQuickFallback(data.quickStats, attendanceSummary);
   const recentLeaves = Array.isArray(data.recentLeaves) ? data.recentLeaves : [];
   const recentActivities = Array.isArray(data.recentActivities) ? data.recentActivities : [];
-  const fullName = "Stephan Peralt";
-  const locationLabel = "UI/UX Design";
   
   if (isLoading && !queryData) {
     return <PageLoader />;
@@ -439,7 +457,7 @@ export default function EmployeeDashboardPage() {
           </div>
 
           {/* My Skills Card */}
-          <div className="card dashboard-card">
+          {/* <div className="card dashboard-card">
             <div className="card-header bg-white border-0 pb-0 pt-4 px-4">
               <h5 className="mb-0 fw-bold text-dark">My Skills</h5>
             </div>
@@ -480,29 +498,9 @@ export default function EmployeeDashboardPage() {
                 <div className="progress progress-sm"><div className="progress-bar bg-danger" style={{ width: "58%" }} /></div>
               </div>
             </div>
-          </div>
+          </div> */}
 
-          {/* Holiday & Policy */}
-          <div className="row g-3">
-            <div className="col-6">
-              <div className="card dashboard-card">
-                <div className="card-body p-3 text-center">
-                  <i className="ti ti-file-text text-primary fs-24 mb-2 d-block" />
-                  <span className="fw-medium text-dark fs-13">Leave Policy</span>
-                  <span className="text-muted fs-11 d-block mt-1">Last Updated: Today</span>
-                </div>
-              </div>
-            </div>
-            <div className="col-6">
-              <div className="card dashboard-card">
-                <div className="card-body p-3 text-center">
-                  <i className="ti ti-calendar-event text-danger fs-24 mb-2 d-block" />
-                  <span className="fw-medium text-dark fs-13">Next Holiday</span>
-                  <strong className="text-danger fs-12 d-block mt-1">Diwali, 15 Sep 2025</strong>
-                </div>
-              </div>
-            </div>
-          </div>
+
         </div>
 
         {/* Center Column - Leave details 1, Attendance timeline, Total Hours Summary, Projects, Tasks */}
@@ -687,7 +685,7 @@ export default function EmployeeDashboardPage() {
           </div>
 
           {/* Projects Card */}
-          <div className="card dashboard-card">
+          {/* <div className="card dashboard-card">
             <div className="card-header bg-white border-0 pb-0 pt-4 px-4">
               <h5 className="mb-0 fw-bold text-dark">Projects</h5>
             </div>
@@ -713,10 +711,10 @@ export default function EmployeeDashboardPage() {
                 </div>
               </div>
             </div>
-          </div>
+          </div> */}
 
           {/* Tasks Card */}
-          <div className="card dashboard-card">
+          {/* <div className="card dashboard-card">
             <div className="card-header bg-white border-0 pb-0 pt-4 px-4">
               <h5 className="mb-0 fw-bold text-dark">Tasks</h5>
             </div>
@@ -744,7 +742,7 @@ export default function EmployeeDashboardPage() {
                 </div>
               </div>
             </div>
-          </div>
+          </div> */}
         </div>
 
         {/* Right Column - Performance, Birthday, Team, Notifications, Meetings */}
@@ -756,14 +754,15 @@ export default function EmployeeDashboardPage() {
             </div>
             <div className="card-body p-4">
               <div className="d-inline-flex align-items-center justify-content-center border border-success rounded-circle mb-3" style={{ width: "90px", height: "90px", borderWidth: "4px" }}>
-                <h3 className="fw-bold mb-0 text-success">98%</h3>
+                <h3 className="fw-bold mb-0 text-success">{performanceSummary?.completionPercent ?? 0}%</h3>
               </div>
-              <div className="text-muted fs-12"><i className="ti ti-trending-up me-1 text-success" /><strong>12%</strong> vs last years</div>
+              <div className="fw-semibold text-dark fs-13 mb-1">{statusLabel(performanceSummary?.status || "No review")}</div>
+              <div className="text-muted fs-12">{performanceSummary?.summary || "No appraisal available yet."}</div>
             </div>
           </div>
 
           {/* Meetings Schedule Card */}
-          <div className="card dashboard-card">
+          {/* <div className="card dashboard-card">
             <div className="card-header bg-white border-0 pb-0 pt-4 px-4">
               <h5 className="mb-0 fw-bold text-dark">Meetings Schedule</h5>
             </div>
@@ -789,10 +788,10 @@ export default function EmployeeDashboardPage() {
                 <span className="badge bg-primary-transparent text-primary badge-premium mt-1">Development</span>
               </div>
             </div>
-          </div>
+          </div> */}
 
           {/* Team Birthday Card */}
-          <div className="card dashboard-card text-center">
+          {/* <div className="card dashboard-card text-center">
             <div className="card-header bg-white border-0 pb-0 pt-4 px-4">
               <h5 className="mb-0 fw-bold text-dark">Team Birthday</h5>
             </div>
@@ -803,10 +802,10 @@ export default function EmployeeDashboardPage() {
               <h6 className="fw-bold mb-1 text-dark">Andrew Jermia</h6>
               <span className="text-muted fs-12">IOS Developer</span>
             </div>
-          </div>
+          </div> */}
 
           {/* Team Members List */}
-          <div className="card dashboard-card">
+          {/* <div className="card dashboard-card">
             <div className="card-header bg-white border-0 pb-0 pt-4 px-4">
               <h5 className="mb-0 fw-bold text-dark">Team Members</h5>
             </div>
@@ -849,7 +848,7 @@ export default function EmployeeDashboardPage() {
                 </div>
               </div>
             </div>
-          </div>
+          </div> */}
 
           {/* Notifications Card */}
           <div className="card dashboard-card">
@@ -867,6 +866,40 @@ export default function EmployeeDashboardPage() {
               ) : (
                 <div className="text-muted text-center fs-13 py-3">No recent notifications</div>
               )}
+            </div>
+          </div>
+                    {/* Holiday & Policy */}
+          <div className="row g-3">
+            <div className="col-6">
+              <div className="card dashboard-card">
+                <div className="card-body p-3 text-center">
+                  <i className="ti ti-file-text text-primary fs-24 mb-2 d-block" />
+                  <span className="fw-medium text-dark fs-13 d-block text-truncate" title={leavePolicySummary?.policyName || "Leave Policy"}>
+                    {leavePolicySummary?.policyName || "Leave Policy"}
+                  </span>
+                  <span className="text-muted fs-11 d-block mt-1">
+                    Remaining: {leavePolicySummary?.remainingDays ?? 0} / {leavePolicySummary?.allowedDays ?? 0} days
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div className="col-6">
+              <div className="card dashboard-card">
+                <div className="card-body p-3 text-center">
+                  <i className="ti ti-calendar-event text-danger fs-24 mb-2 d-block" />
+                  <span className="fw-medium text-dark fs-13 d-block text-truncate" title={nextHoliday?.title || "Next Holiday"}>
+                    {nextHoliday?.title || "Next Holiday"}
+                  </span>
+                  <strong className="text-danger fs-12 d-block mt-1">
+                    {nextHoliday?.date ? formatDate(nextHoliday.date) : "No upcoming holiday"}
+                  </strong>
+                  <span className="text-muted fs-11 d-block mt-1">
+                    {nextHoliday?.daysAway !== null && nextHoliday?.daysAway !== undefined
+                      ? formatDayDistance(nextHoliday.daysAway)
+                      : (nextHoliday?.description || "")}
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
         </div>

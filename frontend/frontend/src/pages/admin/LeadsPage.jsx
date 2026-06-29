@@ -1237,7 +1237,7 @@ ${rowsHtml}
     () =>
       (Array.isArray(createGroupMembers) ? createGroupMembers : []).filter((member) => {
         const roleName = String(member?.role || "").toUpperCase();
-        return roleName === "EMPLOYEE";
+        return roleName === "EMPLOYEE" || roleName === "TEAM_LEAD";
       }),
     [createGroupMembers],
   );
@@ -1714,8 +1714,8 @@ ${rowsHtml}
     if (!Array.isArray(flowRules)) return null;
     const targetRule = flowRules.find(
       (rule) =>
-        String(rule?.status || "").trim().toLowerCase() ===
-        String(status || "").trim().toLowerCase(),
+        normalizeStatusLabelKey(rule?.status) ===
+        normalizeStatusLabelKey(status),
     );
     return targetRule?.handledByGroupId ?? null;
   };
@@ -2089,7 +2089,7 @@ ${rowsHtml}
     );
   }, [flowRules, statusLead?.status]);
 
-  const normalizeKey = (s) => String(s || "").trim().toLowerCase();
+  const normalizeKey = (s) => normalizeStatusLabelKey(s);
   const allowedStatusOptions = useMemo(() => {
     const current = normalizeKey(statusLead?.status);
     if (!current) {
@@ -2541,6 +2541,7 @@ ${rowsHtml}
               sortOrder={sortOrder}
               onSort={handleSort}
               navigate={navigate}
+              onUpdateStatusLead={handleStatusBadgeClick}
               onDeleteLead={handleDeleteLead}
               role={role}
             />
@@ -2554,6 +2555,7 @@ ${rowsHtml}
               onStatusBadgeClick={handleStatusBadgeClick}
               formatCreatedOn={formatCreatedOn}
               navigate={navigate}
+              onUpdateStatusLead={handleStatusBadgeClick}
               onDeleteLead={handleDeleteLead}
               role={role}
             />
@@ -3699,7 +3701,7 @@ ${rowsHtml}
 
                             <div className="col-md-6">
                               <div className="lead-form-field">
-                                <label className="form-label">Assign To Employee</label>
+                                <label className="form-label">Assign To User</label>
                                 <select
                                   className="form-select"
                                   value={createForm.assignedUserId}
@@ -3718,7 +3720,7 @@ ${rowsHtml}
                                   ))}
                                 </select>
                                 {createForm.leadGroupId && eligibleCreateGroupMembers.length === 0 && (
-                                  <small className="text-muted">No eligible employees in selected group.</small>
+                                  <small className="text-muted">No eligible users in selected group.</small>
                                 )}
                               </div>
                             </div>

@@ -31,6 +31,7 @@ export default function LeadGridView({
   onStatusBadgeClick,
   formatCreatedOn,
   navigate,
+  onUpdateStatusLead,
   onDeleteLead,
   role,
 }) {
@@ -89,6 +90,26 @@ export default function LeadGridView({
                           aria-label="Edit Lead"
                         >
                           <i className="ti ti-pencil" style={{ fontSize: "1rem" }} />
+                        </button>
+                        <button
+                          type="button"
+                          className="btn d-inline-flex align-items-center justify-content-center"
+                          style={{
+                            width: 30,
+                            height: 30,
+                            borderRadius: 8,
+                            border: "1px solid #d7f0e3",
+                            backgroundColor: "#f0fdf4",
+                            color: "#16a34a",
+                          }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onUpdateStatusLead?.(row);
+                          }}
+                          title="Update Status"
+                          aria-label="Update Status"
+                        >
+                          <i className="ti ti-refresh" style={{ fontSize: "1rem" }} />
                         </button>
                         {role !== "EMPLOYEE" && (
                           <button

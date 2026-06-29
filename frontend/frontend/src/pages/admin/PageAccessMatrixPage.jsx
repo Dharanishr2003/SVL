@@ -25,6 +25,8 @@ const DESIGNATION_ROLE_OPTIONS = [
   { key: "EMPLOYEE", label: "Employee" },
 ];
 
+const HIDDEN_PAGE_ACCESS_CATEGORIES = new Set(["Projects"]);
+
 function normalize(value) {
   return String(value || "").trim().toLowerCase();
 }
@@ -64,14 +66,6 @@ function groupByCategory(rows = []) {
     acc[category].push(row);
     return acc;
   }, {});
-}
-
-function toKeyMap(value) {
-  return new Set(
-    Array.isArray(value)
-      ? value.map((key) => normalize(key)).filter(Boolean)
-      : [],
-  );
 }
 
 function buildBranchOptions(rows = []) {
@@ -242,8 +236,6 @@ export default function PageAccessMatrixPage() {
     managerDepartmentId,
   ]);
 
-  const currentKeySet = useMemo(() => toKeyMap(currentKeys), [currentKeys]);
-
   const load = async () => {
     setLoading(true);
     try {
@@ -413,19 +405,7 @@ export default function PageAccessMatrixPage() {
     }
   }, [designationBranchId, designationBranchOptions, designationRole, designationRowsByRole]);
 
-  const handleToggleKey = (pageKey) => {
-    const normalized = normalize(pageKey);
-    if (!allowedKeys.has(normalized)) return;
-    const current = new Set(currentKeys.map((key) => normalize(key)));
-    const equivalents = getEquivalentPageKeys(normalized);
-    const isSelected = equivalents.some((equivalent) => current.has(equivalent));
-    if (isSelected) {
-      equivalents.forEach((equivalent) => current.delete(equivalent));
-    } else {
-      equivalents.forEach((equivalent) => current.add(equivalent));
-    }
-    const nextKeys = Array.from(current);
-
+  const setDraftKeysForActiveScope = (nextKeys) => {
     if (activeTab === "SUPER_ADMIN" || activeTab === "ADMIN") {
       setGlobalDrafts((prev) => ({ ...prev, [activeTab]: nextKeys }));
       return;
@@ -443,26 +423,47 @@ export default function PageAccessMatrixPage() {
     }));
   };
 
+  const handleToggleKey = (pageKey) => {
+    const normalized = normalize(pageKey);
+    if (!allowedKeys.has(normalized)) return;
+    const current = new Set(currentKeys.map((key) => normalize(key)));
+    const equivalents = getEquivalentPageKeys(normalized);
+    const isSelected = equivalents.some((equivalent) => current.has(equivalent));
+    if (isSelected) {
+      equivalents.forEach((equivalent) => current.delete(equivalent));
+    } else {
+      equivalents.forEach((equivalent) => current.add(equivalent));
+    }
+    setDraftKeysForActiveScope(Array.from(current));
+  };
+
   const handleClearRow = (pageKey) => {
     const normalized = normalize(pageKey);
     if (!allowedKeys.has(normalized)) return;
     const equivalents = new Set(getEquivalentPageKeys(normalized));
     const withoutKey = currentKeys.filter((key) => !equivalents.has(normalize(key)));
-    if (activeTab === "SUPER_ADMIN" || activeTab === "ADMIN") {
-      setGlobalDrafts((prev) => ({ ...prev, [activeTab]: withoutKey }));
-      return;
-    }
-    if (activeTab === "MANAGER") {
-      setDepartmentDrafts((prev) => ({ ...prev, [String(managerDepartmentId)]: withoutKey }));
-      return;
-    }
-    setDesignationDraftsByRole((prev) => ({
-      ...prev,
-      [designationRole]: {
-        ...(prev[designationRole] || {}),
-        [String(designationId)]: withoutKey,
-      },
-    }));
+    setDraftKeysForActiveScope(withoutKey);
+  };
+
+  const handleEnableSection = (items = []) => {
+    const current = new Set(currentKeys.map((key) => normalize(key)));
+    items.forEach((item) => {
+      const normalized = normalize(item?.key);
+      if (!normalized || !allowedKeys.has(normalized)) return;
+      getEquivalentPageKeys(normalized).forEach((key) => current.add(key));
+    });
+    setDraftKeysForActiveScope(Array.from(current));
+  };
+
+  const handleClearSection = (items = []) => {
+    const keysToRemove = new Set();
+    items.forEach((item) => {
+      const normalized = normalize(item?.key);
+      if (!normalized || !allowedKeys.has(normalized)) return;
+      getEquivalentPageKeys(normalized).forEach((key) => keysToRemove.add(key));
+    });
+    const withoutKeys = currentKeys.filter((key) => !keysToRemove.has(normalize(key)));
+    setDraftKeysForActiveScope(withoutKeys);
   };
 
   const handleReset = () => {
@@ -533,13 +534,26 @@ export default function PageAccessMatrixPage() {
     }
   };
 
-  const activeVisibleCount = currentKeys.length;
   const pageRows = useMemo(() => {
-    return Object.entries(groupedPageOptions).map(([category, items]) => ({
-      category,
-      items,
-    }));
+    return Object.entries(groupedPageOptions)
+      .filter(([category]) => !HIDDEN_PAGE_ACCESS_CATEGORIES.has(category))
+      .map(([category, items]) => ({
+        category,
+        items,
+      }));
   }, [groupedPageOptions]);
+  const visiblePageItems = useMemo(
+    () => pageRows.flatMap((section) => section.items),
+    [pageRows],
+  );
+  const countVisibleEnabledRows = (pageKeys = []) =>
+    visiblePageItems.reduce(
+      (count, item) => count + (hasEquivalentPageKey(pageKeys, item.key) ? 1 : 0),
+      0,
+    );
+  const activeVisibleCount = useMemo(() => {
+    return countVisibleEnabledRows(currentKeys);
+  }, [currentKeys, visiblePageItems]);
 
   const renderScopeSelector = () => {
     if (activeTab === "SUPER_ADMIN" || activeTab === "ADMIN") {
@@ -740,10 +754,12 @@ export default function PageAccessMatrixPage() {
                 {tab.label}
                 <span className="badge bg-light text-dark ms-2">
                   {tab.key === "SUPER_ADMIN" || tab.key === "ADMIN"
-                    ? (globalDrafts[tab.key] || []).length
+                    ? countVisibleEnabledRows(globalDrafts[tab.key] || [])
                     : tab.key === "MANAGER"
-                      ? (departmentDrafts[String(managerDepartmentId)] || []).length
-                      : (designationDraftsByRole[designationRole]?.[String(designationId)] || []).length}
+                      ? countVisibleEnabledRows(departmentDrafts[String(managerDepartmentId)] || [])
+                      : countVisibleEnabledRows(
+                          designationDraftsByRole[designationRole]?.[String(designationId)] || [],
+                        )}
                 </span>
               </button>
             ))}
@@ -764,7 +780,25 @@ export default function PageAccessMatrixPage() {
             {pageRows.map(({ category, items }) => (
               <section key={category}>
                 <div className="mb-2">
-                  <h5 className="mb-0 text-uppercase fw-normal text-secondary">{category}</h5>
+                  <div className="d-flex flex-wrap align-items-center justify-content-between gap-2">
+                    <h5 className="mb-0 text-uppercase fw-normal text-secondary">{category}</h5>
+                    <div className="d-flex gap-2">
+                      <button
+                        type="button"
+                        className="btn btn-outline-secondary btn-sm px-3"
+                        onClick={() => handleEnableSection(items)}
+                      >
+                        Enable
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-success btn-sm px-3"
+                        onClick={() => handleClearSection(items)}
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  </div>
                 </div>
 
                 <div className="table-responsive">

@@ -8,6 +8,9 @@ public class EmployeeDashboardResponse {
     private AttendanceSummaryResponse attendanceSummary;
     private AttendanceResponse todayAttendance;
     private EmployeeLeaveSummaryResponse leaveSummary;
+    private EmployeeDashboardPerformanceResponse performanceSummary;
+    private EmployeeDashboardHolidayResponse nextHoliday;
+    private LeaveEligibilityResponse leavePolicySummary;
     private List<DashboardStatResponse> quickStats;
     private List<LeaveResponse> recentLeaves;
     private List<AuditLogResponse> recentActivities;
@@ -51,6 +54,30 @@ public class EmployeeDashboardResponse {
 
     public void setLeaveSummary(EmployeeLeaveSummaryResponse leaveSummary) {
         this.leaveSummary = leaveSummary;
+    }
+
+    public EmployeeDashboardPerformanceResponse getPerformanceSummary() {
+        return performanceSummary;
+    }
+
+    public void setPerformanceSummary(EmployeeDashboardPerformanceResponse performanceSummary) {
+        this.performanceSummary = performanceSummary;
+    }
+
+    public EmployeeDashboardHolidayResponse getNextHoliday() {
+        return nextHoliday;
+    }
+
+    public void setNextHoliday(EmployeeDashboardHolidayResponse nextHoliday) {
+        this.nextHoliday = nextHoliday;
+    }
+
+    public LeaveEligibilityResponse getLeavePolicySummary() {
+        return leavePolicySummary;
+    }
+
+    public void setLeavePolicySummary(LeaveEligibilityResponse leavePolicySummary) {
+        this.leavePolicySummary = leavePolicySummary;
     }
 
     public List<DashboardStatResponse> getQuickStats() {

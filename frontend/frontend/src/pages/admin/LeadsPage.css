@@ -102,6 +102,11 @@
   min-height: 260px;
 }
 
+.leads-table-fixed {
+  width: 100%;
+  table-layout: fixed;
+}
+
 .leads-table thead th {
   background: #f8fbfd;
   border-bottom-color: #e6edf5;
@@ -114,6 +119,67 @@
 
 .leads-table tbody td {
   vertical-align: middle;
+}
+
+.leads-table-fixed .col-select {
+  width: 36px;
+}
+
+.leads-table-fixed .col-index {
+  width: 54px;
+}
+
+.leads-table-fixed .col-mobile {
+  width: 150px;
+}
+
+.leads-table-fixed .col-status {
+  width: 190px;
+}
+
+.leads-table-fixed .col-actions {
+  width: 132px;
+}
+
+.leads-table-fixed .col-source {
+  width: 130px;
+}
+
+.leads-table-fixed .col-owner {
+  width: 110px;
+}
+
+.leads-table-fixed .col-date {
+  width: 120px;
+}
+
+.leads-table-fixed .col-name,
+.leads-table-fixed .col-source,
+.leads-table-fixed .col-owner,
+.leads-table-fixed .col-date {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  line-height: 1.35;
+  vertical-align: top;
+}
+
+.leads-table-fixed .col-mobile,
+.leads-table-fixed .col-status,
+.leads-table-fixed .col-actions {
+  white-space: nowrap;
+}
+
+.leads-table-fixed .col-status .status-pill,
+.leads-table-fixed .col-actions .btn,
+.leads-table-fixed .col-mobile .btn-phone-call {
+  white-space: nowrap;
+}
+
+.leads-table-fixed .col-status,
+.leads-table-fixed .col-actions {
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
 }
 
 .lead-create-backdrop {

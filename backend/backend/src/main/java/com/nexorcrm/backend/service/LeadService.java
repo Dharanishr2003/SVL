@@ -49,6 +49,7 @@ import com.nexorcrm.backend.repo.LeadInvoiceItemRepository;
 import com.nexorcrm.backend.repo.LeadStatusRepository;
 import com.nexorcrm.backend.repo.LeadTypeRepository;
 import com.nexorcrm.backend.repo.PrimarySourceRepository;
+import com.nexorcrm.backend.repo.RequirementRepository;
 import com.nexorcrm.backend.repo.SecondarySourceRepository;
 import com.nexorcrm.backend.repo.UserGroupMemberRepository;
 import com.nexorcrm.backend.repo.UserGroupRepository;
@@ -135,6 +136,7 @@ public class LeadService {
     private final DesignRequirementService designRequirementService;
     private final ProductionRequirementService productionRequirementService;
     private final PrimarySourceRepository primarySourceRepository;
+    private final RequirementRepository requirementRepository;
     private final SecondarySourceRepository secondarySourceRepository;
     private final EmailNotificationService emailNotificationService;
     private final EmailTemplateRepository emailTemplateRepository;
@@ -167,6 +169,7 @@ public class LeadService {
                        DesignRequirementService designRequirementService,
                        ProductionRequirementService productionRequirementService,
                        PrimarySourceRepository primarySourceRepository,
+                       RequirementRepository requirementRepository,
                        SecondarySourceRepository secondarySourceRepository,
                        EmailNotificationService emailNotificationService,
                        EmailTemplateRepository emailTemplateRepository) {
@@ -192,6 +195,7 @@ public class LeadService {
         this.designRequirementService = designRequirementService;
         this.productionRequirementService = productionRequirementService;
         this.primarySourceRepository = primarySourceRepository;
+        this.requirementRepository = requirementRepository;
         this.secondarySourceRepository = secondarySourceRepository;
         this.emailNotificationService = emailNotificationService;
         this.emailTemplateRepository = emailTemplateRepository;
@@ -301,7 +305,7 @@ public class LeadService {
                         }
                         return false;
                     }
-                    return equalsIgnoreCase(row.getStatus(), status);
+                    return matchesLeadStatus(getEffectiveLeadStatus(row), status);
                 })
                 .filter(row -> equalsIgnoreCase(row.getSvStatus(), svStatus))
                 .filter(row -> equalsIgnoreCase(row.getOwner(), owner))
@@ -556,19 +560,18 @@ public class LeadService {
         if (actor.getRole() != Role.EMPLOYEE && request.getAssignedUserId() != null) {
             ownerUser = userRepository.findById(request.getAssignedUserId())
                     .orElseThrow(() -> new EntityNotFoundException("Assigned user not found"));
-            if (ownerUser.getRole() != Role.EMPLOYEE || !ownerUser.isActive()
-                    || ownerUser.getActivationStatus() != ActivationStatus.ACTIVE
-                    || ownerUser.isDeleted()) {
-                throw new IllegalStateException("Assigned user is not an active employee");
+            if (!isValidManualLeadAssignee(ownerUser)) {
+                throw new IllegalStateException("Assigned user is not an active employee or team lead");
             }
             boolean isEligibleForSelectedGroup = userGroupMemberRepository
-                    .findByGroup_IdAndUser_IdAndUser_RoleAndUser_ActivationStatusAndUser_ActiveTrueAndUser_IsDeletedFalse(
-                            selectedGroup.getId(),
-                            ownerUser.getId(),
-                            Role.EMPLOYEE,
-                            ActivationStatus.ACTIVE
-                    ).stream()
-                    .anyMatch(this::memberHasLeadVisibility);
+                    .findByGroupAndUserId(selectedGroup, ownerUser.getId())
+                    .filter(member -> member.getUser() != null)
+                    .filter(member -> member.getUser().getRole() == Role.EMPLOYEE || member.getUser().getRole() == Role.TEAM_LEAD)
+                    .filter(this::memberHasLeadVisibility)
+                    .filter(member -> member.getUser().isActive())
+                    .filter(member -> member.getUser().getActivationStatus() == ActivationStatus.ACTIVE)
+                    .filter(member -> !member.getUser().isDeleted())
+                    .isPresent();
             if (!isEligibleForSelectedGroup) {
                 throw new IllegalStateException("Assigned user is not eligible for the selected lead group");
             }
@@ -661,8 +664,9 @@ public class LeadService {
             throw new AccessDeniedException("Only the current owner can update status for this lead");
         }
 
-        String status = request.getStatus().trim();
-        if (!leadStatusRepository.existsByStatusNameIgnoreCaseAndDeletedFalse(status)) {
+        promoteLeadToRequirementStatusIfNeeded(row);
+        String status = normalizeStatusAlias(request.getStatus());
+        if (!isRecognizedLeadStatus(actor, row, status)) {
             throw new IllegalStateException("Invalid lead status");
         }
         if ("deal".equalsIgnoreCase(status)
@@ -677,6 +681,13 @@ public class LeadService {
             row.setBudgetVerificationStatus("PENDING");
             assignBudgetRoundRobin(row);
         }
+        if ("rejected".equalsIgnoreCase(status)) {
+            row.setRejectedReason(normalizeNullable(request.getRejectedReason()));
+            row.setRejectedReasonSubtype(normalizeNullable(request.getRejectedReasonSubtype()));
+        } else {
+            row.setRejectedReason(null);
+            row.setRejectedReasonSubtype(null);
+        }
         // Only clear paymentOwnerId for truly terminal statuses where the lead will never
         // return to payment. For all intermediate transitions (e.g. payment -> design ->
         // requirement -> payment), keep paymentOwnerId intact so the saved payment owner
@@ -690,15 +701,10 @@ public class LeadService {
             row.setPaymentOwnerId(null);
         }
         Lead saved = leadRepository.save(row);
-        sendLeadStatusUpdateEmail(saved);
+        sendLeadStatusUpdateEmailSafely(saved);
         auditService.log("LEAD_STATUS_UPDATE", "Updated lead status", actor.getEmail());
         createLeadLog(saved.getId(), "Status changed to " + saved.getStatus(), actor);
-
-        if ("deal".equalsIgnoreCase(saved.getStatus())) {
-            dealService.createOrUpdateFromLead(saved, actor.getId());
-        } else {
-            dealService.deleteBySourceLeadId(saved.getId());
-        }
+        syncDealForLeadStatusSafely(saved, actor);
 
         Map<Long, String> groupNameMap = loadGroupNameMap(List.of(saved));
         Map<Long, String> userNameMap = loadUserNameMap(List.of(saved));
@@ -1734,8 +1740,9 @@ public class LeadService {
         if (request == null || !StringUtils.hasText(request.getStatus())) {
             throw new IllegalStateException("Status is required");
         }
-        String status = request.getStatus().trim();
-        if (!leadStatusRepository.existsByStatusNameIgnoreCaseAndDeletedFalse(status)) {
+        Lead lead = findCustomerLead(actor);
+        String status = normalizeStatusAlias(request.getStatus());
+        if (!isRecognizedLeadStatus(actor, lead, status)) {
             throw new IllegalStateException("Invalid lead status");
         }
         if (!"payment".equalsIgnoreCase(status) && !"rejected".equalsIgnoreCase(status)) {
@@ -1745,7 +1752,6 @@ public class LeadService {
             throw new IllegalStateException("Rejected reason is required");
         }
 
-        Lead lead = findCustomerLead(actor);
         applyFlowStatusTransition(actor, lead, status, null);
         if ("rejected".equalsIgnoreCase(status)) {
             lead.setRejectedReason(normalizeNullable(request.getRejectedReason()));
@@ -1755,7 +1761,7 @@ public class LeadService {
             lead.setRejectedReasonSubtype(null);
         }
         Lead saved = leadRepository.save(lead);
-        sendLeadStatusUpdateEmail(saved);
+        sendLeadStatusUpdateEmailSafely(saved);
         auditService.log("LEAD_STATUS_UPDATE", "Customer updated lead status to " + status, actor.getEmail());
         createLeadLog(saved.getId(), "Status changed to " + saved.getStatus(), actor);
 
@@ -1772,6 +1778,56 @@ public class LeadService {
         return leadRepository
                 .findTopByDeletedFalseAndEmailNormalizedOrderByCreatedAtDesc(email)
                 .orElseThrow(() -> new EntityNotFoundException("Lead not found"));
+    }
+
+    private boolean isRecognizedLeadStatus(User actor, Lead row, String status) {
+        if (!StringUtils.hasText(status)) {
+            return false;
+        }
+        String normalizedStatus = normalizeStatusAlias(status);
+        if (leadStatusRepository.existsByStatusNameIgnoreCaseAndDeletedFalse(normalizedStatus)) {
+            return true;
+        }
+        if (row != null && StringUtils.hasText(row.getStatus())
+                && normalizeStatusAlias(row.getStatus()).equalsIgnoreCase(normalizedStatus)) {
+            return true;
+        }
+        List<Map<String, Object>> rules = getFlowRulesForLeadScope(actor, row);
+        if (rules == null || rules.isEmpty()) {
+            return false;
+        }
+        for (Map<String, Object> rule : rules) {
+            if (rule == null) continue;
+            Object currentStatus = rule.get("status");
+            if (currentStatus != null && normalizeStatusAlias(currentStatus.toString()).equalsIgnoreCase(normalizedStatus)) {
+                return true;
+            }
+            Object nextObj = rule.get("next");
+            if (nextObj instanceof Map<?, ?> nextMap) {
+                for (Object key : nextMap.keySet()) {
+                    if (key != null && normalizeStatusAlias(key.toString()).equalsIgnoreCase(normalizedStatus)) {
+                        return true;
+                    }
+                }
+            }
+            Object allowedNext = rule.get("allowedNext");
+            if (allowedNext instanceof List<?> allowedStatuses) {
+                for (Object item : allowedStatuses) {
+                    if (item != null && normalizeStatusAlias(item.toString()).equalsIgnoreCase(normalizedStatus)) {
+                        return true;
+                    }
+                }
+            }
+            Object nextStatuses = rule.get("nextStatuses");
+            if (nextStatuses instanceof List<?> list) {
+                for (Object item : list) {
+                    if (item != null && normalizeStatusAlias(item.toString()).equalsIgnoreCase(normalizedStatus)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
     }
 
     private User assertLeadAccess(String actorPrincipal) {
@@ -2590,12 +2646,12 @@ public class LeadService {
         if (!StringUtils.hasText(status) || rules == null) {
             return null;
         }
-        String key = status.trim().toLowerCase(Locale.ROOT);
+        String key = normalizeStatusAlias(status);
         for (Map<String, Object> raw : rules) {
             if (raw == null) continue;
             Object statusVal = raw.get("status");
             if (statusVal == null) continue;
-            if (statusVal.toString().trim().toLowerCase(Locale.ROOT).equals(key)) {
+            if (normalizeStatusAlias(statusVal.toString()).equals(key)) {
                 return FlowRule.from(raw);
             }
         }
@@ -2721,7 +2777,7 @@ public class LeadService {
             if (nextObj instanceof Map<?, ?> nextMapRaw) {
                 for (Map.Entry<?, ?> entry : nextMapRaw.entrySet()) {
                     if (entry.getKey() == null) continue;
-                    String key = entry.getKey().toString();
+                    String key = canonicalFlowStatusKey(entry.getKey().toString());
                     next.put(key, toLong(entry.getValue()));
                 }
             }
@@ -2729,7 +2785,7 @@ public class LeadService {
             if (allowedList instanceof List<?> allowed) {
                 for (Object item : allowed) {
                     if (item == null) continue;
-                    String key = item.toString();
+                    String key = canonicalFlowStatusKey(item.toString());
                     next.putIfAbsent(key, null);
                 }
             }
@@ -2738,20 +2794,21 @@ public class LeadService {
                 if (nextStatuses instanceof List<?> list) {
                     for (Object item : list) {
                         if (item == null) continue;
-                        next.putIfAbsent(item.toString(), null);
+                        next.putIfAbsent(canonicalFlowStatusKey(item.toString()), null);
                     }
                 }
             }
 
-            return new FlowRule(status, handledBy, next);
+            return new FlowRule(canonicalFlowStatusKey(status), handledBy, next);
         }
 
         boolean allows(String nextStatus) {
-            if (!StringUtils.hasText(nextStatus)) {
+            String normalizedNextStatus = canonicalFlowStatusKey(nextStatus);
+            if (!StringUtils.hasText(normalizedNextStatus)) {
                 return false;
             }
             for (String key : nextMap.keySet()) {
-                if (key != null && key.trim().equalsIgnoreCase(nextStatus)) {
+                if (key != null && key.trim().equalsIgnoreCase(normalizedNextStatus)) {
                     return true;
                 }
             }
@@ -2759,15 +2816,30 @@ public class LeadService {
         }
 
         Long nextGroupIdFor(String nextStatus) {
-            if (!StringUtils.hasText(nextStatus)) {
+            String normalizedNextStatus = canonicalFlowStatusKey(nextStatus);
+            if (!StringUtils.hasText(normalizedNextStatus)) {
                 return null;
             }
             for (Map.Entry<String, Long> entry : nextMap.entrySet()) {
-                if (entry.getKey() != null && entry.getKey().trim().equalsIgnoreCase(nextStatus)) {
+                if (entry.getKey() != null && entry.getKey().trim().equalsIgnoreCase(normalizedNextStatus)) {
                     return entry.getValue();
                 }
             }
             return null;
+        }
+
+        private static String canonicalFlowStatusKey(String value) {
+            if (!StringUtils.hasText(value)) {
+                return "";
+            }
+            String key = value.trim().toLowerCase(Locale.ROOT);
+            return switch (key) {
+                case "new" -> "new lead";
+                case "requirement collected", "requirements collected" -> "requirement";
+                case "design & production", "design and production" -> "design + production";
+                case "stock requested" -> "stock request";
+                default -> key;
+            };
         }
     }
 
@@ -2866,6 +2938,17 @@ public class LeadService {
         }
 
         return resolveRoundRobinOwner(selectedGroup.getId(), eligibleMembers);
+    }
+
+    private boolean isValidManualLeadAssignee(User user) {
+        if (user == null || user.isDeleted()) {
+            return false;
+        }
+        if (!user.isActive() || user.getActivationStatus() != ActivationStatus.ACTIVE) {
+            return false;
+        }
+        Role role = user.getRole();
+        return role == Role.EMPLOYEE || role == Role.TEAM_LEAD;
     }
 
     private User resolveRoundRobinOwner(Long groupId, List<UserGroupMember> eligibleMembers) {
@@ -3186,7 +3269,7 @@ public class LeadService {
         res.setStreetAddress(row.getStreetAddress());
         res.setProjectId(row.getProjectId());
         res.setLeadType(row.getLeadType());
-        res.setStatus(row.getStatus());
+        res.setStatus(getEffectiveLeadStatus(row));
         res.setSvStatus(row.getSvStatus());
         res.setLeadGroupId(row.getAssignedGroupId());
         res.setLeadGroupName(groupNameMap.get(row.getAssignedGroupId()));
@@ -3485,6 +3568,12 @@ public class LeadService {
         return StringUtils.hasText(value) && value.equalsIgnoreCase(expected.trim());
     }
 
+    private boolean matchesLeadStatus(String value, String expected) {
+        if (!StringUtils.hasText(expected)) return true;
+        return StringUtils.hasText(value)
+                && normalizeStatusAlias(value).equals(normalizeStatusAlias(expected));
+    }
+
     private boolean matchQuickDate(LocalDateTime createdAt, String quickDate) {
         if (!StringUtils.hasText(quickDate)) return true;
         if (createdAt == null) return false;
@@ -3640,6 +3729,44 @@ public class LeadService {
         return StringUtils.hasText(value) ? value.trim().toLowerCase(Locale.ROOT) : "";
     }
 
+    private String normalizeStatusAlias(String value) {
+        String key = normalizeKey(value);
+        return switch (key) {
+            case "new" -> "new lead";
+            case "requirement collected", "requirements collected" -> "requirement";
+            case "design & production", "design and production" -> "design + production";
+            case "stock requested" -> "stock request";
+            default -> key;
+        };
+    }
+
+    private String getEffectiveLeadStatus(Lead row) {
+        if (shouldPromoteLeadToRequirementStatus(row)) {
+            return "Requirement";
+        }
+        return row == null ? null : row.getStatus();
+    }
+
+    private void promoteLeadToRequirementStatusIfNeeded(Lead row) {
+        if (shouldPromoteLeadToRequirementStatus(row)) {
+            row.setStatus("Requirement");
+        }
+    }
+
+    private boolean shouldPromoteLeadToRequirementStatus(Lead row) {
+        if (row == null || row.getId() == null) {
+            return false;
+        }
+        String status = normalizeStatusAlias(row.getStatus());
+        if (!status.equals("new lead")
+                && !status.equals("not attempted")
+                && !status.equals("attempted")
+                && !status.equals("interested")) {
+            return false;
+        }
+        return requirementRepository.existsByLeadId(row.getId());
+    }
+
     private boolean isHigherOfficial(Role role) {
         return role == Role.SUPER_ADMIN || role == Role.ADMIN || role == Role.MANAGER || role == Role.TEAM_LEAD;
     }
@@ -3761,6 +3888,34 @@ public class LeadService {
         }
     }
 
+    private void syncDealForLeadStatusSafely(Lead lead, User actor) {
+        try {
+            if (lead == null) {
+                return;
+            }
+            if ("deal".equalsIgnoreCase(lead.getStatus())) {
+                dealService.createOrUpdateFromLead(lead, actor == null ? null : actor.getId());
+            } else {
+                dealService.deleteBySourceLeadId(lead.getId());
+            }
+        } catch (Exception ex) {
+            logger.error("Lead status was saved but deal sync failed for lead {}: {}",
+                    lead == null ? null : lead.getId(),
+                    ex.getMessage(),
+                    ex);
+        }
+    }
+
+    private void sendLeadStatusUpdateEmailSafely(Lead lead) {
+        try {
+            sendLeadStatusUpdateEmail(lead);
+        } catch (Exception ex) {
+            logger.warn("Lead status was saved but notification failed for lead {}: {}",
+                    lead == null ? null : lead.getId(),
+                    ex.getMessage());
+        }
+    }
+
     private void sendLeadStatusUpdateEmail(Lead lead) {
         if (lead == null || lead.getAllocatorUserId() == null) {
             return;
@@ -3771,8 +3926,11 @@ public class LeadService {
                     if (!template.isActive()) {
                         return;
                     }
+                    String allocatorName = StringUtils.hasText(allocator.getUsername())
+                            ? allocator.getUsername()
+                            : (StringUtils.hasText(allocator.getEmail()) ? allocator.getEmail() : "Team");
                     Map<String, String> tokens = Map.of(
-                        "official_name", allocator.getUsername(),
+                        "official_name", allocatorName,
                         "lead_id", lead.getLeadId() == null ? "" : lead.getLeadId(),
                         "lead_name", lead.getName() == null ? "" : lead.getName(),
                         "status", lead.getStatus() == null ? "" : lead.getStatus()

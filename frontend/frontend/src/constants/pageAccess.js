@@ -1,62 +1,66 @@
 export const PAGE_ACCESS_OPTIONS = [
-  // ── Main Menu ──────────────────────────────────────────────────────────────
   {
     key: "dashboard",
     label: "Dashboard",
-    category: "Main Menu",
+    category: "Dashboard",
     children: [
       { key: "admin-dashboard", label: "Admin Dashboard" },
       { key: "employee-dashboard", label: "Employee Dashboard" },
-      { key: "sales-dashboard", label: "Sales Dashboard" },
     ],
   },
-
-  // ── CRM ────────────────────────────────────────────────────────────────────
-  { key: "design", label: "Design", category: "CRM" },
-  { key: "production", label: "Production", category: "CRM" },
-  { key: "leads", label: "Leads", category: "CRM" },
-  { key: "requirements", label: "Requirements", category: "CRM" },
-  { key: "rejected-leads", label: "Rejected Leads", category: "CRM" },
-  { key: "customer", label: "Customers", category: "CRM" },
-  { key: "quotation", label: "Quotation", category: "CRM" },
-  {
-    key: "stocks",
-    label: "Stocks",
-    category: "CRM",
-    children: [
-      { key: "stocks-dashboard", label: "Dashboard" },
-      { key: "stocks-item", label: "Add Item" },
-      { key: "stocks-categories", label: "Categories" },
-    ],
-  },
-  {
-    key: "projects",
-    label: "Projects",
-    category: "CRM",
-    children: [
-      { key: "projects-list", label: "Projects" },
-      { key: "project-status", label: "Project Status" },
-      { key: "project-type", label: "Project Type" },
-      { key: "tasks", label: "Tasks" },
-      { key: "task-board", label: "Task Board" },
-    ],
-  },
+  { key: "leads", label: "Leads", category: "CRM & Sales" },
+  { key: "rejected-leads", label: "Rejected Leads", category: "CRM & Sales" },
+  { key: "requirements", label: "Requirements", category: "CRM & Sales" },
+  { key: "customer", label: "Customers", category: "CRM & Sales" },
+  { key: "quotation", label: "Quotation", category: "CRM & Sales" },
   {
     key: "lead-source",
     label: "Lead Source",
-    category: "CRM",
+    category: "CRM & Sales",
     children: [
       { key: "lead-status", label: "Lead Status" },
       { key: "primary-source", label: "Primary Source" },
       { key: "secondary-source", label: "Secondary Source" },
     ],
   },
-
-  // ── HRM ────────────────────────────────────────────────────────────────────
+  { key: "design", label: "Design", category: "Operations" },
+  { key: "production", label: "Production", category: "Operations" },
+  {
+    key: "services",
+    label: "Services",
+    category: "Operations",
+    children: [
+      { key: "service-categories", label: "Service Categories" },
+      { key: "service-types", label: "Service Types" },
+      { key: "price-list", label: "Price List" },
+      { key: "product-field-config", label: "Product Field Config" },
+    ],
+  },
+  {
+    key: "stocks",
+    label: "Stocks",
+    category: "Inventory & Procurement",
+    children: [
+      { key: "stocks-item", label: "Items" },
+      { key: "stocks-categories", label: "Categories" },
+    ],
+  },
+  {
+    key: "vendor-management",
+    label: "Vendor Management",
+    category: "Inventory & Procurement",
+    children: [
+      { key: "vendors", label: "Vendors" },
+      { key: "vendor-orders", label: "Vendor Orders" },
+      { key: "brands", label: "Brands" },
+      { key: "vendor-types", label: "Vendor Types" },
+    ],
+  },
+  { key: "stock-requests", label: "Stock Requests", category: "Inventory & Procurement" },
   {
     key: "employees",
     label: "Employees",
-    category: "HRM",
+    category: "Human Resources",
     children: [
       { key: "employees-list", label: "Employees" },
       { key: "email-settings", label: "Mail Settings" },
@@ -66,7 +70,7 @@ export const PAGE_ACCESS_OPTIONS = [
   {
     key: "organization",
     label: "Organization",
-    category: "HRM",
+    category: "Human Resources",
     children: [
       { key: "head-offices", label: "Head Offices" },
       { key: "branches", label: "Branches" },
@@ -74,11 +78,10 @@ export const PAGE_ACCESS_OPTIONS = [
       { key: "designations", label: "Designations" },
     ],
   },
-  { key: "holidays", label: "Holidays", category: "HRM" },
   {
     key: "attendance",
     label: "Attendance",
-    category: "HRM",
+    category: "Human Resources",
     children: [
       { key: "leaves", label: "Leaves (Admin)" },
       { key: "leaves-employee", label: "Leave (Employee)" },
@@ -93,7 +96,7 @@ export const PAGE_ACCESS_OPTIONS = [
   {
     key: "performance",
     label: "Performance",
-    category: "HRM",
+    category: "Human Resources",
     children: [
       { key: "performance-indicator", label: "Performance Indicator" },
       { key: "performance-appraisal", label: "Performance Appraisal" },
@@ -101,15 +104,25 @@ export const PAGE_ACCESS_OPTIONS = [
       { key: "goal-type", label: "Goal Type" },
     ],
   },
-  { key: "promotion", label: "Promotion", category: "HRM" },
-  { key: "resignation", label: "Resignation", category: "HRM" },
-  { key: "termination", label: "Termination", category: "HRM" },
-
-  // ── Finance ────────────────────────────────────────────────────────────────
+  { key: "promotion", label: "Promotion", category: "Human Resources" },
+  { key: "resignation", label: "Resignation", category: "Human Resources" },
+  { key: "termination", label: "Termination", category: "Human Resources" },
+  { key: "holidays", label: "Holidays", category: "Human Resources" },
+  {
+    key: "payroll",
+    label: "Payroll",
+    category: "Finance & Accounts",
+    children: [
+      { key: "employee-salary", label: "Employee Salary" },
+      { key: "payslip", label: "Payslip" },
+      { key: "payslip-template", label: "Payslip Template" },
+      { key: "payroll-items", label: "Payroll Items" },
+    ],
+  },
   {
     key: "sales",
     label: "Sales",
-    category: "Finance",
+    category: "Finance & Accounts",
     children: [
       { key: "estimates", label: "Estimates" },
       { key: "sales-invoices", label: "Invoices" },
@@ -122,7 +135,7 @@ export const PAGE_ACCESS_OPTIONS = [
   {
     key: "accounting",
     label: "Accounting",
-    category: "Finance",
+    category: "Finance & Accounts",
     children: [
       { key: "categories", label: "Categories" },
       { key: "budgets", label: "Budgets" },
@@ -131,75 +144,35 @@ export const PAGE_ACCESS_OPTIONS = [
     ],
   },
   {
-    key: "payroll",
-    label: "Payroll",
-    category: "Finance",
-    children: [
-      { key: "employee-salary", label: "Employee Salary" },
-      { key: "payslip", label: "Payslip" },
-      { key: "payslip-template", label: "Payslip Template" },
-      { key: "payroll-items", label: "Payroll Items" },
-    ],
-  },
-  {
     key: "accounts",
     label: "Accounts",
-    category: "Finance",
+    category: "Finance & Accounts",
     children: [
       { key: "payment-verifications", label: "Payment Verification" },
       { key: "budget-verifications", label: "Budget Verification" },
-      { key: "stock-requests", label: "Stock Requests" },
     ],
   },
-  {
-    key: "vendor-management",
-    label: "Vendor Management",
-    category: "Finance",
-    children: [
-      { key: "vendors", label: "Vendors" },
-      { key: "vendor-orders", label: "Vendor Orders" },
-      { key: "brands", label: "Brands" },
-      { key: "vendor-types", label: "Vendor Types" },
-    ],
-  },
-  { key: "invoices", label: "Invoices", category: "Finance" },
-
-  // ── Services ───────────────────────────────────────────────────────────────
-  {
-    key: "services",
-    label: "Services",
-    category: "Services",
-    children: [
-      { key: "service-categories", label: "Service Categories" },
-      { key: "service-types", label: "Service Types" },
-      { key: "price-list", label: "Price List" },
-      { key: "product-field-config", label: "Product Field Config" },
-    ],
-  },
-
-  // ── Reports ────────────────────────────────────────────────────────────────
+  { key: "invoices", label: "Invoices", category: "Finance & Accounts" },
   {
     key: "reports",
     label: "Reports",
-    category: "Reports",
+    category: "Reports & Analytics",
     children: [
       { key: "expenses-report", label: "Expense Report" },
       { key: "invoice-report", label: "Invoice Report" },
       { key: "payment-report", label: "Payment Report" },
       { key: "employee-report", label: "Employee Report" },
-      { key: "task-report", label: "Task Report" },
-      { key: "user-report", label: "User Report" },
-      { key: "daily-report", label: "Daily Report" },
-      { key: "leave-report", label: "Leave Report" },
       { key: "project-report", label: "Project Report" },
+      { key: "leave-report", label: "Leave Report" },
+      { key: "task-report", label: "Task Report" },
+      { key: "daily-report", label: "Daily Report" },
+      { key: "user-report", label: "User Report" },
     ],
   },
-
-  // ── Admin ──────────────────────────────────────────────────────────────────
   {
     key: "settings",
     label: "Settings",
-    category: "Admin",
+    category: "Administration",
     children: [
       { key: "settings-useradmin", label: "User Admin" },
       { key: "settings-usergroups", label: "User Groups" },

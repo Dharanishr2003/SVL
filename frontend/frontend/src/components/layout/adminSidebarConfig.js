@@ -328,6 +328,7 @@ export const adminSidebarSections = [
           "reports",
           "expenses-report",
           "invoice-report",
+          "payment-report",
           "employee-report",
           "project-report",
           "leave-report",
@@ -345,6 +346,11 @@ export const adminSidebarSections = [
             label: "Invoice Report",
             href: "/invoice-report",
             accessAny: ["reports", "invoice-report"],
+          },
+          {
+            label: "Payment Report",
+            href: "/payment-report",
+            accessAny: ["reports", "payment-report"],
           },
           {
             label: "Employee Report",

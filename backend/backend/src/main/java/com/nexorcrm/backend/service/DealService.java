@@ -85,13 +85,18 @@ public class DealService {
     public void createOrUpdateFromLead(Lead lead, Long convertedByUserId) {
         if (lead == null) return;
         Deal deal = dealRepository.findBySourceLeadIdAndDeletedFalse(lead.getId())
+                .or(() -> dealRepository.findFirstBySourceLeadIdOrderByIdDesc(lead.getId()))
                 .orElse(new Deal());
+        deal.setDeleted(false);
         User convertedOwner = null;
         if ("Deal".equalsIgnoreCase(StringUtils.hasText(lead.getStatus()) ? lead.getStatus().trim() : "")) {
             convertedOwner = resolveDealConversionOwnerForLead(lead.getId(), lead.getOwnerUserId());
         }
         deal.setSourceLeadId(lead.getId());
-        deal.setName(lead.getName());
+        String dealName = StringUtils.hasText(lead.getName())
+                ? lead.getName().trim()
+                : (StringUtils.hasText(lead.getLeadId()) ? lead.getLeadId().trim() : "Lead " + lead.getId());
+        deal.setName(dealName);
         deal.setEmail(lead.getEmail());
         deal.setMobile(lead.getMobile());
         deal.setCountryCode(lead.getCountryCode());

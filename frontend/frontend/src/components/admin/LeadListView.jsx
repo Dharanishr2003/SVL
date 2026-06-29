@@ -36,6 +36,7 @@ export default function LeadListView({
   sortOrder,
   onSort,
   navigate,
+  onUpdateStatusLead,
   onDeleteLead,
   role,
 }) {
@@ -45,9 +46,9 @@ export default function LeadListView({
   return (
     <div
       className="table-responsive leads-table-wrap border-0 shadow-sm mb-4"
-      style={{ overflowX: "auto", WebkitOverflowScrolling: "touch", touchAction: "pan-x", borderRadius: 12, minHeight: "260px" }}
+      style={{ overflow: "visible", touchAction: "auto", borderRadius: 12, minHeight: "260px" }}
     >
-      <table className="table table-hover align-middle leads-table mb-0">
+      <table className="table table-hover align-middle leads-table leads-table-fixed mb-0">
         <thead>
           <tr>
             <th className="col-select" style={{ width: 36 }}>
@@ -178,6 +179,26 @@ export default function LeadListView({
                         aria-label="Edit Lead"
                       >
                         <i className="ti ti-pencil" style={{ fontSize: "1rem" }} />
+                      </button>
+                      <button
+                        type="button"
+                        className="btn d-inline-flex align-items-center justify-content-center"
+                        style={{
+                          width: 32,
+                          height: 32,
+                          borderRadius: 8,
+                          border: "1px solid #d7f0e3",
+                          backgroundColor: "#f0fdf4",
+                          color: "#16a34a",
+                        }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onUpdateStatusLead?.(row);
+                        }}
+                        title="Update Status"
+                        aria-label="Update Status"
+                      >
+                        <i className="ti ti-refresh" style={{ fontSize: "1rem" }} />
                       </button>
                       {role !== "EMPLOYEE" && (
                         <button

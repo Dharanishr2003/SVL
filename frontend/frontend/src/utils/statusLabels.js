@@ -1,5 +1,10 @@
 function normalizeStatusKey(status) {
-  return String(status || "").trim().toLowerCase();
+  const key = String(status || "").trim().toLowerCase();
+  if (key === "new") return "new lead";
+  if (key === "requirement collected" || key === "requirements collected") return "requirement";
+  if (key === "design & production" || key === "design and production") return "design + production";
+  if (key === "stock requested") return "stock request";
+  return key;
 }
 
 function formatToken(token) {

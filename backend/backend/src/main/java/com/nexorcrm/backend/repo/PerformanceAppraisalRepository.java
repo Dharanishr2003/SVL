@@ -7,4 +7,5 @@ import java.util.List;
 
 public interface PerformanceAppraisalRepository extends JpaRepository<PerformanceAppraisal, Long> {
     List<PerformanceAppraisal> findByDeletedFalseOrderByIdDesc();
+    List<PerformanceAppraisal> findByEmployeeIdAndDeletedFalseOrderByCreatedAtDesc(Long employeeId);
 }

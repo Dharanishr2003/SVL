@@ -10,6 +10,15 @@ const emptyRule = (status) => ({
   next: {},
 });
 
+const normalizeStatusKey = (status) => {
+  const key = String(status || "").trim().toLowerCase();
+  if (key === "new") return "new lead";
+  if (key === "requirement collected" || key === "requirements collected") return "requirement";
+  if (key === "design & production" || key === "design and production") return "design + production";
+  if (key === "stock requested") return "stock request";
+  return key;
+};
+
 export default function FlowTabComponent({
   defaultStatuses,
   getFn,
@@ -73,6 +82,28 @@ export default function FlowTabComponent({
     setDefaultGroupId(nextGroupId);
   };
 
+  const statusPickerOptions = (currentStatus) =>
+    selectedStatuses
+      .filter((status) => normalizeStatusKey(status) !== normalizeStatusKey(currentStatus))
+      .filter((status) => normalizeStatusKey(status) !== "new lead");
+
+  const resolveSelectedStatus = (status) => {
+    const key = normalizeStatusKey(status);
+    return selectedStatuses.find((item) => normalizeStatusKey(item) === key) || "";
+  };
+
+  const cleanNextMap = (currentStatus, nextMap = {}) => {
+    const cleaned = {};
+    const currentKey = normalizeStatusKey(currentStatus);
+    Object.entries(nextMap || {}).forEach(([rawStatus, groupId]) => {
+      const selectedStatus = resolveSelectedStatus(rawStatus);
+      const selectedKey = normalizeStatusKey(selectedStatus);
+      if (!selectedStatus || !selectedKey || selectedKey === currentKey || selectedKey === "new lead") return;
+      cleaned[selectedStatus] = groupId ?? null;
+    });
+    return cleaned;
+  };
+
   useEffect(() => {
     let active = true;
     const load = async () => {
@@ -84,16 +115,10 @@ export default function FlowTabComponent({
         const knownGroupIds = new Set(
           groupOptions.map((group) => String(group?.id)).filter(Boolean),
         );
-        const nextStatuses = loadedRules.flatMap((rule) =>
-          rule?.next && typeof rule.next === "object"
-            ? Object.keys(rule.next).map((k) => String(k || "").trim()).filter(Boolean)
-            : [],
-        );
         const knownStatuses = Array.from(
           new Set([
             ...defaultStatuses,
             ...loadedRules.map((r) => String(r?.status || "").trim()).filter(Boolean),
-            ...nextStatuses,
           ]),
         );
         const loadedDefaultGroupId = flow?.defaultGroupId != null && String(flow.defaultGroupId).trim() !== ""
@@ -116,7 +141,7 @@ export default function FlowTabComponent({
             ...found,
             status,
             handledByGroupId: loadedGroupId && knownGroupIds.has(loadedGroupId) ? loadedGroupId : "",
-            next: found?.next && typeof found.next === "object" ? found.next : {},
+            next: cleanNextMap(status, found?.next && typeof found.next === "object" ? found.next : {}),
           };
         });
         setRules(merged);
@@ -164,7 +189,7 @@ export default function FlowTabComponent({
       .map((r) => ({
         status: r.status,
         handledByGroupId: r.handledByGroupId ? Number(r.handledByGroupId) : null,
-        next: r.next || {},
+        next: cleanNextMap(r.status, r.next || {}),
       })),
     statuses: selectedStatuses,
   });
@@ -187,8 +212,15 @@ export default function FlowTabComponent({
       prev.map((r) => {
         if (r.status !== status) return r;
         const next = { ...(r.next || {}) };
-        if (next[nextStatus] !== undefined) delete next[nextStatus];
-        else next[nextStatus] = null;
+        const nextStatusKey = normalizeStatusKey(nextStatus);
+        const alreadySelected = Object.keys(next).some((key) => normalizeStatusKey(key) === nextStatusKey);
+        if (alreadySelected) {
+          Object.keys(next).forEach((key) => {
+            if (normalizeStatusKey(key) === nextStatusKey) delete next[key];
+          });
+        } else {
+          next[nextStatus] = null;
+        }
         return { ...r, next };
       }),
     );
@@ -213,16 +245,14 @@ export default function FlowTabComponent({
   };
 
   const selectedNextStatuses = (rule) =>
-    rule?.next && typeof rule.next === "object" ? Object.keys(rule.next) : [];
+    rule?.next && typeof rule.next === "object" ? Object.keys(cleanNextMap(rule.status, rule.next)) : [];
+
+  const isNextStatusSelected = (rule, status) =>
+    selectedNextStatuses(rule).some((item) => normalizeStatusKey(item) === normalizeStatusKey(status));
 
   const handleSave = () => persist(rules, "Flow saved", "Failed to save flow");
 
   if (loading) return <PageLoader />;
-
-  const statusPickerOptions = (currentStatus) =>
-    selectedStatuses
-      .filter((status) => String(status || "").trim() !== String(currentStatus || "").trim())
-      .filter((status) => String(status || "").trim().toLowerCase() !== "new lead");
 
   return (
     <div>
@@ -399,7 +429,7 @@ export default function FlowTabComponent({
                       <label className="d-flex align-items-center gap-2 border rounded px-3 py-2 bg-white text-dark">
                         <input
                           type="checkbox"
-                          checked={rule?.next?.[status] !== undefined}
+                          checked={isNextStatusSelected(rule, status)}
                           onChange={() => toggleNextStatus(statusPickerRule, status)}
                         />
                         <span className="fw-medium">{formatStatusLabel(status)}</span>
@@ -435,7 +465,7 @@ export default function FlowTabComponent({
                       </div>
                       <select
                         className="form-select"
-                        value={rule?.next?.[status] ?? ""}
+                        value={cleanNextMap(groupPickerRule, rule?.next || {})?.[status] ?? ""}
                         onChange={(e) => updateNextGroup(groupPickerRule, status, e.target.value)}
                       >
                         <option value="">No Group Change</option>

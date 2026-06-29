@@ -10,6 +10,7 @@ public interface DealRepository extends JpaRepository<Deal, Long> {
     List<Deal> findByDeletedFalseOrderByConvertedAtDesc();
     Optional<Deal> findByIdAndDeletedFalse(Long id);
     Optional<Deal> findBySourceLeadIdAndDeletedFalse(Long sourceLeadId);
+    Optional<Deal> findFirstBySourceLeadIdOrderByIdDesc(Long sourceLeadId);
     List<Deal> findByDeletedFalseAndDesignAssignedToUserIdIsNotNullOrderByConvertedAtDesc();
     List<Deal> findByDeletedFalseAndProductionAssignedToUserIdIsNotNullOrderByConvertedAtDesc();
     List<Deal> findByDeletedFalseAndStatusIgnoreCaseOrderByConvertedAtDesc(String status);

@@ -62,22 +62,48 @@ export default function CustomerWizardModal({
     }
   }, [wizardStep]);
 
-  const {
-    isOpen: phonePickerOpen,
-    pickerRef: phonePickerRef,
-    togglePicker: togglePhonePicker,
-    closePicker: closePhonePicker,
-  } = useCountryCodePicker();
+  const [phoneInputVal, setPhoneInputVal] = useState(() => {
+    if (form.phone) {
+      return `${form.countryCode || "+91"} ${form.phone}`;
+    }
+    return "";
+  });
 
-  const filteredCountryOptions = useMemo(() => COUNTRY_CODE_OPTIONS, []);
-  const phoneDisplayMaxLength = getCountryDisplayMaxLength(form.countryCode || "+91");
+  useEffect(() => {
+    if (!form.phone) {
+      setPhoneInputVal("");
+    } else {
+      setPhoneInputVal(`${form.countryCode || "+91"} ${form.phone}`);
+    }
+  }, [form.phone, form.countryCode]);
 
-  const handlePhoneChange = (val) => {
-    const nextCode = form.countryCode || "+91";
-    const lengths = getCountryAllowedLengths(nextCode);
-    const maxLength = getCountryDisplayMaxLength(nextCode);
-    const sanitized = sanitizePhoneDigits(val, maxLength, lengths);
-    setForm((prev) => ({ ...prev, phone: sanitized }));
+  const handlePhoneInputChange = (value) => {
+    setPhoneInputVal(value);
+
+    let raw = value.trim();
+    if (raw.startsWith("+")) {
+      const sortedOptions = [...COUNTRY_CODE_OPTIONS].sort((a, b) => b.value.length - a.value.length);
+      const matched = sortedOptions.find(opt => raw.startsWith(opt.value));
+      if (matched) {
+        const remaining = raw.slice(matched.value.length).replace(/\D/g, "");
+        const limitLength = getCountryDisplayMaxLength(matched.value);
+        const slicedPhone = limitLength ? remaining.slice(0, limitLength) : remaining;
+        setForm((prev) => ({
+          ...prev,
+          countryCode: matched.value,
+          phone: slicedPhone,
+        }));
+        return;
+      }
+    }
+    const digitsOnly = value.replace(/\D/g, "");
+    const currentCode = form.countryCode || "+91";
+    const limitLength = getCountryDisplayMaxLength(currentCode);
+    const slicedPhone = limitLength ? digitsOnly.slice(0, limitLength) : digitsOnly;
+    setForm((prev) => ({
+      ...prev,
+      phone: slicedPhone,
+    }));
   };
 
   return (
@@ -231,51 +257,14 @@ export default function CustomerWizardModal({
                       </div>
                       <div className="col-md-6">
                         <label className="form-label">Phone Number *</label>
-                        <div className="avm-phone-field" ref={phonePickerRef}>
-                          <div className="avm-phone-wrap">
-                            <button
-                              type="button"
-                              className="avm-phone-code-trigger"
-                              style={{ borderRadius: "2rem", height: "40px" }}
-                              onClick={togglePhonePicker}
-                              aria-expanded={phonePickerOpen}
-                            >
-                              <span>{form.countryCode || "+91"}</span>
-                              <i className="ti ti-chevron-down" />
-                            </button>
-                            <input
-                              type="text"
-                              inputMode="numeric"
-                              className="form-control customer-wizard-input"
-                              style={{ borderRadius: "2rem", height: "40px", flex: 1 }}
-                              value={form.phone}
-                              maxLength={phoneDisplayMaxLength || undefined}
-                              placeholder={phoneDisplayMaxLength ? `${phoneDisplayMaxLength} digits` : "Phone number"}
-                              onChange={(e) => handlePhoneChange(e.target.value)}
-                            />
-                          </div>
-                          {phonePickerOpen && (
-                            <div className="avm-phone-code-menu" style={{ display: "block" }}>
-                              {filteredCountryOptions.map((option) => (
-                                <button
-                                  key={`${option.country}-${option.callingCode}`}
-                                  type="button"
-                                  className={`avm-phone-code-option${(form.countryCode || "+91") === option.value ? " is-active" : ""}`}
-                                  onClick={() => {
-                                    setForm((prev) => ({
-                                      ...prev,
-                                      countryCode: ensureCountryCodeValue(option.value),
-                                      phone: "",
-                                    }));
-                                    closePhonePicker();
-                                  }}
-                                >
-                                  {option.label}
-                                </button>
-                              ))}
-                            </div>
-                          )}
-                        </div>
+                        <input
+                          type="text"
+                          className="form-control customer-wizard-input"
+                          style={{ borderRadius: "2rem", height: "40px" }}
+                          value={phoneInputVal}
+                          placeholder="e.g. +91 9876543210"
+                          onChange={(e) => handlePhoneInputChange(e.target.value)}
+                        />
                       </div>
                       <div className="col-md-6">
                         <label className="form-label">Date of Birth</label>

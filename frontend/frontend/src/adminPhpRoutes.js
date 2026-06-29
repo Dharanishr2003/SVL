@@ -632,6 +632,14 @@ export const adminPhpRoutes = [
     path: "requirements",
     component: "RequirementsPage",
   },
+  {
+    path: "requirements/add",
+    component: "RequirementFormPage",
+  },
+  {
+    path: "requirements/:id/edit",
+    component: "RequirementFormPage",
+  },
   // stock request workflow pages
   {
     path: "stock-requests",

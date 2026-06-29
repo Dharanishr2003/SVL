@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
 import { loadLegacyUiScripts } from "../../utils/loadLegacyUiScripts";
 import PageLoader from "../../components/common/PageLoader";
 import ErrorState from "../../components/common/ErrorState";
@@ -8,6 +9,22 @@ import StatCard from "../../components/admin/StatCard";
 import dashboardService from "../../services/dashboardService";
 import { dashboardData } from "../../mock/dashboardData";
 import { useAuth } from "../../context/AuthContext";
+
+const employeeBadgeClasses = [
+  "badge-secondary-transparent",
+  "badge-danger-transparent",
+  "badge-info-transparent",
+  "badge-purple-transparent",
+  "badge-pink-transparent",
+];
+
+function getEmployeeBadgeClass(index) {
+  return employeeBadgeClasses[index % employeeBadgeClasses.length];
+}
+
+function getAvatarSrc(avatar) {
+  return avatar || "/assets/img/profiles/avatar-31.jpg";
+}
 
 export default function AdminDashboardPage() {
   const { user } = useAuth();
@@ -33,6 +50,16 @@ export default function AdminDashboardPage() {
     user?.username ||
     data.welcome?.name ||
     "Admin";
+  const employees = Array.isArray(data.employees) ? data.employees : [];
+  const birthdayGroups = Array.isArray(data.birthdays) ? data.birthdays.slice(0, 4) : [];
+  const attendanceOverview = data.attendanceOverview || null;
+  const attendanceChartKey = [
+    attendanceOverview?.totalCount ?? "",
+    attendanceOverview?.presentPercentage ?? "",
+    attendanceOverview?.latePercentage ?? "",
+    attendanceOverview?.permissionPercentage ?? "",
+    attendanceOverview?.absentPercentage ?? "",
+  ].join("|");
 
   useEffect(() => {
     if (isLoading) return;
@@ -137,7 +164,7 @@ export default function AdminDashboardPage() {
         if (existingChart) existingChart.destroy();
 
         // Use live data if available, otherwise fallback to placeholders
-        const overview = queryData?.attendanceOverview;
+        const overview = attendanceOverview;
         const lateVal = overview ? overview.latePercentage : 21;
         const presentVal = overview ? overview.presentPercentage : 59;
         const permissionVal = overview ? overview.permissionPercentage : 2;
@@ -164,7 +191,10 @@ export default function AdminDashboardPage() {
             layout: { padding: { top: -20, bottom: -20 } },
             responsive: true,
             maintainAspectRatio: false,
-            plugins: { legend: { display: false } }
+            plugins: {
+              legend: { display: false },
+              tooltip: { enabled: false },
+            }
           }
         });
       }
@@ -211,7 +241,7 @@ export default function AdminDashboardPage() {
       if (attendanceChart) attendanceChart.destroy();
       if (semiDonutChart) semiDonutChart.destroy();
     };
-  }, [isLoading]);
+  }, [isLoading, attendanceChartKey]);
 
   if (isLoading && !hasValidData) {
     return <PageLoader />;
@@ -229,7 +259,7 @@ export default function AdminDashboardPage() {
         actions={
           <>
             <div className="me-2 mb-2">
-              <div className="dropdown">
+              {/* <div className="dropdown">
                 <a href="javascript:void(0);" className="dropdown-toggle btn btn-white d-inline-flex align-items-center" data-bs-toggle="dropdown">
                   <i className="ti ti-file-export me-1" />Export
                 </a>
@@ -241,21 +271,14 @@ export default function AdminDashboardPage() {
                     <a href="javascript:void(0);" className="dropdown-item rounded-1"><i className="ti ti-file-type-xls me-1" />Export as Excel </a>
                   </li>
                 </ul>
-              </div>
+              </div> */}
             </div>
-            <div className="mb-2">
-              <div className="input-icon w-120 position-relative">
-                <span className="input-icon-addon">
-                  <i className="ti ti-calendar text-gray-9" />
-                </span>
-                <input type="text" className="form-control yearpicker" defaultValue={2025} />
-              </div>
-            </div>
-            <div className="ms-2 head-icons">
+            
+            {/* <div className="ms-2 head-icons">
               <a href="javascript:void(0);" className="" data-bs-toggle="tooltip" data-bs-placement="top" data-bs-original-title="Collapse" id="collapse-header">
                 <i className="ti ti-chevrons-up" />
               </a>
-            </div>
+            </div> */}
           </>
         }
       />
@@ -353,10 +376,7 @@ export default function AdminDashboardPage() {
                 <p className="mb-0" style={{ color: "rgba(255, 255, 255, 0.85)" }}>You have <span className="text-info fw-semibold text-decoration-underline" style={{ color: "#38bdf8" }}>{data.welcome.pendingApprovals}</span> Pending Approvals &amp; <span className="text-info fw-semibold text-decoration-underline" style={{ color: "#38bdf8" }}>{data.welcome.leaveRequests}</span> Leave Requests</p>
               </div>
             </div>
-            <div className="d-flex align-items-center flex-wrap mb-1">
-              <a href="#" className="btn btn-secondary btn-md me-2 mb-2" data-bs-toggle="modal" data-bs-target="#add_project"><i className="ti ti-square-rounded-plus me-1" />Add Project</a>
-              <a href="#" className="btn btn-primary btn-md mb-2" data-bs-toggle="modal" data-bs-target="#add_leaves"><i className="ti ti-square-rounded-plus me-1" />Add Requests</a>
-            </div>
+            
           </div>
         </div>
         {/* /Welcome Wrap */}
@@ -386,7 +406,7 @@ export default function AdminDashboardPage() {
     </div>
     {/* /Widget Info */}
     {/* Employees By Department */}
-    <div className="col-xxl-4 d-flex">
+    {/* <div className="col-xxl-4 d-flex">
       <div className="card flex-fill">
         <div className="card-header pb-2 d-flex align-items-center justify-content-between flex-wrap">
           <h5 className="mb-2">Employees By Department</h5>
@@ -414,197 +434,8 @@ export default function AdminDashboardPage() {
           </p>
         </div>
       </div>
-    </div>
+    </div> */}
     {/* /Employees By Department */}
-  </div>
-  <div className="row">
-    {/* Total Employee */}
-    <div className="col-xxl-4 d-flex">
-      <div className="card flex-fill">
-        <div className="card-header pb-2 d-flex align-items-center justify-content-between flex-wrap">
-          <h5 className="mb-2">Employee Status</h5>
-          <div className="dropdown mb-2">
-            <a href="javascript:void(0);" className="btn btn-white border btn-sm d-inline-flex align-items-center" data-bs-toggle="dropdown">
-              <i className="ti ti-calendar me-1" />This Week
-            </a>
-            <ul className="dropdown-menu  dropdown-menu-end p-3">
-              <li>
-                <a href="javascript:void(0);" className="dropdown-item rounded-1">This Month</a>
-              </li>
-              <li>
-                <a href="javascript:void(0);" className="dropdown-item rounded-1">This Week</a>
-              </li>
-              <li>
-                <a href="javascript:void(0);" className="dropdown-item rounded-1">Today</a>
-              </li>
-            </ul>
-          </div>
-        </div>
-        <div className="card-body">
-          <div className="d-flex align-items-center justify-content-between mb-1">
-            <p className="fs-13 mb-3">Total Employee</p>
-            <h3 className="mb-3">154</h3>
-          </div>
-          <div className="progress-stacked emp-stack mb-3">
-            <div className="progress" role="progressbar" aria-label="Segment one" aria-valuenow={15} aria-valuemin={0} aria-valuemax={100} style={{width: '40%'}}>
-              <div className="progress-bar bg-warning" />
-            </div>
-            <div className="progress" role="progressbar" aria-label="Segment two" aria-valuenow={30} aria-valuemin={0} aria-valuemax={100} style={{width: '20%'}}>
-              <div className="progress-bar bg-secondary" />
-            </div>
-            <div className="progress" role="progressbar" aria-label="Segment three" aria-valuenow={20} aria-valuemin={0} aria-valuemax={100} style={{width: '10%'}}>
-              <div className="progress-bar bg-danger" />
-            </div>
-            <div className="progress" role="progressbar" aria-label="Segment four" aria-valuenow={20} aria-valuemin={0} aria-valuemax={100} style={{width: '30%'}}>
-              <div className="progress-bar bg-pink" />
-            </div>
-          </div>
-          <div className="border mb-3">
-            <div className="row gx-0">
-              <div className="col-6">
-                <div className="p-2 flex-fill border-end border-bottom">
-                  <p className="fs-13 mb-2"><i className="ti ti-square-filled text-primary fs-12 me-2" />Fulltime <span className="text-gray-9">(48%)</span></p>
-                  <h2 className="display-1">112</h2>
-                </div>
-              </div>
-              <div className="col-6">
-                <div className="p-2 flex-fill border-bottom text-end">
-                  <p className="fs-13 mb-2"><i className="ti ti-square-filled me-2 text-secondary fs-12" />Contract <span className="text-gray-9">(20%)</span></p>
-                  <h2 className="display-1">112</h2>
-                </div>
-              </div>
-              <div className="col-6">
-                <div className="p-2 flex-fill border-end">
-                  <p className="fs-13 mb-2"><i className="ti ti-square-filled me-2 text-danger fs-12" />Probation <span className="text-gray-9">(22%)</span></p>
-                  <h2 className="display-1">12</h2>
-                </div>
-              </div>
-              <div className="col-6">
-                <div className="p-2 flex-fill text-end">
-                  <p className="fs-13 mb-2"><i className="ti ti-square-filled text-pink me-2 fs-12" />WFH <span className="text-gray-9">(20%)</span></p>
-                  <h2 className="display-1">04</h2>
-                </div>
-              </div>
-            </div>
-          </div>
-          <h6 className="mb-2">Top Performer</h6>
-          <div className="p-2 d-flex align-items-center justify-content-between border border-primary bg-primary-100 br-5 mb-4">
-            <div className="d-flex align-items-center overflow-hidden">
-              <span className="me-2">
-                <i className="ti ti-award-filled text-primary fs-24" />
-              </span>
-              <a href="employees.php" className="avatar avatar-md me-2">
-                <img src="assets/img/profiles/avatar-24.jpg" className="rounded-circle border border-white" alt="img" />
-              </a>
-              <div>
-                <h6 className="text-truncate mb-1 fs-14 fw-medium"><a href="employees.php">Daniel Esbella</a></h6>
-                <p className="fs-13">IOS Developer</p>
-              </div>
-            </div>
-            <div className="text-end">
-              <p className="fs-13 mb-1">Performance</p>
-              <h5 className="text-primary">99%</h5>
-            </div>
-          </div>
-          <a href="employees.php" className="btn btn-light btn-md w-100">View All Employees</a>
-        </div>
-      </div>
-    </div>
-    {/* /Total Employee */}
-    {/* Attendance Overview */}
-    <div className="col-xxl-4 col-xl-6 d-flex">
-      <div className="card flex-fill">
-        <div className="card-header pb-2 d-flex align-items-center justify-content-between flex-wrap">
-          <h5 className="mb-2">Attendance Overview</h5>
-          <div className="dropdown mb-2">
-            <a href="javascript:void(0);" className="btn btn-white border btn-sm d-inline-flex align-items-center" data-bs-toggle="dropdown">
-              <i className="ti ti-calendar me-1" />Today
-            </a>
-            <ul className="dropdown-menu  dropdown-menu-end p-3">
-              <li>
-                <a href="javascript:void(0);" className="dropdown-item rounded-1">This Month</a>
-              </li>
-              <li>
-                <a href="javascript:void(0);" className="dropdown-item rounded-1">This Week</a>
-              </li>
-              <li>
-                <a href="javascript:void(0);" className="dropdown-item rounded-1">Today</a>
-              </li>
-            </ul>
-          </div>
-        </div>
-        <div className="card-body">
-          {(() => {
-            const overview = data.attendanceOverview;
-            const totalCount = overview ? overview.totalCount : 120;
-            const presentPct = overview ? overview.presentPercentage : 59;
-            const latePct = overview ? overview.latePercentage : 21;
-            const permissionPct = overview ? overview.permissionPercentage : 2;
-            const absentPct = overview ? overview.absentPercentage : 15;
-            const absentees = overview?.absentees || [];
-            const visibleAbsentees = absentees.slice(0, 4);
-            const extraAbsentees = absentees.length > 4 ? absentees.length - 4 : 0;
-            return (
-              <>
-                <div className="chartjs-wrapper-demo position-relative mb-4">
-                  <canvas id="attendance" height={200} />
-                  <div className="position-absolute text-center attendance-canvas">
-                    <p className="fs-13 mb-1">Total Attendance</p>
-                    <h3>{totalCount}</h3>
-                  </div>
-                </div>
-                <h6 className="mb-3">Status</h6>
-                <div className="d-flex align-items-center justify-content-between">
-                  <p className="f-13 mb-2"><i className="ti ti-circle-filled text-success me-1" />Present</p>
-                  <p className="f-13 fw-medium text-gray-9 mb-2">{presentPct}%</p>
-                </div>
-                <div className="d-flex align-items-center justify-content-between">
-                  <p className="f-13 mb-2"><i className="ti ti-circle-filled text-secondary me-1" />Late</p>
-                  <p className="f-13 fw-medium text-gray-9 mb-2">{latePct}%</p>
-                </div>
-                <div className="d-flex align-items-center justify-content-between">
-                  <p className="f-13 mb-2"><i className="ti ti-circle-filled text-warning me-1" />Permission</p>
-                  <p className="f-13 fw-medium text-gray-9 mb-2">{permissionPct}%</p>
-                </div>
-                <div className="d-flex align-items-center justify-content-between mb-2">
-                  <p className="f-13 mb-2"><i className="ti ti-circle-filled text-danger me-1" />Absent</p>
-                  <p className="f-13 fw-medium text-gray-9 mb-2">{absentPct}%</p>
-                </div>
-                <div className="bg-light br-5 box-shadow-xs p-2 pb-0 d-flex align-items-center justify-content-between flex-wrap">
-                  <div className="d-flex align-items-center">
-                    <p className="mb-2 me-2">Total Absenties</p>
-                    {absentees.length > 0 ? (
-                      <div className="avatar-list-stacked avatar-group-sm mb-2">
-                        {visibleAbsentees.map((ab, idx) => (
-                          <span key={idx} className="avatar avatar-rounded">
-                            <img
-                              className="border border-white"
-                              src={ab.avatar || "/assets/img/profiles/avatar-31.jpg"}
-                              alt={ab.name}
-                              title={ab.name}
-                            />
-                          </span>
-                        ))}
-                        {extraAbsentees > 0 && (
-                          <a className="avatar bg-primary avatar-rounded text-fixed-white fs-10" href="javascript:void(0);">
-                            +{extraAbsentees}
-                          </a>
-                        )}
-                      </div>
-                    ) : (
-                      <span className="text-muted small mb-2">None today</span>
-                    )}
-                  </div>
-                  <a href="/leaves" className="fs-13 link-primary text-decoration-underline mb-2">View Details</a>
-                </div>
-              </>
-            );
-          })()}
-        </div>
-      </div>
-    </div>
-    {/* /Attendance Overview */}
-    {/* Clock-In/Out */}
     <div className="col-xxl-4 col-xl-6 d-flex">
       <div className="card flex-fill">
         <div className="card-header pb-2 d-flex align-items-center justify-content-between flex-wrap">
@@ -759,11 +590,303 @@ export default function AdminDashboardPage() {
         </div>
       </div>
     </div>
-    {/* /Clock-In/Out */}
+  </div>
+  <div className="row">
+    {/* Total Employee */}
+    {/* <div className="col-xxl-4 d-flex">
+      <div className="card flex-fill">
+        <div className="card-header pb-2 d-flex align-items-center justify-content-between flex-wrap">
+          <h5 className="mb-2">Employee Status</h5>
+          <div className="dropdown mb-2">
+            <a href="javascript:void(0);" className="btn btn-white border btn-sm d-inline-flex align-items-center" data-bs-toggle="dropdown">
+              <i className="ti ti-calendar me-1" />This Week
+            </a>
+            <ul className="dropdown-menu  dropdown-menu-end p-3">
+              <li>
+                <a href="javascript:void(0);" className="dropdown-item rounded-1">This Month</a>
+              </li>
+              <li>
+                <a href="javascript:void(0);" className="dropdown-item rounded-1">This Week</a>
+              </li>
+              <li>
+                <a href="javascript:void(0);" className="dropdown-item rounded-1">Today</a>
+              </li>
+            </ul>
+          </div>
+        </div>
+        <div className="card-body">
+          <div className="d-flex align-items-center justify-content-between mb-1">
+            <p className="fs-13 mb-3">Total Employee</p>
+            <h3 className="mb-3">154</h3>
+          </div>
+          <div className="progress-stacked emp-stack mb-3">
+            <div className="progress" role="progressbar" aria-label="Segment one" aria-valuenow={15} aria-valuemin={0} aria-valuemax={100} style={{width: '40%'}}>
+              <div className="progress-bar bg-warning" />
+            </div>
+            <div className="progress" role="progressbar" aria-label="Segment two" aria-valuenow={30} aria-valuemin={0} aria-valuemax={100} style={{width: '20%'}}>
+              <div className="progress-bar bg-secondary" />
+            </div>
+            <div className="progress" role="progressbar" aria-label="Segment three" aria-valuenow={20} aria-valuemin={0} aria-valuemax={100} style={{width: '10%'}}>
+              <div className="progress-bar bg-danger" />
+            </div>
+            <div className="progress" role="progressbar" aria-label="Segment four" aria-valuenow={20} aria-valuemin={0} aria-valuemax={100} style={{width: '30%'}}>
+              <div className="progress-bar bg-pink" />
+            </div>
+          </div>
+          <div className="border mb-3">
+            <div className="row gx-0">
+              <div className="col-6">
+                <div className="p-2 flex-fill border-end border-bottom">
+                  <p className="fs-13 mb-2"><i className="ti ti-square-filled text-primary fs-12 me-2" />Fulltime <span className="text-gray-9">(48%)</span></p>
+                  <h2 className="display-1">112</h2>
+                </div>
+              </div>
+              <div className="col-6">
+                <div className="p-2 flex-fill border-bottom text-end">
+                  <p className="fs-13 mb-2"><i className="ti ti-square-filled me-2 text-secondary fs-12" />Contract <span className="text-gray-9">(20%)</span></p>
+                  <h2 className="display-1">112</h2>
+                </div>
+              </div>
+              <div className="col-6">
+                <div className="p-2 flex-fill border-end">
+                  <p className="fs-13 mb-2"><i className="ti ti-square-filled me-2 text-danger fs-12" />Probation <span className="text-gray-9">(22%)</span></p>
+                  <h2 className="display-1">12</h2>
+                </div>
+              </div>
+              <div className="col-6">
+                <div className="p-2 flex-fill text-end">
+                  <p className="fs-13 mb-2"><i className="ti ti-square-filled text-pink me-2 fs-12" />WFH <span className="text-gray-9">(20%)</span></p>
+                  <h2 className="display-1">04</h2>
+                </div>
+              </div>
+            </div>
+          </div>
+          <h6 className="mb-2">Top Performer</h6>
+          <div className="p-2 d-flex align-items-center justify-content-between border border-primary bg-primary-100 br-5 mb-4">
+            <div className="d-flex align-items-center overflow-hidden">
+              <span className="me-2">
+                <i className="ti ti-award-filled text-primary fs-24" />
+              </span>
+              <a href="employees.php" className="avatar avatar-md me-2">
+                <img src="assets/img/profiles/avatar-24.jpg" className="rounded-circle border border-white" alt="img" />
+              </a>
+              <div>
+                <h6 className="text-truncate mb-1 fs-14 fw-medium"><a href="employees.php">Daniel Esbella</a></h6>
+                <p className="fs-13">IOS Developer</p>
+              </div>
+            </div>
+            <div className="text-end">
+              <p className="fs-13 mb-1">Performance</p>
+              <h5 className="text-primary">99%</h5>
+            </div>
+          </div>
+          <a href="employees.php" className="btn btn-light btn-md w-100">View All Employees</a>
+        </div>
+      </div>
+    </div> */}
+    {/* /Total Employee */}
+    {/* Attendance Overview */}
+    <div className="col-xxl-4 col-xl-6 d-flex">
+      <div className="card flex-fill">
+        <div className="card-header pb-2 d-flex align-items-center justify-content-between flex-wrap">
+          <h5 className="mb-2">Attendance Overview</h5>
+          <div className="dropdown mb-2">
+            <a href="javascript:void(0);" className="btn btn-white border btn-sm d-inline-flex align-items-center" data-bs-toggle="dropdown">
+              <i className="ti ti-calendar me-1" />Today
+            </a>
+            <ul className="dropdown-menu  dropdown-menu-end p-3">
+              <li>
+                <a href="javascript:void(0);" className="dropdown-item rounded-1">This Month</a>
+              </li>
+              <li>
+                <a href="javascript:void(0);" className="dropdown-item rounded-1">This Week</a>
+              </li>
+              <li>
+                <a href="javascript:void(0);" className="dropdown-item rounded-1">Today</a>
+              </li>
+            </ul>
+          </div>
+        </div>
+        <div className="card-body">
+          {(() => {
+            const overview = data.attendanceOverview;
+            const totalCount = overview ? overview.totalCount : 120;
+            const presentPct = overview ? overview.presentPercentage : 59;
+            const latePct = overview ? overview.latePercentage : 21;
+            const permissionPct = overview ? overview.permissionPercentage : 2;
+            const absentPct = overview ? overview.absentPercentage : 15;
+            const absentees = overview?.absentees || [];
+            const visibleAbsentees = absentees.slice(0, 4);
+            const extraAbsentees = absentees.length > 4 ? absentees.length - 4 : 0;
+            return (
+              <>
+                <div className="chartjs-wrapper-demo position-relative mb-4">
+                  <canvas id="attendance" height={200} />
+                  <div className="position-absolute text-center attendance-canvas">
+                    <p className="fs-13 mb-1">Total Attendance</p>
+                    <h3>{totalCount}</h3>
+                  </div>
+                </div>
+                <h6 className="mb-3">Status</h6>
+                <div className="d-flex align-items-center justify-content-between">
+                  <p className="f-13 mb-2"><i className="ti ti-circle-filled text-success me-1" />Present</p>
+                  <p className="f-13 fw-medium text-gray-9 mb-2">{presentPct}%</p>
+                </div>
+                <div className="d-flex align-items-center justify-content-between">
+                  <p className="f-13 mb-2"><i className="ti ti-circle-filled text-secondary me-1" />Late</p>
+                  <p className="f-13 fw-medium text-gray-9 mb-2">{latePct}%</p>
+                </div>
+                <div className="d-flex align-items-center justify-content-between">
+                  <p className="f-13 mb-2"><i className="ti ti-circle-filled text-warning me-1" />Permission</p>
+                  <p className="f-13 fw-medium text-gray-9 mb-2">{permissionPct}%</p>
+                </div>
+                <div className="d-flex align-items-center justify-content-between mb-2">
+                  <p className="f-13 mb-2"><i className="ti ti-circle-filled text-danger me-1" />Absent</p>
+                  <p className="f-13 fw-medium text-gray-9 mb-2">{absentPct}%</p>
+                </div>
+                <div className="bg-light br-5 box-shadow-xs p-2 pb-0 d-flex align-items-center justify-content-between flex-wrap">
+                  <div className="d-flex align-items-center">
+                    <p className="mb-2 me-2">Total Absenties</p>
+                    {absentees.length > 0 ? (
+                      <div className="avatar-list-stacked avatar-group-sm mb-2">
+                        {visibleAbsentees.map((ab, idx) => (
+                          <span key={idx} className="avatar avatar-rounded">
+                            <img
+                              className="border border-white"
+                              src={ab.avatar || "/assets/img/profiles/avatar-31.jpg"}
+                              alt={ab.name}
+                              title={ab.name}
+                            />
+                          </span>
+                        ))}
+                        {extraAbsentees > 0 && (
+                          <a className="avatar bg-primary avatar-rounded text-fixed-white fs-10" href="javascript:void(0);">
+                            +{extraAbsentees}
+                          </a>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-muted small mb-2">None today</span>
+                    )}
+                  </div>
+                  <a href="/leaves" className="fs-13 link-primary text-decoration-underline mb-2">View Details</a>
+                </div>
+              </>
+            );
+          })()}
+        </div>
+      </div>
+    </div>
+    {/* /Attendance Overview */}
+    {/* Employees */}
+    <div className="col-xxl-4 col-xl-6 d-flex">
+      <div className="card flex-fill">
+        <div className="card-header pb-2 d-flex align-items-center justify-content-between flex-wrap">
+          <h5 className="mb-2">Employees</h5>
+          <Link to="/employees" className="btn btn-light btn-md mb-2">View All</Link>
+        </div>
+        <div className="card-body p-0">
+          <div className="table-responsive">
+            <table className="table table-nowrap mb-0">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Department</th>
+                </tr>
+              </thead>
+              <tbody>
+                {employees.length > 0 ? (
+                  employees.map((employee, index) => (
+                    <tr key={employee.employeeId ?? `${employee.employeeName}-${index}`}>
+                      <td>
+                        <div className="d-flex align-items-center">
+                          <Link to="/employees" className="avatar">
+                            <img
+                              src={getAvatarSrc(employee.avatar)}
+                              className="img-fluid rounded-circle"
+                              alt={employee.employeeName || "Employee"}
+                            />
+                          </Link>
+                          <div className="ms-2">
+                            <h6 className="fw-medium mb-1">
+                              <Link to="/employees">{employee.employeeName || "Employee"}</Link>
+                            </h6>
+                            <span className="fs-12">{employee.designation || "Employee"}</span>
+                          </div>
+                        </div>
+                      </td>
+                      <td>
+                        <span className={`badge ${getEmployeeBadgeClass(index)} badge-xs`}>
+                          {employee.departmentName || "Department"}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={2} className="text-center text-muted py-4">
+                      No employee records found.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+    {/* /Employees */}
+    {/* Birthdays */}
+    <div className="col-xxl-4 col-xl-6 d-flex">
+      <div className="card flex-fill">
+        <div className="card-header pb-2 d-flex align-items-center justify-content-between flex-wrap">
+          <h5 className="mb-2">Birthdays</h5>
+          <Link to="/employees" className="btn btn-light btn-md mb-2">View All</Link>
+        </div>
+        <div className="card-body pb-1">
+          {birthdayGroups.length > 0 ? (
+            birthdayGroups.map((group, groupIndex) => (
+              <div key={group.label ?? `birthday-group-${groupIndex}`}>
+                <h6 className="mb-2">{group.label || "Upcoming"}</h6>
+                {(group.items || []).map((birthday, birthdayIndex) => (
+                  <div
+                    key={birthday.employeeId ?? `${group.label}-${birthday.employeeName}-${birthdayIndex}`}
+                    className="bg-light p-2 border border-dashed rounded-top mb-3"
+                  >
+                    <div className="d-flex align-items-center justify-content-between">
+                      <div className="d-flex align-items-center">
+                        <Link to="/employees" className="avatar">
+                          <img
+                            src={getAvatarSrc(birthday.avatar)}
+                            className="rounded-circle"
+                            alt={birthday.employeeName || "Employee"}
+                          />
+                        </Link>
+                        <div className="ms-2 overflow-hidden">
+                          <h6 className="fs-medium mb-1">{birthday.employeeName || "Employee"}</h6>
+                          <p className="fs-13 mb-0">{birthday.designation || "Employee"}</p>
+                        </div>
+                      </div>
+                      <a href="javascript:void(0);" className="btn btn-secondary btn-xs">
+                        <i className="ti ti-cake me-1" />
+                        Send
+                      </a>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ))
+          ) : (
+            <p className="text-muted mb-3">No upcoming birthdays.</p>
+          )}
+        </div>
+      </div>
+    </div>
+    {/* /Birthdays */}
   </div>
   <div className="row">
     {/* Jobs Applicants */}
-    <div className="col-xxl-4 d-flex">
+    {/* <div className="col-xxl-4 d-flex">
       <div className="card flex-fill">
         <div className="card-header pb-2 d-flex align-items-center justify-content-between flex-wrap">
           <h5 className="mb-2">Jobs Applicants</h5>
@@ -882,116 +1005,11 @@ export default function AdminDashboardPage() {
           </div>
         </div>
       </div>
-    </div>
+    </div> */}
     {/* /Jobs Applicants */}
-    {/* Employees */}
-    <div className="col-xxl-4 col-xl-6 d-flex">
-      <div className="card flex-fill">
-        <div className="card-header pb-2 d-flex align-items-center justify-content-between flex-wrap">
-          <h5 className="mb-2">Employees</h5>
-          <a href="employees.php" className="btn btn-light btn-md mb-2">View All</a>
-        </div>
-        <div className="card-body p-0">
-          <div className="table-responsive">
-            <table className="table table-nowrap mb-0">
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Department</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td>
-                    <div className="d-flex align-items-center">
-                      <a href="javascript:void(0);" className="avatar">
-                        <img src="assets/img/users/user-32.jpg" className="img-fluid rounded-circle" alt="img" />
-                      </a>
-                      <div className="ms-2">
-                        <h6 className="fw-medium"><a href="javascript:void(0);">Anthony Lewis</a></h6>
-                        <span className="fs-12">Finance</span>
-                      </div>
-                    </div>
-                  </td>
-                  <td>
-                    <span className="badge badge-secondary-transparent badge-xs">
-                      Finance
-                    </span>
-                  </td>
-                </tr>
-                <tr>
-                  <td>
-                    <div className="d-flex align-items-center">
-                      <a href="#" className="avatar">
-                        <img src="assets/img/users/user-09.jpg" className="img-fluid rounded-circle" alt="img" />
-                      </a>
-                      <div className="ms-2">
-                        <h6 className="fw-medium"><a href="#">Brian Villalobos</a></h6>
-                        <span className="fs-12">PHP Developer</span>
-                      </div>
-                    </div>
-                  </td>
-                  <td>
-                    <span className="badge badge-danger-transparent badge-xs">Development</span>
-                  </td>
-                </tr>
-                <tr>
-                  <td>
-                    <div className="d-flex align-items-center">
-                      <a href="#" className="avatar">
-                        <img src="assets/img/users/user-01.jpg" className="img-fluid rounded-circle" alt="img" />
-                      </a>
-                      <div className="ms-2">
-                        <h6 className="fw-medium"><a href="#">Stephan Peralt</a></h6>
-                        <span className="fs-12">Executive</span>
-                      </div>
-                    </div>
-                  </td>
-                  <td>
-                    <span className="badge badge-info-transparent badge-xs">Marketing</span>
-                  </td>
-                </tr>
-                <tr>
-                  <td>
-                    <div className="d-flex align-items-center">
-                      <a href="javascript:void(0);" className="avatar">
-                        <img src="assets/img/users/user-34.jpg" className="img-fluid rounded-circle" alt="img" />
-                      </a>
-                      <div className="ms-2">
-                        <h6 className="fw-medium"><a href="javascript:void(0);">Doglas Martini</a></h6>
-                        <span className="fs-12">Project Manager</span>
-                      </div>
-                    </div>
-                  </td>
-                  <td>
-                    <span className="badge badge-purple-transparent badge-xs">Manager</span>
-                  </td>
-                </tr>
-                <tr>
-                  <td className="border-0">
-                    <div className="d-flex align-items-center">
-                      <a href="javascript:void(0);" className="avatar">
-                        <img src="assets/img/users/user-37.jpg" className="img-fluid rounded-circle" alt="img" />
-                      </a>
-                      <div className="ms-2">
-                        <h6 className="fw-medium"><a href="javascript:void(0);">Anthony Lewis</a></h6>
-                        <span className="fs-12">UI/UX Designer</span>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="border-0">
-                    <span className="badge badge-pink-transparent badge-xs">UI/UX Design</span>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    </div>
-    {/* /Employees */}
+   
     {/* Todo */}
-    <div className="col-xxl-4 col-xl-6 d-flex">
+    {/* <div className="col-xxl-4 col-xl-6 d-flex">
       <div className="card flex-fill">
         <div className="card-header pb-2 d-flex align-items-center justify-content-between flex-wrap">
           <h5 className="mb-2">Todo</h5>
@@ -1060,7 +1078,7 @@ export default function AdminDashboardPage() {
           </div>
         </div>
       </div>
-    </div>
+    </div> */}
     {/* /Todo */}
   </div>
   <div className="row">
@@ -1256,7 +1274,7 @@ export default function AdminDashboardPage() {
   </div>
   <div className="row">
     {/* Projects */}
-    <div className="col-xxl-8 col-xl-7 d-flex">
+    {/* <div className="col-xxl-8 col-xl-7 d-flex">
       <div className="card flex-fill">
         <div className="card-header pb-2 d-flex align-items-center justify-content-between flex-wrap">
           <h5 className="mb-2">Projects</h5>
@@ -1521,10 +1539,10 @@ export default function AdminDashboardPage() {
           </div>
         </div>
       </div>
-    </div>
+    </div> */}
     {/* /Projects */}
     {/* Tasks Statistics */}
-    <div className="col-xxl-4 col-xl-5 d-flex">
+    {/* <div className="col-xxl-4 col-xl-5 d-flex">
       <div className="card flex-fill">
         <div className="card-header pb-2 d-flex align-items-center justify-content-between flex-wrap">
           <h5 className="mb-2">Tasks Statistics</h5>
@@ -1582,12 +1600,12 @@ export default function AdminDashboardPage() {
           </div>
         </div>
       </div>
-    </div>
+    </div> */}
     {/* /Tasks Statistics */}
   </div>
   <div className="row">
     {/* Schedules */}
-    <div className="col-xxl-4 d-flex">
+    {/* <div className="col-xxl-4 d-flex">
       <div className="card flex-fill">
         <div className="card-header pb-2 d-flex align-items-center justify-content-between flex-wrap">
           <h5 className="mb-2">Schedules</h5>
@@ -1658,10 +1676,10 @@ export default function AdminDashboardPage() {
           </div>
         </div>
       </div>
-    </div>
+    </div> */}
     {/* /Schedules */}
     {/* Recent Activities */}
-    <div className="col-xxl-4 col-xl-6 d-flex">
+    {/* <div className="col-xxl-4 col-xl-6 d-flex">
       <div className="card flex-fill">
         <div className="card-header pb-2 d-flex align-items-center justify-content-between flex-wrap">
           <h5 className="mb-2">Recent Activities</h5>
@@ -1694,87 +1712,13 @@ export default function AdminDashboardPage() {
           )}
         </div>
       </div>
-    </div>
+    </div> */}
     {/* /Recent Activities */}
-    {/* Birthdays */}
-    <div className="col-xxl-4 col-xl-6 d-flex">
-      <div className="card flex-fill">
-        <div className="card-header pb-2 d-flex align-items-center justify-content-between flex-wrap">
-          <h5 className="mb-2">Birthdays</h5>
-          <a href="javascript:void(0);" className="btn btn-light btn-md mb-2">View All</a>
-        </div>
-        <div className="card-body pb-1">
-          <h6 className="mb-2">Today</h6>
-          <div className="bg-light p-2 border border-dashed rounded-top mb-3">
-            <div className="d-flex align-items-center justify-content-between">
-              <div className="d-flex align-items-center">
-                <a href="javascript:void(0);" className="avatar">
-                  <img src="assets/img/users/user-38.jpg" className="rounded-circle" alt="img" />
-                </a>
-                <div className="ms-2 overflow-hidden">
-                  <h6 className="fs-medium ">Andrew Jermia</h6>
-                  <p className="fs-13">IOS Developer</p>
-                </div>
-              </div>
-              <a href="javascript:void(0);" className="btn btn-secondary btn-xs"><i className="ti ti-cake me-1" />Send</a>
-            </div>
-          </div>
-          <h6 className="mb-2">Tomorow</h6>
-          <div className="bg-light p-2 border border-dashed rounded-top mb-3">
-            <div className="d-flex align-items-center justify-content-between">
-              <div className="d-flex align-items-center">
-                <a href="javascript:void(0);" className="avatar">
-                  <img src="assets/img/users/user-10.jpg" className="rounded-circle" alt="img" />
-                </a>
-                <div className="ms-2 overflow-hidden">
-                  <h6 className="fs-medium"><a href="javascript:void(0);">Mary Zeen</a></h6>
-                  <p className="fs-13">UI/UX Designer</p>
-                </div>
-              </div>
-              <a href="javascript:void(0);" className="btn btn-secondary btn-xs"><i className="ti ti-cake me-1" />Send</a>
-            </div>
-          </div>
-          <div className="bg-light p-2 border border-dashed rounded-top mb-3">
-            <div className="d-flex align-items-center justify-content-between">
-              <div className="d-flex align-items-center">
-                <a href="javascript:void(0);" className="avatar">
-                  <img src="assets/img/users/user-09.jpg" className="rounded-circle" alt="img" />
-                </a>
-                <div className="ms-2 overflow-hidden">
-                  <h6 className="fs-medium "><a href="javascript:void(0);">Antony Lewis</a></h6>
-                  <p className="fs-13">Android Developer</p>
-                </div>
-              </div>
-              <a href="javascript:void(0);" className="btn btn-secondary btn-xs"><i className="ti ti-cake me-1" />Send</a>
-            </div>
-          </div>
-          <h6 className="mb-2">25 Jan 2025</h6>
-          <div className="bg-light p-2 border border-dashed rounded-top mb-3">
-            <div className="d-flex align-items-center justify-content-between">
-              <div className="d-flex align-items-center">
-                <span className="avatar">
-                  <img src="assets/img/users/user-12.jpg" className="rounded-circle" alt="img" />
-                </span>
-                <div className="ms-2 overflow-hidden">
-                  <h6 className="fs-medium ">Doglas Martini</h6>
-                  <p className="fs-13">.Net Developer</p>
-                </div>
-              </div>
-              <a href="javascript:void(0);" className="btn btn-secondary btn-xs"><i className="ti ti-cake me-1" />Send</a>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-    {/* /Birthdays */}
+   
   </div>
   </div>
     </>
   );
 }
-
-
-
-
 
 

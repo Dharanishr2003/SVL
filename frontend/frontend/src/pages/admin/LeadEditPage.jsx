@@ -680,8 +680,8 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
     if (!Array.isArray(flowRules)) return null;
     const targetRule = flowRules.find(
       (rule) =>
-        String(rule?.status || "").trim().toLowerCase() ===
-        String(status || "").trim().toLowerCase(),
+        normalizeStatusLabelKey(rule?.status) ===
+        normalizeStatusLabelKey(status),
     );
     return targetRule?.handledByGroupId ?? null;
   };
@@ -733,59 +733,15 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
   };
 
   const openRequirementModal = (nextStatus = "") => {
-    setPendingRequirementStatus(String(nextStatus || "").trim());
-    setEditingRequirement(null);
-    setRequirementModalKey((k) => k + 1);
-    setShowRequirementModal(true);
-    setActiveTab("requirement");
-  };
-
-  const closeRequirementModal = () => {
-    setShowRequirementModal(false);
-    setEditingRequirement(null);
-    setPendingRequirementStatus("");
-  };
-
-  const handleRequirementSaved = async () => {
-    await refreshRequirements("Lead status updated");
-    const nextStatus = String(pendingRequirementStatus || "").trim();
-    if (!nextStatus) {
-      setPendingRequirementStatus("");
-      return;
-    }
-
-    if (normalizeKey(nextStatus) === "requirement") {
-      setPendingRequirementStatus("");
-      return;
-    }
-
-    if (normalizeKey(lead?.status) === normalizeKey(nextStatus)) {
-      setPendingRequirementStatus("");
-      return;
-    }
-
-    try {
-      const nextGroupId = resolveNextGroupIdForStatus(nextStatus);
-      const updatedLead = await updateLeadRowStatus(lead.id, nextStatus, nextGroupId);
-      setLead((prev) => ({ ...(prev || {}), ...updatedLead }));
-      setStatusValue(nextStatus);
-      setActiveTab("requirement");
-      showSuccess("Lead status updated");
-    } catch (e) {
-      showError(extractApiErrorMessage(e, "Failed to update status"));
-    } finally {
-      setPendingRequirementStatus("");
-    }
+    navigate(`/requirements/add?leadId=${id}`);
   };
 
   const openAddRequirementModal = () => {
-    openRequirementModal("");
+    navigate(`/requirements/add?leadId=${id}`);
   };
 
   const openEditRequirementModal = (requirement) => {
-    setEditingRequirement(requirement || null);
-    setRequirementModalKey((k) => k + 1);
-    setShowRequirementModal(true);
+    navigate(`/requirements/${requirement.id}/edit?leadId=${id}`);
   };
 
   const handleDeleteRequirement = async (requirement) => {
@@ -801,9 +757,7 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
     }
   };
 
-  const normalizeKey = (s) => String(s || "").trim().toLowerCase();
-  // include the new "requirement" stage so that when a lead is in
-  // requirement status all earlier tabs (attempted/interested/etc.) keep
+  const normalizeKey = (s) => normalizeStatusLabelKey(s);
   // appearing.  the stage order reflects progression through the flow.
   const leadStageOrder = [
     "new lead",
@@ -1414,7 +1368,7 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
   })();
 
   const allowedStatusOptions = (() => {
-    const current = String(lead?.status || "").trim().toLowerCase();
+    const current = normalizeStatusLabelKey(lead?.status);
     if (!current) {
       return orderedLeadStatuses;
     }
@@ -1423,7 +1377,7 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
     const rule = Array.isArray(flowRules)
       ? flowRules.find(
           (r) =>
-            String(r?.status || "").trim().toLowerCase() === current,
+            normalizeStatusLabelKey(r?.status) === current,
         )
       : null;
     
@@ -3667,15 +3621,6 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
         </div>
       )}
 
-      <RequirementFormModal
-        show={showRequirementModal}
-        onClose={closeRequirementModal}
-        leadId={lead?.id}
-        onSaved={handleRequirementSaved}
-        initialRequirement={editingRequirement}
-        serviceCategories={serviceCategories}
-        serviceTypes={serviceTypes}
-      />
 
       <AddressFormModal
         show={showAddAddressModal}

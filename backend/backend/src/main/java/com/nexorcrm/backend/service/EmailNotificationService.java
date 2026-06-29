@@ -7,6 +7,7 @@ import org.springframework.mail.MailAuthenticationException;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.JavaMailSenderImpl;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.slf4j.Logger;
@@ -57,6 +58,7 @@ public class EmailNotificationService {
         sendEmailInternal(toAddress, "Test Email", "This is a test email from SVL ERP.", true);
     }
 
+    @Async
     public void notifyIfAllowed(String recipientEmail, String subject, String body) {
         if (!isMailEnabled()) {
             log.warn("Email notifications disabled (app.mail.enabled=false). Skipping email to {}.", recipientEmail);
@@ -96,6 +98,7 @@ public class EmailNotificationService {
      * Sends an email immediately when mail is enabled, skipping cooldown checks.
      * Useful for admin-triggered onboarding emails (e.g., offer letter).
      */
+    @Async
     public void notifyNowIfEnabled(String recipientEmail, String subject, String body) {
         if (!isMailEnabled()) {
             log.warn("Email notifications disabled (app.mail.enabled=false). Skipping email to {}.", recipientEmail);
