@@ -453,123 +453,146 @@ public class UserGroupService {
     }
 
     @Transactional(readOnly = true)
-    public List<UserGroupAssignableUserResponse> listAssignableUsers(String actorPrincipal, Long groupId, List<String> teamNames) {
+    public List<UserGroupAssignableUserResponse> listAssignableUsers(
+            String actorPrincipal,
+            Long groupId,
+            List<String> teamNames,
+            String paramInstitutionName,
+            List<String> paramDepartmentNames,
+            String paramMemberScope
+    ) {
         User actor = resolveActor(actorPrincipal);
         assertCanManageGroups(actor);
 
         List<User> candidates;
         List<String> scopedTeams;
         UserGroup group = null;
-        UserGroupMemberScope memberScope = UserGroupMemberScope.NONE;
-        List<Role> allowedRoles = List.of(Role.MANAGER, Role.TEAM_LEAD, Role.EMPLOYEE);
         if (groupId != null) {
             group = userGroupRepository.findById(groupId)
                     .orElseThrow(() -> new EntityNotFoundException("User group not found"));
             assertCanAccessGroup(actor, group);
+        }
+
+        // Determine memberScope
+        UserGroupMemberScope memberScope = UserGroupMemberScope.NONE;
+        if (StringUtils.hasText(paramMemberScope)) {
+            try {
+                memberScope = UserGroupMemberScope.valueOf(paramMemberScope.toUpperCase());
+            } catch (IllegalArgumentException e) {
+                // ignore, keep NONE
+            }
+        } else if (group != null) {
             memberScope = group.getMemberScope() == null ? UserGroupMemberScope.NONE : group.getMemberScope();
-            allowedRoles = allowedRolesForMemberScope(memberScope);
-            if (memberScope == UserGroupMemberScope.NONE && actor.getRole() == Role.SUPER_ADMIN) {
-                allowedRoles = List.of(Role.ADMIN, Role.MANAGER, Role.TEAM_LEAD, Role.EMPLOYEE);
-            }
-            if (actor.getRole() == Role.SUPER_ADMIN) {
-                if (!StringUtils.hasText(group.getInstitutionName())) {
-                    return List.of();
-                }
-                scopedTeams = parseTeamNames(group);
-                List<String> normalizedTeamNames = scopedTeams.stream()
-                        .map(this::normalizeLower)
-                        .toList();
-                List<String> groupDepartments = parseDepartmentNamesCsv(group.getDepartmentName());
-                if (memberScope == UserGroupMemberScope.ADMINS || groupDepartments.isEmpty()) {
-                    candidates = userRepository.findActiveByRoleInAndBranchScope(
-                            allowedRoles,
-                            ActivationStatus.ACTIVE,
-                            group.getInstitutionName()
-                    );
-                } else if (memberScope == UserGroupMemberScope.MANAGERS || normalizedTeamNames.isEmpty()) {
-                    candidates = List.of();
-                    for (String departmentName : groupDepartments) {
-                        candidates = mergeUsers(candidates, userRepository.findActiveByRoleInAndDepartmentScope(
-                                allowedRoles,
-                                ActivationStatus.ACTIVE,
-                                group.getInstitutionName(),
-                                departmentName
-                        ));
-                    }
-                } else {
-                    candidates = List.of();
-                    for (String departmentName : groupDepartments) {
-                        candidates = mergeUsers(candidates, userRepository.findActiveByRoleInAndDepartmentScopeAndTeamNameIn(
-                                allowedRoles,
-                                ActivationStatus.ACTIVE,
-                                group.getInstitutionName(),
-                                departmentName,
-                                normalizedTeamNames
-                        ));
-                    }
-                }
-                return candidates.stream()
-                        .map(this::toAssignableUserResponse)
-                        .toList();
-            }
-            if (actor.getRole() == Role.ADMIN) {
-                List<String> groupDepartments = parseDepartmentNamesCsv(group.getDepartmentName());
-                if (memberScope == UserGroupMemberScope.ADMINS || groupDepartments.isEmpty()) {
-                    candidates = userRepository.findActiveByRoleInAndBranchScope(
-                            allowedRoles,
-                            ActivationStatus.ACTIVE,
-                            actor.getInstitutionName()
-                    );
-                } else if (memberScope == UserGroupMemberScope.MANAGERS) {
-                    candidates = List.of();
-                    for (String departmentName : groupDepartments) {
-                        candidates = mergeUsers(candidates, userRepository.findActiveByRoleInAndDepartmentScope(
-                                allowedRoles,
-                                ActivationStatus.ACTIVE,
-                                actor.getInstitutionName(),
-                                departmentName
-                        ));
-                    }
-                } else {
-                    scopedTeams = parseTeamNames(group);
-                    if (scopedTeams.isEmpty()) {
-                        return List.of();
-                    }
-                    candidates = List.of();
-                    List<String> normalizedTeams = scopedTeams.stream().map(this::normalizeLower).toList();
-                    for (String departmentName : groupDepartments) {
-                        candidates = mergeUsers(candidates, userRepository.findActiveByRoleInAndDepartmentScopeAndTeamNameIn(
-                                allowedRoles,
-                                ActivationStatus.ACTIVE,
-                                actor.getInstitutionName(),
-                                departmentName,
-                                normalizedTeams
-                        ));
-                    }
-                }
-                return candidates.stream()
-                        .map(this::toAssignableUserResponse)
-                        .toList();
-            }
+        }
+
+        List<Role> allowedRoles = allowedRolesForMemberScope(memberScope);
+        if (memberScope == UserGroupMemberScope.NONE && actor.getRole() == Role.SUPER_ADMIN) {
+            allowedRoles = List.of(Role.ADMIN, Role.MANAGER, Role.TEAM_LEAD, Role.EMPLOYEE);
+        }
+
+        // Determine institutionName
+        String institutionName = null;
+        if (StringUtils.hasText(paramInstitutionName)) {
+            institutionName = paramInstitutionName;
+        } else if (group != null) {
+            institutionName = group.getInstitutionName();
+        }
+
+        // Determine scopedTeams
+        if (teamNames != null) {
+            scopedTeams = teamNames;
+        } else if (group != null) {
             scopedTeams = parseTeamNames(group);
         } else {
-            scopedTeams = resolveScopedTeamsForActor(actor, teamNames, false, null);
-            if (actor.getRole() == Role.SUPER_ADMIN) {
+            scopedTeams = List.of();
+        }
+
+        // Determine departmentNames
+        List<String> groupDepartments;
+        if (paramDepartmentNames != null) {
+            groupDepartments = paramDepartmentNames;
+        } else if (group != null) {
+            groupDepartments = parseDepartmentNamesCsv(group.getDepartmentName());
+        } else {
+            groupDepartments = List.of();
+        }
+
+        if (actor.getRole() == Role.SUPER_ADMIN) {
+            if (!StringUtils.hasText(institutionName)) {
+                return List.of();
+            }
+            List<String> normalizedTeamNames = scopedTeams.stream()
+                    .map(this::normalizeLower)
+                    .toList();
+            if (memberScope == UserGroupMemberScope.ADMINS || groupDepartments.isEmpty()) {
+                candidates = userRepository.findActiveByRoleInAndBranchScope(
+                        allowedRoles,
+                        ActivationStatus.ACTIVE,
+                        institutionName
+                );
+            } else if (memberScope == UserGroupMemberScope.MANAGERS || normalizedTeamNames.isEmpty()) {
+                candidates = List.of();
+                for (String departmentName : groupDepartments) {
+                    candidates = mergeUsers(candidates, userRepository.findActiveByRoleInAndDepartmentScope(
+                            allowedRoles,
+                            ActivationStatus.ACTIVE,
+                            institutionName,
+                            departmentName
+                    ));
+                }
+            } else {
+                candidates = List.of();
+                for (String departmentName : groupDepartments) {
+                    candidates = mergeUsers(candidates, userRepository.findActiveByRoleInAndDepartmentScopeAndTeamNameIn(
+                            allowedRoles,
+                            ActivationStatus.ACTIVE,
+                            institutionName,
+                            departmentName,
+                            normalizedTeamNames
+                    ));
+                }
+            }
+            return candidates.stream()
+                    .map(this::toAssignableUserResponse)
+                    .toList();
+        }
+
+        if (actor.getRole() == Role.ADMIN) {
+            if (memberScope == UserGroupMemberScope.ADMINS || groupDepartments.isEmpty()) {
+                candidates = userRepository.findActiveByRoleInAndBranchScope(
+                        allowedRoles,
+                        ActivationStatus.ACTIVE,
+                        actor.getInstitutionName()
+                );
+            } else if (memberScope == UserGroupMemberScope.MANAGERS) {
+                candidates = List.of();
+                for (String departmentName : groupDepartments) {
+                    candidates = mergeUsers(candidates, userRepository.findActiveByRoleInAndDepartmentScope(
+                            allowedRoles,
+                            ActivationStatus.ACTIVE,
+                            actor.getInstitutionName(),
+                            departmentName
+                    ));
+                }
+            } else {
                 if (scopedTeams.isEmpty()) {
                     return List.of();
                 }
-                List<String> normalizedTeamNames = scopedTeams.stream()
-                        .map(this::normalizeLower)
-                        .toList();
-                candidates = userRepository.findActiveByRoleInAndTeamNameIn(
-                        List.of(Role.ADMIN, Role.MANAGER, Role.TEAM_LEAD, Role.EMPLOYEE),
-                        ActivationStatus.ACTIVE,
-                        normalizedTeamNames
-                );
-                return candidates.stream()
-                        .map(this::toAssignableUserResponse)
-                        .toList();
+                candidates = List.of();
+                List<String> normalizedTeams = scopedTeams.stream().map(this::normalizeLower).toList();
+                for (String departmentName : groupDepartments) {
+                    candidates = mergeUsers(candidates, userRepository.findActiveByRoleInAndDepartmentScopeAndTeamNameIn(
+                            allowedRoles,
+                            ActivationStatus.ACTIVE,
+                            actor.getInstitutionName(),
+                            departmentName,
+                            normalizedTeams
+                    ));
+                }
             }
+            return candidates.stream()
+                    .map(this::toAssignableUserResponse)
+                    .toList();
         }
 
         if (scopedTeams.isEmpty()) {

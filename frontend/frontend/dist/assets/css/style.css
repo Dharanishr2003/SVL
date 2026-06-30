@@ -15173,6 +15173,16 @@ button.swal2-cancel {
   -ms-transition: all 0.2s ease;
   transition: all 0.2s ease;
 }
+.sidebar .sidebar-menu > ul > li.submenu.parent-active > a .menu-arrow,
+.sidebar .sidebar-menu > ul > li.submenu > a.subdrop .menu-arrow {
+  top: 47%;
+}
+.sidebar .sidebar-menu > ul > li.submenu > a {
+  padding-right: 36px;
+}
+.sidebar .sidebar-menu > ul > li.submenu > a .menu-arrow {
+  right: 14px;
+}
 .sidebar .sidebar-menu .menu-arrow::before {
   height: 6px;
   width: 6px;
@@ -15183,8 +15193,10 @@ button.swal2-cancel {
   border-bottom: 2px solid #111827;
   transform: rotate(45deg);
   position: absolute;
-  left: 5px;
-  top: 5px;
+  left: 50%;
+  top: 50%;
+  -webkit-transform: translate(-50%, -50%) rotate(45deg);
+  transform: translate(-50%, -50%) rotate(45deg);
 }
 .sidebar .sidebar-menu .menu-arrow.inside-submenu {
   right: 10px;
@@ -28497,6 +28509,16 @@ span.flatpickr-weekday {
   color: #F26522 !important;
   border-radius: 5px !important;
   box-shadow: none !important;
+}
+#sidebar .sidebar-menu > ul > li.submenu.parent-active > a .menu-arrow,
+#sidebar .sidebar-menu > ul > li.submenu > a.subdrop .menu-arrow,
+#sidebar .sidebar-menu > ul > li.submenu > a.active .menu-arrow {
+  position: static;
+  margin-left: auto;
+  margin-right: 2px;
+  transform: rotate(180deg) !important;
+  -webkit-transform: rotate(180deg) !important;
+  -ms-transform: rotate(180deg) !important;
 }
 #sidebar .sidebar-menu > ul > li.leaf-active > a i,
 #sidebar .sidebar-menu > ul > li.leaf-active > a svg,

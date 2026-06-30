@@ -392,6 +392,15 @@ export default function StockItemPage() {
             <div className="d-flex align-items-center gap-2">
               <button
                 type="button"
+                className="btn btn-outline-primary d-flex align-items-center gap-2"
+                onClick={() => navigate("/stocks/item/import")}
+                style={{ fontWeight: "600", padding: "10px 20px", borderRadius: "10px" }}
+              >
+                <i className="ti ti-upload" style={{ fontSize: "1.1rem" }}></i>
+                Import Items
+              </button>
+              <button
+                type="button"
                 className="btn btn-primary d-flex align-items-center gap-2"
                 onClick={handleOpenAddModal}
                 style={{ backgroundColor: "#3b82f6", borderColor: "#3b82f6", fontWeight: "600", padding: "10px 20px", borderRadius: "10px" }}

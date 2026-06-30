@@ -1083,7 +1083,7 @@ export default function AdminDashboardPage() {
   </div>
   <div className="row">
     {/* Sales Overview */}
-    <div className="col-xl-7 d-flex">
+    {/* <div className="col-xl-7 d-flex">
       <div className="card flex-fill">
         <div className="card-header pb-2 d-flex align-items-center justify-content-between flex-wrap">
           <h5 className="mb-2">Sales Overview</h5>
@@ -1117,10 +1117,10 @@ export default function AdminDashboardPage() {
           <div id="sales-income" />
         </div>
       </div>
-    </div>
+    </div> */}
     {/* /Sales Overview */}
     {/* Invoices */}
-    <div className="col-xl-5 d-flex">
+    {/* <div className="col-xl-5 d-flex">
       <div className="card flex-fill">
         <div className="card-header pb-2 d-flex align-items-center justify-content-between flex-wrap">
           <h5 className="mb-2">Invoices</h5>
@@ -1269,7 +1269,7 @@ export default function AdminDashboardPage() {
           <a href="invoice.php" className="btn btn-light btn-md w-100 mt-2">View All</a>
         </div>
       </div>
-    </div>
+    </div> */}
     {/* /Invoices */}
   </div>
   <div className="row">

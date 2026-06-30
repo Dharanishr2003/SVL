@@ -2749,6 +2749,26 @@ table.dataTable.dtr-inline.collapsed
     background: #ffffff !important;
     color: #111827 !important;
 }
+
+/* Keep the top-level active dropdown caret centered with the label text. */
+#sidebar .sidebar-inner .sidebar-menu > ul > li.submenu.parent-active > a .menu-arrow,
+#sidebar .sidebar-inner .sidebar-menu > ul > li.submenu > a.subdrop .menu-arrow,
+#sidebar .sidebar-inner .sidebar-menu > ul > li.submenu > a.active .menu-arrow {
+    position: static !important;
+    margin-left: auto !important;
+    margin-right: 2px !important;
+    transform: none !important;
+    -webkit-transform: none !important;
+    -ms-transform: none !important;
+    align-self: center !important;
+}
+
+#sidebar .sidebar-inner .sidebar-menu > ul > li.submenu.parent-active > a .menu-arrow::before,
+#sidebar .sidebar-inner .sidebar-menu > ul > li.submenu > a.subdrop .menu-arrow::before,
+#sidebar .sidebar-inner .sidebar-menu > ul > li.submenu > a.active .menu-arrow::before {
+    transform: rotate(225deg) !important;
+    -webkit-transform: rotate(225deg) !important;
+    -ms-transform: rotate(225deg) !important;
 }
 
 /* Global orange scrollbars for all pages, scrollable lists, and tables */

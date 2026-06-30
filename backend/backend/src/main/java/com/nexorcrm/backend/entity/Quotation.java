@@ -25,7 +25,7 @@ public class Quotation {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "lead_id", nullable = false)
+    @Column(name = "lead_id")
     private Long leadId;
 
     @Column(name = "quotation_number", nullable = false, unique = true, length = 50)

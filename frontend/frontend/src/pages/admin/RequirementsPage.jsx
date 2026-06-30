@@ -680,15 +680,19 @@ ${rowsHtml}
                               type="button"
                               className="btn btn-sm btn-outline-primary"
                               onClick={() => openEditRequirementModal(selectedLead, req)}
+                              title="Edit"
+                              style={{ width: "32px", height: "32px", padding: 0, display: "inline-flex", alignItems: "center", justifyContent: "center" }}
                             >
-                              Edit
+                              <i className="ti ti-pencil" style={{ fontSize: "0.95rem" }} />
                             </button>
                             <button
                               type="button"
                               className="btn btn-sm btn-outline-danger"
                               onClick={() => handleDeleteRequirement(selectedLead, req)}
+                              title="Delete"
+                              style={{ width: "32px", height: "32px", padding: 0, display: "inline-flex", alignItems: "center", justifyContent: "center" }}
                             >
-                              Delete
+                              <i className="ti ti-trash" style={{ fontSize: "0.95rem" }} />
                             </button>
                           </div>
                         </td>

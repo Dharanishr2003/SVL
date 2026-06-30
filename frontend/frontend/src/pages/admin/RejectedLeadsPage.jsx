@@ -309,7 +309,7 @@ ${rowsHtml}
             />
           </div>
 
-          <div className="table-responsive leads-table-wrap border-0 shadow-sm mb-4" style={{ borderRadius: 12 }}>
+          <div className="table-responsive leads-table-wrap border-0 shadow-sm mb-4" style={{ borderRadius: 12, overflowX: "auto" }}>
             <table className="table table-hover align-middle leads-table mb-0">
               <thead>
                 <tr>
@@ -345,24 +345,26 @@ ${rowsHtml}
                         <span className="badge bg-danger">Rejected</span>
                       </td>
                       <td style={{ fontSize: "0.9rem" }}>{row.owner || row.ownerName || "-"}</td>
-                      <td style={{ fontSize: "0.9rem" }}>{row.createdAt || "-"}</td>
+                      <td style={{ fontSize: "0.9rem" }}>{row.createdAt ? new Date(row.createdAt).toLocaleString() : "-"}</td>
                       <td>
                         <div className="d-flex gap-2">
                           <button
-                            className="btn btn-sm btn-outline-primary"
-                            style={{ borderRadius: 8, fontWeight: "600" }}
+                            className="btn btn-sm btn-outline-primary d-inline-flex align-items-center justify-content-center"
+                            style={{ borderRadius: 8, width: 32, height: 32, padding: 0 }}
                             onClick={() => handleConvert(row)}
                             disabled={saving}
+                            title="Convert"
                           >
-                            Convert
+                            <i className="ti ti-refresh" />
                           </button>
                           <button
-                            className="btn btn-sm btn-outline-danger"
-                            style={{ borderRadius: 8, fontWeight: "600" }}
+                            className="btn btn-sm btn-outline-danger d-inline-flex align-items-center justify-content-center"
+                            style={{ borderRadius: 8, width: 32, height: 32, padding: 0 }}
                             onClick={() => handleDelete(row)}
                             disabled={saving}
+                            title="Delete"
                           >
-                            Delete
+                            <i className="ti ti-trash" />
                           </button>
                         </div>
                       </td>

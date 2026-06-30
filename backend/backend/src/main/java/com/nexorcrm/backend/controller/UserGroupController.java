@@ -58,9 +58,19 @@ public class UserGroupController {
     public List<UserGroupAssignableUserResponse> listAssignableUsers(
             @RequestParam(value = "groupId", required = false) Long groupId,
             @RequestParam(value = "teams", required = false) List<String> teams,
+            @RequestParam(value = "institutionName", required = false) String institutionName,
+            @RequestParam(value = "departmentNames", required = false) List<String> departmentNames,
+            @RequestParam(value = "memberScope", required = false) String memberScope,
             Authentication authentication
     ) {
-        return userGroupService.listAssignableUsers(authentication.getName(), groupId, teams);
+        return userGroupService.listAssignableUsers(
+                authentication.getName(),
+                groupId,
+                teams,
+                institutionName,
+                departmentNames,
+                memberScope
+        );
     }
 
     @GetMapping("/assignable-teams")

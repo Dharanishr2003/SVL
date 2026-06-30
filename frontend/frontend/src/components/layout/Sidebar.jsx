@@ -133,11 +133,13 @@ export default function Sidebar() {
     () => findOpenSubmenuKey(visibleSections, location.pathname),
     [visibleSections, location.pathname],
   );
-  const [transientOpenSubmenuKey, setTransientOpenSubmenuKey] = useState(null);
+  const [openSubmenuKey, setOpenSubmenuKey] = useState(null);
+  const [isActiveMenuClosed, setIsActiveMenuClosed] = useState(false);
 
   useEffect(() => {
-    setTransientOpenSubmenuKey(null);
-  }, [location.pathname]);
+    setIsActiveMenuClosed(false);
+    setOpenSubmenuKey(null);
+  }, [activeSubmenuKey]);
 
   useEffect(() => {
     return attachAdminNavigationHandlers(containerRef.current, navigate);
@@ -183,7 +185,7 @@ export default function Sidebar() {
         scrollSyncFrameRef.current = null;
       }
     };
-  }, [location.pathname, activeSubmenuKey, transientOpenSubmenuKey, visibleSections]);
+  }, [location.pathname, visibleSections]);
 
   const isItemActive = (item) => matchesRoute(location.pathname, item?.href);
 
@@ -207,7 +209,7 @@ export default function Sidebar() {
       const isOpen = visibleChildren.length > 0
         ? (
             level === 0
-              ? activeSubmenuKey === itemKey || transientOpenSubmenuKey === itemKey
+              ? (itemKey === activeSubmenuKey ? !isActiveMenuClosed : openSubmenuKey === itemKey)
               : hasActiveDescendant(item)
           )
         : false;
@@ -223,8 +225,11 @@ export default function Sidebar() {
                 e.preventDefault();
                 e.stopPropagation();
                 if (level !== 0) return;
-                if (activeSubmenuKey === itemKey) return;
-                setTransientOpenSubmenuKey((prev) => (prev === itemKey ? null : itemKey));
+                if (itemKey === activeSubmenuKey) {
+                  setIsActiveMenuClosed((prev) => !prev);
+                } else {
+                  setOpenSubmenuKey((prev) => (prev === itemKey ? null : itemKey));
+                }
               }}
               aria-expanded={isOpen}
             >
@@ -234,7 +239,7 @@ export default function Sidebar() {
             </a>
             <ul
               className={shouldAnimatePanel ? `sidebar-submenu-panel${isOpen ? " is-open" : ""}` : ""}
-              style={shouldAnimatePanel ? undefined : { display: isOpen ? "block" : "none" }}
+              style={{ display: isOpen ? "block" : "none" }}
               aria-hidden={!isOpen}
             >
               {renderItems(visibleChildren, sectionKey, level + 1)}

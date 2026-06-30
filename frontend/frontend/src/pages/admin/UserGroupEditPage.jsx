@@ -258,15 +258,28 @@ export default function UserGroupEditPage() {
     };
   }, [group?.id, showError]);
 
+  const deptNamesString = useMemo(
+    () => selectedDepartments.map((d) => String(d.name || "")).sort().join(","),
+    [selectedDepartments]
+  );
+
+  const teamNamesString = useMemo(
+    () => selectedTeamNames.sort().join(","),
+    [selectedTeamNames]
+  );
+
   useEffect(() => {
     let isMounted = true;
     const loadAssignableBySelectedTeams = async () => {
       if (!group?.id) return;
       try {
-        const params =
-          selectedTeamNames.length > 0
-            ? { groupId: group.id, teams: selectedTeamNames }
-            : { groupId: group.id };
+        const params = {
+          groupId: group.id,
+          teams: selectedTeamNames,
+          institutionName: selectedBranch?.name || "",
+          departmentNames: selectedDepartments.map((d) => String(d.name || "")).filter(Boolean),
+          memberScope: selectedMemberScope,
+        };
         const rows = await getAssignableUsersForGroup(params);
         if (!isMounted) return;
         setAssignableUsers(Array.isArray(rows) ? rows : []);
@@ -280,7 +293,7 @@ export default function UserGroupEditPage() {
     return () => {
       isMounted = false;
     };
-  }, [group?.id, selectedTeamNames, showError]);
+  }, [group?.id, selectedBranch?.name, deptNamesString, teamNamesString, selectedMemberScope, showError]);
 
   useEffect(() => {
     let isMounted = true;

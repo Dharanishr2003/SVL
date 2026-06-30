@@ -192,6 +192,10 @@ export const adminPhpRoutes = [
     component: "StockItemPage",
   },
   {
+    path: "stocks/item/import",
+    component: "StockItemImportPage",
+  },
+  {
     path: "stocks/categories",
     component: "StockCategoryPage",
   },

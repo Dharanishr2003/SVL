@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
-import { getLeadByCustomerUserId, getLeadById, getLeads } from "../../api/leadsApi";
+import { getLeadByCustomerUserId, getLeadById, getLeads, createLead, getAssignableLeadGroups } from "../../api/leadsApi";
+import { getPrimarySources } from "../../api/primarySourceApi";
 import { getRequirementsByLeadId } from "../../api/requirementApi";
 import { approveQuotation, getQuotationById, saveQuotation } from "../../api/quotationApi";
 import { getPriceList, normalizePriceListEntries } from "../../api/priceListApi";
@@ -1143,14 +1144,6 @@ export default function QuotationPage() {
   }
 
   function openAddModal(prefill) {
-    if (partyMode === "customer" && !resolvedLeadId) {
-      setConfigError(
-        customerLeadLoading
-          ? "Loading linked lead for this customer. Please wait and try again."
-          : "This customer is not linked to a lead yet, so items cannot be added."
-      );
-      return;
-    }
     setEditingItem(prefill ?? null);
     setConfigError("");
     setSaveMessage("");
@@ -1339,15 +1332,6 @@ export default function QuotationPage() {
 
     if (partyMode === "customer" && !selectedCustomer) {
       setConfigError("No customer selected. Cannot create quotation.");
-      return;
-    }
-
-    if (partyMode === "customer" && !resolvedLeadId) {
-      if (customerLeadLoading) {
-        setConfigError("Loading linked lead for this customer. Please wait and try again.");
-      } else {
-        setConfigError("This customer is not linked to a lead yet, so the quotation cannot be saved.");
-      }
       return;
     }
 
@@ -1673,13 +1657,10 @@ export default function QuotationPage() {
                   Quotation No. <span>{quotationNumber || "Generated on save"}</span>
                 </div>
               </div>
-              {selectedCustomer && !resolvedLeadId ? (
+              {selectedCustomer && customerLeadLoading ? (
                 <div className="qp-status-alert info mt-3">
                   <i className="ti ti-info-circle" style={{ fontSize: 16 }} />
-                  {customerLeadLoading
-                    ? "Loading the linked lead for this customer..."
-                    : "No linked lead was found for this customer account. A lead is required before items can be added or saved."
-                  }
+                  Loading the linked lead for this customer...
                 </div>
               ) : null}
             </div>
@@ -1687,7 +1668,7 @@ export default function QuotationPage() {
             <div className="qp-card">
               <div className="qp-card-label">Customer quotation note</div>
               <div className="qp-empty">
-                Select a customer account to load the linked lead snapshot. If no lead is linked, quotation creation is blocked until the customer is linked to a lead.
+                Select a customer account to load the linked lead snapshot (optional).
               </div>
             </div>
           </>
@@ -1862,7 +1843,7 @@ export default function QuotationPage() {
                 type="button"
                 className="qp-btn-ghost"
                 onClick={() => openAddModal()}
-                disabled={!canEditQuotation || (partyMode === "customer" && (!resolvedLeadId || customerLeadLoading))}
+                disabled={!canEditQuotation || (partyMode === "customer" && customerLeadLoading)}
               >
                 <i className="ti ti-plus" style={{ fontSize: 13 }} />
                 Add item

@@ -221,3 +221,20 @@ export async function deleteStockItem(id) {
   const resp = await api.delete(`/api/stocks/items/${id}`);
   return resp?.data || {};
 }
+
+export async function importStockItems(items) {
+  const results = [];
+  for (const item of items || []) {
+    try {
+      const saved = await createStockItem(item);
+      results.push({ ok: true, item: saved });
+    } catch (error) {
+      results.push({ ok: false, item, error });
+    }
+  }
+  return {
+    created: results.filter((result) => result.ok).length,
+    failed: results.filter((result) => !result.ok).length,
+    results,
+  };
+}

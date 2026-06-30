@@ -135,6 +135,10 @@ export function attachAdminNavigationHandlers(container, navigate, options = {})
       return false;
     }
 
+    if (submenuItem.closest("#sidebar-menu")) {
+      return false;
+    }
+
     const submenu = link.nextElementSibling;
     if (!(submenu instanceof HTMLElement) || submenu.tagName !== "UL") {
       return false;

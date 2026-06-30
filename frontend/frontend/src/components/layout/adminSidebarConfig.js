@@ -148,7 +148,7 @@ export const adminSidebarSections = [
                     { label: "Price List", href: "/services/price-list", accessAny: ["services", "price-list"] },
           { label: "Service Categories", href: "/services/service-categories", accessAny: ["services", "service-categories"] },
           { label: "Service Types", href: "/services/service-types", accessAny: ["services", "service-types"] },
-          { label: "Product Field Configuration", href: "/services/product-field-config", accessAny: ["services", "product-field-config"] },
+          { label: "Product Fields", href: "/services/product-field-config", accessAny: ["services", "product-field-config"] },
         ],
       },
     ],

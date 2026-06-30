@@ -637,11 +637,6 @@ export default function AddItemModal({
 
   async function handleConfirm() {
     console.log("leadId:", leadId);
-    if (!leadId) {
-      setError("No lead selected. Cannot save requirement.");
-      setSaving(false);
-      return;
-    }
     setError("");
     setSaving(true);
 

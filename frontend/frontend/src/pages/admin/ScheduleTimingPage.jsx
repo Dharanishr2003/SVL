@@ -61,8 +61,12 @@ const ScheduleTimingPage = () => {
   const [pageSizeLocations, setPageSizeLocations] = useState(10);
 
   const calculatedMinWorkMinutes = useMemo(
-    () => calculateShiftMinutes(shiftForm.startTime, shiftForm.endTime),
-    [shiftForm.startTime, shiftForm.endTime]
+    () => {
+      const totalShift = calculateShiftMinutes(shiftForm.startTime, shiftForm.endTime);
+      const deduct = (shiftForm.breakAllowedMinutes || 0) + (shiftForm.lunchAllowedMinutes || 0);
+      return Math.max(0, totalShift - deduct);
+    },
+    [shiftForm.startTime, shiftForm.endTime, shiftForm.breakAllowedMinutes, shiftForm.lunchAllowedMinutes]
   );
 
   /* ── Data loading ── */
@@ -385,39 +389,39 @@ const ScheduleTimingPage = () => {
                         <div className="row">
                           <div className="col-6 mb-3">
                             <label className="form-label">Break Allowed (min)</label>
-                            <input type="number" className="form-control" value={shiftForm.breakAllowedMinutes} onChange={e => setShiftForm(p => ({ ...p, breakAllowedMinutes: parseInt(e.target.value, 10) || 0 }))} />
+                            <input type="number" className="form-control" min="0" value={shiftForm.breakAllowedMinutes} onChange={e => setShiftForm(p => ({ ...p, breakAllowedMinutes: Math.max(0, parseInt(e.target.value, 10) || 0) }))} />
                           </div>
                           <div className="col-6 mb-3">
                             <label className="form-label">Break Grace (min)</label>
-                            <input type="number" className="form-control" value={shiftForm.breakGraceMinutes} onChange={e => setShiftForm(p => ({ ...p, breakGraceMinutes: parseInt(e.target.value, 10) || 0 }))} />
+                            <input type="number" className="form-control" min="0" value={shiftForm.breakGraceMinutes} onChange={e => setShiftForm(p => ({ ...p, breakGraceMinutes: Math.max(0, parseInt(e.target.value, 10) || 0) }))} />
                           </div>
                         </div>
                         <div className="row">
                           <div className="col-6 mb-3">
                             <label className="form-label">Lunch Allowed (min)</label>
-                            <input type="number" className="form-control" value={shiftForm.lunchAllowedMinutes} onChange={e => setShiftForm(p => ({ ...p, lunchAllowedMinutes: parseInt(e.target.value, 10) || 0 }))} />
+                            <input type="number" className="form-control" min="0" value={shiftForm.lunchAllowedMinutes} onChange={e => setShiftForm(p => ({ ...p, lunchAllowedMinutes: Math.max(0, parseInt(e.target.value, 10) || 0) }))} />
                           </div>
                           <div className="col-6 mb-3">
                             <label className="form-label">Lunch Grace (min)</label>
-                            <input type="number" className="form-control" value={shiftForm.lunchGraceMinutes} onChange={e => setShiftForm(p => ({ ...p, lunchGraceMinutes: parseInt(e.target.value, 10) || 0 }))} />
+                            <input type="number" className="form-control" min="0" value={shiftForm.lunchGraceMinutes} onChange={e => setShiftForm(p => ({ ...p, lunchGraceMinutes: Math.max(0, parseInt(e.target.value, 10) || 0) }))} />
                           </div>
                         </div>
                         <div className="mb-3">
                           <label className="form-label">Min Work (min)</label>
-                          <input type="number" className="form-control" value={calculatedMinWorkMinutes} readOnly />
+                          <input type="number" className="form-control" min="0" value={calculatedMinWorkMinutes} readOnly />
                         </div>
                         <div className="mb-3">
                           <label className="form-label">Max Overtime (min)</label>
-                          <input type="number" className="form-control" min="0" value={shiftForm.maxOvertimeMinutes} onChange={e => setShiftForm(p => ({ ...p, maxOvertimeMinutes: parseInt(e.target.value, 10) || 0 }))} />
+                          <input type="number" className="form-control" min="0" value={shiftForm.maxOvertimeMinutes} onChange={e => setShiftForm(p => ({ ...p, maxOvertimeMinutes: Math.max(0, parseInt(e.target.value, 10) || 0) }))} />
                         </div>
                         <div className="row">
                           <div className="col-6 mb-3">
                             <label className="form-label">Early Check-In (min before start)</label>
-                            <input type="number" className="form-control" value={shiftForm.earlyCheckinBufferMinutes} onChange={e => setShiftForm(p => ({ ...p, earlyCheckinBufferMinutes: parseInt(e.target.value, 10) || 0 }))} />
+                            <input type="number" className="form-control" min="0" value={shiftForm.earlyCheckinBufferMinutes} onChange={e => setShiftForm(p => ({ ...p, earlyCheckinBufferMinutes: Math.max(0, parseInt(e.target.value, 10) || 0) }))} />
                           </div>
                           <div className="col-6 mb-3">
                             <label className="form-label">Late Check-In (min after start)</label>
-                            <input type="number" className="form-control" value={shiftForm.lateCheckinBufferMinutes} onChange={e => setShiftForm(p => ({ ...p, lateCheckinBufferMinutes: parseInt(e.target.value, 10) || 0 }))} />
+                            <input type="number" className="form-control" min="0" value={shiftForm.lateCheckinBufferMinutes} onChange={e => setShiftForm(p => ({ ...p, lateCheckinBufferMinutes: Math.max(0, parseInt(e.target.value, 10) || 0) }))} />
                           </div>
                         </div>
 
@@ -598,7 +602,7 @@ const ScheduleTimingPage = () => {
                         )}
                         <div className="mb-3">
                           <label className="form-label">Radius (meters)</label>
-                          <input type="number" className="form-control" value={locForm.radiusMeters} onChange={e => setLocForm(p => ({ ...p, radiusMeters: e.target.value }))} />
+                          <input type="number" className="form-control" min="0" value={locForm.radiusMeters} onChange={e => setLocForm(p => ({ ...p, radiusMeters: Math.max(0, parseInt(e.target.value, 10) || 0) }))} />
                         </div>
                         <div className="d-flex gap-2">
                           <button type="submit" className="btn btn-primary">{editingLocId ? 'Update' : 'Create'}</button>

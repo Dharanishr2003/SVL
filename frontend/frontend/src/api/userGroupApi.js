@@ -63,10 +63,13 @@ export async function deleteUserGroup(groupId) {
   return true
 }
 
-export async function getAssignableUsersForGroup({ groupId, teams } = {}) {
+export async function getAssignableUsersForGroup({ groupId, teams, institutionName, departmentNames, memberScope } = {}) {
   const params = {}
   if (groupId != null) params.groupId = groupId
   if (Array.isArray(teams) && teams.length > 0) params.teams = teams
+  if (institutionName != null) params.institutionName = institutionName
+  if (Array.isArray(departmentNames) && departmentNames.length > 0) params.departmentNames = departmentNames
+  if (memberScope != null) params.memberScope = memberScope
   const response = await api.get('/api/user-groups/assignable-users', { params })
   const rows = Array.isArray(response?.data) ? response.data : []
   return rows.map((row) => ({
