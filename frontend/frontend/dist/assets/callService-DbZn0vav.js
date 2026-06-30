@@ -1,0 +1,1 @@
+import{a as e}from"./apiClient-HhiF0cv3.js";const t={getIncomingCall(){return e.get("/calls/incoming")},getOutgoingCall(){return e.get("/calls/outgoing")},getVoiceCall(){return e.get("/calls/voice")}};export{t as c};

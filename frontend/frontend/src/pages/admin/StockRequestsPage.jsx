@@ -32,8 +32,6 @@ export default function StockRequestsPage() {
 
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [creating, setCreating] = useState(false);
   const [editingRequest, setEditingRequest] = useState(null);
   const [updating, setUpdating] = useState(false);
   const [deletingRequestId, setDeletingRequestId] = useState(null);
@@ -404,36 +402,7 @@ export default function StockRequestsPage() {
     doc.save(`stock-requests-${Date.now()}.pdf`);
   };
 
-  const handleCreateSubmit = useCallback(
-    async ({ leadId, leadName, items }) => {
-      if (!leadId) return;
-      setCreating(true);
-      try {
-        const resolvedLeadName =
-          leadName || leadOptions.find((opt) => String(opt.id) === String(leadId))?.name || "";
-        const payload = {
-          leadId,
-          leadName: resolvedLeadName,
-          requestedBy: user?.id,
-          items,
-        };
-        const req = await createStockRequest(payload);
-        if (req?.id) {
-          showSuccess("Stock request routed to Accounts", {
-            title: "Stock Requests",
-          });
-          setShowCreateModal(false);
-          await load();
-        }
-      } catch (e) {
-        const message = extractApiErrorMessage(e, "Failed to create stock request");
-        showError(message, { title: "Stock Requests" });
-      } finally {
-        setCreating(false);
-      }
-    },
-    [leadOptions, load, showSuccess, user?.id],
-  );
+
 
   const openDetail = (req) => {
     navigate(`/stock-requests/${req.id}`);
@@ -535,7 +504,7 @@ export default function StockRequestsPage() {
                 type="button"
                 className="btn btn-primary create-lead-btn d-flex align-items-center gap-2"
                 style={{ backgroundColor: "#3b82f6", borderColor: "#3b82f6", fontWeight: "600", padding: "10px 20px", borderRadius: "10px" }}
-                onClick={() => setShowCreateModal(true)}
+                onClick={() => navigate("/stock-requests/create")}
               >
                 <i className="ti ti-plus" style={{ fontSize: "1.1rem" }}></i>
                 Create Request
@@ -720,17 +689,7 @@ export default function StockRequestsPage() {
         </div>
       </div>
 
-      <StockRequestFormModal
-        open={showCreateModal}
-        onClose={() => setShowCreateModal(false)}
-        onSubmit={handleCreateSubmit}
-        submitting={creating}
-        requireLeadId
-        title="Create Stock Request"
-        itemOptions={stockItems}
-        leadOptions={leadOptions}
-      />
-      
+
       <StockRequestFormModal
         open={Boolean(editingRequest)}
         onClose={closeEditModal}

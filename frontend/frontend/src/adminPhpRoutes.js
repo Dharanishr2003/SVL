@@ -200,6 +200,14 @@ export const adminPhpRoutes = [
     component: "StockCategoryPage",
   },
   {
+    path: "stocks/categories/add",
+    component: "StockCategoryFormPage",
+  },
+  {
+    path: "stocks/categories/edit/:id",
+    component: "StockCategoryFormPage",
+  },
+  {
     path: "stocks/vendors",
     component: "VendorMasterPage",
   },
@@ -648,6 +656,10 @@ export const adminPhpRoutes = [
   {
     path: "stock-requests",
     component: "StockRequestsPage",
+  },
+  {
+    path: "stock-requests/create",
+    component: "StockRequestCreatePage",
   },
   {
     path: "stock-requests/:id",

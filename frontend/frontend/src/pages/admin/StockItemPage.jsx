@@ -185,6 +185,14 @@ export default function StockItemPage() {
       showError("Select a category");
       return;
     }
+    if (Number(formData.quantity) < 0) {
+      showError("Quantity cannot be negative");
+      return;
+    }
+    if (Number(formData.minThreshold) < 0) {
+      showError("Minimum Threshold cannot be negative");
+      return;
+    }
     setSaving(true);
     try {
       const payload = {
@@ -756,6 +764,7 @@ export default function StockItemPage() {
                       <input
                         type="number"
                         className="form-control"
+                        min="0"
                         value={formData.quantity}
                         onChange={(e) => setFormData((p) => ({ ...p, quantity: e.target.value }))}
                         required
@@ -767,6 +776,7 @@ export default function StockItemPage() {
                       <input
                         type="number"
                         className="form-control"
+                        min="0"
                         value={formData.minThreshold}
                         onChange={(e) => setFormData((p) => ({ ...p, minThreshold: e.target.value }))}
                         required
@@ -840,6 +850,7 @@ export default function StockItemPage() {
                       <input
                         type="number"
                         className="form-control"
+                        min="0"
                         value={formData.quantity}
                         onChange={(e) => setFormData((p) => ({ ...p, quantity: e.target.value }))}
                         required
@@ -851,6 +862,7 @@ export default function StockItemPage() {
                       <input
                         type="number"
                         className="form-control"
+                        min="0"
                         value={formData.minThreshold}
                         onChange={(e) => setFormData((p) => ({ ...p, minThreshold: e.target.value }))}
                         required
