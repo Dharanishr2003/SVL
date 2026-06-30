@@ -60,11 +60,23 @@ public class Attendance {
     @Column(name = "break_time_minutes")
     private Integer breakTimeMinutes = 0;
 
+    @Column(name = "break1_time_minutes")
+    private Integer break1TimeMinutes = 0;
+
+    @Column(name = "break2_time_minutes")
+    private Integer break2TimeMinutes = 0;
+
     @Column(name = "lunch_time_minutes")
     private Integer lunchTimeMinutes = 0;
 
     @Column(name = "excess_break_minutes")
     private Integer excessBreakMinutes = 0;
+
+    @Column(name = "excess_break1_minutes")
+    private Integer excessBreak1Minutes = 0;
+
+    @Column(name = "excess_break2_minutes")
+    private Integer excessBreak2Minutes = 0;
 
     @Column(name = "excess_lunch_minutes")
     private Integer excessLunchMinutes = 0;
@@ -96,6 +108,9 @@ public class Attendance {
 
     @Column(nullable = false)
     private Boolean deleted = false;
+
+    @Column(name = "late_checkin_allowed")
+    private Boolean lateCheckinAllowed = false;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -165,11 +180,23 @@ public class Attendance {
     public Integer getBreakTimeMinutes() { return breakTimeMinutes; }
     public void setBreakTimeMinutes(Integer breakTimeMinutes) { this.breakTimeMinutes = breakTimeMinutes; }
 
+    public Integer getBreak1TimeMinutes() { return break1TimeMinutes; }
+    public void setBreak1TimeMinutes(Integer break1TimeMinutes) { this.break1TimeMinutes = break1TimeMinutes; }
+
+    public Integer getBreak2TimeMinutes() { return break2TimeMinutes; }
+    public void setBreak2TimeMinutes(Integer break2TimeMinutes) { this.break2TimeMinutes = break2TimeMinutes; }
+
     public Integer getLunchTimeMinutes() { return lunchTimeMinutes; }
     public void setLunchTimeMinutes(Integer lunchTimeMinutes) { this.lunchTimeMinutes = lunchTimeMinutes; }
 
     public Integer getExcessBreakMinutes() { return excessBreakMinutes; }
     public void setExcessBreakMinutes(Integer excessBreakMinutes) { this.excessBreakMinutes = excessBreakMinutes; }
+
+    public Integer getExcessBreak1Minutes() { return excessBreak1Minutes; }
+    public void setExcessBreak1Minutes(Integer excessBreak1Minutes) { this.excessBreak1Minutes = excessBreak1Minutes; }
+
+    public Integer getExcessBreak2Minutes() { return excessBreak2Minutes; }
+    public void setExcessBreak2Minutes(Integer excessBreak2Minutes) { this.excessBreak2Minutes = excessBreak2Minutes; }
 
     public Integer getExcessLunchMinutes() { return excessLunchMinutes; }
     public void setExcessLunchMinutes(Integer excessLunchMinutes) { this.excessLunchMinutes = excessLunchMinutes; }
@@ -206,4 +233,7 @@ public class Attendance {
 
     public LocalDateTime getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
+
+    public Boolean getLateCheckinAllowed() { return lateCheckinAllowed; }
+    public void setLateCheckinAllowed(Boolean lateCheckinAllowed) { this.lateCheckinAllowed = lateCheckinAllowed; }
 }

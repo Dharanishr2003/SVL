@@ -40,13 +40,38 @@ const ScheduleTimingPage = () => {
   const [activeTab, setActiveTab] = useState('shifts'); // shifts | locations
 
   /* shift form state */
-  const [shiftForm, setShiftForm] = useState({ name: '', startTime: '09:00', endTime: '18:00', breakAllowedMinutes: 15, breakGraceMinutes: 5, lunchAllowedMinutes: 60, lunchGraceMinutes: 10, minWorkMinutes: 480, isNightShift: false, earlyCheckinBufferMinutes: 30, lateCheckinBufferMinutes: 15, maxOvertimeMinutes: 120 });
+  const [shiftForm, setShiftForm] = useState({
+    name: '',
+    startTime: '09:00',
+    endTime: '18:00',
+    breakAllowedMinutes: 15,
+    breakGraceMinutes: 5,
+    break1StartTime: '',
+    break1EndTime: '',
+    break1AllowedMinutes: 15,
+    break1GraceMinutes: 5,
+    lunchStartTime: '',
+    lunchEndTime: '',
+    lunchAllowedMinutes: 60,
+    lunchGraceMinutes: 10,
+    break2StartTime: '',
+    break2EndTime: '',
+    break2AllowedMinutes: 15,
+    break2GraceMinutes: 5,
+    minWorkMinutes: 480,
+    isNightShift: false,
+    earlyCheckinBufferMinutes: 30,
+    lateCheckinBufferMinutes: 15,
+    maxOvertimeMinutes: 120
+  });
   const [editingShiftId, setEditingShiftId] = useState(null);
 
   /* location form state */
   const [locForm, setLocForm] = useState({ name: '', latitude: '', longitude: '', radiusMeters: 50 });
   const [editingLocId, setEditingLocId] = useState(null);
   const [locationModalVisible, setLocationModalVisible] = useState(false);
+  const [isShiftModalOpen, setIsShiftModalOpen] = useState(false);
+  const [isLocModalOpen, setIsLocModalOpen] = useState(false);
 
   // Pagination, Search, and Selection States for Shifts
   const [selectedShiftIds, setSelectedShiftIds] = useState(new Set());
@@ -63,10 +88,10 @@ const ScheduleTimingPage = () => {
   const calculatedMinWorkMinutes = useMemo(
     () => {
       const totalShift = calculateShiftMinutes(shiftForm.startTime, shiftForm.endTime);
-      const deduct = (shiftForm.breakAllowedMinutes || 0) + (shiftForm.lunchAllowedMinutes || 0);
+      const deduct = (shiftForm.break1AllowedMinutes || 0) + (shiftForm.lunchAllowedMinutes || 0) + (shiftForm.break2AllowedMinutes || 0);
       return Math.max(0, totalShift - deduct);
     },
-    [shiftForm.startTime, shiftForm.endTime, shiftForm.breakAllowedMinutes, shiftForm.lunchAllowedMinutes]
+    [shiftForm.startTime, shiftForm.endTime, shiftForm.break1AllowedMinutes, shiftForm.lunchAllowedMinutes, shiftForm.break2AllowedMinutes]
   );
 
   /* ── Data loading ── */
@@ -105,7 +130,15 @@ const ScheduleTimingPage = () => {
         await attendanceApi.createShift(payload);
       }
       setEditingShiftId(null);
-      setShiftForm({ name: '', startTime: '09:00', endTime: '18:00', breakAllowedMinutes: 15, breakGraceMinutes: 5, lunchAllowedMinutes: 60, lunchGraceMinutes: 10, minWorkMinutes: 480, isNightShift: false, earlyCheckinBufferMinutes: 30, lateCheckinBufferMinutes: 15, maxOvertimeMinutes: 120 });
+      setShiftForm({
+        name: '', startTime: '09:00', endTime: '18:00',
+        breakAllowedMinutes: 15, breakGraceMinutes: 5,
+        break1StartTime: '', break1EndTime: '', break1AllowedMinutes: 15, break1GraceMinutes: 5,
+        lunchStartTime: '', lunchEndTime: '', lunchAllowedMinutes: 60, lunchGraceMinutes: 10,
+        break2StartTime: '', break2EndTime: '', break2AllowedMinutes: 15, break2GraceMinutes: 5,
+        minWorkMinutes: 480, isNightShift: false, earlyCheckinBufferMinutes: 30, lateCheckinBufferMinutes: 15, maxOvertimeMinutes: 120
+      });
+      setIsShiftModalOpen(false);
       await loadData();
     } catch (e) {
       setError(e?.response?.data?.message || e.message || 'Shift save failed');
@@ -117,10 +150,16 @@ const ScheduleTimingPage = () => {
     setShiftForm({
       name: s.name || '', startTime: s.startTime || '09:00', endTime: s.endTime || '18:00',
       breakAllowedMinutes: s.breakAllowedMinutes ?? 15, breakGraceMinutes: s.breakGraceMinutes ?? 5,
+      break1StartTime: s.break1StartTime || '', break1EndTime: s.break1EndTime || '',
+      break1AllowedMinutes: s.break1AllowedMinutes ?? 15, break1GraceMinutes: s.break1GraceMinutes ?? 5,
+      lunchStartTime: s.lunchStartTime || '', lunchEndTime: s.lunchEndTime || '',
       lunchAllowedMinutes: s.lunchAllowedMinutes ?? 60, lunchGraceMinutes: s.lunchGraceMinutes ?? 10,
+      break2StartTime: s.break2StartTime || '', break2EndTime: s.break2EndTime || '',
+      break2AllowedMinutes: s.break2AllowedMinutes ?? 15, break2GraceMinutes: s.break2GraceMinutes ?? 5,
       minWorkMinutes: s.minWorkMinutes ?? calculateShiftMinutes(s.startTime, s.endTime), isNightShift: s.isNightShift ?? false,
       earlyCheckinBufferMinutes: s.earlyCheckinBufferMinutes ?? 30, lateCheckinBufferMinutes: s.lateCheckinBufferMinutes ?? 15, maxOvertimeMinutes: s.maxOvertimeMinutes ?? 120
     });
+    setIsShiftModalOpen(true);
   };
 
   const handleShiftDelete = async (id) => {
@@ -141,6 +180,7 @@ const ScheduleTimingPage = () => {
       }
       setEditingLocId(null);
       setLocForm({ name: '', latitude: '', longitude: '', radiusMeters: 50 });
+      setIsLocModalOpen(false);
       await loadData();
     } catch (e) {
       setError(e?.response?.data?.message || e.message || 'Location save failed');
@@ -150,6 +190,7 @@ const ScheduleTimingPage = () => {
   const handleLocEdit = (l) => {
     setEditingLocId(l.id);
     setLocForm({ name: l.name || '', latitude: l.latitude || '', longitude: l.longitude || '', radiusMeters: l.radiusMeters ?? 50 });
+    setIsLocModalOpen(true);
   };
 
   const handleLocDelete = async (id) => {
@@ -352,92 +393,8 @@ const ScheduleTimingPage = () => {
           <>
             {activeTab === 'shifts' && (
               <div className="row g-4">
-                {/* Shift Form */}
-                <div className="col-lg-5">
-                  <div className="card border-0 shadow-sm bg-white" style={{ borderRadius: 12 }}>
-                    <div className="card-header bg-white border-bottom py-3">
-                      <h5 className="fw-bold text-slate-800 mb-0">{editingShiftId ? 'Edit Shift' : 'Add Shift'}</h5>
-                    </div>
-                    <div className="card-body">
-                      <form onSubmit={handleShiftSave}>
-                        <div className="mb-3">
-                          <label className="form-label">Shift Name</label>
-                          <input type="text" className="form-control" required value={shiftForm.name} onChange={e => setShiftForm(p => ({ ...p, name: e.target.value }))} />
-                        </div>
-                        <div className="row">
-                          <div className="col-6 mb-3">
-                            <label className="form-label">Start Time</label>
-                            <input type="time" className="form-control" required value={shiftForm.startTime} onChange={e => setShiftForm(p => ({ ...p, startTime: e.target.value }))} />
-                          </div>
-                          <div className="col-6 mb-3">
-                            <label className="form-label">End Time</label>
-                            <input
-                              type="time"
-                              className="form-control"
-                              required
-                              value={shiftForm.endTime}
-                              onChange={e =>
-                                setShiftForm((p) => ({
-                                  ...p,
-                                  endTime: e.target.value,
-                                  minWorkMinutes: calculateShiftMinutes(p.startTime, e.target.value),
-                                }))
-                              }
-                            />
-                          </div>
-                        </div>
-                        <div className="row">
-                          <div className="col-6 mb-3">
-                            <label className="form-label">Break Allowed (min)</label>
-                            <input type="number" className="form-control" min="0" value={shiftForm.breakAllowedMinutes} onChange={e => setShiftForm(p => ({ ...p, breakAllowedMinutes: Math.max(0, parseInt(e.target.value, 10) || 0) }))} />
-                          </div>
-                          <div className="col-6 mb-3">
-                            <label className="form-label">Break Grace (min)</label>
-                            <input type="number" className="form-control" min="0" value={shiftForm.breakGraceMinutes} onChange={e => setShiftForm(p => ({ ...p, breakGraceMinutes: Math.max(0, parseInt(e.target.value, 10) || 0) }))} />
-                          </div>
-                        </div>
-                        <div className="row">
-                          <div className="col-6 mb-3">
-                            <label className="form-label">Lunch Allowed (min)</label>
-                            <input type="number" className="form-control" min="0" value={shiftForm.lunchAllowedMinutes} onChange={e => setShiftForm(p => ({ ...p, lunchAllowedMinutes: Math.max(0, parseInt(e.target.value, 10) || 0) }))} />
-                          </div>
-                          <div className="col-6 mb-3">
-                            <label className="form-label">Lunch Grace (min)</label>
-                            <input type="number" className="form-control" min="0" value={shiftForm.lunchGraceMinutes} onChange={e => setShiftForm(p => ({ ...p, lunchGraceMinutes: Math.max(0, parseInt(e.target.value, 10) || 0) }))} />
-                          </div>
-                        </div>
-                        <div className="mb-3">
-                          <label className="form-label">Min Work (min)</label>
-                          <input type="number" className="form-control" min="0" value={calculatedMinWorkMinutes} readOnly />
-                        </div>
-                        <div className="mb-3">
-                          <label className="form-label">Max Overtime (min)</label>
-                          <input type="number" className="form-control" min="0" value={shiftForm.maxOvertimeMinutes} onChange={e => setShiftForm(p => ({ ...p, maxOvertimeMinutes: Math.max(0, parseInt(e.target.value, 10) || 0) }))} />
-                        </div>
-                        <div className="row">
-                          <div className="col-6 mb-3">
-                            <label className="form-label">Early Check-In (min before start)</label>
-                            <input type="number" className="form-control" min="0" value={shiftForm.earlyCheckinBufferMinutes} onChange={e => setShiftForm(p => ({ ...p, earlyCheckinBufferMinutes: Math.max(0, parseInt(e.target.value, 10) || 0) }))} />
-                          </div>
-                          <div className="col-6 mb-3">
-                            <label className="form-label">Late Check-In (min after start)</label>
-                            <input type="number" className="form-control" min="0" value={shiftForm.lateCheckinBufferMinutes} onChange={e => setShiftForm(p => ({ ...p, lateCheckinBufferMinutes: Math.max(0, parseInt(e.target.value, 10) || 0) }))} />
-                          </div>
-                        </div>
-
-                        <div className="d-flex gap-2">
-                          <button type="submit" className="btn btn-primary">{editingShiftId ? 'Update' : 'Create'}</button>
-                          {editingShiftId && (
-                            <button type="button" className="btn btn-light" onClick={() => { setEditingShiftId(null); setShiftForm({ name: '', startTime: '09:00', endTime: '18:00', breakAllowedMinutes: 15, breakGraceMinutes: 5, lunchAllowedMinutes: 60, lunchGraceMinutes: 10, minWorkMinutes: 480, isNightShift: false, earlyCheckinBufferMinutes: 30, lateCheckinBufferMinutes: 15, maxOvertimeMinutes: 120 }); }}>Cancel</button>
-                          )}
-                        </div>
-                      </form>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Shift List */}
-                <div className="col-lg-7">
+                {/* Shift List - Full Width */}
+                <div className="col-12">
                   <div className="card border-0 shadow-sm bg-white" style={{ borderRadius: 12, overflow: "hidden" }}>
                     {/* Controls Bar */}
                     <div className="p-3 border-bottom d-flex flex-wrap align-items-center justify-content-between gap-3 bg-light">
@@ -453,14 +410,30 @@ const ScheduleTimingPage = () => {
                           />
                         </div>
                       </div>
-                      <div className="dropdown">
-                        <button className="btn btn-white border dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-                          <i className="ti ti-download" /> Export
+                      <div className="d-flex gap-2">
+                        <button className="btn btn-primary d-flex align-items-center gap-1" onClick={() => {
+                          setEditingShiftId(null);
+                          setShiftForm({
+                            name: '', startTime: '09:00', endTime: '18:00',
+                            breakAllowedMinutes: 15, breakGraceMinutes: 5,
+                            break1StartTime: '', break1EndTime: '', break1AllowedMinutes: 15, break1GraceMinutes: 5,
+                            lunchStartTime: '', lunchEndTime: '', lunchAllowedMinutes: 60, lunchGraceMinutes: 10,
+                            break2StartTime: '', break2EndTime: '', break2AllowedMinutes: 15, break2GraceMinutes: 5,
+                            minWorkMinutes: 480, isNightShift: false, earlyCheckinBufferMinutes: 30, lateCheckinBufferMinutes: 15, maxOvertimeMinutes: 120
+                          });
+                          setIsShiftModalOpen(true);
+                        }}>
+                          <i className="ti ti-plus" /> Add Shift
                         </button>
-                        <ul className="dropdown-menu shadow border-0">
-                          <li><button className="dropdown-item" onClick={exportShiftsExcel}>Excel</button></li>
-                          <li><button className="dropdown-item" onClick={exportShiftsPdf}>PDF</button></li>
-                        </ul>
+                        <div className="dropdown">
+                          <button className="btn btn-white border dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i className="ti ti-download" /> Export
+                          </button>
+                          <ul className="dropdown-menu shadow border-0">
+                            <li><button className="dropdown-item" onClick={exportShiftsExcel}>Excel</button></li>
+                            <li><button className="dropdown-item" onClick={exportShiftsPdf}>PDF</button></li>
+                          </ul>
+                        </div>
                       </div>
                     </div>
 
@@ -477,10 +450,10 @@ const ScheduleTimingPage = () => {
                               />
                             </th>
                             <th>Name</th>
-                            <th>Start</th>
-                            <th>End</th>
-                            <th>Break</th>
+                            <th>Start/End</th>
+                            <th>Break 1</th>
                             <th>Lunch</th>
+                            <th>Break 2</th>
                             <th>Min Work</th>
                             <th>Max OT</th>
                             <th>Night</th>
@@ -489,7 +462,7 @@ const ScheduleTimingPage = () => {
                         </thead>
                         <tbody>
                           {pagedShifts.length === 0 ? (
-                            <tr><td colSpan="10" className="text-center py-4 text-muted">No shifts configured</td></tr>
+                            <tr><td colSpan="11" className="text-center py-4 text-muted">No shifts configured</td></tr>
                           ) : (
                             pagedShifts.map(s => (
                               <tr key={s.id}>
@@ -502,10 +475,10 @@ const ScheduleTimingPage = () => {
                                   />
                                 </td>
                                 <td className="fw-semibold text-slate-800">{s.name}</td>
-                                <td>{s.startTime}</td>
-                                <td>{s.endTime}</td>
-                                <td>{s.breakAllowedMinutes}+{s.breakGraceMinutes}m</td>
-                                <td>{s.lunchAllowedMinutes}+{s.lunchGraceMinutes}m</td>
+                                <td>{s.startTime} - {s.endTime}</td>
+                                <td>{s.break1StartTime ? `${s.break1StartTime}-${s.break1EndTime} (${s.break1AllowedMinutes}m)` : '-'}</td>
+                                <td>{s.lunchStartTime ? `${s.lunchStartTime}-${s.lunchEndTime} (${s.lunchAllowedMinutes}m)` : '-'}</td>
+                                <td>{s.break2StartTime ? `${s.break2StartTime}-${s.break2EndTime} (${s.break2AllowedMinutes}m)` : '-'}</td>
                                 <td>{fmtDuration(s.minWorkMinutes)}</td>
                                 <td>{s.maxOvertimeMinutes === 0 ? 'None' : fmtDuration(s.maxOvertimeMinutes)}</td>
                                 <td>{s.isNightShift ? <span className="badge bg-dark">Yes</span> : 'No'}</td>
@@ -566,57 +539,8 @@ const ScheduleTimingPage = () => {
 
             {activeTab === 'locations' && (
               <div className="row g-4">
-                {/* Location Form */}
-                <div className="col-lg-5">
-                  <div className="card border-0 shadow-sm bg-white" style={{ borderRadius: 12 }}>
-                    <div className="card-header bg-white border-bottom py-3">
-                      <h5 className="fw-bold text-slate-800 mb-0">{editingLocId ? 'Edit Location' : 'Add Location'}</h5>
-                    </div>
-                    <div className="card-body">
-                      <form onSubmit={handleLocSave}>
-                        <div className="mb-3">
-                          <label className="form-label">Location Name</label>
-                          <input type="text" className="form-control" required value={locForm.name} onChange={e => setLocForm(p => ({ ...p, name: e.target.value }))} />
-                        </div>
-                        <div className="mb-3">
-                          <button
-                            type="button"
-                            className="btn btn-outline-primary w-100"
-                            onClick={() => setLocationModalVisible(true)}
-                          >
-                            <i className="ti ti-map me-2"></i>
-                            {locForm.latitude && locForm.longitude ? 'Change Location on Map' : 'Pick Location on Map'}
-                          </button>
-                        </div>
-                        {locForm.latitude && locForm.longitude && (
-                          <div className="row g-2 mb-3">
-                            <div className="col-6">
-                              <small className="text-muted">Latitude</small>
-                              <div className="fw-bold">{parseFloat(locForm.latitude).toFixed(6)}</div>
-                            </div>
-                            <div className="col-6">
-                              <small className="text-muted">Longitude</small>
-                              <div className="fw-bold">{parseFloat(locForm.longitude).toFixed(6)}</div>
-                            </div>
-                          </div>
-                        )}
-                        <div className="mb-3">
-                          <label className="form-label">Radius (meters)</label>
-                          <input type="number" className="form-control" min="0" value={locForm.radiusMeters} onChange={e => setLocForm(p => ({ ...p, radiusMeters: Math.max(0, parseInt(e.target.value, 10) || 0) }))} />
-                        </div>
-                        <div className="d-flex gap-2">
-                          <button type="submit" className="btn btn-primary">{editingLocId ? 'Update' : 'Create'}</button>
-                          {editingLocId && (
-                            <button type="button" className="btn btn-light" onClick={() => { setEditingLocId(null); setLocForm({ name: '', latitude: '', longitude: '', radiusMeters: 50 }); }}>Cancel</button>
-                          )}
-                        </div>
-                      </form>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Location List */}
-                <div className="col-lg-7">
+                {/* Location List - Full Width */}
+                <div className="col-12">
                   <div className="card border-0 shadow-sm bg-white" style={{ borderRadius: 12, overflow: "hidden" }}>
                     {/* Controls Bar */}
                     <div className="p-3 border-bottom d-flex flex-wrap align-items-center justify-content-between gap-3 bg-light">
@@ -632,14 +556,23 @@ const ScheduleTimingPage = () => {
                           />
                         </div>
                       </div>
-                      <div className="dropdown">
-                        <button className="btn btn-white border dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-                          <i className="ti ti-download" /> Export
+                      <div className="d-flex gap-2">
+                        <button className="btn btn-primary d-flex align-items-center gap-1" onClick={() => {
+                          setEditingLocId(null);
+                          setLocForm({ name: '', latitude: '', longitude: '', radiusMeters: 50 });
+                          setIsLocModalOpen(true);
+                        }}>
+                          <i className="ti ti-plus" /> Add Location
                         </button>
-                        <ul className="dropdown-menu shadow border-0">
-                          <li><button className="dropdown-item" onClick={exportLocsExcel}>Excel</button></li>
-                          <li><button className="dropdown-item" onClick={exportLocsPdf}>PDF</button></li>
-                        </ul>
+                        <div className="dropdown">
+                          <button className="btn btn-white border dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i className="ti ti-download" /> Export
+                          </button>
+                          <ul className="dropdown-menu shadow border-0">
+                            <li><button className="dropdown-item" onClick={exportLocsExcel}>Excel</button></li>
+                            <li><button className="dropdown-item" onClick={exportLocsPdf}>PDF</button></li>
+                          </ul>
+                        </div>
                       </div>
                     </div>
 
@@ -811,6 +744,199 @@ const ScheduleTimingPage = () => {
           <button className="btn btn-sm btn-primary" onClick={exportLocsPdf}>Export Selected PDF</button>
         </div>,
         document.body
+      )}
+
+      {/* Shift Form Modal */}
+      {isShiftModalOpen && (
+        <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1050 }}>
+          <div className="modal-dialog modal-dialog-centered modal-lg">
+            <div className="modal-content border-0 shadow" style={{ borderRadius: 12 }}>
+              <div className="modal-header border-bottom py-3">
+                <h5 className="fw-bold text-slate-800 mb-0">{editingShiftId ? 'Edit Shift' : 'Add Shift'}</h5>
+                <button type="button" className="btn-close" onClick={() => setIsShiftModalOpen(false)}></button>
+              </div>
+              <form onSubmit={handleShiftSave}>
+                <div className="modal-body" style={{ maxHeight: '70vh', overflowY: 'auto' }}>
+                  <div className="mb-3">
+                    <label className="form-label">Shift Name</label>
+                    <input type="text" className="form-control" required value={shiftForm.name} onChange={e => setShiftForm(p => ({ ...p, name: e.target.value }))} />
+                  </div>
+                  <div className="row">
+                    <div className="col-6 mb-3">
+                      <label className="form-label">Start Time</label>
+                      <input type="time" className="form-control" required value={shiftForm.startTime} onChange={e => setShiftForm(p => ({ ...p, startTime: e.target.value }))} />
+                    </div>
+                    <div className="col-6 mb-3">
+                      <label className="form-label">End Time</label>
+                      <input
+                        type="time"
+                        className="form-control"
+                        required
+                        value={shiftForm.endTime}
+                        onChange={e =>
+                          setShiftForm((p) => ({
+                            ...p,
+                            endTime: e.target.value,
+                            minWorkMinutes: calculateShiftMinutes(p.startTime, e.target.value),
+                          }))
+                        }
+                      />
+                    </div>
+                  </div>
+                  {/* Break 1 Section */}
+                  <div className="border p-2 rounded mb-3 bg-light">
+                    <h6 className="fw-bold text-slate-700 border-bottom pb-1 mb-2 small">Break 1</h6>
+                    <div className="row g-2 mb-2">
+                      <div className="col-6">
+                        <label className="form-label small mb-1">Start Time</label>
+                        <input type="time" className="form-control form-control-sm" value={shiftForm.break1StartTime || ''} onChange={e => setShiftForm(p => ({ ...p, break1StartTime: e.target.value }))} />
+                      </div>
+                      <div className="col-6">
+                        <label className="form-label small mb-1">End Time</label>
+                        <input type="time" className="form-control form-control-sm" value={shiftForm.break1EndTime || ''} onChange={e => setShiftForm(p => ({ ...p, break1EndTime: e.target.value }))} />
+                      </div>
+                    </div>
+                    <div className="row g-2">
+                      <div className="col-6">
+                        <label className="form-label small mb-1">Allowed (min)</label>
+                        <input type="number" className="form-control form-control-sm" min="0" value={shiftForm.break1AllowedMinutes} onChange={e => setShiftForm(p => ({ ...p, break1AllowedMinutes: Math.max(0, parseInt(e.target.value, 10) || 0) }))} />
+                      </div>
+                      <div className="col-6">
+                        <label className="form-label small mb-1">Grace (min)</label>
+                        <input type="number" className="form-control form-control-sm" min="0" value={shiftForm.break1GraceMinutes} onChange={e => setShiftForm(p => ({ ...p, break1GraceMinutes: Math.max(0, parseInt(e.target.value, 10) || 0) }))} />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Lunch Section */}
+                  <div className="border p-2 rounded mb-3 bg-light">
+                    <h6 className="fw-bold text-slate-700 border-bottom pb-1 mb-2 small">Lunch</h6>
+                    <div className="row g-2 mb-2">
+                      <div className="col-6">
+                        <label className="form-label small mb-1">Start Time</label>
+                        <input type="time" className="form-control form-control-sm" value={shiftForm.lunchStartTime || ''} onChange={e => setShiftForm(p => ({ ...p, lunchStartTime: e.target.value }))} />
+                      </div>
+                      <div className="col-6">
+                        <label className="form-label small mb-1">End Time</label>
+                        <input type="time" className="form-control form-control-sm" value={shiftForm.lunchEndTime || ''} onChange={e => setShiftForm(p => ({ ...p, lunchEndTime: e.target.value }))} />
+                      </div>
+                    </div>
+                    <div className="row g-2">
+                      <div className="col-6">
+                        <label className="form-label small mb-1">Allowed (min)</label>
+                        <input type="number" className="form-control form-control-sm" min="0" value={shiftForm.lunchAllowedMinutes} onChange={e => setShiftForm(p => ({ ...p, lunchAllowedMinutes: Math.max(0, parseInt(e.target.value, 10) || 0) }))} />
+                      </div>
+                      <div className="col-6">
+                        <label className="form-label small mb-1">Grace (min)</label>
+                        <input type="number" className="form-control form-control-sm" min="0" value={shiftForm.lunchGraceMinutes} onChange={e => setShiftForm(p => ({ ...p, lunchGraceMinutes: Math.max(0, parseInt(e.target.value, 10) || 0) }))} />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Break 2 Section */}
+                  <div className="border p-2 rounded mb-3 bg-light">
+                    <h6 className="fw-bold text-slate-700 border-bottom pb-1 mb-2 small">Break 2</h6>
+                    <div className="row g-2 mb-2">
+                      <div className="col-6">
+                        <label className="form-label small mb-1">Start Time</label>
+                        <input type="time" className="form-control form-control-sm" value={shiftForm.break2StartTime || ''} onChange={e => setShiftForm(p => ({ ...p, break2StartTime: e.target.value }))} />
+                      </div>
+                      <div className="col-6">
+                        <label className="form-label small mb-1">End Time</label>
+                        <input type="time" className="form-control form-control-sm" value={shiftForm.break2EndTime || ''} onChange={e => setShiftForm(p => ({ ...p, break2EndTime: e.target.value }))} />
+                      </div>
+                    </div>
+                    <div className="row g-2">
+                      <div className="col-6">
+                        <label className="form-label small mb-1">Allowed (min)</label>
+                        <input type="number" className="form-control form-control-sm" min="0" value={shiftForm.break2AllowedMinutes} onChange={e => setShiftForm(p => ({ ...p, break2AllowedMinutes: Math.max(0, parseInt(e.target.value, 10) || 0) }))} />
+                      </div>
+                      <div className="col-6">
+                        <label className="form-label small mb-1">Grace (min)</label>
+                        <input type="number" className="form-control form-control-sm" min="0" value={shiftForm.break2GraceMinutes} onChange={e => setShiftForm(p => ({ ...p, break2GraceMinutes: Math.max(0, parseInt(e.target.value, 10) || 0) }))} />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mb-3">
+                    <label className="form-label">Min Work (min)</label>
+                    <input type="number" className="form-control" min="0" value={calculatedMinWorkMinutes} readOnly />
+                  </div>
+                  <div className="mb-3">
+                    <label className="form-label">Max Overtime (min)</label>
+                    <input type="number" className="form-control" min="0" value={shiftForm.maxOvertimeMinutes} onChange={e => setShiftForm(p => ({ ...p, maxOvertimeMinutes: Math.max(0, parseInt(e.target.value, 10) || 0) }))} />
+                  </div>
+                  <div className="row">
+                    <div className="col-6 mb-3">
+                      <label className="form-label">Early Check-In (min before start)</label>
+                      <input type="number" className="form-control" min="0" value={shiftForm.earlyCheckinBufferMinutes} onChange={e => setShiftForm(p => ({ ...p, earlyCheckinBufferMinutes: Math.max(0, parseInt(e.target.value, 10) || 0) }))} />
+                    </div>
+                    <div className="col-6 mb-3">
+                      <label className="form-label">Late Check-In (min after start)</label>
+                      <input type="number" className="form-control" min="0" value={shiftForm.lateCheckinBufferMinutes} onChange={e => setShiftForm(p => ({ ...p, lateCheckinBufferMinutes: Math.max(0, parseInt(e.target.value, 10) || 0) }))} />
+                    </div>
+                  </div>
+                </div>
+                <div className="modal-footer border-top py-2">
+                  <button type="button" className="btn btn-light" onClick={() => setIsShiftModalOpen(false)}>Cancel</button>
+                  <button type="submit" className="btn btn-primary">{editingShiftId ? 'Update' : 'Create'}</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Location Form Modal */}
+      {isLocModalOpen && (
+        <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1050 }}>
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content border-0 shadow" style={{ borderRadius: 12 }}>
+              <div className="modal-header border-bottom py-3">
+                <h5 className="fw-bold text-slate-800 mb-0">{editingLocId ? 'Edit Location' : 'Add Location'}</h5>
+                <button type="button" className="btn-close" onClick={() => setIsLocModalOpen(false)}></button>
+              </div>
+              <form onSubmit={handleLocSave}>
+                <div className="modal-body">
+                  <div className="mb-3">
+                    <label className="form-label">Location Name</label>
+                    <input type="text" className="form-control" required value={locForm.name} onChange={e => setLocForm(p => ({ ...p, name: e.target.value }))} />
+                  </div>
+                  <div className="mb-3">
+                    <button
+                      type="button"
+                      className="btn btn-outline-primary w-100"
+                      onClick={() => setLocationModalVisible(true)}
+                    >
+                      <i className="ti ti-map me-2"></i>
+                      {locForm.latitude && locForm.longitude ? 'Change Location on Map' : 'Pick Location on Map'}
+                    </button>
+                  </div>
+                  {locForm.latitude && locForm.longitude && (
+                    <div className="row g-2 mb-3">
+                      <div className="col-6">
+                        <small className="text-muted">Latitude</small>
+                        <div className="fw-bold">{parseFloat(locForm.latitude).toFixed(6)}</div>
+                      </div>
+                      <div className="col-6">
+                        <small className="text-muted">Longitude</small>
+                        <div className="fw-bold">{parseFloat(locForm.longitude).toFixed(6)}</div>
+                      </div>
+                    </div>
+                  )}
+                  <div className="mb-3">
+                    <label className="form-label">Radius (meters)</label>
+                    <input type="number" className="form-control" min="0" value={locForm.radiusMeters} onChange={e => setLocForm(p => ({ ...p, radiusMeters: Math.max(0, parseInt(e.target.value, 10) || 0) }))} />
+                  </div>
+                </div>
+                <div className="modal-footer border-top py-2">
+                  <button type="button" className="btn btn-light" onClick={() => setIsLocModalOpen(false)}>Cancel</button>
+                  <button type="submit" className="btn btn-primary">{editingLocId ? 'Update' : 'Create'}</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
       )}
     </>
   );

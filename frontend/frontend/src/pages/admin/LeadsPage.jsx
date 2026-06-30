@@ -1815,7 +1815,7 @@ ${rowsHtml}
       setShowStatusModal(false);
       setStatusLead(null);
       setError("");
-      navigate(`/leads/${statusLead.id}?openRequirement=1&pendingRequirementStatus=requirement`);
+      navigate(`/requirements/add?leadId=${statusLead.id}`);
       return;
     }
 

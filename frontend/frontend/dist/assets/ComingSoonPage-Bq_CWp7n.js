@@ -1,1 +1,0 @@
-import{j as s}from"./index-D3e3md-c.js";function o(){return s.jsx("div",{className:"card",children:s.jsxs("div",{className:"card-body",children:[s.jsx("h4",{className:"mb-2",children:"Coming Soon"}),s.jsx("p",{className:"mb-0",children:"Layout working confirmation."})]})})}export{o as default};

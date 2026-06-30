@@ -4,6 +4,7 @@ import { createPortal } from "react-dom";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import * as attendanceApi from '../../api/attendanceApi';
+import { getUsers } from '../../api/userAdminApi';
 import LoadingSpinner from "../../components/common/LoadingSpinner";
 import PageSizeSelector from "../../components/admin/PageSizeSelector";
 import { useToast } from '../../components/system/ToastProvider';
@@ -47,12 +48,7 @@ const AttendanceAdminPage = () => {
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [fromDate, setFromDate] = useState(() => {
-    const d = new Date();
-    d.setDate(d.getDate() - 7);
-    return d.toISOString().split('T')[0];
-  });
-  const [toDate, setToDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0]);
 
   // Bulk operation and search states
   const [selectedIds, setSelectedIds] = useState(new Set());
@@ -71,19 +67,32 @@ const AttendanceAdminPage = () => {
   });
   const [saving, setSaving] = useState(false);
 
+  // Late Check-in override states
+  const [showLateCheckinModal, setShowLateCheckinModal] = useState(false);
+  const [usersList, setUsersList] = useState([]);
+  const [selectedOverrideUserId, setSelectedOverrideUserId] = useState('');
+  const [overrideDate, setOverrideDate] = useState(selectedDate);
+  const [savingOverride, setSavingOverride] = useState(false);
+
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
       setError('');
-      const rec = await attendanceApi.getAdminRange(fromDate, toDate).catch(() => []);
+      const [rec, uList] = await Promise.all([
+        attendanceApi.getAdminView(selectedDate).catch(() => []),
+        getUsers(0, 1000).catch(() => null)
+      ]);
       setRecords(Array.isArray(rec) ? rec : []);
+      if (uList && Array.isArray(uList.items)) {
+        setUsersList(uList.items);
+      }
       setSelectedIds(new Set());
     } catch (e) {
       setError(e?.response?.data?.message || e.message || 'Failed to load attendance');
     } finally {
       setLoading(false);
     }
-  }, [fromDate, toDate]);
+  }, [selectedDate]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
@@ -156,6 +165,22 @@ const AttendanceAdminPage = () => {
       showError(err?.response?.data?.message || err.message || "Failed to update attendance timings");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSaveOverride = async (e) => {
+    e.preventDefault();
+    if (!selectedOverrideUserId) return;
+    setSavingOverride(true);
+    try {
+      await attendanceApi.allowLateCheckin(selectedOverrideUserId, overrideDate);
+      showSuccess("Late check-in override enabled successfully");
+      setShowLateCheckinModal(false);
+      await loadData();
+    } catch (err) {
+      showError(err?.response?.data?.message || err.message || "Failed to allow late check-in");
+    } finally {
+      setSavingOverride(false);
     }
   };
 
@@ -342,15 +367,11 @@ const AttendanceAdminPage = () => {
         <div className="card border-0 shadow-sm mb-4 bg-white" style={{ borderRadius: 10 }}>
           <div className="card-body">
             <div className="row g-3 align-items-end">
-              <div className="col-lg-4">
-                <label className="form-label fw-semibold text-secondary">From Date</label>
-                <input type="date" className="form-control" style={{ borderRadius: 8 }} value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
+              <div className="col-md-8">
+                <label className="form-label fw-semibold text-secondary">Select Date</label>
+                <input type="date" className="form-control" style={{ borderRadius: 8 }} value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} />
               </div>
-              <div className="col-lg-4">
-                <label className="form-label fw-semibold text-secondary">To Date</label>
-                <input type="date" className="form-control" style={{ borderRadius: 8 }} value={toDate} onChange={(e) => setToDate(e.target.value)} />
-              </div>
-              <div className="col-lg-4">
+              <div className="col-md-4">
                 <button className="btn btn-primary w-100 d-flex align-items-center justify-content-center gap-2" style={{ height: 38, borderRadius: 8 }} onClick={loadData} disabled={loading}>
                   {loading ? <LoadingSpinner size="sm" className="me-0" label="Loading records" /> : <i className="ti ti-search"></i>}
                   Load Records
@@ -379,6 +400,18 @@ const AttendanceAdminPage = () => {
             </div>
 
             <div className="d-flex align-items-center gap-2">
+              <button
+                className="btn btn-outline-primary d-flex align-items-center gap-2"
+                type="button"
+                style={{ height: 38, borderRadius: 8, fontSize: "0.85rem" }}
+                onClick={() => {
+                  setSelectedOverrideUserId("");
+                  setOverrideDate(selectedDate);
+                  setShowLateCheckinModal(true);
+                }}
+              >
+                <i className="ti ti-plus" /> Allow Late Check-In
+              </button>
               <div className="dropdown">
                 <button
                   className="btn btn-white border d-flex align-items-center gap-2 dropdown-toggle"
@@ -711,6 +744,71 @@ const AttendanceAdminPage = () => {
                   </button>
                   <button type="submit" className="avm-btn primary" disabled={saving}>
                     {saving ? "Saving..." : "Save Changes"}
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Allow Late Check-In Override Modal */}
+      {showLateCheckinModal && createPortal(
+        <div className="avm-backdrop" role="presentation" style={{ zIndex: 10050 }}>
+          <div className="avm-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" style={{ maxWidth: 500 }}>
+            <div className="avm-modal-header">
+              <h2 className="avm-modal-title">Allow Late Check-In</h2>
+              <button type="button" className="avm-modal-close" onClick={() => setShowLateCheckinModal(false)} aria-label="Close">
+                x
+              </button>
+            </div>
+            <form onSubmit={handleSaveOverride}>
+              <div className="avm-body">
+                <div className="row g-3">
+                  <div className="col-md-12">
+                    <div className="avm-field">
+                      <label className="avm-label">Select Employee</label>
+                      <select
+                        className="avm-select"
+                        value={selectedOverrideUserId}
+                        onChange={(e) => setSelectedOverrideUserId(e.target.value)}
+                        required
+                      >
+                        <option value="">-- Choose Employee --</option>
+                        {usersList
+                          .filter((u) => u.role !== 'ADMIN' && u.role !== 'SUPER_ADMIN')
+                          .map((u) => (
+                            <option key={u.id} value={u.id}>
+                              {u.username || u.name || `User ${u.id}`} ({u.email})
+                            </option>
+                          ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="col-md-12">
+                    <div className="avm-field">
+                      <label className="avm-label">Target Date</label>
+                      <input
+                        type="date"
+                        className="avm-input"
+                        value={overrideDate}
+                        onChange={(e) => setOverrideDate(e.target.value)}
+                        required
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="avm-footer">
+                <div />
+                <div className="avm-footer-right">
+                  <button type="button" className="avm-btn light" onClick={() => setShowLateCheckinModal(false)} disabled={savingOverride}>
+                    Cancel
+                  </button>
+                  <button type="submit" className="avm-btn primary" disabled={savingOverride || !selectedOverrideUserId}>
+                    {savingOverride ? "Saving..." : "Allow Late Check-In"}
                   </button>
                 </div>
               </div>

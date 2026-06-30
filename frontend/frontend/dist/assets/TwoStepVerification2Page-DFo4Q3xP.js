@@ -1,0 +1,1 @@
+import{j as a}from"./index-CegtqJ3n.js";function e(){return a.jsx("div",{className:"card",children:a.jsxs("div",{className:"card-body",children:[a.jsx("h4",{className:"mb-2",children:"Two Step Verification 2"}),a.jsx("p",{className:"mb-0",children:"Layout working confirmation."})]})})}export{e as default};

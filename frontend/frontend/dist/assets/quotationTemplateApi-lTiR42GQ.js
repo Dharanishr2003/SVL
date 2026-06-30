@@ -1,0 +1,1 @@
+import{z as a}from"./index-CegtqJ3n.js";async function n(){return(await a.get("/api/quotation-template")).data}async function s(t){return(await a.post("/api/quotation-template",t)).data}export{n as g,s};

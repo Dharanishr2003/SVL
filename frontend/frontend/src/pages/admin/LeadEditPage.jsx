@@ -565,23 +565,10 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
     }
     if (requirementFlowHandledRef.current) return;
     requirementFlowHandledRef.current = true;
-    const pendingStatus = String(params.get("pendingRequirementStatus") || "").trim();
-    setPendingRequirementStatus(pendingStatus);
-    setActiveTab("requirement");
-    setEditingRequirement(null);
-    setRequirementModalKey((k) => k + 1);
-    setShowRequirementModal(true);
     params.delete("openRequirement");
     params.delete("pendingRequirementStatus");
-    const nextSearch = params.toString();
-    navigate(
-      {
-        pathname: location.pathname,
-        search: nextSearch ? `?${nextSearch}` : "",
-      },
-      { replace: true },
-    );
-  }, [lead?.id, lead?.status, location.pathname, location.search, navigate, requirements.length]);
+    navigate(`/requirements/add?leadId=${lead.id}`, { replace: true });
+  }, [lead?.id, location.search, navigate]);
 
   // Fetch primary and secondary source options on mount
   useEffect(() => {

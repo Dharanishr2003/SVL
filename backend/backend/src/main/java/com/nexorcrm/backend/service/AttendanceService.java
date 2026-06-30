@@ -69,14 +69,20 @@ public class AttendanceService {
         LocalDateTime now = now();
         LocalDate today = now.toLocalDate();
 
-        // Prevent double check-in
+        Attendance att = null;
+        boolean lateCheckinAllowed = false;
         Optional<Attendance> existing = attendanceRepository.findByUserIdAndAttendanceDateAndDeletedFalse(userId, today);
         if (existing.isPresent()) {
-            AttendanceStatus st = existing.get().getStatus();
-            if (st != AttendanceStatus.CHECKED_OUT && st != AttendanceStatus.AUTO_CHECKOUT) {
-                throw new IllegalArgumentException("You have already checked in today.");
+            Attendance existingRecord = existing.get();
+            if (existingRecord.getCheckInTime() != null) {
+                AttendanceStatus st = existingRecord.getStatus();
+                if (st != AttendanceStatus.CHECKED_OUT && st != AttendanceStatus.AUTO_CHECKOUT) {
+                    throw new IllegalArgumentException("You have already checked in today.");
+                }
+                throw new IllegalArgumentException("You have already completed attendance for today.");
             }
-            throw new IllegalArgumentException("You have already completed attendance for today.");
+            att = existingRecord;
+            lateCheckinAllowed = Boolean.TRUE.equals(existingRecord.getLateCheckinAllowed());
         }
 
         // Resolve shift assignment via employee record (bridge: user.email = employee.email)
@@ -125,7 +131,7 @@ public class AttendanceService {
                 actor.getRole() == Role.ADMIN ||
                 actor.getRole() == Role.MANAGER ||
                 actor.getRole() == Role.SUPER_ADMIN);
-        if (!isPrivileged) {
+        if (!isPrivileged && !lateCheckinAllowed) {
             shiftService.validateCheckinWindow(shift, now);
         }
 
@@ -152,10 +158,12 @@ public class AttendanceService {
         // Calculate lateness
         int lateMinutes = shiftService.calculateLateMinutes(shift, now);
 
-        // Create attendance record
-        Attendance att = new Attendance();
-        att.setUserId(userId);
-        att.setAttendanceDate(today);
+        // Create or update attendance record
+        if (att == null) {
+            att = new Attendance();
+            att.setUserId(userId);
+            att.setAttendanceDate(today);
+        }
         att.setShiftId(shift.getId());
         att.setLocationId(locationId);
         att.setCheckInTime(now);
@@ -227,6 +235,19 @@ public class AttendanceService {
     }
 
     // ══════════════════════════════════════════════════════════════
+    private Shift getShiftForAttendance(Attendance att) {
+        if (att.getShiftId() != null) {
+            return shiftRepository.findById(att.getShiftId()).orElse(null);
+        }
+        EmployeeShift assignment = employeeShiftRepository.findActiveForUser(att.getUserId(), att.getAttendanceDate()).orElse(null);
+        if (assignment != null) {
+            return shiftRepository.findById(assignment.getShiftId()).orElse(null);
+        }
+        return shiftRepository.findByDeletedFalseAndActiveTrueOrderByNameAsc()
+                .stream().findFirst().orElse(null);
+    }
+
+    // ══════════════════════════════════════════════════════════════
     // START BREAK / LUNCH
     // ══════════════════════════════════════════════════════════════
 
@@ -243,10 +264,39 @@ public class AttendanceService {
         }
 
         BreakType breakType = BreakType.valueOf(req.getBreakType().toUpperCase());
-        AttendanceEventType eventType = breakType == BreakType.LUNCH
-                ? AttendanceEventType.LUNCH_START : AttendanceEventType.BREAK_START;
-        AttendanceStatus newStatus = breakType == BreakType.LUNCH
-                ? AttendanceStatus.ON_LUNCH : AttendanceStatus.ON_BREAK;
+        Shift shift = getShiftForAttendance(att);
+        if (shift != null) {
+            LocalTime nowTime = now.toLocalTime();
+            if (breakType == BreakType.BREAK_1) {
+                if (!isTimeWithinWindow(nowTime, shift.getBreak1StartTime(), shift.getBreak1EndTime())) {
+                    throw new IllegalArgumentException("Break 1 is only allowed between " + shift.getBreak1StartTime() + " and " + shift.getBreak1EndTime());
+                }
+            } else if (breakType == BreakType.LUNCH) {
+                if (!isTimeWithinWindow(nowTime, shift.getLunchStartTime(), shift.getLunchEndTime())) {
+                    throw new IllegalArgumentException("Lunch is only allowed between " + shift.getLunchStartTime() + " and " + shift.getLunchEndTime());
+                }
+            } else if (breakType == BreakType.BREAK_2) {
+                if (!isTimeWithinWindow(nowTime, shift.getBreak2StartTime(), shift.getBreak2EndTime())) {
+                    throw new IllegalArgumentException("Break 2 is only allowed between " + shift.getBreak2StartTime() + " and " + shift.getBreak2EndTime());
+                }
+            }
+        }
+
+        AttendanceStatus newStatus;
+        AttendanceEventType eventType;
+        if (breakType == BreakType.BREAK_1) {
+            newStatus = AttendanceStatus.ON_BREAK_1;
+            eventType = AttendanceEventType.BREAK_1_START;
+        } else if (breakType == BreakType.BREAK_2) {
+            newStatus = AttendanceStatus.ON_BREAK_2;
+            eventType = AttendanceEventType.BREAK_2_START;
+        } else if (breakType == BreakType.LUNCH) {
+            newStatus = AttendanceStatus.ON_LUNCH;
+            eventType = AttendanceEventType.LUNCH_START;
+        } else {
+            newStatus = AttendanceStatus.ON_BREAK;
+            eventType = AttendanceEventType.BREAK_START;
+        }
 
         // Create break record
         AttendanceBreak ab = new AttendanceBreak();
@@ -277,15 +327,29 @@ public class AttendanceService {
 
         BreakType breakType = BreakType.valueOf(req.getBreakType().toUpperCase());
 
-        if (breakType == BreakType.BREAK && att.getStatus() != AttendanceStatus.ON_BREAK) {
-            throw new IllegalArgumentException("You are not currently on a break.");
+        if (breakType == BreakType.BREAK_1 && att.getStatus() != AttendanceStatus.ON_BREAK_1) {
+            throw new IllegalArgumentException("You are not currently on Break 1.");
+        }
+        if (breakType == BreakType.BREAK_2 && att.getStatus() != AttendanceStatus.ON_BREAK_2) {
+            throw new IllegalArgumentException("You are not currently on Break 2.");
         }
         if (breakType == BreakType.LUNCH && att.getStatus() != AttendanceStatus.ON_LUNCH) {
             throw new IllegalArgumentException("You are not currently on lunch.");
         }
+        if (breakType == BreakType.BREAK && att.getStatus() != AttendanceStatus.ON_BREAK) {
+            throw new IllegalArgumentException("You are not currently on a break.");
+        }
 
-        AttendanceEventType eventType = breakType == BreakType.LUNCH
-                ? AttendanceEventType.LUNCH_END : AttendanceEventType.BREAK_END;
+        AttendanceEventType eventType;
+        if (breakType == BreakType.BREAK_1) {
+            eventType = AttendanceEventType.BREAK_1_END;
+        } else if (breakType == BreakType.BREAK_2) {
+            eventType = AttendanceEventType.BREAK_2_END;
+        } else if (breakType == BreakType.LUNCH) {
+            eventType = AttendanceEventType.LUNCH_END;
+        } else {
+            eventType = AttendanceEventType.BREAK_END;
+        }
 
         // Close the open break
         Optional<AttendanceBreak> openBreak = breakRepository
@@ -412,8 +476,16 @@ public class AttendanceService {
             ab.setDurationMinutes(dur);
             breakRepository.save(ab);
 
-            AttendanceEventType endType = ab.getBreakType() == BreakType.LUNCH
-                    ? AttendanceEventType.LUNCH_END : AttendanceEventType.BREAK_END;
+            AttendanceEventType endType;
+            if (ab.getBreakType() == BreakType.BREAK_1) {
+                endType = AttendanceEventType.BREAK_1_END;
+            } else if (ab.getBreakType() == BreakType.BREAK_2) {
+                endType = AttendanceEventType.BREAK_2_END;
+            } else if (ab.getBreakType() == BreakType.LUNCH) {
+                endType = AttendanceEventType.LUNCH_END;
+            } else {
+                endType = AttendanceEventType.BREAK_END;
+            }
             logEvent(att.getId(), endType, now, null, null, null, "Auto-ended on checkout");
         }
     }
@@ -427,56 +499,56 @@ public class AttendanceService {
         // Sum breaks and lunch
         List<AttendanceBreak> breaks = breakRepository.findByAttendanceIdOrderByStartTimeAsc(att.getId());
         int breakMins = 0;
+        int break1Mins = 0;
+        int break2Mins = 0;
         int lunchMins = 0;
         for (AttendanceBreak ab : breaks) {
             if (ab.getDurationMinutes() != null) {
-                if (ab.getBreakType() == BreakType.BREAK) {
-                    breakMins += ab.getDurationMinutes();
-                } else {
+                if (ab.getBreakType() == BreakType.BREAK_1) {
+                    break1Mins += ab.getDurationMinutes();
+                } else if (ab.getBreakType() == BreakType.BREAK_2) {
+                    break2Mins += ab.getDurationMinutes();
+                } else if (ab.getBreakType() == BreakType.LUNCH) {
                     lunchMins += ab.getDurationMinutes();
+                } else {
+                    breakMins += ab.getDurationMinutes();
                 }
             }
         }
-        att.setBreakTimeMinutes(breakMins);
+        att.setBreakTimeMinutes(breakMins + break1Mins + break2Mins);
+        att.setBreak1TimeMinutes(break1Mins);
+        att.setBreak2TimeMinutes(break2Mins);
         att.setLunchTimeMinutes(lunchMins);
 
         // Calculate excess (break/lunch beyond allowed+grace)
-        Shift shift = null;
-        if (att.getShiftId() != null) {
-            shift = shiftRepository.findById(att.getShiftId()).orElse(null);
-        }
-        if (shift == null) {
-            EmployeeShift assignment = employeeShiftRepository.findActiveForUser(att.getUserId(), att.getAttendanceDate()).orElse(null);
-            if (assignment != null) {
-                shift = shiftRepository.findById(assignment.getShiftId()).orElse(null);
-                if (shift != null) {
-                    att.setShiftId(shift.getId());
-                }
-            }
-        }
-        if (shift == null) {
-            shift = shiftRepository.findByDeletedFalseAndActiveTrueOrderByNameAsc()
-                    .stream().findFirst().orElse(null);
-            if (shift != null) {
-                att.setShiftId(shift.getId());
-            }
-        }
+        Shift shift = getShiftForAttendance(att);
         int breakAllowed = 15, breakGrace = 5, lunchAllowed = 60, lunchGrace = 10, minWork = 480;
+        int break1Allowed = 15, break1Grace = 5;
+        int break2Allowed = 15, break2Grace = 5;
         if (shift != null) {
             breakAllowed = shift.getBreakAllowedMinutes();
             breakGrace = shift.getBreakGraceMinutes();
             lunchAllowed = shift.getLunchAllowedMinutes();
             lunchGrace = shift.getLunchGraceMinutes();
             minWork = shift.getMinWorkMinutes();
+            break1Allowed = shift.getBreak1AllowedMinutes() != null ? shift.getBreak1AllowedMinutes() : 15;
+            break1Grace = shift.getBreak1GraceMinutes() != null ? shift.getBreak1GraceMinutes() : 5;
+            break2Allowed = shift.getBreak2AllowedMinutes() != null ? shift.getBreak2AllowedMinutes() : 15;
+            break2Grace = shift.getBreak2GraceMinutes() != null ? shift.getBreak2GraceMinutes() : 5;
         }
 
-        int excessBreak = Math.max(0, breakMins - (breakAllowed + breakGrace));
+        int excessBreak1 = Math.max(0, break1Mins - (break1Allowed + break1Grace));
+        int excessBreak2 = Math.max(0, break2Mins - (break2Allowed + break2Grace));
         int excessLunch = Math.max(0, lunchMins - (lunchAllowed + lunchGrace));
+        int excessBreak = Math.max(0, breakMins - (breakAllowed + breakGrace)) + excessBreak1 + excessBreak2;
+
         att.setExcessBreakMinutes(excessBreak);
+        att.setExcessBreak1Minutes(excessBreak1);
+        att.setExcessBreak2Minutes(excessBreak2);
         att.setExcessLunchMinutes(excessLunch);
 
-        // Net work = total - break - lunch
-        int netWork = (int) totalMinutes - breakMins - lunchMins;
+        // Net work = total - break - break1 - break2 - lunch
+        int netWork = (int) totalMinutes - breakMins - break1Mins - break2Mins - lunchMins;
         if (netWork < 0) netWork = 0;
         att.setNetWorkMinutes(netWork);
 
@@ -585,6 +657,20 @@ public class AttendanceService {
         return toResponse(att);
     }
 
+    @Transactional
+    public AttendanceResponse allowLateCheckin(Long userId, LocalDate date) {
+        Attendance att = attendanceRepository.findByUserIdAndAttendanceDateAndDeletedFalse(userId, date)
+                .orElseGet(() -> {
+                    Attendance newAtt = new Attendance();
+                    newAtt.setUserId(userId);
+                    newAtt.setAttendanceDate(date);
+                    return newAtt;
+                });
+        att.setLateCheckinAllowed(true);
+        att = attendanceRepository.save(att);
+        return toResponse(att);
+    }
+
     // ══════════════════════════════════════════════════════════════
     // MAPPING
     // ══════════════════════════════════════════════════════════════
@@ -601,8 +687,12 @@ public class AttendanceService {
         r.setWorkStatus(att.getWorkStatus() != null ? att.getWorkStatus().name() : null);
         r.setTotalWorkMinutes(att.getTotalWorkMinutes());
         r.setBreakTimeMinutes(att.getBreakTimeMinutes());
+        r.setBreak1TimeMinutes(att.getBreak1TimeMinutes());
+        r.setBreak2TimeMinutes(att.getBreak2TimeMinutes());
         r.setLunchTimeMinutes(att.getLunchTimeMinutes());
         r.setExcessBreakMinutes(att.getExcessBreakMinutes());
+        r.setExcessBreak1Minutes(att.getExcessBreak1Minutes());
+        r.setExcessBreak2Minutes(att.getExcessBreak2Minutes());
         r.setExcessLunchMinutes(att.getExcessLunchMinutes());
         r.setNetWorkMinutes(att.getNetWorkMinutes());
         r.setIsLate(att.getIsLate());
@@ -611,6 +701,7 @@ public class AttendanceService {
         r.setOvertimeMinutes(att.getOvertimeMinutes());
         r.setIsMissedCheckout(att.getIsMissedCheckout());
         r.setMissedCheckoutFlaggedAt(att.getMissedCheckoutFlaggedAt());
+        r.setLateCheckinAllowed(att.getLateCheckinAllowed());
 
         // Resolve names
         try {
@@ -622,7 +713,17 @@ public class AttendanceService {
         } catch (Exception ignored) {}
 
         if (att.getShiftId() != null) {
-            shiftRepository.findById(att.getShiftId()).ifPresent(s -> r.setShiftName(s.getName()));
+            shiftRepository.findById(att.getShiftId()).ifPresent(s -> {
+                r.setShiftName(s.getName());
+                r.setShiftStartTime(s.getStartTime());
+                r.setShiftEndTime(s.getEndTime());
+                r.setBreak1StartTime(s.getBreak1StartTime());
+                r.setBreak1EndTime(s.getBreak1EndTime());
+                r.setLunchStartTime(s.getLunchStartTime());
+                r.setLunchEndTime(s.getLunchEndTime());
+                r.setBreak2StartTime(s.getBreak2StartTime());
+                r.setBreak2EndTime(s.getBreak2EndTime());
+            });
         }
         if (att.getLocationId() != null) {
             locationRepository.findById(att.getLocationId()).ifPresent(l -> r.setLocationName(l.getName()));
@@ -672,6 +773,18 @@ public class AttendanceService {
         r.setEndTime(b.getEndTime());
         r.setDurationMinutes(b.getDurationMinutes());
         return r;
+    }
+
+    private boolean isTimeWithinWindow(LocalTime currentTime, LocalTime startTime, LocalTime endTime) {
+        if (startTime == null || endTime == null) {
+            return false;
+        }
+        if (startTime.isBefore(endTime)) {
+            return !currentTime.isBefore(startTime) && !currentTime.isAfter(endTime);
+        } else {
+            // Crosses midnight
+            return !currentTime.isBefore(startTime) || !currentTime.isAfter(endTime);
+        }
     }
 
     private LocalDateTime now() {

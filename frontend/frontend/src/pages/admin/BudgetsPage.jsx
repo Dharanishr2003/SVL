@@ -1,22 +1,20 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { createPortal } from "react-dom";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import PageSizeSelector from "../../components/admin/PageSizeSelector";
 import "../../pages/admin/LeadsPage.css";
-
-const MOCK_DATA = [
-  { id: 1, title: "Office Supplies", type: "Category", startDate: "14 Jan 2024", endDate: "13 Nov 2024", totalRevenue: 250000, totalExpense: 150000, taxAmount: 10000, budgetAmount: 90000 },
-  { id: 2, title: "Recruitment",     type: "Category", startDate: "21 Jan 2024", endDate: "20 Nov 2024", totalRevenue: 300000, totalExpense: 200000, taxAmount: 15000, budgetAmount: 85000 },
-  { id: 3, title: "Tender",          type: "Project",  startDate: "10 Feb 2024", endDate: "08 Dec 2024", totalRevenue: 200000, totalExpense: 170000, taxAmount: 5000,  budgetAmount: 25000 },
-  { id: 4, title: "Salary 2024",     type: "Category", startDate: "18 Feb 2024", endDate: "16 Dec 2024", totalRevenue: 300000, totalExpense: 200000, taxAmount: 15000, budgetAmount: 85000 },
-];
+import { getBudgets, createBudget, updateBudget, deleteBudget } from "../../api/budgetsApi";
+import { useToast } from "../../components/system/ToastProvider";
+import { extractApiErrorMessage } from "../../utils/errorMessage";
 
 const initialForm = { title: "", type: "Category", startDate: "", endDate: "", totalRevenue: "", totalExpense: "", taxAmount: "", budgetAmount: "" };
 
 export default function BudgetsPage() {
-  const [rows, setRows] = useState(MOCK_DATA);
+  const { showSuccess, showError } = useToast();
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -28,6 +26,22 @@ export default function BudgetsPage() {
   const [editForm, setEditForm] = useState(initialForm);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [editTarget, setEditTarget] = useState(null);
+
+  const loadBudgets = async () => {
+    setLoading(true);
+    try {
+      const data = await getBudgets();
+      setRows(Array.isArray(data) ? data : []);
+    } catch (e) {
+      showError(extractApiErrorMessage(e, "Failed to load budgets"));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadBudgets();
+  }, []);
 
   const filteredRows = useMemo(() => {
     const q = searchQuery.toLowerCase();
@@ -97,25 +111,62 @@ export default function BudgetsPage() {
   const openEdit = (row) => { setEditTarget(row); setEditForm({ ...row }); setShowEditModal(true); };
   const openDelete = (row) => { setDeleteTarget(row); setShowDeleteModal(true); };
 
-  const handleAdd = (e) => {
+  const handleAdd = async (e) => {
     e.preventDefault();
-    const newRow = { ...form, id: Date.now(), totalRevenue: Number(form.totalRevenue), totalExpense: Number(form.totalExpense), taxAmount: Number(form.taxAmount), budgetAmount: Number(form.budgetAmount) };
-    setRows(prev => [...prev, newRow]);
-    setForm(initialForm);
-    setShowAddModal(false);
+    try {
+      const payload = {
+        title: form.title.trim(),
+        type: form.type.trim(),
+        startDate: form.startDate.trim(),
+        endDate: form.endDate.trim(),
+        totalRevenue: Number(form.totalRevenue) || 0,
+        totalExpense: Number(form.totalExpense) || 0,
+        taxAmount: Number(form.taxAmount) || 0,
+        budgetAmount: Number(form.budgetAmount) || 0
+      };
+      await createBudget(payload);
+      showSuccess("Budget added successfully");
+      setForm(initialForm);
+      setShowAddModal(false);
+      await loadBudgets();
+    } catch (err) {
+      showError(extractApiErrorMessage(err, "Failed to add budget"));
+    }
   };
 
-  const handleEdit = (e) => {
+  const handleEdit = async (e) => {
     e.preventDefault();
-    setRows(prev => prev.map(r => r.id === editTarget.id ? { ...editForm, id: r.id, totalRevenue: Number(editForm.totalRevenue), totalExpense: Number(editForm.totalExpense), taxAmount: Number(editForm.taxAmount), budgetAmount: Number(editForm.budgetAmount) } : r));
-    setShowEditModal(false);
+    try {
+      const payload = {
+        title: editForm.title.trim(),
+        type: editForm.type.trim(),
+        startDate: editForm.startDate.trim(),
+        endDate: editForm.endDate.trim(),
+        totalRevenue: Number(editForm.totalRevenue) || 0,
+        totalExpense: Number(editForm.totalExpense) || 0,
+        taxAmount: Number(editForm.taxAmount) || 0,
+        budgetAmount: Number(editForm.budgetAmount) || 0
+      };
+      await updateBudget(editTarget.id, payload);
+      showSuccess("Budget updated successfully");
+      setShowEditModal(false);
+      await loadBudgets();
+    } catch (err) {
+      showError(extractApiErrorMessage(err, "Failed to update budget"));
+    }
   };
 
-  const handleDelete = () => {
-    setRows(prev => prev.filter(r => r.id !== deleteTarget.id));
-    setSelectedIds(prev => { const next = new Set(prev); next.delete(deleteTarget.id); return next; });
-    setDeleteTarget(null);
-    setShowDeleteModal(false);
+  const handleDelete = async () => {
+    try {
+      await deleteBudget(deleteTarget.id);
+      showSuccess("Budget deleted successfully");
+      setSelectedIds(prev => { const next = new Set(prev); next.delete(deleteTarget.id); return next; });
+      setDeleteTarget(null);
+      setShowDeleteModal(false);
+      await loadBudgets();
+    } catch (err) {
+      showError(extractApiErrorMessage(err, "Failed to delete budget"));
+    }
   };
 
   return (
@@ -318,27 +369,27 @@ export default function BudgetsPage() {
                       </div>
                       <div className="col-md-6 mb-3">
                         <label className="form-label">Start Date</label>
-                        <input type="text" className="form-control" placeholder="dd MMM yyyy" value={form.startDate} onChange={e => setForm(p => ({ ...p, startDate: e.target.value }))} />
+                        <input type="date" className="form-control" value={form.startDate} onChange={e => setForm(p => ({ ...p, startDate: e.target.value }))} />
                       </div>
                       <div className="col-md-6 mb-3">
                         <label className="form-label">End Date</label>
-                        <input type="text" className="form-control" placeholder="dd MMM yyyy" value={form.endDate} onChange={e => setForm(p => ({ ...p, endDate: e.target.value }))} />
+                        <input type="date" className="form-control" value={form.endDate} onChange={e => setForm(p => ({ ...p, endDate: e.target.value }))} />
                       </div>
                       <div className="col-md-6 mb-3">
                         <label className="form-label">Total Revenue</label>
-                        <input type="number" className="form-control" value={form.totalRevenue} onChange={e => setForm(p => ({ ...p, totalRevenue: e.target.value }))} />
+                        <input type="number" min="0" className="form-control" value={form.totalRevenue} onChange={e => setForm(p => ({ ...p, totalRevenue: e.target.value }))} />
                       </div>
                       <div className="col-md-6 mb-3">
                         <label className="form-label">Total Expense</label>
-                        <input type="number" className="form-control" value={form.totalExpense} onChange={e => setForm(p => ({ ...p, totalExpense: e.target.value }))} />
+                        <input type="number" min="0" className="form-control" value={form.totalExpense} onChange={e => setForm(p => ({ ...p, totalExpense: e.target.value }))} />
                       </div>
                       <div className="col-md-6 mb-3">
                         <label className="form-label">Tax Amount</label>
-                        <input type="number" className="form-control" value={form.taxAmount} onChange={e => setForm(p => ({ ...p, taxAmount: e.target.value }))} />
+                        <input type="number" min="0" className="form-control" value={form.taxAmount} onChange={e => setForm(p => ({ ...p, taxAmount: e.target.value }))} />
                       </div>
                       <div className="col-md-6 mb-3">
                         <label className="form-label">Budget Amount</label>
-                        <input type="number" className="form-control" value={form.budgetAmount} onChange={e => setForm(p => ({ ...p, budgetAmount: e.target.value }))} />
+                        <input type="number" min="0" className="form-control" value={form.budgetAmount} onChange={e => setForm(p => ({ ...p, budgetAmount: e.target.value }))} />
                       </div>
                     </div>
                   </div>
@@ -374,7 +425,7 @@ export default function BudgetsPage() {
                       <div className="col-md-12 mb-3">
                         <label className="form-label">Choose Budget Type</label>
                         <div className="d-flex align-items-center gap-3">
-                          <div className="form-check">
+                           <div className="form-check">
                             <input className="form-check-input" type="radio" id="edit-type-project" name="edit-type" checked={editForm.type === "Project"} onChange={() => setEditForm(p => ({ ...p, type: "Project" }))} />
                             <label className="form-label mb-0" htmlFor="edit-type-project">Project</label>
                           </div>
@@ -386,27 +437,27 @@ export default function BudgetsPage() {
                       </div>
                       <div className="col-md-6 mb-3">
                         <label className="form-label">Start Date</label>
-                        <input type="text" className="form-control" value={editForm.startDate} onChange={e => setEditForm(p => ({ ...p, startDate: e.target.value }))} />
+                        <input type="date" className="form-control" value={editForm.startDate} onChange={e => setEditForm(p => ({ ...p, startDate: e.target.value }))} />
                       </div>
                       <div className="col-md-6 mb-3">
                         <label className="form-label">End Date</label>
-                        <input type="text" className="form-control" value={editForm.endDate} onChange={e => setEditForm(p => ({ ...p, endDate: e.target.value }))} />
+                        <input type="date" className="form-control" value={editForm.endDate} onChange={e => setEditForm(p => ({ ...p, endDate: e.target.value }))} />
                       </div>
                       <div className="col-md-6 mb-3">
                         <label className="form-label">Total Revenue</label>
-                        <input type="number" className="form-control" value={editForm.totalRevenue} onChange={e => setEditForm(p => ({ ...p, totalRevenue: e.target.value }))} />
+                        <input type="number" min="0" className="form-control" value={editForm.totalRevenue} onChange={e => setEditForm(p => ({ ...p, totalRevenue: e.target.value }))} />
                       </div>
                       <div className="col-md-6 mb-3">
                         <label className="form-label">Total Expense</label>
-                        <input type="number" className="form-control" value={editForm.totalExpense} onChange={e => setEditForm(p => ({ ...p, totalExpense: e.target.value }))} />
+                        <input type="number" min="0" className="form-control" value={editForm.totalExpense} onChange={e => setEditForm(p => ({ ...p, totalExpense: e.target.value }))} />
                       </div>
                       <div className="col-md-6 mb-3">
                         <label className="form-label">Tax Amount</label>
-                        <input type="number" className="form-control" value={editForm.taxAmount} onChange={e => setEditForm(p => ({ ...p, taxAmount: e.target.value }))} />
+                        <input type="number" min="0" className="form-control" value={editForm.taxAmount} onChange={e => setEditForm(p => ({ ...p, taxAmount: e.target.value }))} />
                       </div>
                       <div className="col-md-6 mb-3">
                         <label className="form-label">Budget Amount</label>
-                        <input type="number" className="form-control" value={editForm.budgetAmount} onChange={e => setEditForm(p => ({ ...p, budgetAmount: e.target.value }))} />
+                        <input type="number" min="0" className="form-control" value={editForm.budgetAmount} onChange={e => setEditForm(p => ({ ...p, budgetAmount: e.target.value }))} />
                       </div>
                     </div>
                   </div>

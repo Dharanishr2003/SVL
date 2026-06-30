@@ -114,3 +114,8 @@ export async function updateAttendanceAdmin(id, payload) {
   const response = await api.put(`/api/attendance/admin/${id}`, payload);
   return response?.data;
 }
+
+export async function allowLateCheckin(userId, date) {
+  const response = await api.post(`/api/attendance/admin/allow-late-checkin?userId=${userId}&date=${date}`);
+  return response?.data;
+}

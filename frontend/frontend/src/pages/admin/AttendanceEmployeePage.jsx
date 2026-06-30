@@ -92,6 +92,50 @@ const AttendanceEmployeePage = () => {
 
   useEffect(() => { loadData(); }, [loadData]);
 
+  const isTimeWithinWindow = (startStr, endStr) => {
+    if (!startStr || !endStr) return false;
+    
+    // Get current time in Asia/Kolkata timezone
+    const now = new Date();
+    try {
+      const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'Asia/Kolkata',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      }).formatToParts(now);
+      
+      const hourStr = parts.find(p => p.type === 'hour').value;
+      const minuteStr = parts.find(p => p.type === 'minute').value;
+      const currentMinutes = Number(hourStr) * 60 + Number(minuteStr);
+
+      const [startH, startM] = startStr.split(':').map(Number);
+      const startMinutes = startH * 60 + startM;
+
+      const [endH, endM] = endStr.split(':').map(Number);
+      const endMinutes = endH * 60 + endM;
+
+      if (startMinutes <= endMinutes) {
+        return currentMinutes >= startMinutes && currentMinutes <= endMinutes;
+      } else {
+        return currentMinutes >= startMinutes || currentMinutes <= endMinutes;
+      }
+    } catch (e) {
+      // Fallback to local time if Intl fails
+      const currentMinutes = now.getHours() * 60 + now.getMinutes();
+      const [startH, startM] = startStr.split(':').map(Number);
+      const startMinutes = startH * 60 + startM;
+      const [endH, endM] = endStr.split(':').map(Number);
+      const endMinutes = endH * 60 + endM;
+
+      if (startMinutes <= endMinutes) {
+        return currentMinutes >= startMinutes && currentMinutes <= endMinutes;
+      } else {
+        return currentMinutes >= startMinutes || currentMinutes <= endMinutes;
+      }
+    }
+  };
+
   /* ── Actions ── */
   const handleAction = async (action) => {
     setActionLoading(true);
@@ -121,11 +165,23 @@ const AttendanceEmployeePage = () => {
         case 'breakEnd':
           await attendanceApi.endBreak({ breakType: 'BREAK' });
           break;
+        case 'break1Start':
+          await attendanceApi.startBreak({ breakType: 'BREAK_1' });
+          break;
+        case 'break1End':
+          await attendanceApi.endBreak({ breakType: 'BREAK_1' });
+          break;
         case 'lunchStart':
           await attendanceApi.startBreak({ breakType: 'LUNCH' });
           break;
         case 'lunchEnd':
           await attendanceApi.endBreak({ breakType: 'LUNCH' });
+          break;
+        case 'break2Start':
+          await attendanceApi.startBreak({ breakType: 'BREAK_2' });
+          break;
+        case 'break2End':
+          await attendanceApi.endBreak({ breakType: 'BREAK_2' });
           break;
         default:
           break;
@@ -143,9 +199,11 @@ const AttendanceEmployeePage = () => {
   const status = today?.status;
   const isCheckedIn = status === 'CHECKED_IN';
   const isOnBreak = status === 'ON_BREAK';
+  const isOnBreak1 = status === 'ON_BREAK_1';
   const isOnLunch = status === 'ON_LUNCH';
+  const isOnBreak2 = status === 'ON_BREAK_2';
   const isCheckedOut = status === 'CHECKED_OUT' || status === 'AUTO_CHECKOUT';
-  const isActive = isCheckedIn || isOnBreak || isOnLunch;
+  const isActive = isCheckedIn || isOnBreak || isOnBreak1 || isOnLunch || isOnBreak2;
   const hasNotCheckedIn = !today;
 
   const nowStr = new Date().toLocaleString([], {
@@ -302,11 +360,32 @@ const AttendanceEmployeePage = () => {
               )}
               {isCheckedIn && (
                 <>
-                  <button className="btn btn-outline-warning d-flex align-items-center gap-2" style={{ borderRadius: 8 }} disabled={actionLoading} onClick={() => handleAction('breakStart')}>
-                    <i className="ti ti-coffee"></i>Break
+                  <button
+                    className="btn btn-outline-warning d-flex align-items-center gap-2"
+                    style={{ borderRadius: 8 }}
+                    disabled={actionLoading || !isTimeWithinWindow(today?.break1StartTime, today?.break1EndTime)}
+                    onClick={() => handleAction('break1Start')}
+                    title={today?.break1StartTime ? `Allowed: ${today.break1StartTime.substring(0, 5)} to ${today.break1EndTime.substring(0, 5)}${!isTimeWithinWindow(today.break1StartTime, today.break1EndTime) ? ' (Currently Closed)' : ''}` : ''}
+                  >
+                    <i className="ti ti-coffee"></i>Break 1 {today?.break1StartTime ? `(${today.break1StartTime.substring(0,5)}-${today.break1EndTime.substring(0,5)})` : ''}
                   </button>
-                  <button className="btn btn-outline-info d-flex align-items-center gap-2" style={{ borderRadius: 8 }} disabled={actionLoading} onClick={() => handleAction('lunchStart')}>
-                    <i className="ti ti-meat"></i>Lunch
+                  <button
+                    className="btn btn-outline-info d-flex align-items-center gap-2"
+                    style={{ borderRadius: 8 }}
+                    disabled={actionLoading || !isTimeWithinWindow(today?.lunchStartTime, today?.lunchEndTime)}
+                    onClick={() => handleAction('lunchStart')}
+                    title={today?.lunchStartTime ? `Allowed: ${today.lunchStartTime.substring(0, 5)} to ${today.lunchEndTime.substring(0, 5)}${!isTimeWithinWindow(today.lunchStartTime, today.lunchEndTime) ? ' (Currently Closed)' : ''}` : ''}
+                  >
+                    <i className="ti ti-meat"></i>Lunch {today?.lunchStartTime ? `(${today.lunchStartTime.substring(0,5)}-${today.lunchEndTime.substring(0,5)})` : ''}
+                  </button>
+                  <button
+                    className="btn btn-outline-warning d-flex align-items-center gap-2"
+                    style={{ borderRadius: 8 }}
+                    disabled={actionLoading || !isTimeWithinWindow(today?.break2StartTime, today?.break2EndTime)}
+                    onClick={() => handleAction('break2Start')}
+                    title={today?.break2StartTime ? `Allowed: ${today.break2StartTime.substring(0, 5)} to ${today.break2EndTime.substring(0, 5)}${!isTimeWithinWindow(today.break2StartTime, today.break2EndTime) ? ' (Currently Closed)' : ''}` : ''}
+                  >
+                    <i className="ti ti-coffee"></i>Break 2 {today?.break2StartTime ? `(${today.break2StartTime.substring(0,5)}-${today.break2EndTime.substring(0,5)})` : ''}
                   </button>
                   <button className="btn btn-danger d-flex align-items-center gap-2" style={{ borderRadius: 8 }} disabled={actionLoading} onClick={() => handleAction('checkOut')}>
                     {actionLoading ? <LoadingSpinner size="sm" className="me-0" label="Processing check out" /> : <i className="ti ti-logout"></i>}
@@ -314,16 +393,28 @@ const AttendanceEmployeePage = () => {
                   </button>
                 </>
               )}
-              {isOnBreak && (
-                <button className="btn btn-warning d-flex align-items-center gap-2" style={{ borderRadius: 8 }} disabled={actionLoading} onClick={() => handleAction('breakEnd')}>
-                  {actionLoading ? <LoadingSpinner size="sm" className="me-0" label="Ending break" /> : <i className="ti ti-player-play"></i>}
-                  End Break
+              {isOnBreak1 && (
+                <button className="btn btn-warning d-flex align-items-center gap-2" style={{ borderRadius: 8 }} disabled={actionLoading} onClick={() => handleAction('break1End')}>
+                  {actionLoading ? <LoadingSpinner size="sm" className="me-0" label="Ending break 1" /> : <i className="ti ti-player-play"></i>}
+                  End Break 1
                 </button>
               )}
               {isOnLunch && (
                 <button className="btn btn-info text-white d-flex align-items-center gap-2" style={{ borderRadius: 8 }} disabled={actionLoading} onClick={() => handleAction('lunchEnd')}>
                   {actionLoading ? <LoadingSpinner size="sm" className="me-0" label="Ending lunch" /> : <i className="ti ti-player-play"></i>}
                   End Lunch
+                </button>
+              )}
+              {isOnBreak2 && (
+                <button className="btn btn-warning d-flex align-items-center gap-2" style={{ borderRadius: 8 }} disabled={actionLoading} onClick={() => handleAction('break2End')}>
+                  {actionLoading ? <LoadingSpinner size="sm" className="me-0" label="Ending break 2" /> : <i className="ti ti-player-play"></i>}
+                  End Break 2
+                </button>
+              )}
+              {isOnBreak && (
+                <button className="btn btn-warning d-flex align-items-center gap-2" style={{ borderRadius: 8 }} disabled={actionLoading} onClick={() => handleAction('breakEnd')}>
+                  {actionLoading ? <LoadingSpinner size="sm" className="me-0" label="Ending break" /> : <i className="ti ti-player-play"></i>}
+                  End Break
                 </button>
               )}
             </div>

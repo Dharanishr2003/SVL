@@ -116,6 +116,14 @@ public class AttendanceController {
         return ResponseEntity.ok(attendanceService.adminUpdate(id, request));
     }
 
+    @PostMapping("/admin/allow-late-checkin")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN','ADMIN','MANAGER')")
+    public ResponseEntity<AttendanceResponse> allowLateCheckin(
+            @RequestParam Long userId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+        return ResponseEntity.ok(attendanceService.allowLateCheckin(userId, date));
+    }
+
     // ── Admin: shifts CRUD ──
 
     @GetMapping("/shifts")

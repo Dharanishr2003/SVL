@@ -1,79 +1,99 @@
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import LoadingSpinner from "../../components/common/LoadingSpinner";
-
-// Mocking dynamic client-side expenses persistence for prototype since no backend API tables exist.
-const INITIAL_EXPENSES = [
-  { id: 1, name: "Online Course", date: "2024-01-14", method: "Cash", amount: 3000 },
-  { id: 2, name: "Employee Benefits", date: "2024-01-21", method: "Cash", amount: 2500 },
-  { id: 3, name: "Travel", date: "2024-02-20", method: "Cheque", amount: 2800 },
-  { id: 4, name: "Office Supplies", date: "2024-03-15", method: "Cash", amount: 3300 },
-  { id: 5, name: "Welcome Kit", date: "2024-04-12", method: "Cheque", amount: 3600 },
-  { id: 6, name: "Equipment", date: "2024-04-20", method: "Cheque", amount: 2000 },
-  { id: 7, name: "Miscellaneous", date: "2024-07-06", method: "Cash", amount: 3400 },
-  { id: 8, name: "Payroll", date: "2024-09-02", method: "Cheque", amount: 4000 },
-  { id: 9, name: "Cafeteria", date: "2024-11-15", method: "Cash", amount: 4500 },
-  { id: 10, name: "Cleaning Supplies", date: "2024-12-10", method: "Cheque", amount: 3800 }
-];
+import { getExpenses, createExpense, updateExpense, deleteExpense } from "../../api/expensesApi";
+import { useToast } from "../../components/system/ToastProvider";
+import { extractApiErrorMessage } from "../../utils/errorMessage";
 
 const ExpensesPage = () => {
-  const [expenses, setExpenses] = useState(() => {
-    const local = localStorage.getItem("crm_expenses");
-    return local ? JSON.parse(local) : INITIAL_EXPENSES;
-  });
-  const [loading, setLoading] = useState(false);
+  const { showSuccess, showError } = useToast();
+  const [expenses, setExpenses] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [formData, setFormData] = useState({ name: "", date: "", amount: "", method: "Cash" });
   const [editExpense, setEditExpense] = useState(null);
 
-  useEffect(() => {
-    localStorage.setItem("crm_expenses", JSON.stringify(expenses));
-  }, [expenses]);
+  const loadExpenses = async () => {
+    setLoading(true);
+    try {
+      const data = await getExpenses();
+      setExpenses(Array.isArray(data) ? data : []);
+    } catch (e) {
+      showError(extractApiErrorMessage(e, "Failed to load expenses"));
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  const handleAddSubmit = (e) => {
+  useEffect(() => {
+    loadExpenses();
+  }, []);
+
+  const handleAddSubmit = async (e) => {
     e.preventDefault();
     if (!formData.name || !formData.date || !formData.amount) {
-      alert("Please fill all required fields");
+      showError("Please fill all required fields");
       return;
     }
-    const newExp = {
-      id: Date.now(),
-      name: formData.name,
-      date: formData.date,
-      method: formData.method,
-      amount: Number(formData.amount)
-    };
-    setExpenses((prev) => [newExp, ...prev]);
-    setFormData({ name: "", date: "", amount: "", method: "Cash" });
-    const closeBtn = document.querySelector("#add_expenses [data-bs-dismiss='modal']");
-    if (closeBtn) closeBtn.click();
+    try {
+      const payload = {
+        name: formData.name.trim(),
+        date: formData.date.trim(),
+        method: formData.method.trim(),
+        amount: Math.abs(Number(formData.amount) || 0)
+      };
+      await createExpense(payload);
+      showSuccess("Expense added successfully");
+      setFormData({ name: "", date: "", amount: "", method: "Cash" });
+      const closeBtn = document.querySelector("#add_expenses [data-bs-dismiss='modal']");
+      if (closeBtn) closeBtn.click();
+      await loadExpenses();
+    } catch (err) {
+      showError(extractApiErrorMessage(err, "Failed to add expense"));
+    }
   };
 
   const handleEditClick = (exp) => {
-    setEditExpense(exp);
+    setEditExpense({ ...exp, amount: String(exp.amount) });
   };
 
-  const handleEditSubmit = (e) => {
+  const handleEditSubmit = async (e) => {
     e.preventDefault();
     if (!editExpense.name || !editExpense.date || !editExpense.amount) {
-      alert("Please fill all required fields");
+      showError("Please fill all required fields");
       return;
     }
-    setExpenses((prev) =>
-      prev.map((item) => (item.id === editExpense.id ? { ...editExpense, amount: Number(editExpense.amount) } : item))
-    );
-    const closeBtn = document.querySelector("#edit_expenses [data-bs-dismiss='modal']");
-    if (closeBtn) closeBtn.click();
+    try {
+      const payload = {
+        name: editExpense.name.trim(),
+        date: editExpense.date.trim(),
+        method: editExpense.method.trim(),
+        amount: Math.abs(Number(editExpense.amount) || 0)
+      };
+      await updateExpense(editExpense.id, payload);
+      showSuccess("Expense updated successfully");
+      const closeBtn = document.querySelector("#edit_expenses [data-bs-dismiss='modal']");
+      if (closeBtn) closeBtn.click();
+      await loadExpenses();
+    } catch (err) {
+      showError(extractApiErrorMessage(err, "Failed to update expense"));
+    }
   };
 
   const handleDeleteClick = (exp) => {
     setEditExpense(exp);
   };
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (!editExpense) return;
-    setExpenses((prev) => prev.filter((item) => item.id !== editExpense.id));
-    const closeBtn = document.querySelector("#delete_modal [data-bs-dismiss='modal']");
-    if (closeBtn) closeBtn.click();
+    try {
+      await deleteExpense(editExpense.id);
+      showSuccess("Expense deleted successfully");
+      const closeBtn = document.querySelector("#delete_modal [data-bs-dismiss='modal']");
+      if (closeBtn) closeBtn.click();
+      await loadExpenses();
+    } catch (err) {
+      showError(extractApiErrorMessage(err, "Failed to delete expense"));
+    }
   };
 
   const formatDate = (val) => {
@@ -236,6 +256,7 @@ const ExpensesPage = () => {
                     <label className="form-label">Amount</label>
                     <input
                       type="number"
+                      min="0"
                       className="form-control"
                       value={formData.amount}
                       onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
@@ -300,6 +321,7 @@ const ExpensesPage = () => {
                       <label className="form-label">Amount</label>
                       <input
                         type="number"
+                        min="0"
                         className="form-control"
                         value={editExpense.amount}
                         onChange={(e) => setEditExpense({ ...editExpense, amount: e.target.value })}

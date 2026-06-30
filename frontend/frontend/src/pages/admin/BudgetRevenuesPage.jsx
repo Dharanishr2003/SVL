@@ -1,17 +1,13 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { createPortal } from "react-dom";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import PageSizeSelector from "../../components/admin/PageSizeSelector";
 import "../../pages/admin/LeadsPage.css";
-
-const MOCK_DATA = [
-  { id: 1, name: "Training Programs",       category: "Training",             subCategory: "Employee Training", amount: 20000, date: "14 Jan 2024" },
-  { id: 2, name: "Premium Support Packages",category: "Support & Maintenance", subCategory: "Premium Support",   amount: 40000, date: "21 Jan 2024" },
-  { id: 3, name: "Consulting Services",      category: "Services",             subCategory: "Consulting",        amount: 10000, date: "10 Feb 2024" },
-  { id: 4, name: "Subscription Fees",        category: "Platform Fees",        subCategory: "Subscription Plans",amount: 20000, date: "18 Feb 2024" },
-];
+import { getBudgetRevenues, createBudgetRevenue, updateBudgetRevenue, deleteBudgetRevenue } from "../../api/budgetRevenuesApi";
+import { useToast } from "../../components/system/ToastProvider";
+import { extractApiErrorMessage } from "../../utils/errorMessage";
 
 const REVENUE_CATEGORY_OPTIONS = [
   { value: "Training", subCategories: ["Employee Training", "Onboarding", "Certification"] },
@@ -23,7 +19,9 @@ const REVENUE_CATEGORY_OPTIONS = [
 const initialForm = { name: "", category: "", subCategory: "", amount: "", date: "" };
 
 export default function BudgetRevenuesPage() {
-  const [rows, setRows] = useState(MOCK_DATA);
+  const { showSuccess, showError } = useToast();
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -35,6 +33,22 @@ export default function BudgetRevenuesPage() {
   const [editForm, setEditForm] = useState(initialForm);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [editTarget, setEditTarget] = useState(null);
+
+  const loadRevenues = async () => {
+    setLoading(true);
+    try {
+      const data = await getBudgetRevenues();
+      setRows(Array.isArray(data) ? data : []);
+    } catch (e) {
+      showError(extractApiErrorMessage(e, "Failed to load revenues"));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadRevenues();
+  }, []);
 
   const getRevenueSubCategoryOptions = (category) =>
     REVENUE_CATEGORY_OPTIONS.find((option) => option.value === category)?.subCategories || [];
@@ -118,41 +132,56 @@ export default function BudgetRevenuesPage() {
   const openEdit = (row) => { setEditTarget(row); setEditForm({ ...row, amount: String(row.amount) }); setShowEditModal(true); };
   const openDelete = (row) => { setDeleteTarget(row); setShowDeleteModal(true); };
 
-  const handleAdd = (e) => {
+  const handleAdd = async (e) => {
     e.preventDefault();
-    setRows(prev => [
-      ...prev,
-      {
-        ...form,
-        id: Date.now(),
+    try {
+      const payload = {
+        name: form.name.trim(),
+        category: form.category.trim(),
+        subCategory: form.subCategory.trim(),
         amount: Math.abs(Number(form.amount) || 0),
-      },
-    ]);
-    setForm(initialForm);
-    setShowAddModal(false);
+        date: form.date.trim()
+      };
+      await createBudgetRevenue(payload);
+      showSuccess("Revenue added successfully");
+      setForm(initialForm);
+      setShowAddModal(false);
+      await loadRevenues();
+    } catch (err) {
+      showError(extractApiErrorMessage(err, "Failed to add revenue"));
+    }
   };
 
-  const handleEdit = (e) => {
+  const handleEdit = async (e) => {
     e.preventDefault();
-    setRows(prev =>
-      prev.map(r =>
-        r.id === editTarget.id
-          ? {
-              ...editForm,
-              id: r.id,
-              amount: Math.abs(Number(editForm.amount) || 0),
-            }
-          : r
-      )
-    );
-    setShowEditModal(false);
+    try {
+      const payload = {
+        name: editForm.name.trim(),
+        category: editForm.category.trim(),
+        subCategory: editForm.subCategory.trim(),
+        amount: Math.abs(Number(editForm.amount) || 0),
+        date: editForm.date.trim()
+      };
+      await updateBudgetRevenue(editTarget.id, payload);
+      showSuccess("Revenue updated successfully");
+      setShowEditModal(false);
+      await loadRevenues();
+    } catch (err) {
+      showError(extractApiErrorMessage(err, "Failed to update revenue"));
+    }
   };
 
-  const handleDelete = () => {
-    setRows(prev => prev.filter(r => r.id !== deleteTarget.id));
-    setSelectedIds(prev => { const next = new Set(prev); next.delete(deleteTarget.id); return next; });
-    setDeleteTarget(null);
-    setShowDeleteModal(false);
+  const handleDelete = async () => {
+    try {
+      await deleteBudgetRevenue(deleteTarget.id);
+      showSuccess("Revenue deleted successfully");
+      setSelectedIds(prev => { const next = new Set(prev); next.delete(deleteTarget.id); return next; });
+      setDeleteTarget(null);
+      setShowDeleteModal(false);
+      await loadRevenues();
+    } catch (err) {
+      showError(extractApiErrorMessage(err, "Failed to delete revenue"));
+    }
   };
 
   return (
@@ -365,7 +394,7 @@ export default function BudgetRevenuesPage() {
                       </div>
                       <div className="col-md-6 mb-3">
                         <label className="form-label">Date</label>
-                        <input type="text" className="form-control" placeholder="dd MMM yyyy" value={form.date} onChange={e => setForm(p => ({ ...p, date: e.target.value }))} />
+                        <input type="date" className="form-control" value={form.date} onChange={e => setForm(p => ({ ...p, date: e.target.value }))} />
                       </div>
                     </div>
                   </div>
@@ -431,7 +460,7 @@ export default function BudgetRevenuesPage() {
                       </div>
                       <div className="col-md-6 mb-3">
                         <label className="form-label">Date</label>
-                        <input type="text" className="form-control" value={editForm.date} onChange={e => setEditForm(p => ({ ...p, date: e.target.value }))} />
+                        <input type="date" className="form-control" value={editForm.date} onChange={e => setEditForm(p => ({ ...p, date: e.target.value }))} />
                       </div>
                     </div>
                   </div>
