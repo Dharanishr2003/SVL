@@ -1,0 +1,1 @@
+import{j as e}from"./index-Bbj_ynfV.js";function a(){return e.jsx("div",{className:"card",children:e.jsxs("div",{className:"card-body",children:[e.jsx("h4",{className:"mb-2",children:"Icon Simpleline"}),e.jsx("p",{className:"mb-0",children:"Layout working confirmation."})]})})}export{a as default};
