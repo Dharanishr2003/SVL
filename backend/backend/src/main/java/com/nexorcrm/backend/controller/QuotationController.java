@@ -12,7 +12,9 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.security.core.Authentication;
 
 import java.util.List;
@@ -74,9 +76,19 @@ public class QuotationController {
         return quotationService.approveQuotation(id, request);
     }
 
+    @PostMapping("/{id}/admin-reject")
+    public QuotationResponse adminReject(
+            @PathVariable Long id,
+            @RequestBody(required = false) QuotationActionRequest request) {
+        return quotationService.adminRejectQuotation(id, request);
+    }
+
     @PostMapping("/{id}/mark-sent")
-    public QuotationResponse markSent(@PathVariable Long id) {
-        return quotationService.markSent(id);
+    public QuotationResponse markSent(
+            @PathVariable Long id,
+            @RequestParam(name = "sendEmail", defaultValue = "false") boolean sendEmail,
+            @RequestParam(name = "file", required = false) MultipartFile file) {
+        return quotationService.markSent(id, sendEmail, file);
     }
 
     @PostMapping("/{id}/mark-negotiating")

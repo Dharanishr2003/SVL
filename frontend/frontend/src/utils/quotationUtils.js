@@ -2154,3 +2154,11 @@ export async function openQuotationPdfPreview(quotation, template = {}) {
   const { doc } = await prepareQuotationPdfDocument(quotation, template);
   await openPdfBlobInNewTab(doc);
 }
+
+export async function getQuotationPdfBlob(quotation, template = {}) {
+  const { doc, fileName } = await prepareQuotationPdfDocument(quotation, template);
+  return {
+    blob: doc.output("blob"),
+    fileName,
+  };
+}

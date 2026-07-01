@@ -748,8 +748,13 @@ public class DealService {
     public List<DealResponse> listProductionRequests(String actorPrincipal) {
         User actor = assertAccess(actorPrincipal);
         Set<Long> visibleGroupIds = resolveVisibleDealGroupIds(actor);
-        return dealRepository.findByDeletedFalseAndStatusIgnoreCaseOrderByConvertedAtDesc("Production")
-                .stream()
+        List<Deal> prodDeals = dealRepository.findByDeletedFalseAndStatusIgnoreCaseOrderByConvertedAtDesc("Production");
+        List<Deal> designPlusProductionDeals = dealRepository.findByDeletedFalseAndStatusIgnoreCaseOrderByConvertedAtDesc("Design + Production");
+        List<Deal> all = new java.util.ArrayList<>();
+        all.addAll(prodDeals);
+        all.addAll(designPlusProductionDeals);
+        all.sort(java.util.Comparator.comparing(Deal::getConvertedAt, java.util.Comparator.nullsLast(java.util.Comparator.reverseOrder())));
+        return all.stream()
                 .filter(d -> canViewProductionRequest(actor, d, visibleGroupIds))
                 .map(this::toResponse)
                 .toList();
@@ -777,6 +782,13 @@ public class DealService {
             }
             dealRepository.save(deal);
         });
+    }
+
+    @Transactional(readOnly = true)
+    public DealResponse getDealByLeadId(Long leadId) {
+        Deal deal = dealRepository.findBySourceLeadIdAndDeletedFalse(leadId)
+                .orElseThrow(() -> new EntityNotFoundException("Deal not found for lead ID: " + leadId));
+        return toResponse(deal);
     }
 
     private void syncInvoiceSentFlagsToLead(Long sourceLeadId, boolean budgetInvoiceSent, boolean paymentInvoiceSent) {

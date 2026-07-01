@@ -15,6 +15,7 @@ import {
   markQuotationRejected,
   markQuotationSent,
   sendQuotationForVerification,
+  rejectQuotationByAdmin,
 } from "../../api/quotationApi";
 import {
   QUOTATION_STATUS_ACCEPTED,
@@ -27,6 +28,7 @@ import {
   downloadQuotationPdf,
   openQuotationPdfPreview,
   setQuotationDraft,
+  getQuotationPdfBlob,
 } from "../../utils/quotationUtils";
 import { getQuotationTemplate } from "../../api/quotationTemplateApi";
 import PageSizeSelector from "../../components/admin/PageSizeSelector";
@@ -182,6 +184,16 @@ export default function QuotationListPage() {
     open: false,
     quotation: null,
   });
+  const [allocationDialog, setAllocationDialog] = useState({
+    open: false,
+    quotation: null,
+    allocations: {},
+  });
+  const [markSentDialog, setMarkSentDialog] = useState({
+    open: false,
+    quotation: null,
+    sendEmail: false,
+  });
   const [quotationTemplate, setQuotationTemplate] = useState(null);
   const [successMessage, setSuccessMessage] = useState(location.state?.successMessage || "");
   const [selectedQuotationDetails, setSelectedQuotationDetails] = useState(null);
@@ -311,14 +323,49 @@ export default function QuotationListPage() {
     });
   };
 
-  const handleMarkSent = async (quotation) => {
+  const openAdminRejectDialog = (quotation) => {
+    setNotesDialog({
+      open: true,
+      mode: "admin-reject",
+      quotationId: quotation.id,
+      notes: "",
+    });
+  };
+
+  const handleMarkSent = (quotation) => {
+    setMarkSentDialog({
+      open: true,
+      quotation,
+      sendEmail: !!(quotation.clientEmail && quotation.clientEmail.trim()),
+    });
+  };
+
+  const confirmMarkSent = async () => {
     setActionError("");
+    const { quotation, sendEmail } = markSentDialog;
+    if (!quotation) return;
     try {
-      const updated = await markQuotationSent(quotation.id);
+      let file = null;
+      if (sendEmail) {
+        try {
+          const { blob, fileName } = await getQuotationPdfBlob(quotation, quotationTemplate || {});
+          file = new File([blob], fileName, { type: "application/pdf" });
+        } catch (pdfErr) {
+          console.error("Failed to generate PDF for email attachment", pdfErr);
+        }
+      }
+      const updated = await markQuotationSent(quotation.id, sendEmail, file);
       if (updated) updateSingleQuotation(updated);
+      setSuccessMessage(
+        sendEmail
+          ? "Quotation marked as sent and email with PDF attachment dispatched!"
+          : "Quotation marked as sent successfully!"
+      );
     } catch (error) {
       const message = error?.response?.data?.message || "Failed to mark quotation as sent.";
       setActionError(message);
+    } finally {
+      setMarkSentDialog({ open: false, quotation: null, sendEmail: false });
     }
   };
 
@@ -352,6 +399,58 @@ export default function QuotationListPage() {
 
   const closeLogDialog = () => {
     setLogDialog({ open: false, quotation: null });
+  };
+
+  const openAllocationDialog = (quotation) => {
+    const initialAllocations = {};
+    if (quotation?.items) {
+      quotation.items.forEach((item) => {
+        initialAllocations[item.id] = "Production";
+      });
+    }
+    setAllocationDialog({
+      open: true,
+      quotation,
+      allocations: initialAllocations,
+    });
+  };
+
+  const submitAllocationDialog = async () => {
+    setActionError("");
+    try {
+      const q = allocationDialog.quotation;
+      if (!q || !q.leadId) {
+        setAllocationDialog({ open: false, quotation: null, allocations: {} });
+        return;
+      }
+
+      const values = Object.values(allocationDialog.allocations);
+      const hasDesign = values.includes("Design");
+      const hasProduction = values.includes("Production");
+
+      let targetStatus = "Production";
+      if (hasDesign && hasProduction) {
+        targetStatus = "Design + Production";
+      } else if (hasDesign) {
+        targetStatus = "Design";
+      }
+
+      const { getDealByLeadId, updateDealStatus } = await import("../../api/dealsApi");
+      const deal = await getDealByLeadId(q.leadId);
+      if (deal) {
+        await updateDealStatus(deal.id, targetStatus);
+        setSuccessMessage(`Successfully allocated items and routed Deal to ${targetStatus}!`);
+        // Refresh quotation list to update UI state
+        getQuotations().then((rows) => setQuotations(Array.isArray(rows) ? rows : []));
+      } else {
+        setActionError("Associated Deal not found for this Lead.");
+      }
+
+      setAllocationDialog({ open: false, quotation: null, allocations: {} });
+    } catch (err) {
+      console.error(err);
+      setActionError("Failed to allocate and route quotation items.");
+    }
   };
 
   const buildQuotationLogs = (quotation) => {
@@ -457,6 +556,8 @@ export default function QuotationListPage() {
         updated = await sendQuotationForVerification(quotation.id, notesDialog.notes);
       } else if (notesDialog.mode === "approve") {
         updated = await approveQuotation(quotation.id, notesDialog.notes);
+      } else if (notesDialog.mode === "admin-reject") {
+        updated = await rejectQuotationByAdmin(quotation.id, notesDialog.notes);
       } else if (notesDialog.mode === "mark-negotiating") {
         updated = await markQuotationNegotiating(quotation.id, notesDialog.notes);
       } else if (notesDialog.mode === "mark-rejected") {
@@ -928,6 +1029,18 @@ ${rowsHtml}
                                   </button>
                                 </div>
                               )}
+                              {status === QUOTATION_STATUS_ACCEPTED && (
+                                <div className="mt-2">
+                                  <button
+                                    type="button"
+                                    className="btn btn-primary btn-sm w-100"
+                                    onClick={() => openAllocationDialog(quotation)}
+                                  >
+                                    <i className="ti ti-arrows-split me-1"></i>
+                                    Allocate Items
+                                  </button>
+                                </div>
+                              )}
                             </td>
                             <td className="col-date" style={{ fontSize: "0.9rem" }}>{formatDate(quotation.quotationDate || quotation.createdAt)}</td>
                             <td className="col-total fw-semibold text-success" style={{ fontSize: "0.9rem" }}>Rs. {Number(quotation.grandTotal ?? quotation.totals?.grandTotal ?? 0).toFixed(2)}</td>
@@ -963,15 +1076,26 @@ ${rowsHtml}
                                   <i className="ti ti-dots-vertical" style={{ fontSize: "1.15rem" }} />
                                 </button>
                                 {canApprove && (
-                                  <button
-                                    type="button"
-                                    className="btn btn-success btn-sm d-flex align-items-center gap-1"
-                                    style={{ padding: "6px 12px", borderRadius: 8, fontSize: "0.85rem", fontWeight: "600" }}
-                                    onClick={() => openApproveDialog(quotation)}
-                                  >
-                                    <i className="ti ti-circle-check"></i>
-                                    Approve
-                                  </button>
+                                  <div className="d-flex gap-1">
+                                    <button
+                                      type="button"
+                                      className="btn btn-success btn-sm d-flex align-items-center gap-1"
+                                      style={{ padding: "6px 12px", borderRadius: 8, fontSize: "0.85rem", fontWeight: "600" }}
+                                      onClick={() => openApproveDialog(quotation)}
+                                    >
+                                      <i className="ti ti-circle-check"></i>
+                                      Approve
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="btn btn-danger btn-sm d-flex align-items-center gap-1"
+                                      style={{ padding: "6px 12px", borderRadius: 8, fontSize: "0.85rem", fontWeight: "600" }}
+                                      onClick={() => openAdminRejectDialog(quotation)}
+                                    >
+                                      <i className="ti ti-circle-x"></i>
+                                      Reject
+                                    </button>
+                                  </div>
                                 )}
                               </div>
                             </td>
@@ -1088,6 +1212,7 @@ ${rowsHtml}
                   <h5 className="modal-title">
                     {notesDialog.mode === "verify" && "Send for Verification"}
                     {notesDialog.mode === "approve" && "Approve Quotation"}
+                    {notesDialog.mode === "admin-reject" && "Reject Quotation"}
                     {notesDialog.mode === "mark-negotiating" && "Mark as Negotiating"}
                     {notesDialog.mode === "mark-rejected" && "Mark as Rejected"}
                     {notesDialog.mode === "mark-accepted" && "Mark as Accepted"}
@@ -1109,6 +1234,7 @@ ${rowsHtml}
                       <label className="form-label">
                         {notesDialog.mode === "verify" && "Verification Notes (optional)"}
                         {notesDialog.mode === "approve" && "Approval Notes (optional)"}
+                        {notesDialog.mode === "admin-reject" && "Rejection Notes (required)"}
                         {notesDialog.mode === "mark-negotiating" && "Negotiation Notes (required)"}
                         {notesDialog.mode === "mark-rejected" && "Rejection Notes (required)"}
                         {notesDialog.mode === "mark-accepted" && "Acceptance Notes (optional)"}
@@ -1122,7 +1248,7 @@ ${rowsHtml}
                         }
                         placeholder="Add notes..."
                       />
-                      {(notesDialog.mode === "mark-negotiating" || notesDialog.mode === "mark-rejected") && !notesDialog.notes.trim() && (
+                      {(notesDialog.mode === "mark-negotiating" || notesDialog.mode === "mark-rejected" || notesDialog.mode === "admin-reject") && !notesDialog.notes.trim() && (
                         <div className="form-text text-danger">Notes are required.</div>
                       )}
                     </>
@@ -1137,12 +1263,13 @@ ${rowsHtml}
                     className={notesDialog.mode === "delete" ? "btn btn-danger" : "btn btn-primary"}
                     onClick={submitNotesDialog}
                     disabled={
-                      (notesDialog.mode === "mark-negotiating" || notesDialog.mode === "mark-rejected")
+                      (notesDialog.mode === "mark-negotiating" || notesDialog.mode === "mark-rejected" || notesDialog.mode === "admin-reject")
                       && !notesDialog.notes.trim()
                     }
                   >
                     {notesDialog.mode === "verify" && "Send Verification"}
                     {notesDialog.mode === "approve" && "Approve"}
+                    {notesDialog.mode === "admin-reject" && "Reject"}
                     {notesDialog.mode === "mark-negotiating" && "Save"}
                     {notesDialog.mode === "mark-rejected" && "Save"}
                     {notesDialog.mode === "mark-accepted" && "Save"}
@@ -1244,6 +1371,159 @@ ${rowsHtml}
                 <button type="button" className="btn btn-secondary btn-sm" onClick={closeLogDialog}>
                   Close
                 </button>
+              </div>
+            </div>
+          </div>
+          <div className="modal-backdrop fade show quotation-list-backdrop"></div>
+        </>
+      )}
+
+      {allocationDialog.open && (
+        <>
+          <div className="modal fade show d-block" tabIndex="-1" role="dialog" aria-modal="true">
+            <div className="modal-dialog modal-dialog-centered modal-lg">
+              <div className="modal-content" style={{ borderRadius: 14 }}>
+                <div className="modal-header bg-light">
+                  <h5 className="modal-title fw-bold" style={{ color: "#334155" }}>
+                    <i className="ti ti-arrows-split me-2 text-primary"></i>
+                    Separate & Allocate Quotation Items
+                  </h5>
+                  <button type="button" className="btn-close" onClick={() => setAllocationDialog({ open: false, quotation: null, allocations: {} })}></button>
+                </div>
+                <div className="modal-body p-4">
+                  <p className="text-muted small mb-4">
+                    For each product in this quotation, choose which team it should be sent to. 
+                    If items are split between both teams, the Deal status will automatically be updated to <strong>Design + Production</strong>.
+                  </p>
+                  
+                  <div className="table-responsive">
+                    <table className="table align-middle">
+                      <thead>
+                        <tr>
+                          <th>Product Name</th>
+                          <th>Details</th>
+                          <th>Quantity</th>
+                          <th style={{ width: 240 }}>Allocate To</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {allocationDialog.quotation?.items?.map((item) => (
+                          <tr key={item.id}>
+                            <td className="fw-semibold" style={{ color: "#0f172a" }}>{item.productName}</td>
+                            <td className="small text-muted">{item.specsSummary || "-"}</td>
+                            <td className="fw-semibold">{item.quantity}</td>
+                            <td>
+                              <select
+                                className="form-select"
+                                style={{ borderRadius: 8 }}
+                                value={allocationDialog.allocations[item.id] || "Production"}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setAllocationDialog(prev => ({
+                                    ...prev,
+                                    allocations: {
+                                      ...prev.allocations,
+                                      [item.id]: val
+                                    }
+                                  }));
+                                }}
+                              >
+                                <option value="Production">Production Team</option>
+                                <option value="Design">Design Team</option>
+                              </select>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+                <div className="modal-footer border-0 p-3 bg-light d-flex justify-content-end">
+                  <button
+                    type="button"
+                    className="btn btn-light px-3"
+                    style={{ borderRadius: 8, fontWeight: "600" }}
+                    onClick={() => setAllocationDialog({ open: false, quotation: null, allocations: {} })}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-primary px-3"
+                    style={{ borderRadius: 8, fontWeight: "600", backgroundColor: "#3b82f6", borderColor: "#3b82f6" }}
+                    onClick={submitAllocationDialog}
+                  >
+                    Allocate & Send
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="modal-backdrop fade show quotation-list-backdrop"></div>
+        </>
+      )}
+
+      {markSentDialog.open && (
+        <>
+          <div className="modal fade show d-block" tabIndex="-1" role="dialog" aria-modal="true">
+            <div className="modal-dialog modal-dialog-centered">
+              <div className="modal-content" style={{ borderRadius: 14 }}>
+                <div className="modal-header bg-light">
+                  <h5 className="modal-title fw-bold" style={{ color: "#334155" }}>
+                    <i className="ti ti-mail-forward me-2 text-primary"></i>
+                    Mark Quotation as Sent
+                  </h5>
+                  <button type="button" className="btn-close" onClick={() => setMarkSentDialog({ open: false, quotation: null, sendEmail: false })}></button>
+                </div>
+                <div className="modal-body p-4">
+                  {markSentDialog.quotation?.clientEmail && markSentDialog.quotation.clientEmail.trim() ? (
+                    <div>
+                      <p className="mb-3">Would you like to send an automated email copy of the quotation to the customer?</p>
+                      <div className="form-check form-switch p-0 d-flex align-items-center gap-3 bg-light p-3" style={{ borderRadius: 8 }}>
+                        <input
+                          className="form-check-input ms-0"
+                          type="checkbox"
+                          role="switch"
+                          id="sendEmailCheckbox"
+                          style={{ width: 44, height: 22, cursor: "pointer" }}
+                          checked={markSentDialog.sendEmail}
+                          onChange={(e) => setMarkSentDialog(prev => ({ ...prev, sendEmail: e.target.checked }))}
+                        />
+                        <label className="form-check-label fw-semibold" htmlFor="sendEmailCheckbox" style={{ cursor: "pointer", color: "#334155" }}>
+                          Send Email to: <span className="text-primary">{markSentDialog.quotation.clientEmail}</span>
+                        </label>
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <div className="alert alert-warning d-flex align-items-center gap-2 mb-3">
+                        <i className="ti ti-alert-triangle" style={{ fontSize: "1.2rem" }}></i>
+                        <strong>No Customer Email Configured</strong>
+                      </div>
+                      <p className="text-muted small mb-0">
+                        This lead/customer doesn't have an email address configured. The quotation status will be updated to <strong>Sent</strong>, and you can download the PDF to send privately.
+                      </p>
+                    </div>
+                  )}
+                </div>
+                <div className="modal-footer border-0 p-3 bg-light d-flex justify-content-end">
+                  <button
+                    type="button"
+                    className="btn btn-light px-3"
+                    style={{ borderRadius: 8, fontWeight: "600" }}
+                    onClick={() => setMarkSentDialog({ open: false, quotation: null, sendEmail: false })}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-primary px-3"
+                    style={{ borderRadius: 8, fontWeight: "600", backgroundColor: "#3b82f6", borderColor: "#3b82f6" }}
+                    onClick={confirmMarkSent}
+                  >
+                    Confirm & Mark Sent
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -1390,18 +1670,32 @@ ${rowsHtml}
                       </button>
                     )}
                     {isHigherAuthority && (
-                      <button
-                        type="button"
-                        className="btn btn-info"
-                        onClick={() => {
-                          openApproveDialog(selectedQuotationDetails);
-                          setSelectedQuotationDetails(null);
-                        }}
-                        disabled={!canApproveQuotation(selectedQuotationDetails, userRole, user)}
-                      >
-                        <i className="ti ti-circle-check me-2"></i>
-                        {selectedQuotationDetails.status === QUOTATION_STATUS_APPROVED ? "Approved" : "Approve"}
-                      </button>
+                      <>
+                        <button
+                          type="button"
+                          className="btn btn-info"
+                          onClick={() => {
+                            openApproveDialog(selectedQuotationDetails);
+                            setSelectedQuotationDetails(null);
+                          }}
+                          disabled={!canApproveQuotation(selectedQuotationDetails, userRole, user)}
+                        >
+                          <i className="ti ti-circle-check me-2"></i>
+                          {selectedQuotationDetails.status === QUOTATION_STATUS_APPROVED ? "Approved" : "Approve"}
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-danger"
+                          onClick={() => {
+                            openAdminRejectDialog(selectedQuotationDetails);
+                            setSelectedQuotationDetails(null);
+                          }}
+                          disabled={!canApproveQuotation(selectedQuotationDetails, userRole, user)}
+                        >
+                          <i className="ti ti-circle-x me-2"></i>
+                          Reject Quotation
+                        </button>
+                      </>
                     )}
                     {userRole === "SUPER_ADMIN" && (
                       <button
@@ -1523,17 +1817,30 @@ ${rowsHtml}
 
           {/* Approve */}
           {isHigherAuthority && (
-            <button
-              className="dropdown-item py-2 px-3 text-start d-flex align-items-center gap-2"
-              style={{ fontSize: "0.85rem" }}
-              onClick={() => {
-                openApproveDialog(activeActionsRow);
-                setActiveActionsRow(null);
-              }}
-              disabled={!canApproveQuotation(activeActionsRow, userRole, user)}
-            >
-              <i className="ti ti-circle-check" style={{ fontSize: "1rem", color: "#64748b" }} /> Approve
-            </button>
+            <>
+              <button
+                className="dropdown-item py-2 px-3 text-start d-flex align-items-center gap-2"
+                style={{ fontSize: "0.85rem" }}
+                onClick={() => {
+                  openApproveDialog(activeActionsRow);
+                  setActiveActionsRow(null);
+                }}
+                disabled={!canApproveQuotation(activeActionsRow, userRole, user)}
+              >
+                <i className="ti ti-circle-check" style={{ fontSize: "1rem", color: "#64748b" }} /> Approve
+              </button>
+              <button
+                className="dropdown-item py-2 px-3 text-start d-flex align-items-center gap-2 text-danger"
+                style={{ fontSize: "0.85rem" }}
+                onClick={() => {
+                  openAdminRejectDialog(activeActionsRow);
+                  setActiveActionsRow(null);
+                }}
+                disabled={!canApproveQuotation(activeActionsRow, userRole, user)}
+              >
+                <i className="ti ti-circle-x" style={{ fontSize: "1rem", color: "#ef4444" }} /> Reject
+              </button>
+            </>
           )}
 
           {/* Delete */}

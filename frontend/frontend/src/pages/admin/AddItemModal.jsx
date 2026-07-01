@@ -396,7 +396,6 @@ export default function AddItemModal({
   const specificationStepCount = specificationSteps.length;
   const firstSpecStep  = 1;
   const designStep     = firstSpecStep + specificationStepCount;
-  const deliveryStep   = designStep + 1;
   const isSpecStep     = step >= firstSpecStep && step < designStep;
   const currentSpec    = specificationSteps[
     Math.max(0, Math.min(step - firstSpecStep, specificationSteps.length - 1))
@@ -406,7 +405,6 @@ export default function AddItemModal({
     "Product",
     ...specificationSteps.map(s => s.section),
     "Design",
-    "Delivery",
   ]), [specificationSteps]);
 
   // ── Breadcrumb ────────────────────────────────────────────────────────────
@@ -602,7 +600,6 @@ export default function AddItemModal({
       if (!designMode) return false;
       return true;
     }
-    if (s === deliveryStep) return true;
     return true;
   }
 
@@ -625,7 +622,7 @@ export default function AddItemModal({
       return;
     }
     setError("");
-    setStep(s => Math.min(s + 1, deliveryStep));
+    setStep(s => Math.min(s + 1, designStep));
   }
 
   function handleBack() {
@@ -1172,59 +1169,6 @@ export default function AddItemModal({
                       </motion.div>
                     )}
 
-                    {/* Delivery step */}
-                    {step === deliveryStep && (
-                      <motion.div
-                        key="step-delivery"
-                        initial={shouldReduceMotion ? false : { opacity: 0, x: 18, filter: "blur(4px)" }}
-                        animate={shouldReduceMotion ? {} : { opacity: 1, x: 0, filter: "blur(0px)" }}
-                        exit={shouldReduceMotion ? false : { opacity: 0, x: -18, filter: "blur(4px)" }}
-                        transition={{ duration: 0.26, ease: "easeOut" }}
-                        className="row g-3 lead-wizard-step-panel"
-                      >
-                        <div className="col-md-6">
-                          <div className="lead-form-field">
-                            <label className="form-label">Delivery Date</label>
-                            <input
-                              type="date"
-                              max="9999-12-31"
-                              className="form-control"
-                              value={deliveryDate}
-                              onChange={e => {
-                                const nextValue = normalizeIsoDateWithFourDigitYear(e.target.value);
-                                if (nextValue && isSundayIsoDate(nextValue)) {
-                                  setDeliveryDate("");
-                                  setError("Sunday delivery dates are not allowed.");
-                                  return;
-                                }
-                                setError("");
-                                setDeliveryDate(nextValue);
-                              }}
-                            />
-                            <small className="text-muted d-block mt-1">
-                              Sunday delivery dates are not allowed.
-                            </small>
-                          </div>
-                        </div>
-                        <div className="col-12">
-                          <div className="alert alert-secondary py-2 mb-3">
-                            Pricing is applied automatically from the price list when available. You can adjust unpriced items later in the quotation table.
-                          </div>
-                        </div>
-                        <div className="col-12">
-                          <label className="form-label">Special Instructions</label>
-                          <textarea
-                            className="form-control"
-                            rows={3}
-                            value={specialInstructions}
-                            onChange={e => setSpecialInstructions(e.target.value)}
-                            placeholder="Any special instructions for this order"
-                            style={{ resize: "vertical" }}
-                          />
-                        </div>
-                      </motion.div>
-                    )}
-
                   </AnimatePresence>
                 </div>
 
@@ -1242,7 +1186,7 @@ export default function AddItemModal({
                   ) : (
                     <div />
                   )}
-                  {step < deliveryStep ? (
+                  {step < designStep ? (
                     <button type="button" className="btn btn-primary" onClick={handleNext}>
                       Next
                     </button>

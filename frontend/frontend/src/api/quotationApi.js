@@ -61,8 +61,25 @@ export async function approveQuotation(id, notes) {
   return response.data;
 }
 
-export async function markQuotationSent(id) {
-  const response = await api.post(`/api/quotations/${normalizeId(id)}/mark-sent`);
+export async function rejectQuotationByAdmin(id, notes) {
+  const response = await api.post(`/api/quotations/${normalizeId(id)}/admin-reject`, {
+    notes: notes || "",
+  });
+  return response.data;
+}
+
+export async function markQuotationSent(id, sendEmail = false, file = null) {
+  if (file) {
+    const formData = new FormData();
+    formData.append("file", file);
+    const response = await api.post(`/api/quotations/${normalizeId(id)}/mark-sent?sendEmail=${sendEmail}`, formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    });
+    return response.data;
+  }
+  const response = await api.post(`/api/quotations/${normalizeId(id)}/mark-sent?sendEmail=${sendEmail}`);
   return response.data;
 }
 

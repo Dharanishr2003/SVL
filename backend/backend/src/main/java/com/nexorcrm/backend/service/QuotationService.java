@@ -14,10 +14,15 @@ import com.nexorcrm.backend.entity.User;
 import com.nexorcrm.backend.entity.QuotationItem;
 import com.nexorcrm.backend.entity.GstMaster;
 import com.nexorcrm.backend.entity.Lead;
+import com.nexorcrm.backend.entity.Employee;
 import com.nexorcrm.backend.repo.QuotationRepository;
 import com.nexorcrm.backend.repo.GstMasterRepository;
 import com.nexorcrm.backend.repo.LeadRepository;
 import com.nexorcrm.backend.repo.UserRepository;
+import com.nexorcrm.backend.repo.EmployeeRepository;
+import com.nexorcrm.backend.repo.EmailTemplateRepository;
+import com.nexorcrm.backend.entity.EmailTemplate;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.security.access.AccessDeniedException;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.util.StringUtils;
@@ -44,18 +49,27 @@ public class QuotationService {
     private final UserRepository userRepository;
     private final GstMasterRepository gstMasterRepository;
     private final ObjectMapper objectMapper;
+    private final EmailNotificationService emailNotificationService;
+    private final EmployeeRepository employeeRepository;
+    private final EmailTemplateRepository emailTemplateRepository;
 
     public QuotationService(
             QuotationRepository quotationRepository,
             LeadRepository leadRepository,
             UserRepository userRepository,
             GstMasterRepository gstMasterRepository,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper,
+            EmailNotificationService emailNotificationService,
+            EmployeeRepository employeeRepository,
+            EmailTemplateRepository emailTemplateRepository) {
         this.quotationRepository = quotationRepository;
         this.leadRepository = leadRepository;
         this.userRepository = userRepository;
         this.gstMasterRepository = gstMasterRepository;
         this.objectMapper = objectMapper;
+        this.emailNotificationService = emailNotificationService;
+        this.employeeRepository = employeeRepository;
+        this.emailTemplateRepository = emailTemplateRepository;
     }
 
     public QuotationResponse createQuotation(QuotationRequest request) {
@@ -141,11 +155,11 @@ public class QuotationService {
         r.setId(q.getId());
         r.setLeadId(q.getLeadId());
         r.setQuotationNumber(q.getQuotationNumber());
-        r.setClientName(q.getClientName());
-        r.setClientMobile(q.getClientMobile());
-        r.setClientEmail(q.getClientEmail());
-        r.setClientCompany(q.getClientCompany());
         Lead leadSnapshot = resolveLeadSnapshot(q.getLeadId());
+        r.setClientName(leadSnapshot != null && leadSnapshot.getName() != null && !leadSnapshot.getName().isBlank() ? leadSnapshot.getName() : q.getClientName());
+        r.setClientMobile(leadSnapshot != null && leadSnapshot.getMobile() != null && !leadSnapshot.getMobile().isBlank() ? leadSnapshot.getMobile() : q.getClientMobile());
+        r.setClientEmail(leadSnapshot != null && leadSnapshot.getEmail() != null && !leadSnapshot.getEmail().isBlank() ? leadSnapshot.getEmail() : q.getClientEmail());
+        r.setClientCompany(leadSnapshot != null && leadSnapshot.getCompanyName() != null && !leadSnapshot.getCompanyName().isBlank() ? leadSnapshot.getCompanyName() : q.getClientCompany());
         String clientAddress = firstNonBlank(q.getClientAddress(), leadSnapshot != null ? leadSnapshot.getStreetAddress() : null);
         String clientState = firstNonBlank(q.getClientState(), leadSnapshot != null ? leadSnapshot.getLeadState() : null);
         r.setClientAddress(clientAddress);
@@ -724,10 +738,122 @@ public class QuotationService {
         return toResponse(quotationRepository.save(q));
     }
 
-    public QuotationResponse markSent(Long id) {
+    public QuotationResponse adminRejectQuotation(Long id, QuotationActionRequest req) {
+        Quotation q = quotationRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Quotation not found: " + id));
+        q.setStatus("DRAFT");
+        if (req != null) {
+            q.setApprovalNotes(req.getNotes());
+        }
+        return toResponse(quotationRepository.save(q));
+    }
+
+    public QuotationResponse markSent(Long id, boolean sendEmail, MultipartFile file) {
         Quotation q = quotationRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Quotation not found: " + id));
         q.setStatus("QUOTATION_SENT");
+
+        if (sendEmail && q.getLeadId() != null) {
+            leadRepository.findById(q.getLeadId()).ifPresent(lead -> {
+                if (lead.getEmail() != null && !lead.getEmail().isBlank()) {
+                    String subject = "Quotation " + (q.getQuotationNumber() != null ? q.getQuotationNumber() : "") + " - SVL Packaging & Printing";
+                    StringBuilder sb = new StringBuilder();
+                    sb.append("Dear ").append(q.getClientName() != null ? q.getClientName() : "Customer").append(",\n\n");
+                    sb.append("We are pleased to send you our quotation.\n\n");
+                    sb.append("Quotation Details:\n");
+                    sb.append("Quotation Number: ").append(q.getQuotationNumber() != null ? q.getQuotationNumber() : "Draft").append("\n");
+                    if (q.getItems() != null && !q.getItems().isEmpty()) {
+                        sb.append("\nProducts:\n");
+                        for (QuotationItem item : q.getItems()) {
+                            sb.append("- ").append(item.getProductName())
+                              .append(" (Qty: ").append(item.getQuantity()).append(")")
+                              .append("\n");
+                        }
+                    }
+                    if (q.getGrandTotal() != null) {
+                        sb.append("\nGrand Total: Rs. ").append(q.getGrandTotal()).append("\n");
+                    }
+                    
+                    sb.append("\nPlease find the complete details in the attached quotation document.\n\n");
+                    sb.append("For any queries, negotiations, or to accept/reject this quotation, please contact our representative:\n");
+                    
+                    // Resolve contact person: prioritize Lead Owner details
+                    final String[] contactName = { q.getCreatedByName() != null ? q.getCreatedByName() : "SVL Representative" };
+                    final String[] contactEmail = { q.getCreatedByEmail() != null ? q.getCreatedByEmail() : "" };
+                    final String[] contactMobile = { "" };
+                    Long contactUserId = lead.getOwnerUserId() != null ? lead.getOwnerUserId() : q.getCreatedById();
+                    
+                    if (contactUserId != null) {
+                        userRepository.findById(contactUserId).ifPresent(user -> {
+                            String fullName = (user.getFirstName() != null ? user.getFirstName() : "") + " " + (user.getLastName() != null ? user.getLastName() : "");
+                            fullName = fullName.trim();
+                            if (!fullName.isEmpty()) {
+                                contactName[0] = fullName;
+                            }
+                            if (user.getEmail() != null && !user.getEmail().isBlank()) {
+                                contactEmail[0] = user.getEmail().trim();
+                            }
+                            if (user.getEmployeeId() != null) {
+                                employeeRepository.findById(user.getEmployeeId()).ifPresent(emp -> {
+                                    if (emp.getPhone() != null && !emp.getPhone().isBlank()) {
+                                        String country = emp.getCountryCode() != null ? emp.getCountryCode().trim() : "";
+                                        contactMobile[0] = (country + " " + emp.getPhone().trim()).trim();
+                                    }
+                                });
+                            }
+                        });
+                    }
+                    
+                    EmailTemplate template = emailTemplateRepository.findByTemplateKey("QUOTATION_SENT_TEMPLATE").orElse(null);
+                    String mailSubject = "Quotation " + (q.getQuotationNumber() != null ? q.getQuotationNumber() : "") + " - SVL Packaging & Printing";
+                    String mailBody = "";
+                    
+                    if (template != null && template.isActive()) {
+                        mailSubject = template.getSubject() != null
+                                ? template.getSubject().replace("{{quotation_number}}", q.getQuotationNumber() != null ? q.getQuotationNumber() : "")
+                                : mailSubject;
+                        mailBody = template.getBody() != null
+                                ? template.getBody()
+                                    .replace("{{customer_name}}", q.getClientName() != null ? q.getClientName() : "Customer")
+                                    .replace("{{representative_name}}", contactName[0])
+                                    .replace("{{representative_email}}", contactEmail[0])
+                                    .replace("{{representative_mobile}}", contactMobile[0])
+                                : "";
+                    } else {
+                        StringBuilder fallback = new StringBuilder();
+                        fallback.append("Dear ").append(q.getClientName() != null ? q.getClientName() : "Customer").append(",\n\n");
+                        fallback.append("We are pleased to send you our quotation.\n\n");
+                        fallback.append("Please find the complete details in the attached quotation document.\n\n");
+                        fallback.append("For any queries, negotiations, or to accept/reject this quotation, please contact our representative:\n");
+                        fallback.append("Name: ").append(contactName[0]).append("\n");
+                        fallback.append("Email: ").append(contactEmail[0]).append("\n");
+                        if (!contactMobile[0].isEmpty()) {
+                            fallback.append("Mobile: ").append(contactMobile[0]).append("\n");
+                        }
+                        fallback.append("\nThank you for choosing SVL.\n\nBest Regards,\nSVL Packaging & Printing Team");
+                        mailBody = fallback.toString();
+                    }
+                    
+                    if (file != null && !file.isEmpty()) {
+                        try {
+                            emailNotificationService.notifyNowWithAttachmentIfEnabled(
+                                    lead.getEmail().trim(),
+                                    mailSubject,
+                                    mailBody,
+                                    file.getOriginalFilename() != null ? file.getOriginalFilename() : "Quotation.pdf",
+                                    file.getBytes()
+                            );
+                        } catch (Exception e) {
+                            // Fallback to simple mail if attachment reading fails
+                            emailNotificationService.notifyNowIfEnabled(lead.getEmail().trim(), mailSubject, mailBody);
+                        }
+                    } else {
+                        emailNotificationService.notifyNowIfEnabled(lead.getEmail().trim(), mailSubject, mailBody);
+                    }
+                }
+            });
+        }
+
         return toResponse(quotationRepository.save(q));
     }
 
@@ -752,6 +878,14 @@ public class QuotationService {
                 .orElseThrow(() -> new EntityNotFoundException("Quotation not found: " + id));
         q.setStatus("QUOTATION_ACCEPTED");
         if (req != null && req.getNotes() != null) q.setApprovalNotes(req.getNotes());
+
+        if (q.getLeadId() != null) {
+            leadRepository.findById(q.getLeadId()).ifPresent(lead -> {
+                lead.setStatus("payment");
+                leadRepository.save(lead);
+            });
+        }
+
         return toResponse(quotationRepository.save(q));
     }
 }

@@ -72,6 +72,15 @@ public class DealController {
         }
     }
 
+    @GetMapping("/lead/{leadId}")
+    public DealResponse getByLeadId(@PathVariable Long leadId) {
+        try {
+            return dealService.getDealByLeadId(leadId);
+        } catch (EntityNotFoundException e) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, e.getMessage());
+        }
+    }
+
     @DeleteMapping("/{id}")
     public void delete(@PathVariable Long id, Authentication authentication) {
         try {

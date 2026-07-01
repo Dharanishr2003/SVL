@@ -7,6 +7,9 @@ import org.springframework.mail.MailAuthenticationException;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.JavaMailSenderImpl;
+import org.springframework.mail.javamail.MimeMessageHelper;
+import jakarta.mail.internet.MimeMessage;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -187,5 +190,53 @@ public class EmailNotificationService {
         props.put("mail.smtp.auth", String.valueOf(settings.smtpAuth));
         props.put("mail.smtp.starttls.enable", String.valueOf(settings.starttls));
         return impl;
+    }
+
+    @Async
+    public void notifyNowWithAttachmentIfEnabled(String recipientEmail, String subject, String body, String attachmentName, byte[] attachmentBytes) {
+        if (!isMailEnabled()) {
+            log.warn("Email notifications disabled. Skipping email with attachment to {}.", recipientEmail);
+            return;
+        }
+        if (!StringUtils.hasText(recipientEmail)) {
+            log.warn("Email notification skipped: empty recipient.");
+            return;
+        }
+
+        String normalized = recipientEmail.trim().toLowerCase();
+        MailSettingsService.ResolvedMailSettings db = mailSettingsService.resolve();
+        JavaMailSender sender = db != null ? buildSender(db) : mailSender;
+        String resolvedFromAddress = db != null && StringUtils.hasText(db.fromAddress) ? db.fromAddress : fromAddress;
+        String resolvedFromName = db != null && StringUtils.hasText(db.fromName) ? db.fromName : fromName;
+        String resolvedCc = db != null ? db.cc : null;
+        String resolvedBcc = db != null ? db.bcc : null;
+
+        try {
+            MimeMessage mimeMessage = sender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(mimeMessage, true, "UTF-8");
+            
+            helper.setTo(normalized);
+            if (StringUtils.hasText(resolvedFromAddress)) {
+                helper.setFrom(StringUtils.hasText(resolvedFromName)
+                        ? String.format("%s <%s>", resolvedFromName, resolvedFromAddress)
+                        : resolvedFromAddress);
+            }
+            String[] ccList = splitEmails(resolvedCc);
+            if (ccList.length > 0) helper.setCc(ccList);
+            String[] bccList = splitEmails(resolvedBcc);
+            if (bccList.length > 0) helper.setBcc(bccList);
+            
+            helper.setSubject(subject);
+            helper.setText(body);
+            
+            if (attachmentBytes != null && attachmentBytes.length > 0) {
+                helper.addAttachment(attachmentName, new ByteArrayResource(attachmentBytes));
+            }
+            
+            sender.send(mimeMessage);
+            log.info("Email notification with attachment sent to {}.", normalized);
+        } catch (Exception ex) {
+            log.error("Email notification with attachment failed for {}.", normalized, ex);
+        }
     }
 }

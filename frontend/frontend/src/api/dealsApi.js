@@ -87,3 +87,8 @@ export async function updateDealPaymentVerification(dealId, payload = {}) {
   const response = await api.patch(`/api/v1/deals/${dealId}/payment-verification`, payload)
   return response?.data || {}
 }
+
+export async function getDealByLeadId(leadId) {
+  const response = await api.get(`/api/v1/deals/lead/${leadId}`)
+  return response?.data || null
+}
