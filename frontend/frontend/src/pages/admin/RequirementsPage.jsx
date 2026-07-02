@@ -396,7 +396,7 @@ ${rowsHtml}
                       >
                         No of Requirements {sortField === "no_of_requirements" && <span className="ms-1 sort-indicator text-muted">{sortOrder === "asc" ? "▲" : "▼"}</span>}
                       </th>
-                      <th className="col-actions text-muted" style={{ fontWeight: "600", fontSize: "0.85rem" }}>Action</th>
+                      <th className="col-actions text-muted text-center" style={{ fontWeight: "600", fontSize: "0.85rem" }}>Action</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -432,23 +432,26 @@ ${rowsHtml}
                             <div className="d-flex align-items-center gap-2">
                               <button
                                 type="button"
-                                className="btn btn-sm btn-primary d-flex align-items-center justify-content-center"
-                                style={{ width: 32, height: 32, borderRadius: 8 }}
+                                className="btn btn-sm btn-primary d-inline-flex align-items-center gap-2 px-3"
+                                style={{ minHeight: 32, borderRadius: 8, fontWeight: 600, whiteSpace: "nowrap" }}
                                 onClick={() => openAddRequirementModal(lead)}
                                 data-bs-toggle="tooltip"
                                 title="Add Requirement"
                               >
-                                <i className="ti ti-plus"></i>
+                                <i className="ti ti-plus" />
+                                <span>Add Requirement</span>
                               </button>
-                              <a
-                                className="btn btn-sm btn-light border d-flex align-items-center justify-content-center"
-                                style={{ width: 32, height: 32, borderRadius: 8, cursor: "pointer" }}
+                              <button
+                                type="button"
+                                className="btn btn-sm btn-light border d-inline-flex align-items-center gap-2 px-3"
+                                style={{ minHeight: 32, borderRadius: 8, fontWeight: 600, whiteSpace: "nowrap", cursor: "pointer" }}
                                 onClick={() => setSelectedLead(lead)}
                                 data-bs-toggle="tooltip"
                                 title="View Requirements"
                               >
-                                <i className="ti ti-eye"></i>
-                              </a>
+                                <i className="ti ti-eye" />
+                                <span>View</span>
+                              </button>
                             </div>
                           </td>
                         </tr>

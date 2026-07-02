@@ -30,7 +30,7 @@ import { extractApiErrorMessage } from "../../utils/errorMessage";
 import { COUNTRY_CODE_OPTIONS, defaultCountryOption, ensureCountryCodeValue, getCountryAllowedLengths, getCountryDisplayMaxLength, getCountryOptionByValue, sanitizePhoneDigits, validatePhoneNumber } from "../../utils/phoneUtils";
 import { pickFlowAssignee, pickGroupAssignee } from "../../utils/flowAssignment";
 import { validateStatusTransition } from "../../utils/statusValidation";
-import { formatStatusLabel, uniqueStatusOptions, normalizeStatusLabelKey } from "../../utils/statusLabels";
+import { formatStatusLabel, uniqueStatusOptions, normalizeStatusLabelKey, getStatusStyle } from "../../utils/statusLabels";
 import { useCountryCodePicker } from "../../hooks/useCountryCodePicker";
 import { useAuth } from "../../context/AuthContext";
 import { useToast } from "../../components/system/ToastProvider";
@@ -218,6 +218,8 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
   const [showVerifyModal, setShowVerifyModal] = useState(false);
   const [verifyPaidAmount, setVerifyPaidAmount] = useState("");
   const [verifyNotes, setVerifyNotes] = useState("");
+  const [showUnsavedModal, setShowUnsavedModal] = useState(false);
+  const initialValuesRef = useRef(null);
   const [verifyFile, setVerifyFile] = useState(null);
   const [verifyFileName, setVerifyFileName] = useState("");
   const [showLeadLogModal, setShowLeadLogModal] = useState(false);
@@ -328,6 +330,56 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
   const [saving, setSaving] = useState(false);
   const [statusSaving, setStatusSaving] = useState(false);
   const [detailsSaving, setDetailsSaving] = useState(false);
+
+  const isFormDirty = useMemo(() => {
+    if (!initialValuesRef.current) return false;
+    const init = initialValuesRef.current;
+    if (leadMobile !== init.leadMobile) return true;
+    if (alternatePhone !== init.alternatePhone) return true;
+    if (alternateEmail !== init.alternateEmail) return true;
+    if (countryCode !== init.countryCode) return true;
+    if (occupation !== init.occupation) return true;
+    if (companyName !== init.companyName) return true;
+    if (productType !== init.productType) return true;
+    if (variant !== init.variant) return true;
+    if (quantity !== init.quantity) return true;
+    if (leadEmail !== init.leadEmail) return true;
+    if (selectedProjectId !== init.selectedProjectId) return true;
+    if (leadCountry !== init.leadCountry) return true;
+    if (leadState !== init.leadState) return true;
+    if (leadCity !== init.leadCity) return true;
+    if (leadPincode !== init.leadPincode) return true;
+    if (streetAddress !== init.streetAddress) return true;
+    if (leadGstin !== init.leadGstin) return true;
+    return false;
+  }, [
+    leadMobile,
+    alternatePhone,
+    alternateEmail,
+    countryCode,
+    occupation,
+    companyName,
+    productType,
+    variant,
+    quantity,
+    leadEmail,
+    selectedProjectId,
+    leadCountry,
+    leadState,
+    leadCity,
+    leadPincode,
+    streetAddress,
+    leadGstin,
+  ]);
+
+  const scrollToSection = (sectionId) => {
+    setActiveTab(sectionId);
+    const el = document.getElementById(sectionId);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  };
+
   const flowScopeByGroupId = useMemo(() => {
     const map = new Map();
     (leadGroupOptions || []).forEach((group) => {
@@ -496,6 +548,25 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
           leadData?.designEndAt ? toInputDateTime(leadData.designEndAt) : "",
         );
         setStatusValue("");
+        initialValuesRef.current = {
+          leadMobile: pickText(leadData, ["mobile", "phone", "phoneNumber", "phone_number"]) || "",
+          alternatePhone: pickText(leadData, ["alternatePhone", "alternate_phone"]) || "",
+          alternateEmail: pickText(leadData, ["alternateEmail", "alternate_email"]) || "",
+          countryCode: pickText(leadData, ["countryCode", "country_code"]) || "",
+          occupation: pickText(leadData, ["occupation", "jobTitle", "job_title"]) || "",
+          companyName: pickText(leadData, ["companyName", "company", "organization", "organisation"]) || "",
+          productType: pickText(leadData, ["productType", "product_type"]) || "",
+          variant: pickText(leadData, ["variant"]) || "",
+          quantity: pickText(leadData, ["quantity"]) || "",
+          leadEmail: pickText(leadData, ["email"]) || "",
+          selectedProjectId: pickText(leadData, ["projectId", "project_id"]) || "",
+          leadCountry: resolvedLeadCountry || "",
+          leadState: normalizeLeadStateValue(resolvedLeadCountry, rawState) || "",
+          leadCity: pickText(leadData, ["leadCity", "city"]) || "",
+          leadPincode: pickText(leadData, ["leadPincode", "lead_pincode", "pincode", "pinCode"]) || "",
+          streetAddress: pickText(leadData, ["streetAddress", "street_address", "addressLine1", "address_line1"]) || "",
+          leadGstin: pickText(leadData, ["gstin"]) || "",
+        };
       } catch (e) {
         if (!isMounted) return;
         showError(extractApiErrorMessage(e, "Failed to load lead"));
@@ -2083,6 +2154,26 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
         status: prev?.status ?? updated?.status ?? null,
       }));
       showSuccess("Lead details updated");
+      initialValuesRef.current = {
+        leadMobile: leadMobile || "",
+        alternatePhone: alternatePhone || "",
+        alternateEmail: alternateEmail || "",
+        countryCode: countryCode || "",
+        occupation: occupation || "",
+        companyName: companyName || "",
+        productType: productType || "",
+        variant: variant || "",
+        quantity: quantity || "",
+        leadEmail: leadEmail || "",
+        selectedProjectId: selectedProjectId || "",
+        leadCountry: leadCountry || "",
+        leadState: leadState || "",
+        leadCity: leadCity || "",
+        leadPincode: leadPincode || "",
+        streetAddress: streetAddress || "",
+        leadGstin: leadGstin || "",
+      };
+      navigate("/leads");
     } catch (e) {
       showError(extractApiErrorMessage(e, "Failed to update lead details"));
     } finally {
@@ -2122,67 +2213,186 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
   return (
     <div className="container-fluid lead-edit-page">
 
-      <div className="d-flex flex-column flex-md-row align-items-start align-items-md-center justify-content-between gap-3 mb-3">
-        <div>
-          <h3 className="mb-1">Edit Lead</h3>
-          <p className="text-muted mb-0">View lead details and status</p>
-        </div>
-        <div className="d-flex flex-wrap gap-2 align-items-center w-100 w-md-auto justify-content-start justify-content-md-end">
-          <div className="lead-current-status-box">
-            <span className="lead-current-status-label">Current Status</span>
-            <strong>{lead?.isDuplicate ? "Duplicate" : (formatStatusLabel(lead?.status || "-") || "-")}</strong>
+      <div className="lead-edit-sticky-header">
+        <div className="d-flex flex-column flex-md-row align-items-start align-items-md-center justify-content-between gap-3 mb-3 pb-3 border-bottom">
+          <div className="d-flex align-items-center gap-2 flex-nowrap text-nowrap">
+            <h3 className="mb-0 fs-5 text-primary fw-bold d-flex align-items-center gap-2">
+              <i className="ti ti-user-circle"></i>
+              {lead?.leadName || lead?.name || "Loading..."}
+            </h3>
+            <div className="vr d-none d-md-block" style={{ height: "24px", alignSelf: "center" }}></div>
+            <span className="text-secondary d-flex align-items-center gap-2 bg-light px-3 py-2 rounded-3 border">
+              <i className="ti ti-phone text-muted"></i>
+              <strong>{leadMobile || lead?.mobile || lead?.phone || "-"}</strong>
+            </span>
+            {companyName && (
+              <>
+                <div className="vr d-none d-md-block" style={{ height: "24px", alignSelf: "center" }}></div>
+                <span className="text-secondary d-flex align-items-center gap-2 bg-light px-3 py-2 rounded-3 border">
+                  <i className="ti ti-building text-muted"></i>
+                  <strong>{companyName}</strong>
+                </span>
+              </>
+            )}
           </div>
-          {!lead?.isDuplicate && (
-            <button
-              className="btn btn-outline-primary btn-sm"
-              onClick={() => {
-                setStatusValue("");
-                setAttemptedOpenReason("");
-                setAttemptedCallStatus("");
-                setAttemptedCallRemarks("");
-                setAttemptedFollowUpDate("");
-                setNotAttemptedCallStatus("");
-                setNotAttemptedCallRemarks("");
-                setInterestedFollowUpDate("");
-                setInterestedCallStatus("");
-                setInterestedCallRemarks("");
-                setRejectedReason("");
-                setRejectedReasonSubtype("");
-                setShowStatusModal(true);
+          <div className="d-flex flex-wrap gap-2 align-items-center w-100 w-md-auto justify-content-start justify-content-md-end">
+            <span
+              className="status-pill px-3 fw-semibold"
+              style={{
+                ...getStatusStyle(lead?.isDuplicate ? "duplicate" : (lead?.status || "")),
+                height: "38px",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                borderRadius: "10px",
+                fontSize: "0.88rem",
               }}
-              title="Update status"
             >
-              <i className="ti ti-transfer-out me-1"></i>Update Status
+              {lead?.isDuplicate ? "Duplicate" : (formatStatusLabel(lead?.status || "-") || "-")}
+            </span>
+            {!lead?.isDuplicate && (
+              <button
+                className="btn btn-outline-primary d-flex align-items-center gap-1"
+                style={{ height: "38px" }}
+                onClick={() => {
+                  setStatusValue("");
+                  setAttemptedOpenReason("");
+                  setAttemptedCallStatus("");
+                  setAttemptedCallRemarks("");
+                  setAttemptedFollowUpDate("");
+                  setNotAttemptedCallStatus("");
+                  setNotAttemptedCallRemarks("");
+                  setInterestedFollowUpDate("");
+                  setInterestedCallStatus("");
+                  setInterestedCallRemarks("");
+                  setRejectedReason("");
+                  setRejectedReasonSubtype("");
+                  setShowStatusModal(true);
+                }}
+                title="Update status"
+              >
+                <i className="ti ti-transfer-out"></i>Update Status
+              </button>
+            )}
+            <button
+              className="btn btn-outline-secondary d-flex align-items-center gap-1"
+              style={{ height: "38px" }}
+              onClick={() => setShowLeadLogModal(true)}
+              title="View activity log"
+            >
+              <i className="ti ti-history"></i>
+              Log
             </button>
-          )}
-          <button
-            className="btn btn-primary btn-sm"
-            onClick={saveLeadDetails}
-            disabled={detailsSaving || typeSaving}
-            title="Save all changes"
-          >
-            <i className="ti ti-device-floppy me-1"></i>
-            {detailsSaving ? "Saving..." : "Save"}
-          </button>
-          <button
-            className="btn btn-outline-secondary btn-sm"
-            onClick={() => setShowLeadLogModal(true)}
-            title="View activity log"
-          >
-            <i className="ti ti-history me-1"></i>
-            Log
-          </button>
-          <button className="btn btn-light btn-sm" onClick={() => navigate(-1)}>
-            Back
-          </button>
+            <button 
+              className="btn btn-outline-secondary d-flex align-items-center gap-1" 
+              style={{ height: "38px" }}
+              onClick={() => {
+                if (isFormDirty) {
+                  setShowUnsavedModal(true);
+                } else {
+                  navigate("/leads");
+                }
+              }}
+            >
+              <i className="ti ti-arrow-left"></i>
+              Back
+            </button>
+          </div>
         </div>
-      </div>
 
-      {isConverted && (
-        <div className="alert alert-success mb-3" role="alert">
-          <strong>Lead converted to Deal.</strong> This lead is now locked. Continue the process from the Deals page.
-        </div>
-      )}
+        {isConverted && (
+          <div className="alert alert-success mb-3" role="alert">
+            <strong>Lead converted to Deal.</strong> This lead is now locked. Continue the process from the Deals page.
+          </div>
+        )}
+
+        {!loading && lead && !isEmployeeDesignView && (
+          <div className="lead-edit-wizard">
+            {/* Progress Bar */}
+            <div className="lead-edit-wizard-progress-bar">
+              <motion.div
+                className="lead-edit-wizard-progress"
+                initial={{ width: "0%" }}
+                animate={{ width: `${wizardProgress}%` }}
+                transition={{ duration: 0.35, ease: "easeOut" }}
+              />
+            </div>
+
+            {/* Step Circles */}
+            <motion.div className="lead-edit-wizard-circles" layoutId="circles-container">
+              <div className="lead-edit-wizard-circle-item" onClick={() => scrollToSection("general")}>
+                <motion.div className={`lead-edit-wizard-circle${activeTab === "general" ? " active" : ""}`}>
+                  <i className="ti ti-user" />
+                </motion.div>
+                <div className="lead-edit-wizard-circle-label">General Info</div>
+              </div>
+
+              {showNotAttemptedSummary && (
+                <div className="lead-edit-wizard-circle-item" onClick={() => scrollToSection("not_attempted")}>
+                  <motion.div className={`lead-edit-wizard-circle${activeTab === "not_attempted" ? " active" : ""}`}>
+                    <i className="ti ti-phone-off" />
+                  </motion.div>
+                  <div className="lead-edit-wizard-circle-label">Not Attempted</div>
+                </div>
+              )}
+
+              {showAttemptedSummary && (
+                <div className="lead-edit-wizard-circle-item" onClick={() => scrollToSection("attempted")}>
+                  <motion.div className={`lead-edit-wizard-circle${activeTab === "attempted" ? " active" : ""}`}>
+                    <i className="ti ti-phone" />
+                  </motion.div>
+                  <div className="lead-edit-wizard-circle-label">Attempted</div>
+                </div>
+              )}
+
+              {showInterestedSummary && (
+                <div className="lead-edit-wizard-circle-item" onClick={() => scrollToSection("interested")}>
+                  <motion.div className={`lead-edit-wizard-circle${activeTab === "interested" ? " active" : ""}`}>
+                    <i className="ti ti-heart" />
+                  </motion.div>
+                  <div className="lead-edit-wizard-circle-label">Interested</div>
+                </div>
+              )}
+
+              {showRequirementSummary && (
+                <div className="lead-edit-wizard-circle-item" onClick={() => scrollToSection("requirement")}>
+                  <motion.div className={`lead-edit-wizard-circle${activeTab === "requirement" ? " active" : ""}`}>
+                    <i className="ti ti-list" />
+                  </motion.div>
+                  <div className="lead-edit-wizard-circle-label">Requirements Collected</div>
+                </div>
+              )}
+
+              {false && ((statusLower === "budget" || lead?.budgetVerificationStatus) && (
+                <div className="lead-edit-wizard-circle-item" onClick={() => scrollToSection("budget")}>
+                  <motion.div className={`lead-edit-wizard-circle${activeTab === "budget" ? " active" : ""}`}>
+                    <i className="ti ti-currency-dollar" />
+                  </motion.div>
+                  <div className="lead-edit-wizard-circle-label">Budget</div>
+                </div>
+              ))}
+
+              {isRejected && (
+                <div className="lead-edit-wizard-circle-item" onClick={() => scrollToSection("rejected")}>
+                  <motion.div className={`lead-edit-wizard-circle${activeTab === "rejected" ? " active" : ""}`}>
+                    <i className="ti ti-x" />
+                  </motion.div>
+                  <div className="lead-edit-wizard-circle-label">Rejected</div>
+                </div>
+              )}
+
+              {false && (showPaymentSummary && statusLower !== "budget" && (
+                <div className="lead-edit-wizard-circle-item" onClick={() => setActiveTab("payment")}>
+                  <motion.div className={`lead-edit-wizard-circle${activeTab === "payment" ? " active" : ""}`}>
+                    <i className="ti ti-receipt" />
+                  </motion.div>
+                  <div className="lead-edit-wizard-circle-label">{isProduction ? "Production" : "Payment"}</div>
+                </div>
+              ))}
+            </motion.div>
+          </div>
+        )}
+      </div>
 
       {loading ? (
         <div>Loading...</div>
@@ -2191,1313 +2401,648 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
       ) : (
         <div>
           <div className="row g-4">
-              {!isEmployeeDesignView && (
-              <div className="col-12 lead-edit-tab-shell">
-                <div className="lead-edit-wizard">
-                  {/* Progress Bar */}
-                  <div className="lead-edit-wizard-progress-bar">
-                    <motion.div
-                      className="lead-edit-wizard-progress"
-                      initial={{ width: "0%" }}
-                      animate={{ width: `${wizardProgress}%` }}
-                      transition={{ duration: 0.35, ease: "easeOut" }}
-                    />
-                  </div>
-
-                  {/* Step Circles */}
-                  <motion.div className="lead-edit-wizard-circles" layoutId="circles-container">
-                    <div className="lead-edit-wizard-circle-item" onClick={() => setActiveTab("general")}>
-                      <motion.div className={`lead-edit-wizard-circle${activeTab === "general" ? " active" : ""}`}>
-                        <i className="ti ti-user" />
-                      </motion.div>
-                      <div className="lead-edit-wizard-circle-label">General Info</div>
-                    </div>
-
-                    {showNotAttemptedSummary && (
-                    <div className="lead-edit-wizard-circle-item" onClick={() => setActiveTab("not_attempted")}>
-                      <motion.div className={`lead-edit-wizard-circle${activeTab === "not_attempted" ? " active" : ""}`}>
-                        <i className="ti ti-phone-off" />
-                      </motion.div>
-                      <div className="lead-edit-wizard-circle-label">Not Attempted</div>
-                    </div>
-                    )}
-
-                    {showAttemptedSummary && (
-                    <div className="lead-edit-wizard-circle-item" onClick={() => setActiveTab("attempted")}>
-                      <motion.div className={`lead-edit-wizard-circle${activeTab === "attempted" ? " active" : ""}`}>
-                        <i className="ti ti-phone" />
-                      </motion.div>
-                      <div className="lead-edit-wizard-circle-label">Attempted</div>
-                    </div>
-                    )}
-
-                    {showInterestedSummary && (
-                    <div className="lead-edit-wizard-circle-item" onClick={() => setActiveTab("interested")}>
-                      <motion.div className={`lead-edit-wizard-circle${activeTab === "interested" ? " active" : ""}`}>
-                        <i className="ti ti-heart" />
-                      </motion.div>
-                      <div className="lead-edit-wizard-circle-label">Interested</div>
-                    </div>
-                    )}
-
-                    {showRequirementSummary && (
-                    <div className="lead-edit-wizard-circle-item" onClick={() => setActiveTab("requirement")}>
-                      <motion.div className={`lead-edit-wizard-circle${activeTab === "requirement" ? " active" : ""}`}>
-                        <i className="ti ti-list" />
-                      </motion.div>
-                      <div className="lead-edit-wizard-circle-label">Requirements Collected</div>
-                    </div>
-                    )}
-
-                    {false && ((statusLower === "budget" || lead?.budgetVerificationStatus) && (
-                    <div className="lead-edit-wizard-circle-item" onClick={() => setActiveTab("budget")}>
-                      <motion.div className={`lead-edit-wizard-circle${activeTab === "budget" ? " active" : ""}`}>
-                        <i className="ti ti-currency-dollar" />
-                      </motion.div>
-                      <div className="lead-edit-wizard-circle-label">Budget</div>
-                    </div>
-                    ))}
-
-                    {isRejected && (
-                    <div className="lead-edit-wizard-circle-item" onClick={() => setActiveTab("rejected")}>
-                      <motion.div className={`lead-edit-wizard-circle${activeTab === "rejected" ? " active" : ""}`}>
-                        <i className="ti ti-x" />
-                      </motion.div>
-                      <div className="lead-edit-wizard-circle-label">Rejected</div>
-                    </div>
-                    )}
-
-                    {false && (showPaymentSummary && statusLower !== "budget" && (
-                    <div className="lead-edit-wizard-circle-item" onClick={() => setActiveTab("payment")}>
-                      <motion.div className={`lead-edit-wizard-circle${activeTab === "payment" ? " active" : ""}`}>
-                        <i className="ti ti-receipt" />
-                      </motion.div>
-                      <div className="lead-edit-wizard-circle-label">{isProduction ? "Production" : "Payment"}</div>
-                    </div>
-                    ))}
-                  </motion.div>
-                </div>
-
-                <AnimatePresence mode="wait">
-                {activeTab === "general" && (
-                <motion.div
-                  key="general-tab"
-                  initial={{ opacity: 0, x: 18, filter: "blur(4px)" }}
-                  animate={{ opacity: 1, x: 0, filter: "blur(0px)" }}
-                  exit={{ opacity: 0, x: -18, filter: "blur(4px)" }}
-                  transition={{ duration: 0.26, ease: "easeOut" }}
-                  className="lead-edit-wizard-step-panel"
-                >
-                  <div className="mb-4">
-                   
-                    <div className="row g-4 align-items-start">
-                      <div className="col-lg-12">
-                        <div className="lead-info-section h-100">
-                          <div className="row g-3 mb-3">
-                            <div className="col-md-8">
-                              <h6 className="lead-info-section-title">General Info</h6>
-                            </div>
-                            <div className="col-md-4">
-                              <h6 className="lead-info-section-title">Address</h6>
-                            </div>
-                          </div>
-                          <div className="row g-4">
-                            {/* General Info Column (Spans 8 cols) */}
-                            <div className="col-md-8">
-                              <div className="row g-4">
-                                <div className="col-md-6">
-                                  <label className="form-label">Lead Allocator</label>
-                                  <input
-                                    className="form-control"
-                                    placeholder="Lead allocator name"
-                                    value={lead?.allocator || lead?.allocatorName || lead?.allocatedTo || lead?.assignedTo || "-"}
-                                    readOnly
-                                  />
-                                </div>
-                                <div className="col-md-6">
-                                  <label className="form-label">Lead Owner</label>
-                                  <input
-                                    className="form-control"
-                                    placeholder="Lead owner name"
-                                    value={lead?.ownerName || lead?.owner || "-"}
-                                    readOnly
-                                  />
-                                </div>
-                                
-                                <div className="col-md-6">
-                                  <label className="form-label">Enquiry Id</label>
-                                  <input
-                                    className="form-control"
-                                    value={
-                                      pickText(lead, [
-                                        "enquiryId",
-                                        "enquiryID",
-                                        "leadId",
-                                        "leadID",
-                                        "lead_id",
-                                        "enquiryCode",
-                                        "enquiry_code",
-                                      ]) || "-"
-                                    }
-                                    readOnly
-                                  />
-                                </div>
-                                <div className="col-md-6">
-                                  <label className="form-label">Primary Source</label>
-                                  <select
-                                    className="form-select"
-                                    value={lead?.primarySource || ""}
-                                    onChange={(e) =>
-                                      setLead((prev) => ({
-                                        ...(prev || {}),
-                                        primarySource: e.target.value,
-                                        secondarySource: "",
-                                      }))
-                                    }
-                                    disabled={isGeneralInfoReadOnly || isElevatedOnlyField}
-                                  >
-                                    <option value="">Select Primary Source</option>
-                                    {primarySourceOptions.map((source) => (
-                                      <option key={source} value={source}>
-                                        {source}
-                                      </option>
-                                    ))}
-                                  </select>
-                                </div>
-
-                                <div className="col-md-6">
-                                  <label className="form-label">Enquiry Name</label>
-                                  <input className="form-control" value={lead.name || "-"} readOnly />
-                                </div>
-                                <div className="col-md-6">
-                                  <label className="form-label">Secondary Source</label>
-                                  <select
-                                    className="form-select"
-                                    value={lead?.secondarySource || ""}
-                                    onChange={(e) => setLead((prev) => ({ ...(prev || {}), secondarySource: e.target.value }))}
-                                    disabled={isGeneralInfoReadOnly || isElevatedOnlyField}
-                                  >
-                                    <option value="">Select Secondary Source</option>
-                                    {secondarySourceOptions.map((source) => (
-                                      <option key={source} value={source}>
-                                        {source}
-                                      </option>
-                                    ))}
-                                  </select>
-                                </div>
-
-                                <div className="col-md-6">
-                                  <label className="form-label">Mobile Number</label>
-                                  <div className="lead-phone-field" ref={generalCountryPickerRef}>
-                                    <div className="lead-phone-input-wrap">
-                                      <button
-                                        ref={countryPickerButtonRef}
-                                        type="button"
-                                        className="lead-phone-code-trigger"
-                                        onClick={toggleGeneralCountryPicker}
-                                        aria-expanded={generalCountryPickerOpen}
-                                        disabled={isGeneralInfoReadOnly}
-                                      >
-                                        <span>{countryCode || defaultCountryOption.value}</span>
-                                        <i className="ti ti-chevron-down" />
-                                      </button>
-                                      <input
-                                        className="lead-phone-input"
-                                        value={leadMobile}
-                                        onChange={(e) => setLeadMobile(e.target.value)}
-                                        readOnly={isGeneralInfoReadOnly || isElevatedOnlyField}
-                                      />
-                                    </div>
-
-                                    {generalCountryPickerOpen && !isGeneralInfoReadOnly && (
-                                      <div className="lead-phone-code-menu">
-                                        {filteredGeneralCountryOptions.length > 0 ? (
-                                          filteredGeneralCountryOptions.map((option) => (
-                                            <button
-                                              key={`${option.country}-${option.callingCode}`}
-                                              type="button"
-                                              className={`lead-phone-code-option${countryCode === option.value ? " is-active" : ""}`}
-                                              onClick={() => {
-                                                setCountryCode(ensureCountryCodeValue(option.value));
-                                                setAlternatePhone((currentValue) =>
-                                                  sanitizePhoneDigits(
-                                                    currentValue,
-                                                    getCountryOptionByValue(option.value)?.maxLength,
-                                                    getCountryAllowedLengths(option.value),
-                                                  ),
-                                                );
-                                                closeGeneralCountryPicker();
-                                              }}
-                                            >
-                                              <span>{option.label}</span>
-                                            </button>
-                                          ))
-                                        ) : (
-                                          <div className="lead-phone-code-empty">No countries found</div>
-                                        )}
-                                      </div>
-                                    )}
-                                  </div>
-                                </div>
-                                <div className="col-md-6">
-                                  <label className="form-label">Alternate No.</label>
-                                  <input
-                                    className="form-control"
-                                    value={alternatePhone}
-                                    onChange={(e) =>
-                                      setAlternatePhone(
-                                        sanitizePhoneDigits(
-                                          e.target.value,
-                                          alternatePhoneCountryOption?.maxLength,
-                                          alternatePhoneAllowedLengths,
-                                        ),
-                                      )
-                                    }
-                                    maxLength={alternatePhoneDisplayMaxLength || undefined}
-                                    readOnly={isGeneralInfoReadOnly}
-                                  />
-                                </div>
-
-                                <div className="col-md-6">
-                                  <label className="form-label">Email</label>
-                                  <input
-                                    className="form-control"
-                                    value={leadEmail}
-                                    onChange={(e) => setLeadEmail(e.target.value)}
-                                    readOnly={isGeneralInfoReadOnly}
-                                  />
-                                </div>
-                                <div className="col-md-6">
-                                  <label className="form-label">Alternate Email</label>
-                                  <input
-                                    className="form-control"
-                                    value={alternateEmail}
-                                    onChange={(e) => setAlternateEmail(e.target.value)}
-                                    readOnly={isGeneralInfoReadOnly}
-                                  />
-                                </div>
-
-                                <div className="col-md-6">
-                                  <label className="form-label">Type of Product</label>
-                                  <input
-                                    className="form-control"
-                                    placeholder="e.g. Software, Hardware, Service"
-                                    value={productType}
-                                    onChange={(e) => setProductType(e.target.value)}
-                                    readOnly={isGeneralInfoReadOnly}
-                                  />
-                                </div>
-                                <div className="col-md-6">
-                                  <label className="form-label">Company Name</label>
-                                  <input
-                                    className="form-control"
-                                    value={companyName}
-                                    onChange={(e) => setCompanyName(e.target.value)}
-                                    readOnly={isGeneralInfoReadOnly}
-                                  />
-                                </div>
-
-                                
-                                
-                                {showVariantQuantityFields && (
-                                  <>
-                                    <div className="col-md-6">
-                                      <label className="form-label">Variant</label>
-                                      <input
-                                        className="form-control"
-                                        placeholder="e.g. Size, Color, Style"
-                                        value={variant}
-                                        onChange={(e) => setVariant(e.target.value)}
-                                        readOnly={isGeneralInfoReadOnly}
-                                      />
-                                    </div>
-                                    <div className="col-md-6">
-                                      <label className="form-label">Quantity</label>
-                                      <input
-                                        type="number"
-                                        className="form-control"
-                                        placeholder="e.g. 100"
-                                        value={quantity}
-                                        onChange={(e) => setQuantity(e.target.value)}
-                                        readOnly={isGeneralInfoReadOnly}
-                                      />
-                                    </div>
-                                  </>
-                                )}
-                              </div>
-                            </div>
-
-                            {/* Address Column (Spans 4 cols) */}
-                            <div className="col-md-4">
-                              <div className="lead-info-column">
-                                <div>
-                                  <label className="form-label">Street Address</label>
-                                  <textarea
-                                    className="form-control"
-                                    value={streetAddress}
-                                    onChange={(e) => setStreetAddress(e.target.value)}
-                                    readOnly={isGeneralInfoReadOnly}
-                                    rows={2}
-                                  />
-                                </div>
-                                <div>
-                                  <label className="form-label">State</label>
-                                  <select
-                                    className="form-select"
-                                    value={leadState}
-                                    onChange={(e) => {
-                                      if (!leadCountry && generalAddressCountry) {
-                                        setLeadCountry(generalAddressCountry);
-                                      }
-                                      setLeadState(e.target.value);
-                                      setLeadCity("");
-                                    }}
-                                    disabled={isGeneralInfoReadOnly || !generalAddressCountry}
-                                  >
-                                    <option value="">Select State</option>
-                                    {State.getStatesOfCountry(generalAddressCountry).map((s) => (
-                                      <option key={s.isoCode} value={s.isoCode}>{s.name}</option>
-                                    ))}
-                                  </select>
-                                </div>
-                                <div>
-                                  <label className="form-label">City</label>
-                                  <select
-                                    className="form-select"
-                                    value={leadCity}
-                                    onChange={(e) => {
-                                      if (!leadCountry && generalAddressCountry) {
-                                        setLeadCountry(generalAddressCountry);
-                                      }
-                                      setLeadCity(e.target.value);
-                                    }}
-                                    disabled={isGeneralInfoReadOnly || !leadState}
-                                  >
-                                    <option value="">Select City</option>
-                                    {City.getCitiesOfState(generalAddressCountry, leadState).map((c) => (
-                                      <option key={c.name} value={c.name}>{c.name}</option>
-                                    ))}
-                                  </select>
-                                </div>
-                                <div>
-                                  <label className="form-label">Pin Code</label>
-                                  <input
-                                    className="form-control"
-                                    value={leadPincode}
-                                    onChange={(e) => setLeadPincode(e.target.value)}
-                                    readOnly={isGeneralInfoReadOnly}
-                                  />
-                                </div>
-                                <div className="">
-                                  <label className="form-label">GSTIN Number</label>
-                                  <input
-                                    className="form-control"
-                                    value={leadGstin}
-                                    onChange={(e) => setLeadGstin(e.target.value)}
-                                    readOnly={isGeneralInfoReadOnly}
-                                  />
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    {/* <div className="row g-4 align-items-start">
-                      <div className="col-lg-12">
-                        <div className="lead-info-section">
-                          <h6 className="lead-info-section-title">Lead Overview</h6>
+          <div className="col-12 lead-edit-tab-shell">
+            <div className="lead-edit-wizard-step-panel">
+              <div className="mb-4">
+                <div className="row g-4 align-items-start">
+                  <div className="col-12 d-flex flex-column gap-4">
+                        {/* Card 1: Lead Information */}
+                        <div className="lead-info-section" id="general" style={{ scrollMarginTop: "100px" }}>
+                          <h6 className="lead-info-section-title d-flex align-items-center gap-2 mb-3">
+                            📋 Lead Information
+                          </h6>
                           <div className="row g-3">
-                            <div className="col-md-6">
-                              <label className="form-label">Current Status</label>
-                              <input className="form-control" value={lead?.status || "-"} readOnly />
-                            </div>
-                          
-                            <div className="col-md-6">
-                              <label className="form-label">Created At</label>
+                            <div className="col-md-3">
+                              <label className="form-label">Enquiry Id</label>
                               <input
                                 className="form-control"
-                                value={formatDateTime(lead?.createdAt) || "-"}
+                                value={
+                                  pickText(lead, [
+                                    "enquiryId",
+                                    "enquiryID",
+                                    "leadId",
+                                    "leadID",
+                                    "lead_id",
+                                    "enquiryCode",
+                                    "enquiry_code",
+                                  ]) || "-"
+                                }
                                 readOnly
                               />
                             </div>
-                            {role !== "EMPLOYEE" && (
+                            <div className="col-md-3">
+                              <label className="form-label">Enquiry Name</label>
+                              <input className="form-control" value={lead.name || "-"} readOnly />
+                            </div>
+                            <div className="col-md-3">
+                              <label className="form-label">Primary Source</label>
+                              <select
+                                className="form-select"
+                                value={lead?.primarySource || ""}
+                                onChange={(e) =>
+                                  setLead((prev) => ({
+                                    ...(prev || {}),
+                                    primarySource: e.target.value,
+                                    secondarySource: "",
+                                  }))
+                                }
+                                disabled={isGeneralInfoReadOnly || isElevatedOnlyField}
+                              >
+                                <option value="">Select Primary Source</option>
+                                {primarySourceOptions.map((source) => (
+                                  <option key={source} value={source}>
+                                    {source}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            <div className="col-md-3">
+                              <label className="form-label">Secondary Source</label>
+                              <select
+                                className="form-select"
+                                value={lead?.secondarySource || ""}
+                                onChange={(e) => setLead((prev) => ({ ...(prev || {}), secondarySource: e.target.value }))}
+                                disabled={isGeneralInfoReadOnly || isElevatedOnlyField}
+                              >
+                                <option value="">Select Secondary Source</option>
+                                {secondarySourceOptions.map((source) => (
+                                  <option key={source} value={source}>
+                                    {source}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            <div className="col-md-3">
+                              <label className="form-label">Type of Product</label>
+                              <input
+                                className="form-control"
+                                placeholder="e.g. Software, Hardware, Service"
+                                value={productType}
+                                onChange={(e) => setProductType(e.target.value)}
+                                readOnly={isGeneralInfoReadOnly}
+                              />
+                            </div>
+                            <div className="col-md-3">
+                              <label className="form-label">Lead Allocator</label>
+                              <input
+                                className="form-control"
+                                placeholder="Lead allocator name"
+                                value={lead?.allocator || lead?.allocatorName || lead?.allocatedTo || lead?.assignedTo || "-"}
+                                readOnly
+                              />
+                            </div>
+                            <div className="col-md-3">
+                              <label className="form-label">Lead Owner</label>
+                              <input
+                                className="form-control"
+                                placeholder="Lead owner name"
+                                value={lead?.ownerName || lead?.owner || "-"}
+                                readOnly
+                              />
+                            </div>
+                            {showVariantQuantityFields && (
                               <>
-                                <div className="col-md-6">
-                                  <label className="form-label">Lead Type / Rating</label>
-                                  <select
-                                    className="form-select"
-                                    value={leadTypeValue}
-                                    onChange={(e) => setLeadTypeValue(e.target.value)}
-                                    disabled={isGeneralInfoReadOnly}
-                                  >
-                                    <option value="">Select Lead Type</option>
-                                    {leadTypeOptions.map((type) => (
-                                      <option key={type} value={type}>
-                                        {type}
-                                      </option>
-                                    ))}
-                                  </select>
+                                <div className="col-md-3">
+                                  <label className="form-label">Variant</label>
+                                  <input
+                                    className="form-control"
+                                    placeholder="e.g. Size, Color, Style"
+                                    value={variant}
+                                    onChange={(e) => setVariant(e.target.value)}
+                                    readOnly={isGeneralInfoReadOnly}
+                                  />
+                                </div>
+                                <div className="col-md-3">
+                                  <label className="form-label">Quantity</label>
+                                  <input
+                                    type="number"
+                                    className="form-control"
+                                    placeholder="e.g. 100"
+                                    value={quantity}
+                                    onChange={(e) => setQuantity(e.target.value)}
+                                    readOnly={isGeneralInfoReadOnly}
+                                  />
                                 </div>
                               </>
                             )}
-                         
-                            </div>
                           </div>
                         </div>
-                      </div> */}
-                    </div>
-                </motion.div>
-                )}
-                </AnimatePresence>
 
-                <>
-                  {activeTab === "not_attempted" && showNotAttemptedSummary && (
-                  <motion.div
-                    key="not-attempted-tab"
-                    initial={{ opacity: 0, x: 18, filter: "blur(4px)" }}
-                    animate={{ opacity: 1, x: 0, filter: "blur(0px)" }}
-                    exit={{ opacity: 0, x: -18, filter: "blur(4px)" }}
-                    transition={{ duration: 0.25 }}
-                    className="lead-edit-wizard-step-panel"
-                  >
-                    <h5 className="mb-3">Not Attempted Details</h5>
-                    <div className="row g-3">
-                      <div className="col-md-6">
-                        <label className="form-label">Not Attempted Reason</label>
-                        {isNotAttempted ? (
-                          <select
-                            className="form-select"
-                            value={notAttemptedCallStatus}
-                            onChange={(e) => setNotAttemptedCallStatus(e.target.value)}
-                          >
-                            <option value="">Select Not Attempted Reason</option>
-                            {NOT_ATTEMPTED_REASON_OPTIONS.map((option) => (
-                              <option key={option} value={option}>
-                                {option}
-                              </option>
-                            ))}
-                          </select>
-                        ) : (
-                          <input className="form-control" value={notAttemptedCallStatus || "-"} readOnly />
-                        )}
-                      </div>
-                      <div className="col-md-12">
-                        <label className="form-label">Manual Details</label>
-                        {isNotAttempted ? (
-                          <textarea
-                            className="form-control"
-                            rows={3}
-                            value={notAttemptedCallRemarks}
-                            onChange={(e) => setNotAttemptedCallRemarks(e.target.value)}
-                            placeholder="Enter manual details"
-                          />
-                        ) : (
-                          <textarea
-                            className="form-control"
-                            rows={3}
-                            value={notAttemptedCallRemarks || "-"}
-                            readOnly
-                          />
-                        )}
-                      </div>
-                    </div>
-                  </motion.div>
-                  )}
+                        {/* Card 2: Contact Information */}
+                        <div className="lead-info-section" style={{ scrollMarginTop: "100px" }}>
+                          <h6 className="lead-info-section-title d-flex align-items-center gap-2 mb-3">
+                            👤 Contact Information
+                          </h6>
+                          <div className="row g-3">
+                            <div className="col-md-3">
+                              <label className="form-label">Mobile Number</label>
+                              <div className="lead-phone-field" ref={generalCountryPickerRef}>
+                                <div className="lead-phone-input-wrap">
+                                  <button
+                                    ref={countryPickerButtonRef}
+                                    type="button"
+                                    className="lead-phone-code-trigger"
+                                    onClick={toggleGeneralCountryPicker}
+                                    aria-expanded={generalCountryPickerOpen}
+                                    disabled={isGeneralInfoReadOnly}
+                                  >
+                                    <span>{countryCode || defaultCountryOption.value}</span>
+                                    <i className="ti ti-chevron-down" />
+                                  </button>
+                                  <input
+                                    className="lead-phone-input"
+                                    value={leadMobile}
+                                    onChange={(e) => setLeadMobile(e.target.value)}
+                                    readOnly={isGeneralInfoReadOnly || isElevatedOnlyField}
+                                  />
+                                </div>
 
-                  {activeTab === "attempted" && showAttemptedSummary && (
-                <motion.div
-                  key="attempted-tab"
-                  initial={{ opacity: 0, x: 18, filter: "blur(4px)" }}
-                  animate={{ opacity: 1, x: 0, filter: "blur(0px)" }}
-                  exit={{ opacity: 0, x: -18, filter: "blur(4px)" }}
-                  transition={{ duration: 0.26, ease: "easeOut" }}
-                  className="lead-edit-wizard-step-panel"
-                >
-                  <h5 className="mb-3">Attempted Details</h5>
-                  <div className="row g-3">
-                    <div className="col-md-6">
-                      <label className="form-label">Attempted Reason</label>
-                      {isAttempted ? (
-                        <select
-                          className="form-select"
-                          value={attemptedOpenReason}
-                          onChange={(e) => setAttemptedOpenReason(e.target.value)}
-                        >
-                          <option value="">Select Attempted Reason</option>
-                          {ATTEMPTED_REASON_OPTIONS.map((option) => (
-                            <option key={option} value={option}>
-                              {option}
-                            </option>
-                          ))}
-                        </select>
-                      ) : (
-                        <input
-                          className="form-control"
-                          value={attemptedOpenReason || "-"}
-                          readOnly
-                        />
-                      )}
-                    </div>
-                    <div className="col-md-6">
-                      <label className="form-label">Manual Details</label>
-                      {isAttempted ? (
-                        <textarea
-                          className="form-control"
-                          rows={3}
-                          value={attemptedCallRemarks}
-                          onChange={(e) => setAttemptedCallRemarks(e.target.value)}
-                          placeholder="Enter manual details"
-                        />
-                      ) : (
-                        <textarea
-                          className="form-control"
-                          rows={3}
-                          value={attemptedCallRemarks || "-"}
-                          readOnly
-                        />
-                      )}
-                    </div>
-                  </div>
-                </motion.div>
-                )}
-
-                {activeTab === "interested" && showInterestedSummary && (
-                <motion.div
-                  key="interested-tab"
-                  initial={{ opacity: 0, x: 18, filter: "blur(4px)" }}
-                  animate={{ opacity: 1, x: 0, filter: "blur(0px)" }}
-                  exit={{ opacity: 0, x: -18, filter: "blur(4px)" }}
-                  transition={{ duration: 0.26, ease: "easeOut" }}
-                  className="lead-edit-wizard-step-panel"
-                >
-                  <h5 className="mb-3">Interested Details</h5>
-                  <div className="row g-3">
-                    <div className="col-md-6">
-                      <label className="form-label">Interested Reason</label>
-                      {isInterested ? (
-                        <select
-                          className="form-select"
-                          value={interestedCallStatus}
-                          onChange={(e) => setInterestedCallStatus(e.target.value)}
-                        >
-                          <option value="">Select Interested Reason</option>
-                          {INTERESTED_REASON_OPTIONS.map((option) => (
-                            <option key={option} value={option}>
-                              {option}
-                            </option>
-                          ))}
-                        </select>
-                      ) : (
-                        <input className="form-control" value={interestedCallStatus || "-"} readOnly />
-                      )}
-                    </div>
-                    <div className="col-md-6">
-                      <label className="form-label">Follow Up Date</label>
-                      <input
-                        className="form-control"
-                        type="datetime-local"
-                        value={interestedFollowUpDate}
-                        onChange={(e) => setInterestedFollowUpDate(e.target.value)}
-                        readOnly={isLeadReadOnly}
-                      />
-                    </div>
-                    <div className="col-md-12">
-                      <label className="form-label">Manual Details</label>
-                      <textarea
-                        className="form-control"
-                        rows={3}
-                        value={interestedCallRemarks}
-                        onChange={(e) => setInterestedCallRemarks(e.target.value)}
-                        placeholder="Enter manual details"
-                        readOnly={isLeadReadOnly}
-                      />
-                    </div>
-                  </div>
-                </motion.div>
-                )}
-
-                {activeTab === "boq" && showBoqSummary && (
-                <motion.div
-                  key="boq-tab"
-                  initial={{ opacity: 0, x: 18, filter: "blur(4px)" }}
-                  animate={{ opacity: 1, x: 0, filter: "blur(0px)" }}
-                  exit={{ opacity: 0, x: -18, filter: "blur(4px)" }}
-                  transition={{ duration: 0.26, ease: "easeOut" }}
-                  className="lead-edit-wizard-step-panel"
-                >
-                  <div>
-                    <h5 className="mb-3">Customer Login Info</h5>
-                    <div className="row g-3">
-                      <div className="col-md-6">
-                        <label className="form-label">Email</label>
-                        <input className="form-control" value={lead.email || "-"} readOnly />
-                      </div>
-                      <div className="col-md-6">
-                        <label className="form-label">Password</label>
-                        <input className="form-control" value={DEFAULT_CUSTOMER_LOGIN_PASSWORD} readOnly />
-                      </div>
-                      <div className="col-12">
-                        <div className="text-muted small">
-                          Customer is forced to change this password on first login.
-                        </div>
-                      </div>
-                      <div className="col-12 d-flex justify-content-center">
-                        <button
-                          className="btn btn-outline-primary btn-sm"
-                          type="button"
-                        >
-                          <i className="ti ti-share me-1" />
-                          Share
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </motion.div>
-                )}
-
-                {activeTab === "requirement" && showRequirementSummary && (
-                <motion.div
-                  key="requirement-tab"
-                  initial={{ opacity: 0, x: 18, filter: "blur(4px)" }}
-                  animate={{ opacity: 1, x: 0, filter: "blur(0px)" }}
-                  exit={{ opacity: 0, x: -18, filter: "blur(4px)" }}
-                  transition={{ duration: 0.26, ease: "easeOut" }}
-                  className="tab-pane fade show active"
-                >
-                  <div className="d-flex justify-content-between align-items-center mb-3">
-                    <h6 className="mb-0">Requirements</h6>
-                    <div className="d-flex gap-2">
-                      <button
-                        type="button"
-                        className="btn btn-sm btn-success"
-                        onClick={() => navigate("/quotation", { state: { prefillLead: lead } })}
-                        disabled={!lead}
-                      >
-                        <i className="ti ti-file-invoice me-1" />
-                        Create Quotation
-                      </button>
-                      <button
-                        type="button"
-                        className="btn btn-sm btn-primary"
-                        onClick={openAddRequirementModal}
-                      >
-                        <i className="ti ti-plus me-1" />
-                        Add Requirement
-                      </button>
-                    </div>
-                  </div>
-
-                  {requirements.length === 0 && (
-                    <div className="alert alert-info py-2">
-                      No requirements added yet. Click &quot;Add Requirement&quot; to create one.
-                    </div>
-                  )}
-
-                  {requirements.length > 0 && (
-                    <div className="table-responsive">
-                      <table className="table table-bordered table-striped align-middle">
-                        <thead className="table-light">
-                          <tr>
-                            <th>#</th>
-                            <th>Category</th>
-                            <th>Product</th>
-                            <th>Sub-type</th>
-                            <th>Quantity</th>
-                            <th>Specifications</th>
-                            <th>Design Mode</th>
-                            <th>Actions</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {requirements.map((req, index) => {
-                            let parsedSpecs = null;
-                            try {
-                              parsedSpecs = req.specs ? JSON.parse(req.specs) : null;
-                            } catch {
-                              parsedSpecs = null;
-                            }
-                            return (
-                              <tr key={req.id}>
-                                <td>{index + 1}</td>
-                                <td>{req.categoryName || "-"}</td>
-                                <td>{req.typeName || "-"}</td>
-                                <td>{req.subtypeName || "-"}</td>
-                                <td>{req.quantity || "-"}</td>
-                                <td style={{ minWidth: 260 }}>
-                                  {parsedSpecs && Object.keys(parsedSpecs).length > 0 ? (
-                                    <button
-                                      type="button"
-                                      className="spec-view-btn"
-                                      onClick={() => setViewingSpecs({ specs: parsedSpecs, req })}
-                                    >
-                                      <i className="ti ti-eye" /> View
-                                    </button>
-                                  ) : (
-                                    <span className="text-muted">-</span>
-                                  )}
-                                </td>
-                                <td>
-                                  {req.designStatus ? (
-                                    <span className="badge bg-info">
-                                      {req.designStatus === "design_only"
-                                        ? "Design Only"
-                                        : req.designStatus === "production_only"
-                                        ? "Production Only"
-                                        : req.designStatus === "design_production"
-                                        ? "Design + Production"
-                                        : req.designStatus}
-                                    </span>
-                                  ) : (
-                                    <span className="text-muted">-</span>
-                                  )}
-                                </td>
-                                <td>
-                                  <div className="d-flex gap-2">
-                                    <button
-                                      type="button"
-                                      className="btn btn-sm btn-outline-primary"
-                                      onClick={() => openEditRequirementModal(req)}
-                                    >
-                                      Edit
-                                    </button>
-                                    <button
-                                      type="button"
-                                      className="btn btn-sm btn-outline-danger"
-                                      onClick={() => handleDeleteRequirement(req)}
-                                    >
-                                      Delete
-                                    </button>
+                                {generalCountryPickerOpen && !isGeneralInfoReadOnly && (
+                                  <div className="lead-phone-code-menu">
+                                    {filteredGeneralCountryOptions.length > 0 ? (
+                                      filteredGeneralCountryOptions.map((option) => (
+                                        <button
+                                          key={`${option.country}-${option.callingCode}`}
+                                          type="button"
+                                          className={`lead-phone-code-option${countryCode === option.value ? " is-active" : ""}`}
+                                          onClick={() => {
+                                            setCountryCode(ensureCountryCodeValue(option.value));
+                                            setAlternatePhone((currentValue) =>
+                                              sanitizePhoneDigits(
+                                                currentValue,
+                                                getCountryOptionByValue(option.value)?.maxLength,
+                                                getCountryAllowedLengths(option.value),
+                                              ),
+                                            );
+                                            closeGeneralCountryPicker();
+                                          }}
+                                        >
+                                          <span>{option.label}</span>
+                                        </button>
+                                      ))
+                                    ) : (
+                                      <div className="lead-phone-code-empty">No countries found</div>
+                                    )}
                                   </div>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </motion.div>
-                )}
-
-                {false && (activeTab === "budget" && (statusLower === "budget" || lead?.budgetVerificationStatus) && (
-                <div className="tab-pane fade show active">
-                    <div className="mb-4">
-                      <h5 className="mb-3">Budget Verification</h5>
-                    {lead?.budgetVerificationStatus && (
-                      <div className={`alert d-flex align-items-center gap-2 mb-4 ${
-                        lead?.budgetVerificationStatus === "APPROVED" ? "alert-success" : "alert-info"
-                      }`}>
-                        <i className={`ti fs-5 ${
-                          lead?.budgetVerificationStatus === "APPROVED" ? "ti-circle-check" : "ti-calculator"
-                        }`}></i>
-                        <div>
-                          <strong>
-                            {lead?.budgetVerificationStatus === "APPROVED"
-                              ? "Budget Verification Done"
-                              : "Budget Verification In Progress"}
-                          </strong>
-                          <div className="small">
-                            {lead?.budgetVerificationStatus === "APPROVED"
-                              ? "Invoice is ready. You can now move to Payment."
-                              : "Budget team is calculating the invoice for this requirement."}
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                    {lead?.budgetVerificationRejectionReason && (
-                      <div className="alert alert-danger mb-3">
-                        <strong>Rejection Reason:</strong>
-                        <div>{lead.budgetVerificationRejectionReason}</div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-                  ))}
-
-{/* Design tab removed - design is managed in DealEditPage */}
-
-                {false && (activeTab === "payment" && showPaymentSummary && statusLower !== "budget" && (
-                <div className="tab-pane fade show active">
-                  <div>
-                    <h5 className="mb-3">{isProduction ? "Production Details" : "Payment Tracker"}</h5>
-
-                    {/* Budget Verification Status Box - Only show during budget status */}
-                    {lead?.budgetVerificationStatus && statusLower === "budget" && (
-                      <div className="row mb-4">
-                        <div className="col-md-12">
-                          <div className={`card border-2 ${
-                            lead.budgetVerificationStatus === "APPROVED" ? "border-success bg-light-success" :
-                            lead.budgetVerificationStatus === "REJECTED" ? "border-danger bg-light-danger" :
-                            "border-info bg-light"
-                          }`}>
-                            <div className="card-body">
-                              <div className="row align-items-center">
-                                <div className="col-md-2 text-center">
-                                  {lead.budgetVerificationStatus === "APPROVED" ? (
-                                    <div className="fs-1 text-success"><i className="ti ti-circle-check-filled"></i></div>
-                                  ) : lead.budgetVerificationStatus === "REJECTED" ? (
-                                    <div className="fs-1 text-danger"><i className="ti ti-circle-x-filled"></i></div>
-                                  ) : (
-                                    <div className="fs-1 text-info"><i className="ti ti-calculator"></i></div>
-                                  )}
-                                </div>
-                                <div className="col-md-10">
-                                  <h5 className="mb-1">
-                                    {lead.budgetVerificationStatus === "APPROVED"
-                                      ? "Budget Approved"
-                                      : lead.budgetVerificationStatus === "REJECTED"
-                                      ? "Budget Rejected"
-                                      : "Budget Calculating"}
-                                  </h5>
-                                  <p className="text-muted mb-0">
-                                    {lead.budgetVerificationStatus === "APPROVED"
-                                      ? "Budget has been approved and invoice has been created."
-                                      : lead.budgetVerificationStatus === "REJECTED"
-                                      ? "Budget calculation has been rejected."
-                                      : "Budget team is calculating the invoice for this requirement."}
-                                  </p>
-                                  {lead.budgetVerificationStatus === "REJECTED" && lead.budgetVerificationRejectionReason && (
-                                    <div className="mt-2 p-2 rounded border border-danger bg-white">
-                                      <small className="text-danger fw-semibold">Reason:</small>
-                                      <p className="mb-0 text-dark">{lead.budgetVerificationRejectionReason}</p>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Payment Verification Status Box */}
-                    {lead?.paymentVerificationStatus && (
-                      <div className="row mb-4">
-                        <div className="col-md-12">
-                          <div className={`card border-2 ${
-                            lead.paymentVerificationStatus === "APPROVED" ? "border-success bg-light-success" :
-                            lead.paymentVerificationStatus === "REJECTED" ? "border-danger bg-light-danger" :
-                            "border-warning bg-light-warning"
-                          }`}>
-                            <div className="card-body">
-                              <div className="row align-items-center">
-                                <div className="col-md-2 text-center">
-                                  {lead.paymentVerificationStatus === "APPROVED" ? (
-                                    <div className="fs-1 text-success"><i className="ti ti-circle-check-filled"></i></div>
-                                  ) : lead.paymentVerificationStatus === "REJECTED" ? (
-                                    <div className="fs-1 text-danger"><i className="ti ti-circle-x-filled"></i></div>
-                                  ) : (
-                                    <div className="fs-1 text-warning"><i className="ti ti-clock"></i></div>
-                                  )}
-                                </div>
-                                <div className="col-md-10">
-                                  <h5 className="mb-1">
-                                    {lead.paymentVerificationStatus === "APPROVED" 
-                                      ? "Verification Successful" 
-                                      : lead.paymentVerificationStatus === "REJECTED" 
-                                      ? "Verification Rejected" 
-                                      : "Verification Pending"}
-                                  </h5>
-                                  <p className="text-muted mb-0">
-                                    {lead.paymentVerificationStatus === "APPROVED"
-                                      ? "Payment verification has been approved and invoice has been created."
-                                      : lead.paymentVerificationStatus === "REJECTED"
-                                      ? "Payment verification has been rejected."
-                                      : "This payment verification is pending approval."}
-                                  </p>
-                                  {lead.paymentVerificationStatus === "REJECTED" && lead.paymentVerificationRejectionReason && (
-                                    <div className="mt-2 p-2 rounded border border-danger bg-white">
-                                      <small className="text-danger fw-semibold">Reason:</small>
-                                      <p className="mb-0 text-dark">{lead.paymentVerificationRejectionReason}</p>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Invoice from Accounts */}
-                    {parsedInvoice && lead?.paymentVerificationStatus !== "APPROVED" && (
-                      <div className="row mb-4">
-                        <div className="col-md-12">
-                          <div className="card border">
-                            <div className="card-header d-flex justify-content-between align-items-center py-2">
-                              <strong className="text-dark">
-                                <i className="ti ti-file-invoice me-1"></i>
-                                {parsedInvoice.type === "payment" ? "Payment Invoice" : parsedInvoice.type === "budget" ? "Budget Invoice" : "Invoice"}
-                                {parsedInvoice.type === "payment" && <span className="badge bg-success ms-2" style={{fontSize:"0.65rem"}}>Approved</span>}
-                                {parsedInvoice.type === "budget" && <span className="badge bg-warning text-dark ms-2" style={{fontSize:"0.65rem"}}>Budget</span>}
-                              </strong>
-                              <div className="d-flex align-items-center gap-2">
-                                {parsedInvoice.createdAt && (
-                                  <small className="text-muted">{new Date(parsedInvoice.createdAt).toLocaleString("en-IN")}</small>
                                 )}
-                                <button
-                                  type="button"
-                                  className="btn btn-sm btn-outline-primary"
-                                  onClick={handleDownloadInvoice}
-                                >
-                                  <i className="ti ti-download me-1"></i>Download PDF
-                                </button>
                               </div>
                             </div>
-                            <div className="card-body p-0">
-                              <div className="table-responsive">
-                                <table className="table table-sm table-bordered mb-0">
-                                  <thead className="table-light">
-                                    <tr>
-                                      <th>#</th>
-                                      <th>Description</th>
-                                      <th>HSN</th>
-                                      <th className="text-end">Qty</th>
-                                      <th className="text-end">Unit Price</th>
-                                      <th className="text-end">Total</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody>
-                                    {(parsedInvoice.items || []).map((item, idx) => (
-                                      <tr key={idx}>
-                                        <td>{idx + 1}</td>
-                                        <td>{item.description}</td>
-                                        <td>{item.hsn || "-"}</td>
-                                        <td className="text-end">{item.quantity}</td>
-                                        <td className="text-end">&#8377;{Number(item.unitPrice || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</td>
-                                        <td className="text-end">&#8377;{Number(item.subtotal ?? item.total ?? (Number(item.quantity || 0) * Number(item.unitPrice || 0))).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</td>
-                                      </tr>
+                            <div className="col-md-3">
+                              <label className="form-label">Alternate No.</label>
+                              <input
+                                className="form-control"
+                                value={alternatePhone}
+                                onChange={(e) =>
+                                  setAlternatePhone(
+                                    sanitizePhoneDigits(
+                                      e.target.value,
+                                      alternatePhoneCountryOption?.maxLength,
+                                      alternatePhoneAllowedLengths,
+                                    ),
+                                  )
+                                }
+                                maxLength={alternatePhoneDisplayMaxLength || undefined}
+                                readOnly={isGeneralInfoReadOnly}
+                              />
+                            </div>
+                            <div className="col-md-3">
+                              <label className="form-label">Email</label>
+                              <input
+                                className="form-control"
+                                value={leadEmail}
+                                onChange={(e) => setLeadEmail(e.target.value)}
+                                readOnly={isGeneralInfoReadOnly}
+                              />
+                            </div>
+                            <div className="col-md-3">
+                              <label className="form-label">Alternate Email</label>
+                              <input
+                                className="form-control"
+                                value={alternateEmail}
+                                onChange={(e) => setAlternateEmail(e.target.value)}
+                                readOnly={isGeneralInfoReadOnly}
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Card 3: Company & Address */}
+                        <div className="lead-info-section" style={{ scrollMarginTop: "100px" }}>
+                          <h6 className="lead-info-section-title d-flex align-items-center gap-2 mb-3">
+                            🏢 Company & Address
+                          </h6>
+                          <div className="row g-3">
+                            <div className="col-md-3">
+                              <label className="form-label">Company Name</label>
+                              <input
+                                className="form-control"
+                                value={companyName}
+                                onChange={(e) => setCompanyName(e.target.value)}
+                                readOnly={isGeneralInfoReadOnly}
+                              />
+                            </div>
+                            <div className="col-md-3">
+                              <label className="form-label">GSTIN Number</label>
+                              <input
+                                className="form-control"
+                                value={leadGstin}
+                                onChange={(e) => setLeadGstin(e.target.value)}
+                                readOnly={isGeneralInfoReadOnly}
+                              />
+                            </div>
+                            <div className="col-md-3">
+                              <label className="form-label">Street Address</label>
+                              <input
+                                className="form-control"
+                                value={streetAddress}
+                                onChange={(e) => setStreetAddress(e.target.value)}
+                                readOnly={isGeneralInfoReadOnly}
+                              />
+                            </div>
+                            <div className="col-md-3">
+                              <label className="form-label">State</label>
+                              <select
+                                className="form-select"
+                                value={leadState}
+                                onChange={(e) => {
+                                  if (!leadCountry && generalAddressCountry) {
+                                    setLeadCountry(generalAddressCountry);
+                                  }
+                                  setLeadState(e.target.value);
+                                  setLeadCity("");
+                                }}
+                                disabled={isGeneralInfoReadOnly || !generalAddressCountry}
+                              >
+                                <option value="">Select State</option>
+                                {State.getStatesOfCountry(generalAddressCountry).map((s) => (
+                                  <option key={s.isoCode} value={s.isoCode}>{s.name}</option>
+                                ))}
+                              </select>
+                            </div>
+                            <div className="col-md-3">
+                              <label className="form-label">City</label>
+                              <select
+                                className="form-select"
+                                value={leadCity}
+                                onChange={(e) => {
+                                  if (!leadCountry && generalAddressCountry) {
+                                    setLeadCountry(generalAddressCountry);
+                                  }
+                                  setLeadCity(e.target.value);
+                                }}
+                                disabled={isGeneralInfoReadOnly || !leadState}
+                              >
+                                <option value="">Select City</option>
+                                {City.getCitiesOfState(generalAddressCountry, leadState).map((c) => (
+                                  <option key={c.name} value={c.name}>{c.name}</option>
+                                ))}
+                              </select>
+                            </div>
+                            <div className="col-md-3">
+                              <label className="form-label">Pin Code</label>
+                              <input
+                                className="form-control"
+                                value={leadPincode}
+                                onChange={(e) => setLeadPincode(e.target.value)}
+                                readOnly={isGeneralInfoReadOnly}
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Card 4: Not Attempted Details */}
+                        {showNotAttemptedSummary && (
+                          <div className="lead-info-section" id="not_attempted" style={{ scrollMarginTop: "100px" }}>
+                            <h6 className="lead-info-section-title d-flex align-items-center gap-2 mb-3">
+                              🔕 Not Attempted Details
+                            </h6>
+                            <div className="row g-3">
+                              <div className="col-md-3">
+                                <label className="form-label">Not Attempted Reason</label>
+                                {isNotAttempted ? (
+                                  <select
+                                    className="form-select"
+                                    value={notAttemptedCallStatus}
+                                    onChange={(e) => setNotAttemptedCallStatus(e.target.value)}
+                                  >
+                                    <option value="">Select Not Attempted Reason</option>
+                                    {NOT_ATTEMPTED_REASON_OPTIONS.map((option) => (
+                                      <option key={option} value={option}>
+                                        {option}
+                                      </option>
                                     ))}
-                                  </tbody>
-                                  {parsedInvoice.totals && (
-                                    <tfoot>
-                                      <tr>
-                                        <td colSpan={5} className="text-end fw-semibold">Subtotal</td>
-                                        <td className="text-end">&#8377;{Number(parsedInvoice.totals.subtotal || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</td>
-                                      </tr>
-                                      {parsedInvoice.totals.cgst > 0 && (
-                                        <tr>
-                                          <td colSpan={5} className="text-end text-muted">CGST ({parsedInvoice.totals.cgstPercent}%)</td>
-                                          <td className="text-end text-muted">&#8377;{Number(parsedInvoice.totals.cgst || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</td>
-                                        </tr>
-                                      )}
-                                      {parsedInvoice.totals.sgst > 0 && (
-                                        <tr>
-                                          <td colSpan={5} className="text-end text-muted">SGST ({parsedInvoice.totals.sgstPercent}%)</td>
-                                          <td className="text-end text-muted">&#8377;{Number(parsedInvoice.totals.sgst || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</td>
-                                        </tr>
-                                      )}
-                                      <tr className="table-success">
-                                        <td colSpan={5} className="text-end fw-bold">Grand Total</td>
-                                        <td className="text-end fw-bold">&#8377;{Number(parsedInvoice.totals.grandTotal || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</td>
-                                      </tr>
-                                    </tfoot>
-                                  )}
-                                </table>
+                                  </select>
+                                ) : (
+                                  <input className="form-control" value={notAttemptedCallStatus || "-"} readOnly />
+                                )}
+                              </div>
+                              <div className="col-md-12">
+                                <label className="form-label">Manual Details</label>
+                                {isNotAttempted ? (
+                                  <textarea
+                                    className="form-control"
+                                    rows={3}
+                                    value={notAttemptedCallRemarks}
+                                    onChange={(e) => setNotAttemptedCallRemarks(e.target.value)}
+                                    placeholder="Enter manual details"
+                                  />
+                                ) : (
+                                  <textarea
+                                    className="form-control"
+                                    rows={3}
+                                    value={notAttemptedCallRemarks || "-"}
+                                    readOnly
+                                  />
+                                )}
                               </div>
                             </div>
                           </div>
-                        </div>
-                      </div>
-                    )}
+                        )}
 
-                    {/* Payment Verified Invoice - approval invoice from payment verification */}
-                    {parsedInvoice && parsedInvoice.type === "payment" && lead?.paymentVerificationStatus === "APPROVED" && (
-                      <div className="row mb-4">
-                        <div className="col-md-12">
-                          <div className="card border border-success">
-                            <div className="card-header d-flex justify-content-between align-items-center py-2 bg-success bg-opacity-10">
-                              <strong className="text-success">
-                                <i className="ti ti-file-check me-1"></i>
-                                Payment Verified Invoice
-                                <span className="badge bg-success ms-2" style={{fontSize:"0.65rem"}}>Approved</span>
-                              </strong>
-                              <div className="d-flex align-items-center gap-2">
-                                {parsedInvoice.createdAt && (
-                                  <small className="text-muted">{new Date(parsedInvoice.createdAt).toLocaleString("en-IN")}</small>
+                        {/* Card 5: Attempted Details */}
+                        {showAttemptedSummary && (
+                          <div className="lead-info-section" id="attempted" style={{ scrollMarginTop: "100px" }}>
+                            <h6 className="lead-info-section-title d-flex align-items-center gap-2 mb-3">
+                              📞 Attempted Details
+                            </h6>
+                            <div className="row g-3">
+                              <div className="col-md-3">
+                                <label className="form-label">Attempted Reason</label>
+                                {isAttempted ? (
+                                  <select
+                                    className="form-select"
+                                    value={attemptedOpenReason}
+                                    onChange={(e) => setAttemptedOpenReason(e.target.value)}
+                                  >
+                                    <option value="">Select Attempted Reason</option>
+                                    {ATTEMPTED_REASON_OPTIONS.map((option) => (
+                                      <option key={option} value={option}>
+                                        {option}
+                                      </option>
+                                    ))}
+                                  </select>
+                                ) : (
+                                  <input
+                                    className="form-control"
+                                    value={attemptedOpenReason || "-"}
+                                    readOnly
+                                  />
                                 )}
+                              </div>
+                              <div className="col-md-12">
+                                <label className="form-label">Manual Details</label>
+                                {isAttempted ? (
+                                  <textarea
+                                    className="form-control"
+                                    rows={3}
+                                    value={attemptedCallRemarks}
+                                    onChange={(e) => setAttemptedCallRemarks(e.target.value)}
+                                    placeholder="Enter manual details"
+                                  />
+                                ) : (
+                                  <textarea
+                                    className="form-control"
+                                    rows={3}
+                                    value={attemptedCallRemarks || "-"}
+                                    readOnly
+                                  />
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Card 6: Interested Details */}
+                        {showInterestedSummary && (
+                          <div className="lead-info-section" id="interested" style={{ scrollMarginTop: "100px" }}>
+                            <h6 className="lead-info-section-title d-flex align-items-center gap-2 mb-3">
+                              ❤️ Interested Details
+                            </h6>
+                            <div className="row g-3">
+                              <div className="col-md-3">
+                                <label className="form-label">Interested Reason</label>
+                                {isInterested ? (
+                                  <select
+                                    className="form-select"
+                                    value={interestedCallStatus}
+                                    onChange={(e) => setInterestedCallStatus(e.target.value)}
+                                  >
+                                    <option value="">Select Interested Reason</option>
+                                    {INTERESTED_REASON_OPTIONS.map((option) => (
+                                      <option key={option} value={option}>
+                                        {option}
+                                      </option>
+                                    ))}
+                                  </select>
+                                ) : (
+                                  <input className="form-control" value={interestedCallStatus || "-"} readOnly />
+                                )}
+                              </div>
+                              <div className="col-md-3">
+                                <label className="form-label">Follow Up Date</label>
+                                <input
+                                  className="form-control"
+                                  type="datetime-local"
+                                  value={interestedFollowUpDate}
+                                  onChange={(e) => setInterestedFollowUpDate(e.target.value)}
+                                  readOnly={isLeadReadOnly}
+                                />
+                              </div>
+                              <div className="col-md-12">
+                                <label className="form-label">Manual Details</label>
+                                <textarea
+                                  className="form-control"
+                                  rows={3}
+                                  value={interestedCallRemarks}
+                                  onChange={(e) => setInterestedCallRemarks(e.target.value)}
+                                  placeholder="Enter manual details"
+                                  readOnly={isLeadReadOnly}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Card 7: Requirements Collected */}
+                        {showRequirementSummary && (
+                          <div className="lead-info-section" id="requirement" style={{ scrollMarginTop: "100px" }}>
+                            <div className="d-flex justify-content-between align-items-center mb-3">
+                              <h6 className="lead-info-section-title d-flex align-items-center gap-2 mb-0">
+                                📋 Requirements Collected
+                              </h6>
+                              <div className="d-flex gap-2">
                                 <button
                                   type="button"
                                   className="btn btn-sm btn-success"
-                                  onClick={handleDownloadInvoice}
+                                  onClick={() => navigate("/quotation", { state: { prefillLead: lead } })}
+                                  disabled={!lead}
                                 >
-                                  <i className="ti ti-download me-1"></i>Download PDF
+                                  <i className="ti ti-file-invoice me-1" />
+                                  Create Quotation
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn btn-sm btn-primary"
+                                  onClick={openAddRequirementModal}
+                                >
+                                  <i className="ti ti-plus me-1" />
+                                  Add Requirement
                                 </button>
                               </div>
                             </div>
-                            <div className="card-body p-0">
+
+                            {requirements.length === 0 && (
+                              <div className="alert alert-info py-2">
+                                No requirements added yet. Click &quot;Add Requirement&quot; to create one.
+                              </div>
+                            )}
+
+                            {requirements.length > 0 && (
                               <div className="table-responsive">
-                                <table className="table table-sm table-bordered mb-0">
+                                <table className="table table-bordered table-striped align-middle">
                                   <thead className="table-light">
                                     <tr>
                                       <th>#</th>
-                                      <th>Description</th>
-                                      <th>HSN</th>
-                                      <th className="text-end">Qty</th>
-                                      <th className="text-end">Unit Price</th>
-                                      <th className="text-end">Total</th>
+                                      <th>Category</th>
+                                      <th>Product</th>
+                                      <th>Sub-type</th>
+                                      <th>Quantity</th>
+                                      <th>Specifications</th>
+                                      <th>Design Mode</th>
+                                      <th>Actions</th>
                                     </tr>
                                   </thead>
                                   <tbody>
-                                    {(parsedInvoice.items || []).map((item, idx) => (
-                                      <tr key={idx}>
-                                        <td>{idx + 1}</td>
-                                        <td>{item.description}</td>
-                                        <td>{item.hsn || "-"}</td>
-                                        <td className="text-end">{item.quantity}</td>
-                                        <td className="text-end">&#8377;{Number(item.unitPrice || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</td>
-                                        <td className="text-end">&#8377;{Number(item.subtotal ?? item.total ?? (Number(item.quantity || 0) * Number(item.unitPrice || 0))).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</td>
-                                      </tr>
-                                    ))}
+                                    {requirements.map((req, index) => {
+                                      let parsedSpecs = null;
+                                      try {
+                                        parsedSpecs = req.specs ? JSON.parse(req.specs) : null;
+                                      } catch {
+                                        parsedSpecs = null;
+                                      }
+                                      return (
+                                        <tr key={req.id}>
+                                          <td>{index + 1}</td>
+                                          <td>{req.categoryName || "-"}</td>
+                                          <td>{req.typeName || "-"}</td>
+                                          <td>{req.subtypeName || "-"}</td>
+                                          <td>{req.quantity || "-"}</td>
+                                          <td style={{ minWidth: 260 }}>
+                                            {parsedSpecs && Object.keys(parsedSpecs).length > 0 ? (
+                                              <button
+                                                type="button"
+                                                className="spec-view-btn"
+                                                onClick={() => setViewingSpecs({ specs: parsedSpecs, req })}
+                                              >
+                                                <i className="ti ti-eye" /> View
+                                              </button>
+                                            ) : (
+                                              <span className="text-muted">-</span>
+                                            )}
+                                          </td>
+                                          <td>
+                                            {req.designStatus ? (
+                                              <span className="badge bg-info">
+                                                {req.designStatus === "design_only"
+                                                  ? "Design Only"
+                                                  : req.designStatus === "production_only"
+                                                  ? "Production Only"
+                                                  : req.designStatus === "design_production"
+                                                  ? "Design + Production"
+                                                  : req.designStatus}
+                                              </span>
+                                            ) : (
+                                              <span className="text-muted">-</span>
+                                            )}
+                                          </td>
+                                          <td>
+                                            <div className="d-flex gap-2">
+                                              <button
+                                                type="button"
+                                                className="btn btn-sm btn-outline-primary"
+                                                onClick={() => openEditRequirementModal(req)}
+                                              >
+                                                Edit
+                                              </button>
+                                              <button
+                                                type="button"
+                                                className="btn btn-sm btn-outline-danger"
+                                                onClick={() => handleDeleteRequirement(req)}
+                                              >
+                                                Delete
+                                              </button>
+                                            </div>
+                                          </td>
+                                        </tr>
+                                      );
+                                    })}
                                   </tbody>
-                                  {parsedInvoice.totals && (
-                                    <tfoot>
-                                      <tr>
-                                        <td colSpan={5} className="text-end fw-semibold">Subtotal</td>
-                                        <td className="text-end">&#8377;{Number(parsedInvoice.totals.subtotal || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</td>
-                                      </tr>
-                                      {parsedInvoice.totals.cgst > 0 && (
-                                        <tr>
-                                          <td colSpan={5} className="text-end text-muted">CGST ({parsedInvoice.totals.cgstPercent}%)</td>
-                                          <td className="text-end text-muted">&#8377;{Number(parsedInvoice.totals.cgst || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</td>
-                                        </tr>
-                                      )}
-                                      {parsedInvoice.totals.sgst > 0 && (
-                                        <tr>
-                                          <td colSpan={5} className="text-end text-muted">SGST ({parsedInvoice.totals.sgstPercent}%)</td>
-                                          <td className="text-end text-muted">&#8377;{Number(parsedInvoice.totals.sgst || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</td>
-                                        </tr>
-                                      )}
-                                      <tr className="table-success">
-                                        <td colSpan={5} className="text-end fw-bold">Grand Total</td>
-                                        <td className="text-end fw-bold">&#8377;{Number(parsedInvoice.totals.grandTotal || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</td>
-                                      </tr>
-                                    </tfoot>
-                                  )}
                                 </table>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Card 8: Rejected Details */}
+                        {isRejected && (
+                          <div className="lead-info-section" id="rejected" style={{ scrollMarginTop: "100px" }}>
+                            <h6 className="lead-info-section-title d-flex align-items-center gap-2 mb-3">
+                              ❌ Rejected Details
+                            </h6>
+                            <div className="row g-3">
+                              <div className="col-md-3">
+                                <label className="form-label">Rejected Reason</label>
+                                <select
+                                  className="form-select"
+                                  value={rejectedReason}
+                                  onChange={(e) => setRejectedReason(e.target.value)}
+                                >
+                                  <option value="">Select Reject Reason</option>
+                                  <option value="Budget Too High">Budget Too High</option>
+                                  <option value="Not Interested">Not Interested</option>
+                                  <option value="Already Purchased">Already Purchased</option>
+                                  <option value="Chose Competitor">Chose Competitor</option>
+                                  <option value="Decision Postponed">Decision Postponed</option>
+                                  <option value="No Requirement Now">No Requirement Now</option>
+                                  <option value="Not Reachable">Not Reachable</option>
+                                  <option value="Wrong Contact">Wrong Contact</option>
+                                  <option value="Invalid/Incomplete Details">Invalid/Incomplete Details</option>
+                                  <option value="Location Not Serviceable">Location Not Serviceable</option>
+                                  <option value="Timeline Mismatch">Timeline Mismatch</option>
+                                  <option value="Other">Other</option>
+                                </select>
+                              </div>
+                              <div className="col-md-12">
+                                <label className="form-label">Rejected Reason Subtype</label>
+                                <textarea
+                                  className="form-control"
+                                  rows={3}
+                                  value={rejectedReasonSubtype}
+                                  onChange={(e) => setRejectedReasonSubtype(e.target.value)}
+                                  placeholder="Rejected Reason Subtype / Details"
+                                />
                               </div>
                             </div>
                           </div>
-                        </div>
+                        )}
                       </div>
-                    )}
-
-                    {/* Display Payment Notes if Available */}
-                    {lead?.paymentNotes && (
-                      <div className="row mb-4">
-                        <div className="col-md-12">
-                          <label className="text-muted small">Payment Notes</label>
-                          <p className="alert alert-info py-2 px-3 mb-0">{lead.paymentNotes}</p>
-                        </div>
-                      </div>
-                    )}
-
-                    {isPayment && (
-                      <div className="row mb-4">
-                        <div className="col-md-6">
-                          <div className="form-check form-check-md form-switch">
-                            <input
-                              className="form-check-input"
-                              type="checkbox"
-                              role="switch"
-                              id="budgetInvoiceSentSwitch"
-                              checked={budgetInvoiceSent}
-                              onChange={(e) => setBudgetInvoiceSent(e.target.checked)}
-                              disabled={isLeadReadOnly}
-                            />
-                            <label className="form-check-label" htmlFor="budgetInvoiceSentSwitch">
-                              Budget Invoice Sent
-                            </label>
-                          </div>
-                        </div>
-                        <div className="col-md-6">
-                          <div className="form-check form-check-md form-switch">
-                            <input
-                              className="form-check-input"
-                              type="checkbox"
-                              role="switch"
-                              id="paymentInvoiceSentSwitch"
-                              checked={paymentInvoiceSent}
-                              onChange={(e) => setPaymentInvoiceSent(e.target.checked)}
-                              disabled={isLeadReadOnly}
-                            />
-                            <label className="form-check-label" htmlFor="paymentInvoiceSentSwitch">
-                              Payment Invoice Sent
-                            </label>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="row g-3">
-                      {isProduction && (
-                      <div className="col-12 mb-3">
-                        <button
-                          className="btn btn-warning"
-                          type="button"
-                          onClick={() => {
-                            setShowStockRequestModal(true);
-                          }}
-                        >
-                          Create Stock Request
-                        </button>
-                      </div>
-                      )}
-                      {isPayment && (
-                        <>
-                        <div className="col-md-12">
-                          <label className="form-label">Amount Details</label>
-                          <div className="d-flex gap-2">
-                            <input
-                              className="form-control"
-                              value={
-                                totalAmount
-                                  ? `Total: Rs ${Number(totalAmount || 0).toLocaleString("en-IN")} | Paid: Rs ${Number(paidAmount || 0).toLocaleString("en-IN")}`
-                                  : "-"
-                              }
-                              readOnly
-                            />
-                          </div>
-                        </div>
-
-                        <div className="col-md-6">
-                          <label className="form-label">Total Amount</label>
-                          <input
-                            className="form-control"
-                            type="number"
-                            value={totalAmount}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              setTotalAmount(val);
-                              const paid = Number(paidAmount) || 0;
-                              setRemainingAmount(String(Math.max(0, Number(val) - paid)));
-                            }}
-                            placeholder="Total amount"
-                            min="0"
-                            disabled={isLeadReadOnly}
-                          />
-                        </div>
-                        <div className="col-md-6">
-                          <label className="form-label">Paid Amount</label>
-                          <input
-                            className="form-control"
-                            type="number"
-                            value={paidAmount}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              setPaidAmount(val);
-                              const total = Number(totalAmount) || 0;
-                              setRemainingAmount(String(Math.max(0, total - Number(val))));
-                            }}
-                            placeholder="Paid amount"
-                            min="0"
-                            disabled={isLeadReadOnly}
-                          />
-                        </div>
-                        <div className="col-md-6">
-                          <label className="form-label">Remaining Amount</label>
-                          <input
-                            className="form-control"
-                            value={remainingAmount ? `Rs ${Number(remainingAmount).toLocaleString("en-IN")}` : "Rs 0"}
-                            readOnly
-                          />
-                        </div>
-                        <div className="col-md-6 d-flex align-items-end">
-                          <button
-                            className="btn btn-outline-secondary w-100"
-                            type="button"
-                            onClick={() => {
-                              setVerifyPaidAmount(paidAmount);
-                              setVerifyNotes("");
-                              setVerifyFile(null);
-                              setVerifyFileName("");
-                              setShowVerifyModal(true);
-                            }}
-                            disabled={isLeadReadOnly}
-                          >
-                            Verify Payment
-                          </button>
-                        </div>
-
-                        <div className="col-12">
-                          <div className="progress" style={{ height: 8 }}>
-                            <div
-                              className={`progress-bar ${
-                                Number(remainingAmount) <= 0 && Number(totalAmount) > 0
-                                  ? "bg-success"
-                                  : "bg-primary"
-                              }`}
-                              style={{
-                                width: Number(totalAmount) > 0
-                                  ? `${Math.min(100, (Number(paidAmount) / Number(totalAmount)) * 100)}%`
-                                  : "0%",
-                              }}
-                            />
-                          </div>
-                          <small className="text-muted">
-                            {Number(totalAmount) > 0
-                              ? `${Math.round((Number(paidAmount) / Number(totalAmount)) * 100)}% paid`
-                              : "No amount set"}
-                          </small>
-                        </div>
-                        </>
-                      )}
                     </div>
                   </div>
                 </div>
-                ))}
-
-                {activeTab === "rejected" && isRejected && (
-                <motion.div
-                  key="rejected-tab"
-                  initial={{ opacity: 0, x: 18, filter: "blur(4px)" }}
-                  animate={{ opacity: 1, x: 0, filter: "blur(0px)" }}
-                  exit={{ opacity: 0, x: -18, filter: "blur(4px)" }}
-                  transition={{ duration: 0.26, ease: "easeOut" }}
-                  className="lead-edit-wizard-step-panel"
-                >
-                  <h5 className="mb-3">Rejected Details</h5>
-                  <div className="row g-3">
-                    <div className="col-md-6">
-                      <label className="form-label">Rejected Reason</label>
-                      <select
-                        className="form-select"
-                        value={rejectedReason}
-                        onChange={(e) => setRejectedReason(e.target.value)}
-                      >
-                        <option value="">Select Reject Reason</option>
-                        <option value="Budget Too High">Budget Too High</option>
-                        <option value="Not Interested">Not Interested</option>
-                        <option value="Already Purchased">Already Purchased</option>
-                        <option value="Chose Competitor">Chose Competitor</option>
-                        <option value="Decision Postponed">Decision Postponed</option>
-                        <option value="No Requirement Now">No Requirement Now</option>
-                        <option value="Not Reachable">Not Reachable</option>
-                        <option value="Wrong Contact">Wrong Contact</option>
-                        <option value="Invalid/Incomplete Details">Invalid/Incomplete Details</option>
-                        <option value="Location Not Serviceable">Location Not Serviceable</option>
-                        <option value="Timeline Mismatch">Timeline Mismatch</option>
-                        <option value="Other">Other</option>
-                      </select>
-                    </div>
-                    <div className="col-md-12">
-                      <label className="form-label">Rejected Reason Subtype</label>
-                      <textarea
-                        className="form-control"
-                        rows={3}
-                        value={rejectedReasonSubtype}
-                        onChange={(e) => setRejectedReasonSubtype(e.target.value)}
-                        placeholder="Rejected Reason Subtype / Details"
-                      />
-                    </div>
-                  </div>
-                </motion.div>
-                )}
-                </>
               </div>
-              )}
-
+            </div>
+            {/* Save/Update buttons at bottom right */}
+            <div className="d-flex justify-content-end gap-2 mt-4 pt-3 border-top pb-4">
+              <button
+                className="btn btn-primary"
+                style={{ minWidth: "140px", fontWeight: "600" }}
+                onClick={saveLeadDetails}
+                disabled={detailsSaving || typeSaving}
+                title="Save all changes"
+              >
+                <i className="ti ti-device-floppy me-1"></i>
+                {detailsSaving ? "Saving..." : "Save Changes"}
+              </button>
             </div>
           
         </div>
@@ -4055,6 +3600,59 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
                 onClick={() => setShowLeadLogModal(false)}
               >
                 Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Unsaved Changes Confirmation Modal */}
+      {showUnsavedModal && (
+        <div className="position-fixed top-0 start-0 w-100 h-100 d-flex align-items-center justify-content-center bg-dark bg-opacity-50" style={{ zIndex: 1055 }}>
+          <div className="card shadow-lg" style={{ width: "100%", maxWidth: "420px" }}>
+            <div className="card-header d-flex align-items-center justify-content-between bg-light">
+              <h5 className="mb-0 text-danger fw-bold d-flex align-items-center gap-2">
+                <i className="ti ti-alert-triangle"></i>Unsaved Changes
+              </h5>
+              <button
+                type="button"
+                className="btn-close"
+                aria-label="Close"
+                onClick={() => setShowUnsavedModal(false)}
+              />
+            </div>
+            <div className="card-body">
+              <p className="mb-0 text-secondary">
+                You have unsaved changes on this page. What would you like to do?
+              </p>
+            </div>
+            <div className="card-footer d-flex justify-content-end gap-2">
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                onClick={async () => {
+                  setShowUnsavedModal(false);
+                  await saveLeadDetails();
+                }}
+              >
+                Save & Exit
+              </button>
+              <button
+                type="button"
+                className="btn btn-outline-danger btn-sm"
+                onClick={() => {
+                  setShowUnsavedModal(false);
+                  navigate("/leads");
+                }}
+              >
+                Exit Anyway
+              </button>
+              <button
+                type="button"
+                className="btn btn-light btn-sm"
+                onClick={() => setShowUnsavedModal(false)}
+              >
+                Continue
               </button>
             </div>
           </div>

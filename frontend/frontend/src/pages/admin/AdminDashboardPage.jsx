@@ -380,7 +380,7 @@ export default function AdminDashboardPage() {
           </div>
         </div>
         {/* /Welcome Wrap */}
-  <div className="row">
+  <div className="row align-items-start">
     {/* Widget Info */}
     <div className="col-xxl-8 d-flex">
       <div className="row flex-fill">

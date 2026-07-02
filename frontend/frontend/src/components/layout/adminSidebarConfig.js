@@ -36,25 +36,14 @@ export const adminSidebarSections = [
         icon: "ti ti-user-check",
         accessAny: ["leads"],
       },
-      {
-        label: "Rejected Leads",
-        href: "/rejected-leads",
-        icon: "ti ti-circle-x",
-        accessAny: ["rejected-leads"],
-        excludeRoles: ["EMPLOYEE"],
-      },
+
       {
         label: "Requirements",
         href: "/requirements",
         icon: "ti ti-clipboard-list",
         accessAny: ["requirements"],
       },
-      {
-        label: "Customers",
-        href: "/customer",
-        icon: "ti ti-users-group",
-        accessAny: ["customer"],
-      },
+     
       {
         label: "Quotation",
         icon: "ti ti-file-invoice",
@@ -93,6 +82,12 @@ export const adminSidebarSections = [
           { label: "Primary Source", href: "/primary-source", accessAny: ["lead-source", "primary-source"] },
           { label: "Secondary Source", href: "/secondary-source", accessAny: ["lead-source", "secondary-source"] },
         ],
+      },
+       {
+        label: "Customers",
+        href: "/customer",
+        icon: "ti ti-users-group",
+        accessAny: ["customer"],
       },
     ],
   },
@@ -258,12 +253,7 @@ export const adminSidebarSections = [
           { label: "Email Templates", href: "/email-template", accessAny: ["employees", "email-template"] },
         ],
       },
-    ],
-  },
-  {
-    key: "finance-accounts",
-    title: "Finance & Accounts",
-    items: [ {
+      {
         label: "Payroll",
         icon: "ti ti-wallet",
         accessAny: ["payroll", "employee-salary", "payslip", "payroll-items", "sales", "provident-fund"],
@@ -275,6 +265,12 @@ export const adminSidebarSections = [
           { label: "Provident Fund", href: "/provident-fund", accessAny: ["sales", "provident-fund"] },
         ],
       },
+    ],
+  },
+  {
+    key: "finance-accounts",
+    title: "Finance & Accounts",
+    items: [ 
       {
         label: "Sales & Billing",
         icon: "ti ti-receipt-2",

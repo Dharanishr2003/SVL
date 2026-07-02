@@ -55,6 +55,7 @@ import LeadFilters from "../../components/admin/LeadFilters";
 import LeadListView from "../../components/admin/LeadListView";
 import LeadGridView from "../../components/admin/LeadGridView";
 import PageSizeSelector from "../../components/admin/PageSizeSelector";
+import ColumnVisibilityDropdown from "../../components/admin/ColumnVisibilityDropdown";
 
 const EMPTY_CREATE_FORM = {
   createBranchId: "",
@@ -320,6 +321,15 @@ function PlusGlyph({ size = 14, className = "" }) {
   );
 }
 
+const LEAD_COLUMNS = [
+  { key: "name", label: "Name" },
+  { key: "mobile", label: "Mobile" },
+  { key: "source", label: "Source" },
+  { key: "status", label: "Status" },
+  { key: "owner", label: "Owner" },
+  { key: "createdOn", label: "Created On" },
+];
+
 export default function LeadsPage() {
   const shouldReduceMotion = useReducedMotion();
   const navigate = useNavigate();
@@ -338,6 +348,21 @@ export default function LeadsPage() {
     quickDate: "",
   });
   const [filterOpen, setFilterOpen] = useState(false);
+
+  const [visibleLeadColumns, setVisibleLeadColumns] = useState(() => {
+    try {
+      const saved = localStorage.getItem("leads_col_visibility");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) return parsed;
+      }
+    } catch {}
+    return {};
+  });
+  const handleLeadColVisChange = (next) => {
+    setVisibleLeadColumns(next);
+    try { localStorage.setItem("leads_col_visibility", JSON.stringify(next)); } catch {}
+  };
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -377,6 +402,14 @@ export default function LeadsPage() {
   const [convertingLeadId, setConvertingLeadId] = useState(null);
   const [convertConfirm, setConvertConfirm] = useState(null);
   const [dupWarnLead, setDupWarnLead] = useState(null);
+
+  const [rejectedLeads, setRejectedLeads] = useState([]);
+  const [rejectedLoading, setRejectedLoading] = useState(false);
+  const [rejectedSaving, setRejectedSaving] = useState(false);
+  const [rejectedError, setRejectedError] = useState('');
+  const [rejectedSearch, setRejectedSearch] = useState('');
+  const [rejectedPage, setRejectedPage] = useState(1);
+  const [rejectedPageSize, setRejectedPageSize] = useState(25);
 
   // ── Campaign Leads tab ──────────────────────────────────────────────────────
   const [campaignLeads, setCampaignLeads] = useState([]);
@@ -752,6 +785,37 @@ export default function LeadsPage() {
     if (dupPage !== dupClampedPage) setDupPage(dupClampedPage);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dupClampedPage]);
+
+  const filteredRejectedLeads = useMemo(() => {
+    const term = String(rejectedSearch || "").trim().toLowerCase();
+    if (!term) return rejectedLeads;
+    return (Array.isArray(rejectedLeads) ? rejectedLeads : []).filter((row) => {
+      const id = String(row.leadId || row.enquiryId || row.id || "").toLowerCase();
+      const name = String(row.name || "").toLowerCase();
+      const mobile = String(row.mobile || "").toLowerCase();
+      const email = String(row.email || "").toLowerCase();
+      const owner = String(row.owner || row.ownerName || "").toLowerCase();
+      return id.includes(term) || name.includes(term) || mobile.includes(term) || email.includes(term) || owner.includes(term);
+    });
+  }, [rejectedLeads, rejectedSearch]);
+
+  const rejectedTotalRows = filteredRejectedLeads.length;
+  const rejectedPageCount = Math.max(1, Math.ceil(rejectedTotalRows / Math.max(1, rejectedPageSize)));
+  const rejectedClampedPage = Math.min(Math.max(1, rejectedPage), rejectedPageCount);
+  const rejectedPageOffset = (rejectedClampedPage - 1) * rejectedPageSize;
+  const rejectedPagedRows = useMemo(
+    () => filteredRejectedLeads.slice(rejectedPageOffset, rejectedPageOffset + rejectedPageSize),
+    [filteredRejectedLeads, rejectedPageOffset, rejectedPageSize]
+  );
+
+  useEffect(() => {
+    if (rejectedPage !== rejectedClampedPage) setRejectedPage(rejectedClampedPage);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rejectedClampedPage]);
+
+  useEffect(() => {
+    setRejectedPage(1);
+  }, [rejectedSearch]);
   const createFlowScope = useMemo(
     () => (
       role === "SUPER_ADMIN" || !actorInstitutionName
@@ -1427,6 +1491,9 @@ ${rowsHtml}
     if (activeMainTab === 'campaign') {
       loadCampaignLeads();
     }
+    if (activeMainTab === 'rejected') {
+      loadRejectedLeads();
+    }
   }, [activeMainTab]);
 
   const loadCampaignLeads = async () => {
@@ -1440,6 +1507,195 @@ ${rowsHtml}
     } finally {
       setCampaignLoading(false);
     }
+  };
+
+  const loadRejectedLeads = async () => {
+    setRejectedLoading(true);
+    setRejectedError('');
+    try {
+      const data = await getLeads({ status: "Rejected" });
+      setRejectedLeads(Array.isArray(data) ? data : []);
+    } catch (e) {
+      setRejectedError('Failed to load rejected leads.');
+    } finally {
+      setRejectedLoading(false);
+    }
+  };
+
+  const handleConvertRejected = async (row) => {
+    if (!row?.id) return;
+    const ok = window.confirm("Convert this rejected lead back to New Lead?");
+    if (!ok) return;
+    setRejectedSaving(true);
+    try {
+      await updateLeadRowStatus(row.id, "New Lead");
+      setRejectedLeads((prev) => prev.filter((item) => String(item.id) !== String(row.id)));
+      showSuccess("Converted successfully");
+    } catch (e) {
+      showError(extractApiErrorMessage(e, "Failed to convert lead"));
+    } finally {
+      setRejectedSaving(false);
+    }
+  };
+
+  const handleDeleteRejected = async (row) => {
+    if (!row?.id) return;
+    const ok = window.confirm("Delete this rejected lead?");
+    if (!ok) return;
+    setRejectedSaving(true);
+    try {
+      await deleteLead(row.id);
+      setRejectedLeads((prev) => prev.filter((item) => String(item.id) !== String(row.id)));
+      showSuccess("Deleted successfully");
+    } catch (e) {
+      showError(extractApiErrorMessage(e, "Failed to delete lead"));
+    } finally {
+      setRejectedSaving(false);
+    }
+  };
+
+  const exportRejectedCsv = () => {
+    const targetRows = filteredRejectedLeads;
+    const headers = [
+      "S.No",
+      "Name",
+      "Mobile",
+      "Email",
+      "Status",
+      "Owner",
+      "Created Date",
+    ];
+    const body = targetRows.map((row, idx) => [
+      idx + 1,
+      row.name || "",
+      row.mobile || "",
+      row.email || "",
+      row.status || "Rejected",
+      row.owner || row.ownerName || "",
+      row.createdAt || "",
+    ]);
+    const csv = [headers, ...body]
+      .map((line) =>
+        line
+          .map((cell) => `"${String(cell ?? "").replace(/"/g, '""')}"`)
+          .join(","),
+      )
+      .join("\n");
+    downloadTextFile(`rejected-leads-${Date.now()}.csv`, csv, "text/csv;charset=utf-8;");
+  };
+
+  const exportRejectedExcel = () => {
+    const targetRows = filteredRejectedLeads;
+    const headers = [
+      "S.No",
+      "Name",
+      "Mobile",
+      "Email",
+      "Status",
+      "Owner",
+      "Created Date",
+    ];
+    const escapeXml = (unsafe) => {
+      return String(unsafe ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&apos;");
+    };
+
+    const headerHtml = `      <tr>
+        ${headers.map((h) => `<th>${escapeXml(h)}</th>`).join("\n        ")}
+      </tr>`;
+
+    const rowsHtml = targetRows
+      .map(
+        (row, idx) => `      <tr>
+        <td>${idx + 1}</td>
+        <td>${escapeXml(row.name)}</td>
+        <td>${escapeXml(row.mobile)}</td>
+        <td>${escapeXml(row.email)}</td>
+        <td>${escapeXml(row.status || "Rejected")}</td>
+        <td>${escapeXml(row.owner || row.ownerName)}</td>
+        <td>${escapeXml(row.createdAt)}</td>
+      </tr>`,
+      )
+      .join("\n");
+
+    const template = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+<head>
+<!--[if gte mso 9]>
+<xml>
+  <x:ExcelWorkbook>
+    <x:ExcelWorksheets>
+      <x:ExcelWorksheet>
+        <x:Name>Rejected Leads</x:Name>
+        <x:WorksheetOptions>
+          <x:DisplayGridlines/>
+        </x:WorksheetOptions>
+      </x:ExcelWorksheet>
+    </x:ExcelWorksheets>
+  </x:ExcelWorkbook>
+</xml>
+<![endif]-->
+<meta http-equiv="content-type" content="text/plain; charset=UTF-8"/>
+</head>
+<body>
+  <table>
+    <thead>
+${headerHtml}
+    </thead>
+    <tbody>
+${rowsHtml}
+    </tbody>
+  </table>
+</body>
+</html>`;
+
+    downloadTextFile(`rejected-leads-${Date.now()}.xls`, template, "application/vnd.ms-excel;charset=utf-8;");
+  };
+
+  const exportRejectedPdf = () => {
+    const targetRows = filteredRejectedLeads;
+    const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
+    const title = "Rejected Leads Export";
+    const generatedAt = new Date().toLocaleString();
+    doc.setFontSize(14);
+    doc.text(title, 40, 40);
+    doc.setFontSize(10);
+    doc.text(`Generated: ${generatedAt}`, 40, 58);
+
+    const headers = [[
+      "S.No",
+      "Name",
+      "Mobile",
+      "Email",
+      "Status",
+      "Owner",
+      "Created Date",
+    ]];
+
+    const body = targetRows.map((row, idx) => [
+      idx + 1,
+      row.name || "",
+      row.mobile || "",
+      row.email || "",
+      row.status || "Rejected",
+      row.owner || row.ownerName || "",
+      row.createdAt || "",
+    ]);
+
+    autoTable(doc, {
+      head: headers,
+      body,
+      startY: 72,
+      styles: { fontSize: 8, cellPadding: 4 },
+      headStyles: { fillColor: [33, 37, 41] },
+      margin: { left: 24, right: 24 },
+      tableWidth: "auto",
+    });
+
+    doc.save(`rejected-leads-${Date.now()}.pdf`);
   };
 
   const loadCampaignEmployees = async () => {
@@ -2393,6 +2649,20 @@ ${rowsHtml}
             )}
           </button>
         </li>
+        {role !== 'EMPLOYEE' && (
+          <li className="nav-item">
+            <button
+              className={`nav-link ${activeMainTab === 'rejected' ? 'active' : ''}`}
+              onClick={() => setActiveMainTab('rejected')}
+            >
+              <i className="ti ti-circle-x me-1" style={{ fontSize: '0.9rem' }} />
+              Rejected Leads
+              {rejectedLeads.length > 0 && (
+                <span className="badge bg-danger ms-2" style={{ fontSize: '0.72rem' }}>{rejectedLeads.length}</span>
+              )}
+            </button>
+          </li>
+        )}
         <li className="nav-item">
           <button
             className={`nav-link ${activeMainTab === 'campaign' ? 'active' : ''}`}
@@ -2460,6 +2730,11 @@ ${rowsHtml}
  
             {/* Actions & Toggles on the Right */}
             <div className="d-flex align-items-center gap-2 flex-wrap">
+              <ColumnVisibilityDropdown
+                columns={LEAD_COLUMNS}
+                visible={visibleLeadColumns}
+                onChange={handleLeadColVisChange}
+              />
               <button
                 className={`btn btn-outline-filter d-flex align-items-center gap-2 ${filterOpen ? 'active' : ''}`}
                 style={{ height: 42, padding: "0 18px", borderRadius: 10, fontWeight: "500", fontSize: "0.9rem" }}
@@ -2544,6 +2819,7 @@ ${rowsHtml}
               onUpdateStatusLead={handleStatusBadgeClick}
               onDeleteLead={handleDeleteLead}
               role={role}
+              visibleColumns={visibleLeadColumns}
             />
           ) : (
             <LeadGridView
@@ -3062,6 +3338,189 @@ ${rowsHtml}
           </div>
         );
       })()}
+
+      {/* ── Rejected Leads Tab ────────────────────────────────────────────────── */}
+      {activeMainTab === 'rejected' && role !== 'EMPLOYEE' && (
+        <div className="duplicates-tab-container">
+          {/* Header */}
+          <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+            <div>
+              <div className="text-muted small mt-1">View and manage leads that have been rejected.</div>
+            </div>
+            <div className="d-flex align-items-center gap-2 flex-wrap">
+              <LeadExportDropdown
+                exportExcel={exportRejectedExcel}
+                exportCsv={exportRejectedCsv}
+                exportPdf={exportRejectedPdf}
+              />
+              <button
+                className="btn btn-outline-filter d-flex align-items-center gap-2"
+                style={{ height: 38, padding: '0 16px', borderRadius: 8, fontWeight: '500', fontSize: '0.85rem' }}
+                onClick={loadRejectedLeads}
+              >
+                <i className="ti ti-refresh" /> Refresh
+              </button>
+            </div>
+          </div>
+
+          {/* Search */}
+          <div className="mb-3" style={{ maxWidth: 340 }}>
+            <div className="position-relative">
+              <i className="ti ti-search position-absolute" style={{ left: 12, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontSize: '1rem' }} />
+              <input
+                type="text"
+                className="form-control"
+                style={{ paddingLeft: 36, borderRadius: 10, fontSize: '0.9rem', border: '1px solid #e2e8f0' }}
+                placeholder="Search by ID, name, contact, owner…"
+                value={rejectedSearch}
+                onChange={(e) => setRejectedSearch(e.target.value)}
+              />
+            </div>
+          </div>
+
+          {rejectedError && <div className="alert alert-danger py-2">{rejectedError}</div>}
+
+          {rejectedLoading ? (
+            <div className="text-center py-5 border-0 shadow-sm bg-white" style={{ borderRadius: 12 }}>
+              <div className="spinner-border spinner-border-sm text-primary mb-2" />
+              <div className="text-muted small">Loading rejected leads…</div>
+            </div>
+          ) : rejectedPagedRows.length === 0 ? (
+            <div className="text-center py-5 text-muted border-0 shadow-sm bg-white" style={{ borderRadius: 12 }}>
+              <i className="ti ti-circle-x" style={{ fontSize: 40, color: '#cbd5e1' }} />
+              <div className="mt-2 fw-medium">No rejected leads found</div>
+            </div>
+          ) : (
+            <>
+              <div
+                className="table-responsive leads-table-wrap border-0 shadow-sm mb-4"
+                style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', touchAction: 'pan-x', borderRadius: 12, minHeight: '260px' }}
+              >
+                <table className="table table-hover align-middle leads-table mb-0">
+                  <thead>
+                    <tr>
+                      <th className="text-muted" style={{ fontWeight: '600', fontSize: '0.85rem' }}>S.No</th>
+                      <th className="text-muted" style={{ fontWeight: '600', fontSize: '0.85rem' }}>Name</th>
+                      <th className="text-muted" style={{ fontWeight: '600', fontSize: '0.85rem' }}>Mobile</th>
+                      <th className="text-muted" style={{ fontWeight: '600', fontSize: '0.85rem' }}>Email</th>
+                      <th className="text-muted" style={{ fontWeight: '600', fontSize: '0.85rem' }}>Status</th>
+                      <th className="text-muted" style={{ fontWeight: '600', fontSize: '0.85rem' }}>Owner</th>
+                      <th className="text-muted" style={{ fontWeight: '600', fontSize: '0.85rem' }}>Created</th>
+                      <th className="text-muted" style={{ fontWeight: '600', fontSize: '0.85rem', width: 100 }}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rejectedPagedRows.map((row, index) => (
+                      <tr key={row.id || row.leadId || row.enquiryId}>
+                        <td className="fw-semibold" style={{ color: "#1e293b", fontSize: "0.9rem" }}>
+                          {(rejectedClampedPage - 1) * rejectedPageSize + index + 1}
+                        </td>
+                        <td style={{ fontSize: "0.9rem" }}>
+                          <a href={`/leads/${row.id}`} className="link-default fw-semibold" style={{ color: "#3b82f6" }}>
+                            {row.name || "-"}
+                          </a>
+                        </td>
+                        <td style={{ fontSize: "0.9rem" }}>{row.mobile || "-"}</td>
+                        <td style={{ fontSize: "0.9rem" }}>{row.email || "-"}</td>
+                        <td>
+                          <span className="badge bg-danger">Rejected</span>
+                        </td>
+                        <td style={{ fontSize: "0.9rem" }}>{row.owner || row.ownerName || "-"}</td>
+                        <td style={{ fontSize: "0.9rem" }}>{row.createdAt ? new Date(row.createdAt).toLocaleString() : "-"}</td>
+                        <td>
+                          <div className="d-flex gap-2">
+                            <button
+                              className="btn btn-sm btn-outline-primary d-inline-flex align-items-center justify-content-center"
+                              style={{ borderRadius: 8, width: 32, height: 32, padding: 0 }}
+                              onClick={() => handleConvertRejected(row)}
+                              disabled={rejectedSaving}
+                              title="Convert to New Lead"
+                            >
+                              <i className="ti ti-refresh" />
+                            </button>
+                            <button
+                              className="btn btn-sm btn-outline-danger d-inline-flex align-items-center justify-content-center"
+                              style={{ borderRadius: 8, width: 32, height: 32, padding: 0 }}
+                              onClick={() => handleDeleteRejected(row)}
+                              disabled={rejectedSaving}
+                              title="Delete"
+                            >
+                              <i className="ti ti-trash" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Pagination */}
+              {rejectedTotalRows > 0 && (
+                <div className="leads-pagination-footer d-flex flex-wrap align-items-center justify-content-between gap-3 mt-4 pt-3 border-top">
+                  <span className="entries-info text-muted small">
+                    Showing {(rejectedClampedPage - 1) * rejectedPageSize + 1} to {Math.min(rejectedClampedPage * rejectedPageSize, rejectedTotalRows)} of {rejectedTotalRows} entries
+                  </span>
+
+                  <div className="pagination-numbers-container d-flex align-items-center gap-1">
+                    <button
+                      type="button"
+                      className="btn-pagination-arrow btn btn-sm btn-light border-0 d-flex align-items-center justify-content-center"
+                      style={{ width: 32, height: 32, borderRadius: 6 }}
+                      onClick={() => setRejectedPage((p) => Math.max(1, p - 1))}
+                      disabled={rejectedClampedPage <= 1}
+                    >
+                      <i className="ti ti-chevron-left" />
+                    </button>
+
+                    {(() => {
+                      const buttons = [];
+                      const maxVisible = 5;
+                      let startPage = Math.max(1, rejectedClampedPage - 2);
+                      let endPage = Math.min(rejectedPageCount, startPage + maxVisible - 1);
+                      if (endPage - startPage + 1 < maxVisible) {
+                        startPage = Math.max(1, endPage - maxVisible + 1);
+                      }
+
+                      for (let i = startPage; i <= endPage; i++) {
+                        buttons.push(
+                          <button
+                            key={i}
+                            type="button"
+                            className={`btn-pagination-number btn btn-sm border-0 ${rejectedClampedPage === i ? 'btn-primary' : 'btn-light'}`}
+                            style={{
+                              width: 32,
+                              height: 32,
+                              borderRadius: 6,
+                              backgroundColor: rejectedClampedPage === i ? '#3b82f6' : undefined,
+                              color: rejectedClampedPage === i ? '#ffffff' : undefined,
+                              fontWeight: rejectedClampedPage === i ? '600' : '500'
+                            }}
+                            onClick={() => setRejectedPage(i)}
+                          >
+                            {i}
+                          </button>
+                        );
+                      }
+                      return buttons;
+                    })()}
+
+                    <button
+                      type="button"
+                      className="btn-pagination-arrow btn btn-sm btn-light border-0 d-flex align-items-center justify-content-center"
+                      style={{ width: 32, height: 32, borderRadius: 6 }}
+                      onClick={() => setRejectedPage((p) => Math.min(rejectedPageCount, p + 1))}
+                      disabled={rejectedClampedPage >= rejectedPageCount}
+                    >
+                      <i className="ti ti-chevron-right" />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
 
       {/* Campaign Assign Modal */}
       {campaignAssignOpen && (

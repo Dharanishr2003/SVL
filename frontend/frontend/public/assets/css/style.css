@@ -13540,22 +13540,32 @@ button.swal2-cancel {
 }
 /****** Layout ******/
 /****** Utils ******/
+html::-webkit-scrollbar,
+body::-webkit-scrollbar,
 ::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
+  width: 8px;
+  height: 8px;
   border-radius: 50px !important;
 }
 
+html::-webkit-scrollbar-track,
+body::-webkit-scrollbar-track,
 ::-webkit-scrollbar-track {
-  background: #F4F6FA;
+  background: #f8fafc;
 }
 
+html::-webkit-scrollbar-thumb,
+body::-webkit-scrollbar-thumb,
 ::-webkit-scrollbar-thumb {
-  background: #E5E7EB;
+  background: #f26522;
+  border-radius: 999px !important;
+  border: 2px solid #f8fafc !important;
 }
 
+html::-webkit-scrollbar-thumb:hover,
+body::-webkit-scrollbar-thumb:hover,
 ::-webkit-scrollbar-thumb:hover {
-  background: #E5E7EB;
+  background: #e85d13;
 }
 
 .swal2-header .swal2-title {

@@ -7,4 +7,6 @@ import java.util.Optional;
 
 public interface QuotationTemplateRepository extends JpaRepository<QuotationTemplate, Long> {
     Optional<QuotationTemplate> findTopByOrderByIdAsc();
+    Optional<QuotationTemplate> findByActiveTrue();
+    java.util.List<QuotationTemplate> findAllByOrderByIdAsc();
 }

@@ -6,6 +6,7 @@ import { useAuth } from "../../context/AuthContext";
 import { createPortal } from "react-dom";
 import LoadingSpinner from "../../components/common/LoadingSpinner";
 import LeadExportDropdown from "../../components/admin/LeadExportDropdown";
+import ColumnVisibilityDropdown from "../../components/admin/ColumnVisibilityDropdown";
 import {
   approveQuotation,
   deleteQuotation,
@@ -159,6 +160,17 @@ function canApproveQuotation(quotation, userRole, user) {
   return false;
 }
 
+const QUOTATION_COLUMNS = [
+  { key: "sno", label: "S.No" },
+  { key: "qtNo", label: "Qt No." },
+  { key: "customer", label: "Customer Name" },
+  { key: "createdBy", label: "Created By" },
+  { key: "createdDate", label: "Created Date" },
+  { key: "status", label: "Status" },
+  { key: "total", label: "Total" },
+  { key: "notes", label: "Notes" },
+];
+
 export default function QuotationListPage() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -213,6 +225,22 @@ export default function QuotationListPage() {
   const [pageSize, setPageSize] = useState(10);
   const [sortField, setSortField] = useState("date");
   const [sortOrder, setSortOrder] = useState("desc");
+
+  const [visibleQtColumns, setVisibleQtColumns] = useState(() => {
+    try {
+      const saved = localStorage.getItem("quotation_col_visibility");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) return parsed;
+      }
+    } catch {}
+    return {};
+  });
+  const handleQtColVisChange = (next) => {
+    setVisibleQtColumns(next);
+    try { localStorage.setItem("quotation_col_visibility", JSON.stringify(next)); } catch {}
+  };
+  const isQtVis = (key) => visibleQtColumns[key] !== false;
 
   // Kebab actions state
   const [activeActionsRow, setActiveActionsRow] = useState(null);
@@ -855,6 +883,11 @@ ${rowsHtml}
               </div>
 
               <div className="d-flex align-items-center gap-2 flex-wrap">
+                <ColumnVisibilityDropdown
+                  columns={QUOTATION_COLUMNS}
+                  visible={visibleQtColumns}
+                  onChange={handleQtColVisChange}
+                />
                 <button
                   type="button"
                   className={`btn btn-outline-filter d-flex align-items-center gap-2 ${filterOpen ? "active" : ""}`}
@@ -947,47 +980,62 @@ ${rowsHtml}
                   <table className="table table-hover align-middle leads-table mb-0">
                     <thead>
                       <tr>
-                        <th
-                          className="col-qno text-muted"
-                          style={{ fontWeight: "600", fontSize: "0.85rem", cursor: "pointer", userSelect: "none" }}
-                          onClick={() => handleSort("quotationNumber")}
-                        >
-                          Quotation No. {sortField === "quotationNumber" && <span className="ms-1 sort-indicator text-muted">{sortOrder === "asc" ? "▲" : "▼"}</span>}
+                        <th className="col-select text-muted" style={{ fontWeight: "600", fontSize: "0.85rem" }}>
+                          <input className="form-check-input" type="checkbox" id="select-all" />
                         </th>
-                        <th
-                          className="col-customer text-muted"
-                          style={{ fontWeight: "600", fontSize: "0.85rem", cursor: "pointer", userSelect: "none" }}
-                          onClick={() => handleSort("customer")}
-                        >
-                          Customer {sortField === "customer" && <span className="ms-1 sort-indicator text-muted">{sortOrder === "asc" ? "▲" : "▼"}</span>}
-                        </th>
-                        <th
-                          className="col-status text-muted"
-                          style={{ fontWeight: "600", fontSize: "0.85rem", cursor: "pointer", userSelect: "none" }}
-                          onClick={() => handleSort("status")}
-                        >
-                          Status {sortField === "status" && <span className="ms-1 sort-indicator text-muted">{sortOrder === "asc" ? "▲" : "▼"}</span>}
-                        </th>
-                        <th
-                          className="col-date text-muted"
-                          style={{ fontWeight: "600", fontSize: "0.85rem", cursor: "pointer", userSelect: "none" }}
-                          onClick={() => handleSort("date")}
-                        >
-                          Date {sortField === "date" && <span className="ms-1 sort-indicator text-muted">{sortOrder === "asc" ? "▲" : "▼"}</span>}
-                        </th>
-                        <th
-                          className="col-total text-muted"
-                          style={{ fontWeight: "600", fontSize: "0.85rem", cursor: "pointer", userSelect: "none" }}
-                          onClick={() => handleSort("total")}
-                        >
-                          Total {sortField === "total" && <span className="ms-1 sort-indicator text-muted">{sortOrder === "asc" ? "▲" : "▼"}</span>}
-                        </th>
-                        <th className="col-notes text-muted" style={{ fontWeight: "600", fontSize: "0.85rem" }}>Notes</th>
-                        <th className="col-actions text-muted" style={{ fontWeight: "600", fontSize: "0.85rem" }}>Actions</th>
+                        {isQtVis("sno") && <th className="col-sno text-muted" style={{ fontWeight: "600", fontSize: "0.85rem" }}>S.No</th>}
+                        {isQtVis("qtNo") && (
+                          <th
+                            className="col-qno text-muted"
+                            style={{ fontWeight: "600", fontSize: "0.85rem", cursor: "pointer", userSelect: "none" }}
+                            onClick={() => handleSort("quotationNumber")}
+                          >
+                            Qt No. {sortField === "quotationNumber" && <span className="ms-1 sort-indicator text-muted">{sortOrder === "asc" ? "▲" : "▼"}</span>}
+                          </th>
+                        )}
+                        {isQtVis("customer") && (
+                          <th
+                            className="col-customer text-muted"
+                            style={{ fontWeight: "600", fontSize: "0.85rem", cursor: "pointer", userSelect: "none" }}
+                            onClick={() => handleSort("customer")}
+                          >
+                            Customer Name {sortField === "customer" && <span className="ms-1 sort-indicator text-muted">{sortOrder === "asc" ? "▲" : "▼"}</span>}
+                          </th>
+                        )}
+                        {isQtVis("createdBy") && <th className="col-createdby text-muted" style={{ fontWeight: "600", fontSize: "0.85rem" }}>Created By</th>}
+                        {isQtVis("createdDate") && (
+                          <th
+                            className="col-date text-muted"
+                            style={{ fontWeight: "600", fontSize: "0.85rem", cursor: "pointer", userSelect: "none" }}
+                            onClick={() => handleSort("date")}
+                          >
+                            Created Date {sortField === "date" && <span className="ms-1 sort-indicator text-muted">{sortOrder === "asc" ? "▲" : "▼"}</span>}
+                          </th>
+                        )}
+                        {isQtVis("status") && (
+                          <th
+                            className="col-status text-muted"
+                            style={{ fontWeight: "600", fontSize: "0.85rem", cursor: "pointer", userSelect: "none" }}
+                            onClick={() => handleSort("status")}
+                          >
+                            Status {sortField === "status" && <span className="ms-1 sort-indicator text-muted">{sortOrder === "asc" ? "▲" : "▼"}</span>}
+                          </th>
+                        )}
+                        {isQtVis("total") && (
+                          <th
+                            className="col-total text-muted"
+                            style={{ fontWeight: "600", fontSize: "0.85rem", cursor: "pointer", userSelect: "none" }}
+                            onClick={() => handleSort("total")}
+                          >
+                            Total {sortField === "total" && <span className="ms-1 sort-indicator text-muted">{sortOrder === "asc" ? "▲" : "▼"}</span>}
+                          </th>
+                        )}
+                        {isQtVis("notes") && <th className="col-notes text-muted" style={{ fontWeight: "600", fontSize: "0.85rem" }}>Notes</th>}
+                        <th className="col-actions text-muted" style={{ fontWeight: "600", fontSize: "0.85rem" }}>Action</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {pagedQuotations.map((quotation) => {
+                      {pagedQuotations.map((quotation, index) => {
                         const status = quotation.status || QUOTATION_STATUS_DRAFT;
                         const statusUi = getStatusUi(status);
                         const canApprove = canApproveQuotation(quotation, userRole, user);
@@ -995,65 +1043,98 @@ ${rowsHtml}
 
                         return (
                           <tr key={quotation.id}>
-                            <td className="col-qno fw-semibold" style={{ color: "#1e293b", fontSize: "0.9rem" }}>{quotation.quotationNumber || "-"}</td>
-                            <td className="col-customer" style={{ fontSize: "0.9rem" }}>{quotation.clientName || quotation.customerName || "-"}</td>
-                            <td className="col-status">
-                              <span className={statusUi.className}>
-                                {status === QUOTATION_STATUS_VERIFICATION_PENDING && quotation.negotiatingAt
-                                  ? "Re-verification Pending"
-                                  : status === QUOTATION_STATUS_APPROVED && quotation.negotiatingAt
-                                  ? "Re-verification Approved"
-                                  : statusUi.label}
-                              </span>
-                              {isEmployee && status === QUOTATION_STATUS_APPROVED && (
-                                <div className="mt-2">
-                                  <button
-                                    type="button"
-                                    className="btn btn-info btn-sm w-100"
-                                    onClick={() => handleMarkSent(quotation)}
-                                  >
-                                    <i className="ti ti-mail-forward me-1"></i>
-                                    Mark as Sent
-                                  </button>
-                                </div>
-                              )}
-                              {isEmployee && status === QUOTATION_STATUS_SENT && (
-                                <div className="mt-2">
-                                  <button
-                                    type="button"
-                                    className="btn btn-secondary btn-sm w-100"
-                                    onClick={() => openCustomerResponseDialog(quotation)}
-                                  >
-                                    <i className="ti ti-help me-1"></i>
-                                    Customer Response
-                                  </button>
-                                </div>
-                              )}
-                              {status === QUOTATION_STATUS_ACCEPTED && (
-                                <div className="mt-2">
-                                  <button
-                                    type="button"
-                                    className="btn btn-primary btn-sm w-100"
-                                    onClick={() => openAllocationDialog(quotation)}
-                                  >
-                                    <i className="ti ti-arrows-split me-1"></i>
-                                    Allocate Items
-                                  </button>
-                                </div>
-                              )}
+                            <td className="col-select">
+                              <input className="form-check-input" type="checkbox" />
                             </td>
-                            <td className="col-date" style={{ fontSize: "0.9rem" }}>{formatDate(quotation.quotationDate || quotation.createdAt)}</td>
-                            <td className="col-total fw-semibold text-success" style={{ fontSize: "0.9rem" }}>Rs. {Number(quotation.grandTotal ?? quotation.totals?.grandTotal ?? 0).toFixed(2)}</td>
-                            <td className="col-notes" style={{ fontSize: "0.85rem" }}>
-                              <div className="small">
+                            {isQtVis("sno") && (
+                              <td className="col-sno fw-semibold" style={{ color: "#1e293b", fontSize: "0.9rem" }}>
+                                {(page - 1) * pageSize + index + 1}
+                              </td>
+                            )}
+                            {isQtVis("qtNo") && (
+                              <td className="col-qno fw-semibold" style={{ color: "#1e293b", fontSize: "0.9rem" }}>{quotation.quotationNumber || "-"}</td>
+                            )}
+                            {isQtVis("customer") && (
+                              <td className="col-customer" style={{ fontSize: "0.9rem" }}>
                                 <div>
-                                  <strong>Employee:</strong> {quotation.verificationRequestNotes || "-"}
+                                  <div className="fw-semibold" style={{ color: "#0f172a" }}>{quotation.clientName || quotation.customerName || "-"}</div>
+                                  {quotation.clientEmail && <span className="d-block text-muted small">{quotation.clientEmail}</span>}
                                 </div>
+                              </td>
+                            )}
+                            {isQtVis("createdBy") && (
+                              <td className="col-createdby" style={{ fontSize: "0.9rem" }}>
                                 <div>
-                                  <strong>Branch Head:</strong> {quotation.approvalNotes || "-"}
+                                  <div className="fw-semibold" style={{ color: "#0f172a" }}>{quotation.createdByName || "-"}</div>
+                                  {quotation.createdByEmail && <span className="d-block text-muted small">{quotation.createdByEmail}</span>}
                                 </div>
-                              </div>
-                            </td>
+                              </td>
+                            )}
+                            {isQtVis("createdDate") && (
+                              <td className="col-date" style={{ fontSize: "0.9rem", color: "#475569" }}>{formatDate(quotation.quotationDate || quotation.createdAt)}</td>
+                            )}
+                            {isQtVis("status") && (
+                              <td className="col-status">
+                                <span className={statusUi.className}>
+                                  {status === QUOTATION_STATUS_VERIFICATION_PENDING && quotation.negotiatingAt
+                                    ? "Re-verification Pending"
+                                    : status === QUOTATION_STATUS_APPROVED && quotation.negotiatingAt
+                                    ? "Re-verification Approved"
+                                    : statusUi.label}
+                                </span>
+                                {isEmployee && status === QUOTATION_STATUS_APPROVED && (
+                                  <div className="mt-2">
+                                    <button
+                                      type="button"
+                                      className="btn btn-info btn-sm w-100"
+                                      onClick={() => handleMarkSent(quotation)}
+                                    >
+                                      <i className="ti ti-mail-forward me-1"></i>
+                                      Mark as Sent
+                                    </button>
+                                  </div>
+                                )}
+                                {isEmployee && status === QUOTATION_STATUS_SENT && (
+                                  <div className="mt-2">
+                                    <button
+                                      type="button"
+                                      className="btn btn-secondary btn-sm w-100"
+                                      onClick={() => openCustomerResponseDialog(quotation)}
+                                    >
+                                      <i className="ti ti-help me-1"></i>
+                                      Customer Response
+                                    </button>
+                                  </div>
+                                )}
+                                {status === QUOTATION_STATUS_ACCEPTED && (
+                                  <div className="mt-2">
+                                    <button
+                                      type="button"
+                                      className="btn btn-primary btn-sm w-100"
+                                      onClick={() => openAllocationDialog(quotation)}
+                                    >
+                                      <i className="ti ti-arrows-split me-1"></i>
+                                      Allocate Items
+                                    </button>
+                                  </div>
+                                )}
+                              </td>
+                            )}
+                            {isQtVis("total") && (
+                              <td className="col-total fw-semibold text-success" style={{ fontSize: "0.9rem" }}>Rs. {Number(quotation.grandTotal ?? quotation.totals?.grandTotal ?? 0).toFixed(2)}</td>
+                            )}
+                            {isQtVis("notes") && (
+                              <td className="col-notes" style={{ fontSize: "0.85rem" }}>
+                                <div className="small">
+                                  <div>
+                                    <strong>Employee:</strong> {quotation.verificationRequestNotes || "-"}
+                                  </div>
+                                  <div>
+                                    <strong>Branch Head:</strong> {quotation.approvalNotes || "-"}
+                                  </div>
+                                </div>
+                              </td>
+                            )}
                             <td className="col-actions">
                               <div className="d-flex align-items-center gap-2">
                                 <button
@@ -1592,19 +1673,17 @@ ${rowsHtml}
                       <i className="ti ti-edit me-2"></i>
                       Edit Quotation
                     </button>
-                    {selectedQuotationDetails.status !== QUOTATION_STATUS_DRAFT && (
-                      <button
-                        type="button"
-                        className="btn btn-outline-primary"
-                        onClick={() => {
-                          handleView(selectedQuotationDetails);
-                          setSelectedQuotationDetails(null);
-                        }}
-                      >
-                        <i className="ti ti-eye me-2"></i>
-                        View PDF Preview
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      className="btn btn-outline-primary"
+                      onClick={() => {
+                        handleView(selectedQuotationDetails);
+                        setSelectedQuotationDetails(null);
+                      }}
+                    >
+                      <i className="ti ti-eye me-2"></i>
+                      View PDF Preview
+                    </button>
                     <button
                       type="button"
                       className="btn btn-success"
@@ -1749,18 +1828,16 @@ ${rowsHtml}
           </button>
 
           {/* View PDF Preview */}
-          {activeActionsRow.status !== QUOTATION_STATUS_DRAFT && (
-            <button
-              className="dropdown-item py-2 px-3 text-start d-flex align-items-center gap-2"
-              style={{ fontSize: "0.85rem" }}
-              onClick={() => {
-                handleView(activeActionsRow);
-                setActiveActionsRow(null);
-              }}
-            >
-              <i className="ti ti-eye" style={{ fontSize: "1rem", color: "#64748b" }} /> View Preview
-            </button>
-          )}
+          <button
+            className="dropdown-item py-2 px-3 text-start d-flex align-items-center gap-2"
+            style={{ fontSize: "0.85rem" }}
+            onClick={() => {
+              handleView(activeActionsRow);
+              setActiveActionsRow(null);
+            }}
+          >
+            <i className="ti ti-eye" style={{ fontSize: "1rem", color: "#64748b" }} /> View Preview
+          </button>
 
           {/* Download PDF */}
           <button

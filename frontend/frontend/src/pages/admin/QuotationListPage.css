@@ -121,11 +121,15 @@
 @media (max-width: 768px) {
   /* Hide secondary headers and columns on mobile */
   .col-customer,
+  .col-createdby,
+  .col-sno,
+  .col-select,
   .col-date,
   .col-total,
   .col-notes {
     display: none !important;
   }
+
 
   /* Make sure visible columns fit nicely */
   .col-qno {
@@ -211,4 +215,65 @@
     opacity: 1;
   }
 }
+
+/* Quotation list table: always fills full container width;
+   auto layout redistributes space when columns are hidden */
+.leads-table {
+  width: 100% !important;
+  table-layout: auto !important;
+}
+
+.leads-table th,
+.leads-table td {
+  white-space: normal !important;
+  word-break: break-word !important;
+  overflow-wrap: break-word !important;
+  padding: 8px 10px !important;
+}
+
+.col-select {
+  width: 40px;
+  min-width: 40px;
+}
+
+.col-sno {
+  min-width: 50px;
+  width: 55px;
+}
+
+.col-qno {
+  min-width: 100px;
+  width: 120px;
+}
+
+/* customer / createdby / notes expand to fill freed space */
+.col-customer,
+.col-createdby {
+  min-width: 140px;
+}
+
+.col-status {
+  min-width: 130px;
+  width: 140px;
+}
+
+.col-date {
+  min-width: 90px;
+  width: 110px;
+}
+
+.col-total {
+  min-width: 90px;
+  width: 110px;
+}
+
+.col-notes {
+  min-width: 160px;
+}
+
+.col-actions {
+  min-width: 90px;
+  width: 100px;
+}
+
 

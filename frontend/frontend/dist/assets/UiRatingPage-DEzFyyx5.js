@@ -1,1 +1,0 @@
-import{j as a}from"./index-Bbj_ynfV.js";function i(){return a.jsx("div",{className:"card",children:a.jsxs("div",{className:"card-body",children:[a.jsx("h4",{className:"mb-2",children:"Ui Rating"}),a.jsx("p",{className:"mb-0",children:"Layout working confirmation."})]})})}export{i as default};

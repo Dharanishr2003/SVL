@@ -673,10 +673,7 @@ export const adminPhpRoutes = [
     path: "stock-requests/:id/status",
     component: "StockRequestStatusPage",
   },
-  {
-    path: "rejected-leads",
-    component: "RejectedLeadsPage",
-  },
+
   {
     path: "customer",
     component: "CustomerPage",

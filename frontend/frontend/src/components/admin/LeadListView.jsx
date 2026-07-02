@@ -39,19 +39,34 @@ export default function LeadListView({
   onUpdateStatusLead,
   onDeleteLead,
   role,
+  visibleColumns = {},
 }) {
   const isEmployee = role === "EMPLOYEE";
   const ownerColumnLabel = isEmployee ? "Assigned By" : "Owner";
+
+  // Helper: is a column visible? Defaults to true if key not specified.
+  const isVis = (key) => visibleColumns[key] !== false;
+
+  // Count how many columns are actually visible (checkbox + # are always shown)
+  const colCount =
+    2 + // checkbox + #
+    (isVis("name") ? 1 : 0) +
+    (isVis("mobile") ? 1 : 0) +
+    (isVis("source") ? 1 : 0) +
+    (isVis("status") ? 1 : 0) +
+    (isVis("owner") ? 1 : 0) +
+    (isVis("createdOn") ? 1 : 0) +
+    1; // actions always shown
 
   return (
     <div
       className="table-responsive leads-table-wrap border-0 shadow-sm mb-4"
       style={{ overflow: "visible", touchAction: "auto", borderRadius: 12, minHeight: "260px" }}
     >
-      <table className="table table-hover align-middle leads-table leads-table-fixed mb-0">
+      <table className="table table-hover align-middle leads-table mb-0">
         <thead>
           <tr>
-            <th className="col-select" style={{ width: 36 }}>
+            <th className="col-select" style={{ minWidth: 36 }}>
               <input
                 type="checkbox"
                 className="form-check-input"
@@ -63,43 +78,55 @@ export default function LeadListView({
               />
             </th>
             <th className="col-index text-nowrap text-muted" style={{ fontWeight: "600", fontSize: "0.85rem" }}>#</th>
-            <th
-              className="col-name text-muted"
-              style={{ fontWeight: "600", fontSize: "0.85rem", cursor: "pointer", userSelect: "none" }}
-              onClick={() => onSort("name")}
-            >
-              Name {sortField === "name" && <span className="ms-1 sort-indicator text-muted">{sortOrder === "asc" ? "▲" : "▼"}</span>}
-            </th>
-            <th className="col-mobile text-muted" style={{ fontWeight: "600", fontSize: "0.85rem" }}>Mobile</th>
-            <th className="col-source text-muted" style={{ fontWeight: "600", fontSize: "0.85rem" }}>
-              Source
-            </th>
-            <th className="col-status text-muted" style={{ fontWeight: "600", fontSize: "0.85rem" }}>
-              Status
-            </th>
-            <th className="col-owner text-muted" style={{ fontWeight: "600", fontSize: "0.85rem" }}>
-              {ownerColumnLabel}
-            </th>
-            <th
-              className="col-date text-muted"
-              style={{ fontWeight: "600", fontSize: "0.85rem", cursor: "pointer", userSelect: "none" }}
-              onClick={() => onSort("createdAt")}
-            >
-              Created On {sortField === "createdAt" && <span className="ms-1 sort-indicator text-muted">{sortOrder === "asc" ? "▲" : "▼"}</span>}
-            </th>
+            {isVis("name") && (
+              <th
+                className="col-name text-muted"
+                style={{ fontWeight: "600", fontSize: "0.85rem", cursor: "pointer", userSelect: "none" }}
+                onClick={() => onSort("name")}
+              >
+                Name {sortField === "name" && <span className="ms-1 sort-indicator text-muted">{sortOrder === "asc" ? "▲" : "▼"}</span>}
+              </th>
+            )}
+            {isVis("mobile") && (
+              <th className="col-mobile text-muted" style={{ fontWeight: "600", fontSize: "0.85rem" }}>Mobile</th>
+            )}
+            {isVis("source") && (
+              <th className="col-source text-muted" style={{ fontWeight: "600", fontSize: "0.85rem" }}>
+                Source
+              </th>
+            )}
+            {isVis("status") && (
+              <th className="col-status text-muted" style={{ fontWeight: "600", fontSize: "0.85rem" }}>
+                Status
+              </th>
+            )}
+            {isVis("owner") && (
+              <th className="col-owner text-muted" style={{ fontWeight: "600", fontSize: "0.85rem" }}>
+                {ownerColumnLabel}
+              </th>
+            )}
+            {isVis("createdOn") && (
+              <th
+                className="col-date text-muted"
+                style={{ fontWeight: "600", fontSize: "0.85rem", cursor: "pointer", userSelect: "none" }}
+                onClick={() => onSort("createdAt")}
+              >
+                Created On {sortField === "createdAt" && <span className="ms-1 sort-indicator text-muted">{sortOrder === "asc" ? "▲" : "▼"}</span>}
+              </th>
+            )}
             <th className="col-actions text-muted" style={{ fontWeight: "600", fontSize: "0.85rem" }}>Actions</th>
           </tr>
         </thead>
         <tbody>
           {loading ? (
             <tr>
-              <td colSpan={11} className="text-center py-4 text-muted">
+              <td colSpan={colCount} className="text-center py-4 text-muted">
                 <LoadingSpinner size="page" label="Loading leads" />
               </td>
             </tr>
           ) : pagedRows.length === 0 ? (
             <tr>
-              <td colSpan={11} className="text-center py-4 text-muted">No leads found</td>
+              <td colSpan={colCount} className="text-center py-4 text-muted">No leads found</td>
             </tr>
           ) : (
             pagedRows.map((row, index) => {
@@ -118,46 +145,58 @@ export default function LeadListView({
                     )}
                   </td>
                   <td className="col-index text-muted" style={{ fontSize: "0.9rem" }}>{pageOffset + index + 1}</td>
-                  <td className="col-name fw-semibold" style={{ color: "#1e293b", fontSize: "0.9rem" }}>{row.name || "-"}</td>
-                  <td className="col-mobile" style={{ fontSize: "0.9rem" }}>
-                    <div className="d-flex align-items-center gap-2">
-                      <span>{row.mobile || "-"}</span>
-                      {row.mobile && (
-                        <a
-                          className="btn-phone-call d-flex align-items-center justify-content-center"
-                          href={`tel:${row.mobile}`}
-                          style={{ width: 28, height: 28, borderRadius: "50%", border: "1px solid #e2e8f0", color: "#64748b", backgroundColor: "#fff" }}
-                        >
-                          <PhoneGlyph size={11} />
-                        </a>
-                      )}
-                    </div>
-                  </td>
-                  <td className="col-source" style={{ fontSize: "0.9rem", color: "#475569" }}>{row.secondarySource || row.primarySource || "-"}</td>
-                  <td className="col-status">
-                    <button
-                      type="button"
-                      className={`status-pill ${getStatusClass(row.status)}`}
-                      style={{
-                        ...getStatusStyle(row.status),
-                        cursor: "pointer",
-                        border: "none",
-                        appearance: "none",
-                        WebkitAppearance: "none",
-                        outline: "none",
-                      }}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onStatusBadgeClick?.(row);
-                      }}
-                    >
-                      {formatStatusLabel(row.status) || "-"}
-                    </button>
-                  </td>
-                  <td className="col-owner" style={{ fontSize: "0.9rem", color: "#475569" }}>
-                    {isEmployee ? row.allocator || "-" : row.owner || "-"}
-                  </td>
-                  <td className="col-date" style={{ fontSize: "0.9rem", color: "#475569" }}>{formatCreatedOn(row.createdAt)}</td>
+                  {isVis("name") && (
+                    <td className="col-name fw-semibold" style={{ color: "#1e293b", fontSize: "0.9rem" }}>{row.name || "-"}</td>
+                  )}
+                  {isVis("mobile") && (
+                    <td className="col-mobile" style={{ fontSize: "0.9rem" }}>
+                      <div className="d-flex align-items-center gap-2">
+                        <span>{row.mobile || "-"}</span>
+                        {row.mobile && (
+                          <a
+                            className="btn-phone-call d-flex align-items-center justify-content-center"
+                            href={`tel:${row.mobile}`}
+                            style={{ width: 28, height: 28, borderRadius: "50%", border: "1px solid #e2e8f0", color: "#64748b", backgroundColor: "#fff" }}
+                          >
+                            <PhoneGlyph size={11} />
+                          </a>
+                        )}
+                      </div>
+                    </td>
+                  )}
+                  {isVis("source") && (
+                    <td className="col-source" style={{ fontSize: "0.9rem", color: "#475569" }}>{row.secondarySource || row.primarySource || "-"}</td>
+                  )}
+                  {isVis("status") && (
+                    <td className="col-status">
+                      <button
+                        type="button"
+                        className={`status-pill ${getStatusClass(row.status)}`}
+                        style={{
+                          ...getStatusStyle(row.status),
+                          cursor: "pointer",
+                          border: "none",
+                          appearance: "none",
+                          WebkitAppearance: "none",
+                          outline: "none",
+                        }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onStatusBadgeClick?.(row);
+                        }}
+                      >
+                        {formatStatusLabel(row.status) || "-"}
+                      </button>
+                    </td>
+                  )}
+                  {isVis("owner") && (
+                    <td className="col-owner" style={{ fontSize: "0.9rem", color: "#475569" }}>
+                      {isEmployee ? row.allocator || "-" : row.owner || "-"}
+                    </td>
+                  )}
+                  {isVis("createdOn") && (
+                    <td className="col-date" style={{ fontSize: "0.9rem", color: "#475569" }}>{formatCreatedOn(row.createdAt)}</td>
+                  )}
                   <td className="col-actions">
                     <div className="d-inline-flex align-items-center gap-2">
                       <button

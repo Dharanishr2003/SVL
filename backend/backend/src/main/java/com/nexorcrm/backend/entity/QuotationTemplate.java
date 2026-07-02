@@ -53,6 +53,9 @@ public class QuotationTemplate {
     @Column(name = "signature_base64", columnDefinition = "TEXT")
     private String signatureBase64;
 
+    @Column(name = "qr_code_base64", columnDefinition = "TEXT")
+    private String qrCodeBase64;
+
     @Column(name = "watermark_base64", columnDefinition = "TEXT")
     private String watermarkBase64;
 
@@ -85,6 +88,15 @@ public class QuotationTemplate {
 
     @Column(name = "policy_text", columnDefinition = "TEXT")
     private String policyText;
+
+    @Column(name = "template_name", length = 200)
+    private String templateName;
+
+    @Column(name = "template_variant", length = 30)
+    private String templateVariant = "standard";
+
+    @Column(name = "active")
+    private Boolean active = false;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -149,6 +161,9 @@ public class QuotationTemplate {
     public String getSignatureBase64() { return signatureBase64; }
     public void setSignatureBase64(String signatureBase64) { this.signatureBase64 = signatureBase64; }
 
+    public String getQrCodeBase64() { return qrCodeBase64; }
+    public void setQrCodeBase64(String qrCodeBase64) { this.qrCodeBase64 = qrCodeBase64; }
+
     public String getWatermarkBase64() { return watermarkBase64; }
     public void setWatermarkBase64(String watermarkBase64) { this.watermarkBase64 = watermarkBase64; }
 
@@ -181,6 +196,15 @@ public class QuotationTemplate {
 
     public String getPolicyText() { return policyText; }
     public void setPolicyText(String policyText) { this.policyText = policyText; }
+
+    public String getTemplateName() { return templateName; }
+    public void setTemplateName(String templateName) { this.templateName = templateName; }
+
+    public String getTemplateVariant() { return templateVariant; }
+    public void setTemplateVariant(String templateVariant) { this.templateVariant = templateVariant; }
+
+    public Boolean getActive() { return active; }
+    public void setActive(Boolean active) { this.active = active; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }

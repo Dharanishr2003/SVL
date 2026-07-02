@@ -9,9 +9,8 @@ export const PAGE_ACCESS_OPTIONS = [
     ],
   },
   { key: "leads", label: "Leads", category: "CRM & Sales" },
-  { key: "rejected-leads", label: "Rejected Leads", category: "CRM & Sales" },
+
   { key: "requirements", label: "Requirements", category: "CRM & Sales" },
-  { key: "customer", label: "Customers", category: "CRM & Sales" },
   { key: "quotation", label: "Quotation", category: "CRM & Sales" },
   {
     key: "lead-source",
@@ -23,6 +22,7 @@ export const PAGE_ACCESS_OPTIONS = [
       { key: "secondary-source", label: "Secondary Source" },
     ],
   },
+  { key: "customer", label: "Customers", category: "CRM & Sales" },
   { key: "design", label: "Design", category: "Operations" },
   { key: "production", label: "Production", category: "Operations" },
   {
@@ -111,7 +111,7 @@ export const PAGE_ACCESS_OPTIONS = [
   {
     key: "payroll",
     label: "Payroll",
-    category: "Finance & Accounts",
+    category: "Human Resources",
     children: [
       { key: "employee-salary", label: "Employee Salary" },
       { key: "payslip", label: "Payslip" },
@@ -247,7 +247,7 @@ const ROUTE_ACCESS_RULES = [
   { pageKeys: ["contacts"], prefixes: ["/contacts", "/contacts-grid"] },
   { pageKeys: ["production"], prefixes: ["/production", "/production-detail"] },
   { pageKeys: ["design"], prefixes: ["/design", "/design-detail", "/design-work"] },
-  { pageKeys: ["rejected-leads"], prefixes: ["/rejected-leads"] },
+
   { pageKeys: ["customer"], prefixes: ["/customer"] },
   { pageKeys: ["leads"], prefixes: ["/leads", "/leads-dashboard"] },
   { pageKeys: ["requirements"], prefixes: ["/requirements"] },

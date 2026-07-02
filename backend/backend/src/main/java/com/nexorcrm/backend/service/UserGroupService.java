@@ -65,7 +65,6 @@ public class UserGroupService {
             "sales-dashboard",
             // CRM
             "leads",
-            "rejected-leads",
             "design",
             "production",
             "contacts",

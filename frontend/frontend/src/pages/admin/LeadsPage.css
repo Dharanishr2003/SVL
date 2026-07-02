@@ -102,9 +102,11 @@
   min-height: 260px;
 }
 
-.leads-table-fixed {
+/* Lead list table: always fills full container and redistributes
+   space automatically when optional columns are hidden */
+.leads-table {
   width: 100%;
-  table-layout: fixed;
+  table-layout: auto;
 }
 
 .leads-table thead th {
@@ -115,43 +117,84 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+  vertical-align: middle;
+  padding: 0.95rem 1rem;
+  line-height: 1.2;
+  white-space: nowrap;
 }
 
 .leads-table tbody td {
   vertical-align: middle;
 }
 
-.leads-table-fixed .col-select {
-  width: 36px;
+/* Fixed/narrow columns — constrained by min-width, can slightly grow */
+.leads-table .col-select {
+  min-width: 36px;
+  width: 40px;
 }
 
-.leads-table-fixed .col-index {
+.leads-table .col-index {
+  min-width: 40px;
   width: 54px;
 }
 
-.leads-table-fixed .col-mobile {
+.leads-table .col-mobile {
+  min-width: 120px;
   width: 150px;
+  white-space: nowrap;
 }
 
-.leads-table-fixed .col-status {
-  width: 190px;
+.leads-table .col-status {
+  min-width: 140px;
+  width: 185px;
+  white-space: nowrap;
 }
 
-.leads-table-fixed .col-actions {
+.leads-table .col-actions {
+  min-width: 100px;
   width: 132px;
+  white-space: nowrap;
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
 }
 
-.leads-table-fixed .col-source {
-  width: 130px;
+.leads-table .col-date {
+  min-width: 100px;
+  width: 140px;
 }
 
-.leads-table-fixed .col-owner {
-  width: 110px;
+/* Expanding columns — no fixed width, they grow to fill freed space */
+.leads-table .col-name,
+.leads-table .col-source,
+.leads-table .col-owner {
+  min-width: 100px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  line-height: 1.35;
+  vertical-align: top;
 }
 
-.leads-table-fixed .col-date {
-  width: 120px;
+.leads-table .col-status .status-pill,
+.leads-table .col-actions .btn,
+.leads-table .col-mobile .btn-phone-call {
+  white-space: nowrap;
 }
+
+/* Keep .leads-table-fixed rules for any other tables that still use it */
+.leads-table-fixed {
+  width: 100%;
+  table-layout: fixed;
+}
+
+.leads-table-fixed .col-select { width: 36px; }
+.leads-table-fixed .col-index  { width: 54px; }
+.leads-table-fixed .col-mobile { width: 150px; }
+.leads-table-fixed .col-status { width: 190px; }
+.leads-table-fixed .col-actions { width: 132px; }
+.leads-table-fixed .col-source { width: 130px; }
+.leads-table-fixed .col-owner { width: 110px; }
+.leads-table-fixed .col-date { width: 140px; }
 
 .leads-table-fixed .col-name,
 .leads-table-fixed .col-source,
@@ -181,6 +224,7 @@
   padding-left: 0.75rem;
   padding-right: 0.75rem;
 }
+
 
 .lead-create-backdrop {
   z-index: 1049;

@@ -98,7 +98,6 @@ public class LeadService {
     private static final String LEADS_PAGE_KEY = "leads";
     private static final Set<String> LEAD_RECORD_PAGE_KEYS = Set.of(
             "leads",
-            "rejected-leads",
             "deals",
             "design",
             "production",
