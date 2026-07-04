@@ -1,1 +1,0 @@
-import{j as a}from"./index-CHnXJXP1.js";function i(){return a.jsx("div",{className:"card",children:a.jsxs("div",{className:"card-body",children:[a.jsx("h4",{className:"mb-2",children:"Localization Settings"}),a.jsx("p",{className:"mb-0",children:"Layout working confirmation."})]})})}export{i as default};

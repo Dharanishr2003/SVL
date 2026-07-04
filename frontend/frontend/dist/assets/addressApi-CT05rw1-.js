@@ -1,0 +1,1 @@
+import{G as t}from"./index-autmkQ3d.js";async function d(s,e){const a=`/api/v1/leads/${s}/addresses?type=${e}`;return(await t.get(a))?.data||[]}async function o(s,e){const a=`/api/v1/leads/${s}/addresses/${e}`;return(await t.get(a))?.data}async function p(s,e){const a=`/api/v1/leads/${s}/addresses`;return(await t.post(a,e))?.data}export{d as a,p as c,o as g};
