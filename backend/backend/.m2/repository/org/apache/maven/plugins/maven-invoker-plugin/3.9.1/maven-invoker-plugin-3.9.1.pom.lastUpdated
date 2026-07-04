@@ -1,4 +1,4 @@
 #NOTE: This is a Maven Resolver internal implementation file, its format can be changed without prior notice.
-#Wed Jun 24 14:59:19 IST 2026
-@default-central-https\://repo.maven.apache.org/maven2/.lastUpdated=1782293359987
+#Sat Jul 04 13:45:44 IST 2026
+@default-central-https\://repo.maven.apache.org/maven2/.lastUpdated=1783152944938
 https\://repo.maven.apache.org/maven2/.error=Could not transfer artifact org.apache.maven.plugins\:maven-invoker-plugin\:pom\:3.9.1 from/to central (https\://repo.maven.apache.org/maven2)\: Permission denied\: getsockopt

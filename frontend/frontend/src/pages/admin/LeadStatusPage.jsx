@@ -20,6 +20,7 @@ function LeadStatusPage() {
   const [pendingDelete, setPendingDelete] = useState(null);
   const [formValue, setFormValue] = useState("");
   const [saving, setSaving] = useState(false);
+  const [hasError, setHasError] = useState(false);
   const seededRef = useRef(false);
 
   // Search & Pagination states
@@ -97,8 +98,10 @@ function LeadStatusPage() {
   const handleSave = async () => {
     if (!formValue.trim()) {
       showError("Status name is required");
+      setHasError(true);
       return;
     }
+    setHasError(false);
     setSaving(true);
     try {
       editingRow?.id
@@ -146,6 +149,7 @@ function LeadStatusPage() {
             onClick={() => {
               setFormValue("");
               setEditingRow(null);
+              setHasError(false);
               setShowModal(true);
             }}
           >
@@ -205,6 +209,7 @@ function LeadStatusPage() {
                               setFormValue(
                                 getLabel(r) === "-" ? "" : getLabel(r),
                               );
+                              setHasError(false);
                               setShowModal(true);
                             }}
                           >
@@ -343,9 +348,12 @@ function LeadStatusPage() {
                 <div className="modal-body p-4">
                   <label className="form-label small fw-semibold text-muted">Status Name</label>
                   <input
-                    className="form-control"
+                    className={`form-control ${hasError ? "is-invalid border-danger" : ""}`}
                     value={formValue}
-                    onChange={(e) => setFormValue(e.target.value)}
+                    onChange={(e) => {
+                      setFormValue(e.target.value);
+                      if (e.target.value.trim()) setHasError(false);
+                    }}
                     placeholder="e.g. New, In Progress, Closed"
                     style={{ borderRadius: 8, padding: "10px 14px" }}
                   />

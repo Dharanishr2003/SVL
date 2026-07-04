@@ -2662,36 +2662,36 @@ export default function QuotationPage() {
           <div className="qp-totals-block">
             <div className="qp-total-line">
               <div className="qp-total-label">Subtotal</div>
-              <div className="qp-total-value">₹{subtotal.toFixed(2)}</div>
+              <div className="qp-total-value"><span className="rupee-symbol">₹</span>{subtotal.toFixed(2)}</div>
             </div>
             <div className="qp-total-line discount">
               <div className="qp-total-label">Discount Amount</div>
-              <div className="qp-total-value">−₹{discountAmt.toFixed(2)}</div>
+              <div className="qp-total-value">−<span className="rupee-symbol">₹</span>{discountAmt.toFixed(2)}</div>
             </div>
             <div className="qp-total-line">
               <div className="qp-total-label">GST total</div>
-              <div className="qp-total-value">+₹{taxAmt.toFixed(2)}</div>
+              <div className="qp-total-value">+<span className="rupee-symbol">₹</span>{taxAmt.toFixed(2)}</div>
             </div>
             {isTamilNadu ? (
               <>
                 <div className="qp-total-line">
                   <div className="qp-total-label">CGST</div>
-                  <div className="qp-total-value">+₹{cgstAmt.toFixed(2)}</div>
+                  <div className="qp-total-value">+<span className="rupee-symbol">₹</span>{cgstAmt.toFixed(2)}</div>
                 </div>
                 <div className="qp-total-line">
                   <div className="qp-total-label">SGST</div>
-                  <div className="qp-total-value">+₹{sgstAmt.toFixed(2)}</div>
+                  <div className="qp-total-value">+<span className="rupee-symbol">₹</span>{sgstAmt.toFixed(2)}</div>
                 </div>
               </>
             ) : (
               <div className="qp-total-line">
                 <div className="qp-total-label">IGST</div>
-                <div className="qp-total-value">+₹{igstAmt.toFixed(2)}</div>
+                <div className="qp-total-value">+<span className="rupee-symbol">₹</span>{igstAmt.toFixed(2)}</div>
               </div>
             )}
             <div className="qp-total-line grand">
               <div className="qp-total-label">Grand total</div>
-              <div className="qp-total-value">₹{grandTotal.toFixed(2)}</div>
+              <div className="qp-total-value"><span className="rupee-symbol">₹</span>{grandTotal.toFixed(2)}</div>
             </div>
           </div>
         </div>
@@ -2700,7 +2700,7 @@ export default function QuotationPage() {
         <div className="qp-actions-bar">
           <div>
             <div className="qp-actions-bar-left">Grand total</div>
-            <div className="qp-actions-bar-amount">₹{grandTotal.toFixed(2)}</div>
+            <div className="qp-actions-bar-amount"><span className="rupee-symbol">₹</span>{grandTotal.toFixed(2)}</div>
           </div>
           <div className="qp-actions-bar-btns">
             {canApproveCurrentQuotation && (

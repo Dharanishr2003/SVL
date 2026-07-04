@@ -446,6 +446,34 @@ export default function LeadsPage() {
     campaignName: "Leads Campaign_corrugated boxes J - 18"
   });
 
+  const filteredCampaignLeads = useMemo(() => {
+    return campaignLeads.filter((l) => {
+      const q = campaignSearch.toLowerCase();
+      const matchSearch =
+        !q ||
+        String(l.fullName || "").toLowerCase().includes(q) ||
+        String(l.phone || "").toLowerCase().includes(q) ||
+        String(l.email || "").toLowerCase().includes(q);
+      const matchPlatform =
+        !campaignFilters.platform ||
+        String(l.platform || "").toLowerCase() === campaignFilters.platform.toLowerCase();
+      const matchAdName =
+        !campaignFilters.adName ||
+        String(l.adName || "").toLowerCase() === campaignFilters.adName.toLowerCase();
+      const matchSource =
+        !campaignSourceFilter ||
+        String(l.platform || "").toLowerCase().includes(campaignSourceFilter.toLowerCase());
+      return matchSearch && matchSource && matchPlatform && matchAdName;
+    });
+  }, [campaignLeads, campaignSearch, campaignFilters.platform, campaignFilters.adName, campaignSourceFilter]);
+
+  const getCampaignExportRows = () => {
+    if (campaignSelectedIds.size > 0) {
+      return filteredCampaignLeads.filter((row) => campaignSelectedIds.has(row.id));
+    }
+    return filteredCampaignLeads;
+  };
+
   // Bulk Operations State
   const [bulkAssignOpen, setBulkAssignOpen] = useState(false);
   const [bulkAssignUserId, setBulkAssignUserId] = useState("");
@@ -659,6 +687,7 @@ export default function LeadsPage() {
   const [interestedCallRemarks, setInterestedCallRemarks] = useState("");
   const [rejectedReason, setRejectedReason] = useState("");
   const [rejectedReasonSubtype, setRejectedReasonSubtype] = useState("");
+  const [statusErrors, setStatusErrors] = useState({});
   const [showDesignDurationModal, setShowDesignDurationModal] = useState(false);
   const [designStartAt, setDesignStartAt] = useState("");
   const [designEndAt, setDesignEndAt] = useState("");
@@ -1952,6 +1981,7 @@ ${rowsHtml}
     setRejectedReasonSubtype("");
     setShowStatusModal(true);
     setError("");
+    setStatusErrors({});
 
     const groupId = lead?.leadGroupId ?? lead?.assignedGroupId ?? null;
     const institutionName = groupId != null ? flowScopeByGroupId.get(String(groupId)) : "";
@@ -2004,7 +2034,10 @@ ${rowsHtml}
 
   const saveStatusUpdate = async () => {
     if (!statusLead?.id) return;
+    const errors = {};
     if (!statusValue) {
+      errors.statusValue = true;
+      setStatusErrors(errors);
       setError("Please select a status");
       return;
     }
@@ -2033,14 +2066,20 @@ ${rowsHtml}
     }
     // Validate and handle Attempted form
     if (nextKey === "attempted") {
-      if (!attemptedOpenReason || !attemptedCallRemarks) {
+      if (!attemptedOpenReason) errors.attemptedOpenReason = true;
+      if (!attemptedCallRemarks) errors.attemptedCallRemarks = true;
+      if (Object.keys(errors).length > 0) {
+        setStatusErrors(errors);
         setError("Please complete Attempted Reason and Manual Details for Attempted status");
         return;
       }
     }
 
     if (nextKey === "not attempted") {
-      if (!notAttemptedCallStatus || !notAttemptedCallRemarks) {
+      if (!notAttemptedCallStatus) errors.notAttemptedCallStatus = true;
+      if (!notAttemptedCallRemarks) errors.notAttemptedCallRemarks = true;
+      if (Object.keys(errors).length > 0) {
+        setStatusErrors(errors);
         setError("Please complete Not Attempted Reason and Manual Details for Not Attempted status");
         return;
       }
@@ -2048,7 +2087,11 @@ ${rowsHtml}
 
     // Validate and handle Interested form
     if (nextKey === "interested") {
-      if (!interestedCallStatus || !interestedFollowUpDate || !interestedCallRemarks) {
+      if (!interestedCallStatus) errors.interestedCallStatus = true;
+      if (!interestedFollowUpDate) errors.interestedFollowUpDate = true;
+      if (!interestedCallRemarks) errors.interestedCallRemarks = true;
+      if (Object.keys(errors).length > 0) {
+        setStatusErrors(errors);
         setError("Please complete Interested Reason, Date, and Manual Details for Interested status");
         return;
       }
@@ -2057,10 +2100,14 @@ ${rowsHtml}
     // Validate and handle Rejected form
     if (nextKey === "rejected") {
       if (!rejectedReason) {
+        errors.rejectedReason = true;
+        setStatusErrors(errors);
         setError("Please select Rejected Reason");
         return;
       }
     }
+
+    setStatusErrors({});
 
     if (nextKey === "allocate") {
       setShowStatusModal(false);
@@ -2425,6 +2472,157 @@ ${rowsHtml}
       pageIds.forEach((id) => next.add(id));
       return next;
     });
+  };
+
+  const exportCampaignCsv = () => {
+    const targetRows = getCampaignExportRows();
+    const headers = [
+      "Lead ID",
+      "Name",
+      "Mobile",
+      "Email",
+      "Platform",
+      "Ad Name",
+      "MOQ",
+      "Industry",
+      "Created Date",
+    ];
+    const body = targetRows.map((row) => [
+      row.leadId || row.id || "",
+      row.fullName || "",
+      row.phone || "",
+      row.email || "",
+      row.platform || "",
+      row.adName || "",
+      row.moq || "",
+      row.industry || "",
+      row.createdAt || "",
+    ]);
+    const csv = [headers, ...body]
+      .map((line) =>
+        line
+          .map((cell) => `"${String(cell ?? "").replace(/"/g, '""')}"`)
+          .join(","),
+      )
+      .join("\n");
+    downloadTextFile(`campaign-leads-${Date.now()}.csv`, csv, "text/csv;charset=utf-8;");
+  };
+
+  const exportCampaignExcel = () => {
+    const targetRows = getCampaignExportRows();
+    const headers = [
+      "Lead ID",
+      "Name",
+      "Mobile",
+      "Email",
+      "Platform",
+      "Ad Name",
+      "MOQ",
+      "Industry",
+      "Created Date",
+    ];
+
+    const escapeXml = (unsafe) => {
+      return String(unsafe ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&apos;");
+    };
+
+    const headerHtml = `      <tr>
+        ${headers.map((h) => `<th>${escapeXml(h)}</th>`).join("\n        ")}
+      </tr>`;
+
+    const rowsHtml = targetRows
+      .map(
+        (row) => `      <tr>
+        <td>${escapeXml(row.leadId || row.id || "")}</td>
+        <td>${escapeXml(row.fullName)}</td>
+        <td>${escapeXml(row.phone)}</td>
+        <td>${escapeXml(row.email)}</td>
+        <td>${escapeXml(row.platform)}</td>
+        <td>${escapeXml(row.adName)}</td>
+        <td>${escapeXml(row.moq)}</td>
+        <td>${escapeXml(row.industry)}</td>
+        <td>${escapeXml(row.createdAt)}</td>
+      </tr>`,
+      )
+      .join("\n");
+
+    const template = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+<head>
+<!--[if gte mso 9]>
+<xml>
+  <x:ExcelWorkbook>
+    <x:ExcelWorksheets>
+      <x:ExcelWorksheet>
+        <x:Name>Campaign Leads</x:Name>
+        <x:WorksheetOptions>
+          <x:DisplayGridlines/>
+        </x:WorksheetOptions>
+      </x:ExcelWorksheet>
+    </x:ExcelWorksheets>
+  </x:ExcelWorkbook>
+</xml>
+<![endif]-->
+<meta http-equiv="content-type" content="text/plain; charset=UTF-8"/>
+</head>
+<body>
+  <table>
+    <thead>
+${headerHtml}
+    </thead>
+    <tbody>
+${rowsHtml}
+    </tbody>
+  </table>
+</body>
+</html>`;
+
+    downloadTextFile(`campaign-leads-${Date.now()}.xls`, template, "application/vnd.ms-excel;charset=utf-8;");
+  };
+
+  const exportCampaignPdf = () => {
+    const targetRows = getCampaignExportRows();
+    const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
+    doc.setFontSize(14);
+    doc.text("Campaign Leads Export", 40, 40);
+    doc.setFontSize(10);
+    doc.text(`Generated: ${new Date().toLocaleString()}`, 40, 58);
+
+    autoTable(doc, {
+      head: [[
+        "Lead ID",
+        "Name",
+        "Mobile",
+        "Email",
+        "Platform",
+        "Ad Name",
+        "MOQ",
+        "Industry",
+        "Created Date",
+      ]],
+      body: targetRows.map((row) => [
+        row.leadId || row.id || "",
+        row.fullName || "",
+        row.phone || "",
+        row.email || "",
+        row.platform || "",
+        row.adName || "",
+        row.moq || "",
+        row.industry || "",
+        row.createdAt || "",
+      ]),
+      startY: 72,
+      styles: { fontSize: 8, cellPadding: 4 },
+      headStyles: { fillColor: [33, 37, 41] },
+      margin: { left: 24, right: 24 },
+      tableWidth: "auto",
+    });
+
+    doc.save(`campaign-leads-${Date.now()}.pdf`);
   };
 
   const exportCsv = () => {
@@ -3161,22 +3359,7 @@ ${rowsHtml}
       )}
 
       {/* ── Campaign Leads Tab ──────────────────────────────────────────────── */}
-      {activeMainTab === 'campaign' && (() => {
-        const filteredCampaignLeads = campaignLeads.filter((l) => {
-          const q = campaignSearch.toLowerCase();
-          const matchSearch = !q ||
-            String(l.fullName || '').toLowerCase().includes(q) ||
-            String(l.phone || '').toLowerCase().includes(q) ||
-            String(l.email || '').toLowerCase().includes(q);
-          const matchPlatform = !campaignFilters.platform ||
-            String(l.platform || '').toLowerCase() === campaignFilters.platform.toLowerCase();
-          const matchAdName = !campaignFilters.adName ||
-            String(l.adName || '').toLowerCase() === campaignFilters.adName.toLowerCase();
-          const matchSource = !campaignSourceFilter ||
-            String(l.platform || '').toLowerCase().includes(campaignSourceFilter.toLowerCase());
-          return matchSearch && matchSource && matchPlatform && matchAdName;
-        });
-        return (
+      {activeMainTab === 'campaign' && (
           <div className="leads-page-body">
             <div className="leads-controls-bar d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4">
               <div className="position-relative" style={{ width: '100%', maxWidth: 340 }}>
@@ -3212,6 +3395,11 @@ ${rowsHtml}
                   Filter
                   {(campaignFilters.platform || campaignFilters.adName) && " (Active)"}
                 </button>
+                <LeadExportDropdown
+                  exportExcel={exportCampaignExcel}
+                  exportCsv={exportCampaignCsv}
+                  exportPdf={exportCampaignPdf}
+                />
                 {campaignSelectedIds.size > 0 && (
                   <button
                     className="btn btn-primary btn-sm d-flex align-items-center gap-1"
@@ -3438,8 +3626,7 @@ ${rowsHtml}
               </div>
             </div>
           </div>
-        );
-      })()}
+      )}
 
       {/* ── Rejected Leads Tab ────────────────────────────────────────────────── */}
       {activeMainTab === 'rejected' && role !== 'EMPLOYEE' && (
@@ -3932,10 +4119,14 @@ ${rowsHtml}
                               ref={createNameInputRef}
                               className="form-control"
                               value={createForm.name}
-                              onChange={(e) =>
-                                setCreateForm((prev) => ({ ...prev, name: e.target.value }))
-                              }
+                              onChange={(e) => {
+                                setCreateForm((prev) => ({ ...prev, name: e.target.value }));
+                                if (e.target.value.trim() && createStep0Errors.name) {
+                                  setCreateStep0Errors((prev) => ({ ...prev, name: "" }));
+                                }
+                              }}
                               placeholder="Full Name"
+                              style={createStep0Errors.name ? { borderColor: "#dc3545", borderStyle: "solid", borderWidth: "1px" } : {}}
                             />
                             {createStep0Errors.name && (
                               <small className="text-danger">{createStep0Errors.name}</small>
@@ -3950,7 +4141,10 @@ ${rowsHtml}
                               Mobile Number <span className="text-danger">*</span>
                             </label>
                             <div className="lead-phone-field" ref={createCountryPickerRef}>
-                              <div className="lead-phone-input-wrap">
+                              <div
+                                className="lead-phone-input-wrap"
+                                style={createMobileError ? { borderColor: "#dc3545", borderStyle: "solid", borderWidth: "1px" } : {}}
+                              >
                                 <button
                                   type="button"
                                   className="lead-phone-code-trigger"
@@ -4037,13 +4231,17 @@ ${rowsHtml}
                             <select
                               className="form-select"
                               value={createForm.primarySource}
-                              onChange={(e) =>
+                              onChange={(e) => {
                                 setCreateForm((prev) => ({
                                   ...prev,
                                   primarySource: e.target.value,
                                   secondarySource: "",
-                                }))
-                              }
+                                }));
+                                if (e.target.value.trim() && createStep0Errors.primarySource) {
+                                  setCreateStep0Errors((prev) => ({ ...prev, primarySource: "" }));
+                                }
+                              }}
+                              style={createStep0Errors.primarySource ? { borderColor: "#dc3545", borderStyle: "solid", borderWidth: "1px" } : {}}
                             >
                               <option value="">Select Primary Source</option>
                               {primaryOptions.map((item) => (
@@ -4348,10 +4546,13 @@ ${rowsHtml}
                       setInterestedCallRemarks("");
                       setRejectedReason("");
                       setRejectedReasonSubtype("");
+                      setError("");
+                      setStatusErrors({});
                     }}
                   />
                 </div>
                 <div className="modal-body">
+                  {error && <div className="alert alert-danger py-2 mb-3">{error}</div>}
                   {orderedLeadStatuses.length > 0 && (
                     <div className="mb-3">
                       <div className="d-flex flex-wrap gap-2">
@@ -4370,7 +4571,13 @@ ${rowsHtml}
                     <select
                       className="form-select"
                       value={statusValue}
-                      onChange={(e) => setStatusValue(e.target.value)}
+                      onChange={(e) => {
+                        setStatusValue(e.target.value);
+                        if (e.target.value && statusErrors.statusValue) {
+                          setStatusErrors((prev) => ({ ...prev, statusValue: false }));
+                        }
+                      }}
+                      style={statusErrors.statusValue ? { borderColor: "#dc3545", borderStyle: "solid", borderWidth: "1px" } : {}}
                     >
                       <option value="">Select Status</option>
                       {displayStatusOptions.map((item) => (
@@ -4390,7 +4597,13 @@ ${rowsHtml}
                         <select
                           className="form-select"
                           value={attemptedOpenReason}
-                          onChange={(e) => setAttemptedOpenReason(e.target.value)}
+                          onChange={(e) => {
+                            setAttemptedOpenReason(e.target.value);
+                            if (e.target.value && statusErrors.attemptedOpenReason) {
+                              setStatusErrors((prev) => ({ ...prev, attemptedOpenReason: false }));
+                            }
+                          }}
+                          style={statusErrors.attemptedOpenReason ? { borderColor: "#dc3545", borderStyle: "solid", borderWidth: "1px" } : {}}
                         >
                           <option value="">Select Attempted Reason</option>
                           {ATTEMPTED_REASON_OPTIONS.map((option) => (
@@ -4406,8 +4619,14 @@ ${rowsHtml}
                           className="form-control"
                           rows={3}
                           value={attemptedCallRemarks}
-                          onChange={(e) => setAttemptedCallRemarks(e.target.value)}
+                          onChange={(e) => {
+                            setAttemptedCallRemarks(e.target.value);
+                            if (e.target.value.trim() && statusErrors.attemptedCallRemarks) {
+                              setStatusErrors((prev) => ({ ...prev, attemptedCallRemarks: false }));
+                            }
+                          }}
                           placeholder="Enter manual details"
+                          style={statusErrors.attemptedCallRemarks ? { borderColor: "#dc3545", borderStyle: "solid", borderWidth: "1px" } : {}}
                         />
                       </div>
                     </div>
@@ -4421,7 +4640,13 @@ ${rowsHtml}
                         <select
                           className="form-select"
                           value={notAttemptedCallStatus}
-                          onChange={(e) => setNotAttemptedCallStatus(e.target.value)}
+                          onChange={(e) => {
+                            setNotAttemptedCallStatus(e.target.value);
+                            if (e.target.value && statusErrors.notAttemptedCallStatus) {
+                              setStatusErrors((prev) => ({ ...prev, notAttemptedCallStatus: false }));
+                            }
+                          }}
+                          style={statusErrors.notAttemptedCallStatus ? { borderColor: "#dc3545", borderStyle: "solid", borderWidth: "1px" } : {}}
                         >
                           <option value="">Select Not Attempted Reason</option>
                           {NOT_ATTEMPTED_REASON_OPTIONS.map((option) => (
@@ -4437,8 +4662,14 @@ ${rowsHtml}
                           className="form-control"
                           rows={3}
                           value={notAttemptedCallRemarks}
-                          onChange={(e) => setNotAttemptedCallRemarks(e.target.value)}
+                          onChange={(e) => {
+                            setNotAttemptedCallRemarks(e.target.value);
+                            if (e.target.value.trim() && statusErrors.notAttemptedCallRemarks) {
+                              setStatusErrors((prev) => ({ ...prev, notAttemptedCallRemarks: false }));
+                            }
+                          }}
                           placeholder="Enter manual details"
+                          style={statusErrors.notAttemptedCallRemarks ? { borderColor: "#dc3545", borderStyle: "solid", borderWidth: "1px" } : {}}
                         />
                       </div>
                     </div>
@@ -4453,7 +4684,13 @@ ${rowsHtml}
                         <select
                           className="form-select"
                           value={interestedCallStatus}
-                          onChange={(e) => setInterestedCallStatus(e.target.value)}
+                          onChange={(e) => {
+                            setInterestedCallStatus(e.target.value);
+                            if (e.target.value && statusErrors.interestedCallStatus) {
+                              setStatusErrors((prev) => ({ ...prev, interestedCallStatus: false }));
+                            }
+                          }}
+                          style={statusErrors.interestedCallStatus ? { borderColor: "#dc3545", borderStyle: "solid", borderWidth: "1px" } : {}}
                         >
                           <option value="">Select Interested Reason</option>
                           {INTERESTED_REASON_OPTIONS.map((option) => (
@@ -4469,7 +4706,13 @@ ${rowsHtml}
                           className="form-control"
                           type="datetime-local"
                           value={interestedFollowUpDate}
-                          onChange={(e) => setInterestedFollowUpDate(e.target.value)}
+                          onChange={(e) => {
+                            setInterestedFollowUpDate(e.target.value);
+                            if (e.target.value && statusErrors.interestedFollowUpDate) {
+                              setStatusErrors((prev) => ({ ...prev, interestedFollowUpDate: false }));
+                            }
+                          }}
+                          style={statusErrors.interestedFollowUpDate ? { borderColor: "#dc3545", borderStyle: "solid", borderWidth: "1px" } : {}}
                         />
                       </div>
                       <div className="mb-3">
@@ -4478,8 +4721,14 @@ ${rowsHtml}
                           className="form-control"
                           rows={3}
                           value={interestedCallRemarks}
-                          onChange={(e) => setInterestedCallRemarks(e.target.value)}
+                          onChange={(e) => {
+                            setInterestedCallRemarks(e.target.value);
+                            if (e.target.value.trim() && statusErrors.interestedCallRemarks) {
+                              setStatusErrors((prev) => ({ ...prev, interestedCallRemarks: false }));
+                            }
+                          }}
                           placeholder="Enter manual details"
+                          style={statusErrors.interestedCallRemarks ? { borderColor: "#dc3545", borderStyle: "solid", borderWidth: "1px" } : {}}
                         />
                       </div>
                     </div>
@@ -4491,60 +4740,68 @@ ${rowsHtml}
                       <h6 className="mb-3 text-primary">Rejected Details</h6>
                       <div className="mb-3">
                         <label className="form-label">Rejected Reason</label>
-                        <select
-                          className="form-select"
-                          value={rejectedReason}
-                          onChange={(e) => setRejectedReason(e.target.value)}
-                        >
-                          <option value="">Select Reject Reason</option>
-                          <option value="Budget Too High">Budget Too High</option>
-                          <option value="Not Interested">Not Interested</option>
-                          <option value="Already Purchased">Already Purchased</option>
-                          <option value="Chose Competitor">Chose Competitor</option>
-                          <option value="Decision Postponed">Decision Postponed</option>
-                          <option value="No Requirement Now">No Requirement Now</option>
-                          <option value="Not Reachable">Not Reachable</option>
-                          <option value="Wrong Contact">Wrong Contact</option>
-                          <option value="Invalid/Incomplete Details">Invalid/Incomplete Details</option>
-                          <option value="Location Not Serviceable">Location Not Serviceable</option>
-                          <option value="Timeline Mismatch">Timeline Mismatch</option>
-                          <option value="Other">Other</option>
-                        </select>
-                      </div>
-                      <div className="mb-3">
-                        <label className="form-label">Rejected Reason Subtype</label>
-                        <textarea
-                          className="form-control"
-                          rows={3}
-                          value={rejectedReasonSubtype}
-                          onChange={(e) => setRejectedReasonSubtype(e.target.value)}
-                          placeholder="Rejected Reason Subtype / Details"
-                        />
-                      </div>
-                    </div>
-                  )}
-                </div>
-                <div className="modal-footer">
-                  <button
-                    className="btn btn-light"
-                    onClick={() => {
-                      setShowStatusModal(false);
-                      setStatusLead(null);
-                      setStatusValue("");
-                      setAttemptedOpenReason("");
-                      setAttemptedCallStatus("");
-      setAttemptedCallRemarks("");
-      setAttemptedFollowUpDate("");
-      setNotAttemptedCallStatus("");
-      setNotAttemptedCallRemarks("");
-      setInterestedFollowUpDate("");
-                      setInterestedCallStatus("");
-                      setInterestedCallRemarks("");
-                      setRejectedReason("");
-                      setRejectedReasonSubtype("");
-                    }}
-                  >
-                    Cancel
+                         <select
+                           className="form-select"
+                           value={rejectedReason}
+                           onChange={(e) => {
+                             setRejectedReason(e.target.value);
+                             if (e.target.value && statusErrors.rejectedReason) {
+                               setStatusErrors((prev) => ({ ...prev, rejectedReason: false }));
+                             }
+                           }}
+                           style={statusErrors.rejectedReason ? { borderColor: "#dc3545", borderStyle: "solid", borderWidth: "1px" } : {}}
+                         >
+                           <option value="">Select Reject Reason</option>
+                           <option value="Budget Too High">Budget Too High</option>
+                           <option value="Not Interested">Not Interested</option>
+                           <option value="Already Purchased">Already Purchased</option>
+                           <option value="Chose Competitor">Chose Competitor</option>
+                           <option value="Decision Postponed">Decision Postponed</option>
+                           <option value="No Requirement Now">No Requirement Now</option>
+                           <option value="Not Reachable">Not Reachable</option>
+                           <option value="Wrong Contact">Wrong Contact</option>
+                           <option value="Invalid/Incomplete Details">Invalid/Incomplete Details</option>
+                           <option value="Location Not Serviceable">Location Not Serviceable</option>
+                           <option value="Timeline Mismatch">Timeline Mismatch</option>
+                           <option value="Other">Other</option>
+                         </select>
+                       </div>
+                       <div className="mb-3">
+                         <label className="form-label">Rejected Reason Subtype</label>
+                         <textarea
+                           className="form-control"
+                           rows={3}
+                           value={rejectedReasonSubtype}
+                           onChange={(e) => setRejectedReasonSubtype(e.target.value)}
+                           placeholder="Rejected Reason Subtype / Details"
+                         />
+                       </div>
+                     </div>
+                   )}
+                 </div>
+                 <div className="modal-footer">
+                   <button
+                     className="btn btn-light"
+                     onClick={() => {
+                       setShowStatusModal(false);
+                       setStatusLead(null);
+                       setStatusValue("");
+                       setAttemptedOpenReason("");
+                       setAttemptedCallStatus("");
+                       setAttemptedCallRemarks("");
+                       setAttemptedFollowUpDate("");
+                       setNotAttemptedCallStatus("");
+                       setNotAttemptedCallRemarks("");
+                       setInterestedFollowUpDate("");
+                       setInterestedCallStatus("");
+                       setInterestedCallRemarks("");
+                       setRejectedReason("");
+                       setRejectedReasonSubtype("");
+                       setError("");
+                       setStatusErrors({});
+                     }}
+                   >
+                     Cancel
                   </button>
                   <button className="btn btn-primary" onClick={saveStatusUpdate} disabled={saving}>
                     {saving ? "Saving..." : "Update Status"}

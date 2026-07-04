@@ -197,6 +197,7 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
   const [interestedCallRemarks, setInterestedCallRemarks] = useState("");
   const [rejectedReason, setRejectedReason] = useState("");
   const [rejectedReasonSubtype, setRejectedReasonSubtype] = useState("");
+  const [statusErrors, setStatusErrors] = useState({});
   const [leadLogs, setLeadLogs] = useState([]);
   const [leadGroupOptions, setLeadGroupOptions] = useState([]);
   const [showAllocateModal, setShowAllocateModal] = useState(false);
@@ -1540,7 +1541,14 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
 
   const saveStatus = async () => {
     if (!lead?.id) return;
-    setStatusSaving(true);
+    const errors = {};
+    if (!statusValue) {
+      errors.statusValue = true;
+      setStatusErrors(errors);
+      showError("Please select a status");
+      setStatusSaving(false);
+      return;
+    }
     const currentKey = String(lead?.status || "").trim().toLowerCase();
     if (
       currentKey === "design" &&
@@ -1549,25 +1557,24 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
     ) {
       if (!finalDesignMessage?.id) {
         showError("Please upload the final design before changing status from Design");
+        setStatusSaving(false);
         return;
       }
     }
-    if (!statusValue) {
-      showError("Please select a status");
-      return;
-    }
     const normalizedKey = String(statusValue || "").trim().toLowerCase();
-    if (normalizedKey === "requirement") {
-      setError("");
+    if (normalizedKey === "requirement" || normalizedKey === "requirements collected") {
       setShowStatusModal(false);
-      openRequirementModal("Requirement");
       setStatusSaving(false);
+      openRequirementModal("Requirement");
       return;
     }
 
     // Validate Attempted form fields if transitioning to Attempted
     if (normalizedKey === "attempted" && statusNeedsModal(normalizedKey)) {
-      if (!attemptedOpenReason || !attemptedCallRemarks) {
+      if (!attemptedOpenReason) errors.attemptedOpenReason = true;
+      if (!attemptedCallRemarks) errors.attemptedCallRemarks = true;
+      if (Object.keys(errors).length > 0) {
+        setStatusErrors(errors);
         showError("Please complete Attempted Reason and Manual Details for Attempted status");
         setStatusSaving(false);
         return;
@@ -1575,7 +1582,10 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
     }
 
     if (normalizedKey === "not attempted" && statusNeedsModal(normalizedKey)) {
-      if (!notAttemptedCallStatus || !notAttemptedCallRemarks) {
+      if (!notAttemptedCallStatus) errors.notAttemptedCallStatus = true;
+      if (!notAttemptedCallRemarks) errors.notAttemptedCallRemarks = true;
+      if (Object.keys(errors).length > 0) {
+        setStatusErrors(errors);
         showError("Please complete Not Attempted Reason and Manual Details for Not Attempted status");
         setStatusSaving(false);
         return;
@@ -1584,7 +1594,11 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
 
     // Validate Interested form fields if transitioning to Interested
     if (normalizedKey === "interested" && statusNeedsModal(normalizedKey)) {
-      if (!interestedCallStatus || !interestedFollowUpDate || !interestedCallRemarks) {
+      if (!interestedCallStatus) errors.interestedCallStatus = true;
+      if (!interestedFollowUpDate) errors.interestedFollowUpDate = true;
+      if (!interestedCallRemarks) errors.interestedCallRemarks = true;
+      if (Object.keys(errors).length > 0) {
+        setStatusErrors(errors);
         showError("Please complete Interested Reason, Date, and Manual Details for Interested status");
         setStatusSaving(false);
         return;
@@ -1594,11 +1608,14 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
     // Validate Rejected form fields if transitioning to Rejected
     if (normalizedKey === "rejected" && statusNeedsModal(normalizedKey)) {
       if (!rejectedReason) {
+        errors.rejectedReason = true;
+        setStatusErrors(errors);
         showError("Please select Rejected Reason");
         setStatusSaving(false);
         return;
       }
     }
+    setStatusErrors({});
     if (normalizedKey === "allocate") {
       setShowAllocateModal(true);
       return;
@@ -1768,6 +1785,9 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
 
   const handleStatusChange = (newStatus) => {
     setStatusValue(newStatus);
+    if (newStatus && statusErrors.statusValue) {
+      setStatusErrors((prev) => ({ ...prev, statusValue: false }));
+    }
 
     // Open appropriate modal based on selected status
     if (!newStatus) return;
@@ -2335,6 +2355,7 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
                   setRejectedReason("");
                   setRejectedReasonSubtype("");
                   setShowStatusModal(true);
+                  setStatusErrors({});
                 }}
                 title="Update status"
               >
@@ -3383,6 +3404,7 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
                   setInterestedCallRemarks("");
                   setRejectedReason("");
                   setRejectedReasonSubtype("");
+                  setStatusErrors({});
                 }}
               />
             </div>
@@ -3393,7 +3415,7 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
                   className="form-select"
                   value={statusValue}
                   onChange={(e) => handleStatusChange(e.target.value)}
-                  style={{ padding: "0.625rem 0.875rem", fontSize: "0.95rem", borderRadius: "0.75rem" }}
+                  style={{ padding: "0.625rem 0.875rem", fontSize: "0.95rem", borderRadius: "0.75rem", ...(statusErrors.statusValue ? { borderColor: "#dc3545", borderStyle: "solid", borderWidth: "1px" } : {}) }}
                 >
                   <option value="">Select Status</option>
                 {displayStatusOptions.map((status) => (
@@ -3430,7 +3452,13 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
                     <select
                       className="form-select"
                       value={notAttemptedCallStatus}
-                      onChange={(e) => setNotAttemptedCallStatus(e.target.value)}
+                      onChange={(e) => {
+                        setNotAttemptedCallStatus(e.target.value);
+                        if (e.target.value && statusErrors.notAttemptedCallStatus) {
+                          setStatusErrors((prev) => ({ ...prev, notAttemptedCallStatus: false }));
+                        }
+                      }}
+                      style={statusErrors.notAttemptedCallStatus ? { borderColor: "#dc3545", borderStyle: "solid", borderWidth: "1px" } : {}}
                     >
                       <option value="">Select Not Attempted Reason</option>
                       {NOT_ATTEMPTED_REASON_OPTIONS.map((option) => (
@@ -3446,8 +3474,14 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
                       className="form-control"
                       rows={3}
                       value={notAttemptedCallRemarks}
-                      onChange={(e) => setNotAttemptedCallRemarks(e.target.value)}
+                      onChange={(e) => {
+                        setNotAttemptedCallRemarks(e.target.value);
+                        if (e.target.value.trim() && statusErrors.notAttemptedCallRemarks) {
+                          setStatusErrors((prev) => ({ ...prev, notAttemptedCallRemarks: false }));
+                        }
+                      }}
                       placeholder="Enter manual details"
+                      style={statusErrors.notAttemptedCallRemarks ? { borderColor: "#dc3545", borderStyle: "solid", borderWidth: "1px" } : {}}
                     />
                   </div>
                 </div>
@@ -3462,7 +3496,13 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
                         <select
                           className="form-select"
                           value={attemptedOpenReason}
-                          onChange={(e) => setAttemptedOpenReason(e.target.value)}
+                          onChange={(e) => {
+                            setAttemptedOpenReason(e.target.value);
+                            if (e.target.value && statusErrors.attemptedOpenReason) {
+                              setStatusErrors((prev) => ({ ...prev, attemptedOpenReason: false }));
+                            }
+                          }}
+                          style={statusErrors.attemptedOpenReason ? { borderColor: "#dc3545", borderStyle: "solid", borderWidth: "1px" } : {}}
                         >
                           <option value="">Select Attempted Reason</option>
                           {ATTEMPTED_REASON_OPTIONS.map((option) => (
@@ -3478,8 +3518,14 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
                           className="form-control"
                           rows={3}
                           value={attemptedCallRemarks}
-                          onChange={(e) => setAttemptedCallRemarks(e.target.value)}
+                          onChange={(e) => {
+                            setAttemptedCallRemarks(e.target.value);
+                            if (e.target.value.trim() && statusErrors.attemptedCallRemarks) {
+                              setStatusErrors((prev) => ({ ...prev, attemptedCallRemarks: false }));
+                            }
+                          }}
                           placeholder="Enter manual details"
+                          style={statusErrors.attemptedCallRemarks ? { borderColor: "#dc3545", borderStyle: "solid", borderWidth: "1px" } : {}}
                         />
                       </div>
                     </div>
@@ -3494,7 +3540,13 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
                     <select
                       className="form-select"
                       value={interestedCallStatus}
-                      onChange={(e) => setInterestedCallStatus(e.target.value)}
+                      onChange={(e) => {
+                        setInterestedCallStatus(e.target.value);
+                        if (e.target.value && statusErrors.interestedCallStatus) {
+                          setStatusErrors((prev) => ({ ...prev, interestedCallStatus: false }));
+                        }
+                      }}
+                      style={statusErrors.interestedCallStatus ? { borderColor: "#dc3545", borderStyle: "solid", borderWidth: "1px" } : {}}
                     >
                       <option value="">Select Interested Reason</option>
                       {INTERESTED_REASON_OPTIONS.map((option) => (
@@ -3510,7 +3562,13 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
                       className="form-control"
                       type="datetime-local"
                       value={interestedFollowUpDate}
-                      onChange={(e) => setInterestedFollowUpDate(e.target.value)}
+                      onChange={(e) => {
+                        setInterestedFollowUpDate(e.target.value);
+                        if (e.target.value && statusErrors.interestedFollowUpDate) {
+                          setStatusErrors((prev) => ({ ...prev, interestedFollowUpDate: false }));
+                        }
+                      }}
+                      style={statusErrors.interestedFollowUpDate ? { borderColor: "#dc3545", borderStyle: "solid", borderWidth: "1px" } : {}}
                     />
                   </div>
                   <div className="mb-3">
@@ -3519,8 +3577,14 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
                       className="form-control"
                       rows={3}
                       value={interestedCallRemarks}
-                      onChange={(e) => setInterestedCallRemarks(e.target.value)}
+                      onChange={(e) => {
+                        setInterestedCallRemarks(e.target.value);
+                        if (e.target.value.trim() && statusErrors.interestedCallRemarks) {
+                          setStatusErrors((prev) => ({ ...prev, interestedCallRemarks: false }));
+                        }
+                      }}
                       placeholder="Enter manual details"
+                      style={statusErrors.interestedCallRemarks ? { borderColor: "#dc3545", borderStyle: "solid", borderWidth: "1px" } : {}}
                     />
                   </div>
                 </div>
@@ -3535,7 +3599,13 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
                     <select
                       className="form-select"
                       value={rejectedReason}
-                      onChange={(e) => setRejectedReason(e.target.value)}
+                      onChange={(e) => {
+                        setRejectedReason(e.target.value);
+                        if (e.target.value && statusErrors.rejectedReason) {
+                          setStatusErrors((prev) => ({ ...prev, rejectedReason: false }));
+                        }
+                      }}
+                      style={statusErrors.rejectedReason ? { borderColor: "#dc3545", borderStyle: "solid", borderWidth: "1px" } : {}}
                     >
                       <option value="">Select Reject Reason</option>
                       <option value="Budget Too High">Budget Too High</option>
@@ -3584,6 +3654,7 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
                   setInterestedCallRemarks("");
                   setRejectedReason("");
                   setRejectedReasonSubtype("");
+                  setStatusErrors({});
                 }}
               >
                 Cancel

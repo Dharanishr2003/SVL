@@ -49,6 +49,52 @@ export async function getAssignableLeadGroups() {
       id: row?.id,
       name: row?.name || '',
       pageKeys: toPageKeys(
+        row?.pageKeys ??
+          row?.page_keys ??
+          row?.pages ??
+          row?.pageVisibility ??
+          row?.visibilityPages,
+      ),
+      institutionName: row?.institutionName || '',
+      departmentName: row?.departmentName || '',
+      teamNames: Array.isArray(row?.teamNames) ? row.teamNames : [],
+    }))
+    .filter((row) => row.id != null && row.name)
+}
+
+export async function createLead(payload) {
+  const response = await api.post('/api/v1/leads', payload)
+  return response?.data || {}
+}
+
+export async function updateLeadRowStatus(id, status, nextGroupId = null) {
+  const payload = { status }
+  if (nextGroupId !== undefined && nextGroupId !== null) {
+    payload.nextGroupId = nextGroupId
+  }
+  const response = await api.patch(`/api/v1/leads/${id}/status`, payload)
+  return response?.data || {}
+}
+
+export async function getAssignableAllocators(leadId, params = {}) {
+  const response = await api.get(
+    `/api/v1/leads/${leadId}/assignable-allocators${buildQuery(params)}`,
+  )
+  return Array.isArray(response?.data) ? response.data : []
+}
+
+export async function updateLeadAllocator(leadId, ownerUserId, targetGroupId) {
+  const payload = { ownerUserId }
+  if (targetGroupId !== undefined && targetGroupId !== null) {
+    payload.targetGroupId = targetGroupId
+  }
+  const response = await api.patch(`/api/v1/leads/${leadId}/allocator`, payload)
+  return response?.data || {}
+}
+
+export async function updateLeadType(leadId, leadType) {
+  try {
+    const response = await api.patch(`/api/v1/leads/${leadId}/details`, { leadType })
     return response?.data || {}
   } catch (error) {
     const response = await api.patch(`/api/v1/leads/${leadId}/type`, { leadType })

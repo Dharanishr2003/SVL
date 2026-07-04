@@ -1,4 +1,4 @@
-import { Outlet, useLocation } from "react-router-dom";
+import { Outlet, useLocation, Navigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import Preloader from "../components/layout/Preloader";
 import Topbar from "../components/layout/Topbar";
@@ -13,6 +13,12 @@ export default function AdminLayout() {
   const { user, isAuthenticated } = useAuth();
   const location = useLocation();
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+
+  // Redirection guard for Customer role to keep them strictly inside the customer portal
+  const normalizedRole = String(user?.role || "").toUpperCase();
+  if (isAuthenticated && normalizedRole === "CUSTOMER") {
+    return <Navigate to="/portal/invoice" replace />;
+  }
 
   useEffect(() => {
     setIsMobileSidebarOpen(false);

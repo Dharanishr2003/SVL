@@ -2,7 +2,7 @@ import $ from "jquery";
 import { adminPhpRoutes } from "../adminPhpRoutes";
 import { cancelScheduledPreload, preloadRoute } from "./routePreloader";
 
-const adminPageModules = import.meta.glob("../pages/admin/*Page.jsx");
+const adminPageModules = import.meta.glob("../pages/admin/*.jsx");
 
 const routeToComponent = new Map(
   adminPhpRoutes.map((route) => [

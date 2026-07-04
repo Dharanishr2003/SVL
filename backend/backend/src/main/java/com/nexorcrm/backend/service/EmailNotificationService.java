@@ -187,8 +187,11 @@ public class EmailNotificationService {
             impl.setPassword(settings.password);
         }
         Properties props = impl.getJavaMailProperties();
+        props.put("mail.transport.protocol", "smtp");
         props.put("mail.smtp.auth", String.valueOf(settings.smtpAuth));
         props.put("mail.smtp.starttls.enable", String.valueOf(settings.starttls));
+        props.put("mail.smtp.starttls.required", "true");
+        props.put("mail.smtp.ssl.trust", "*");
         return impl;
     }
 

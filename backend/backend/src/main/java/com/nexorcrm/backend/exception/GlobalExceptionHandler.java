@@ -5,6 +5,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.mail.MailAuthenticationException;
+import org.springframework.mail.MailSendException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.DisabledException;
@@ -95,6 +96,25 @@ public class GlobalExceptionHandler {
                 "Mail authentication failed. Please verify the SMTP username/password or app password on the server.");
     }
 
+    @ExceptionHandler(MailSendException.class)
+    public ResponseEntity<Map<String, Object>> handleMailSend(MailSendException ex) {
+        String detail = findMailSendDetail(ex);
+        log.warn("Mail send failed: {}", detail == null ? ex.getMessage() : detail);
+
+        if (detail != null && containsAnyIgnoreCase(detail,
+                "daily user sending limit exceeded",
+                "daily limit exceeded",
+                "sending limit exceeded")) {
+            return buildError(HttpStatus.TOO_MANY_REQUESTS,
+                    "Too Many Requests",
+                    "Gmail sending limit was reached. Please try again later or use another SMTP account.");
+        }
+
+        return buildError(HttpStatus.BAD_GATEWAY,
+                "Bad Gateway",
+                "Email delivery failed. Please verify the SMTP configuration or provider sending limits.");
+    }
+
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<Map<String, Object>> handleDataIntegrity(DataIntegrityViolationException ex) {
         // Avoid leaking low-level DB errors to the UI; callers can adjust the request.
@@ -127,5 +147,27 @@ public class GlobalExceptionHandler {
         body.put("message", message);
         body.put("timestamp", LocalDateTime.now().toString());
         return ResponseEntity.status(status).body(body);
+    }
+
+    private static String findMailSendDetail(Throwable ex) {
+        Throwable current = ex;
+        while (current != null) {
+            String message = current.getMessage();
+            if (message != null && !message.isBlank()) {
+                return message;
+            }
+            current = current.getCause();
+        }
+        return null;
+    }
+
+    private static boolean containsAnyIgnoreCase(String value, String... terms) {
+        String lower = value.toLowerCase();
+        for (String term : terms) {
+            if (lower.contains(term.toLowerCase())) {
+                return true;
+            }
+        }
+        return false;
     }
 }

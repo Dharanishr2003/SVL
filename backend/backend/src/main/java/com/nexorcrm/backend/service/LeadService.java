@@ -711,34 +711,6 @@ public class LeadService {
         return toResponse(saved, groupNameMap, userNameMap);
     }
 
-    /**
-     * Reopens a rejected lead by resetting its status to "New Lead".
-     * This deliberately bypasses the flow-rule guard because "Rejected" status
-     * typically does not list "New Lead" as an allowed next transition.
-     */
-    public LeadResponse reopenRejectedLead(Long id, String actorPrincipal) {
-        User actor = assertLeadAccess(actorPrincipal);
-        Set<Long> visibleGroupIds = resolveVisibleLeadGroupIds(actor);
-        Lead row = leadRepository.findByIdAndDeletedFalse(id)
-                .orElseThrow(() -> new EntityNotFoundException("Lead not found"));
-        if (!canViewLead(actor, row, visibleGroupIds)) {
-            throw new AccessDeniedException("You do not have permission to update this lead");
-        }
-        String currentStatus = row.getStatus() != null ? row.getStatus().trim() : "";
-        if (!currentStatus.equalsIgnoreCase("rejected")) {
-            throw new IllegalStateException("Only leads with status 'Rejected' can be reopened");
-        }
-        row.setStatus("New Lead");
-        row.setRejectedReason(null);
-        row.setRejectedReasonSubtype(null);
-        Lead saved = leadRepository.save(row);
-        auditService.log("LEAD_STATUS_UPDATE", "Reopened rejected lead to New Lead", actor.getEmail());
-        createLeadLog(saved.getId(), "Status changed to New Lead (reopened from Rejected)", actor);
-        Map<Long, String> groupNameMap = loadGroupNameMap(List.of(saved));
-        Map<Long, String> userNameMap = loadUserNameMap(List.of(saved));
-        return toResponse(saved, groupNameMap, userNameMap);
-    }
-
     @Transactional(readOnly = true)
     public List<LeadAllocatorOptionResponse> listAssignableAllocators(Long leadId, Long targetGroupId, String actorPrincipal) {
         User actor = assertLeadAccess(actorPrincipal);

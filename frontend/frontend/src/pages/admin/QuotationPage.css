@@ -491,6 +491,13 @@
   font-variant-numeric: tabular-nums;
 }
 
+.rupee-symbol {
+  font-family: "Segoe UI", -apple-system, sans-serif;
+  font-weight: normal;
+  margin-right: 2px;
+  display: inline-block;
+}
+
 .qp-total-line.discount .qp-total-value { color: #059669; }
 
 .qp-total-line.grand {
