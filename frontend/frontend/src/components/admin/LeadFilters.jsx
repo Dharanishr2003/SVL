@@ -79,15 +79,49 @@ export default function LeadFilters({
               style={{ height: 42, borderRadius: 8 }}
               value={filters.quickDate}
               onChange={(e) =>
-                setFilters((prev) => ({ ...prev, quickDate: e.target.value }))
+                setFilters((prev) => ({ 
+                  ...prev, 
+                  quickDate: e.target.value,
+                  // Clear custom dates if we switch away from custom
+                  ...(e.target.value !== "custom" ? { fromDate: "", toDate: "" } : {})
+                }))
               }
             >
               <option value="">All Dates</option>
               <option value="today">Today</option>
               <option value="weekly">Last 7 Days</option>
               <option value="monthly">Last 30 Days</option>
+              <option value="custom">Custom</option>
             </select>
           </div>
+          {filters.quickDate === "custom" && (
+            <>
+              <div className="col-md-3">
+                <label className="form-label fw-semibold text-dark mb-2" style={{ fontSize: "0.88rem" }}>From Date</label>
+                <input
+                  type="date"
+                  className="form-control"
+                  style={{ height: 42, borderRadius: 8 }}
+                  value={filters.fromDate || ""}
+                  onChange={(e) =>
+                    setFilters((prev) => ({ ...prev, fromDate: e.target.value }))
+                  }
+                />
+              </div>
+              <div className="col-md-3">
+                <label className="form-label fw-semibold text-dark mb-2" style={{ fontSize: "0.88rem" }}>To Date</label>
+                <input
+                  type="date"
+                  className="form-control"
+                  style={{ height: 42, borderRadius: 8 }}
+                  value={filters.toDate || ""}
+                  onChange={(e) =>
+                    setFilters((prev) => ({ ...prev, toDate: e.target.value }))
+                  }
+                />
+              </div>
+            </>
+          )}
         </div>
         <div className="d-flex justify-content-end gap-2 mt-4">
           <button className="btn btn-filter-reset" style={{ height: 40, padding: "0 20px", borderRadius: 8, fontWeight: "500" }} onClick={resetFilters}>

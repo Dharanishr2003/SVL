@@ -41,4 +41,10 @@ public class CampaignLeadController {
         campaignLeadService.saveIncomingLead(requestBody);
         return ResponseEntity.ok("SUCCESS");
     }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteCampaignLead(@PathVariable("id") Long id) {
+        campaignLeadService.deleteCampaignLead(id);
+        return ResponseEntity.ok().build();
+    }
 }

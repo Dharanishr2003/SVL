@@ -166,13 +166,14 @@
 /* Expanding columns — no fixed width, they grow to fill freed space */
 .leads-table .col-name,
 .leads-table .col-source,
-.leads-table .col-owner {
+.leads-table .col-owner,
+.leads-table .col-assigned-by {
   min-width: 100px;
   white-space: normal;
   overflow-wrap: anywhere;
   word-break: break-word;
   line-height: 1.35;
-  vertical-align: top;
+  vertical-align: middle;
 }
 
 .leads-table .col-status .status-pill,
@@ -199,12 +200,13 @@
 .leads-table-fixed .col-name,
 .leads-table-fixed .col-source,
 .leads-table-fixed .col-owner,
+.leads-table-fixed .col-assigned-by,
 .leads-table-fixed .col-date {
   white-space: normal;
   overflow-wrap: anywhere;
   word-break: break-word;
   line-height: 1.35;
-  vertical-align: top;
+  vertical-align: middle;
 }
 
 .leads-table-fixed .col-mobile,
@@ -1014,6 +1016,26 @@
   border-radius: 0 !important;
 }
 .leads-page-shell .nav-tabs .nav-link.active {
+  to {
+    opacity: 1;
+  }
+}
+
+/* Modern active tab highlight with blue border */
+.leads-page-shell .nav-tabs {
+  border-bottom: 2px solid #e2e8f0 !important;
+}
+.leads-page-shell .nav-tabs .nav-link {
+  border: none !important;
+  background: transparent !important;
+  color: #64748b !important;
+  padding: 10px 16px !important;
+  font-weight: 500 !important;
+  border-bottom: 3px solid transparent !important;
+  transition: all 0.2s ease !important;
+  border-radius: 0 !important;
+}
+.leads-page-shell .nav-tabs .nav-link.active {
   color: #3b82f6 !important;
   font-weight: 600 !important;
   border-bottom: 3px solid #3b82f6 !important;
@@ -1024,3 +1046,35 @@
   color: #3b82f6 !important;
 }
 
+/* Sliding Filter Drawer Panel CSS */
+.filter-drawer-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(15, 23, 42, 0.4);
+  backdrop-filter: blur(4px);
+  z-index: 1079;
+  opacity: 0;
+  animation: fadeIn 0.25s forwards;
+}
+
+.filter-drawer {
+  position: fixed;
+  top: 0;
+  right: -420px;
+  width: 400px;
+  max-width: 90vw;
+  height: 100vh;
+  background-color: #ffffff;
+  box-shadow: -4px 0 24px rgba(0, 0, 0, 0.08);
+  z-index: 1080;
+  transition: right 0.3s ease-out;
+  display: flex;
+  flex-direction: column;
+}
+
+.filter-drawer.open {
+  right: 0;
+}

@@ -278,6 +278,7 @@ export const adminSidebarSections = [
         children: [
           { label: "Estimates", href: "/estimates", accessAny: ["sales", "estimates"] },
           { label: "Invoices", href: "/invoices", accessAny: ["sales", "sales-invoices", "invoices"] },
+          { label: "Sales Orders", href: "/sales-orders", accessAny: ["sales"] },
           { label: "Payments", href: "/payments", accessAny: ["sales", "payments"] },
           { label: "Expenses", href: "/expenses", accessAny: ["sales", "expenses"] },
         ],

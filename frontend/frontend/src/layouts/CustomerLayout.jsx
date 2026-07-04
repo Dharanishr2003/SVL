@@ -126,7 +126,7 @@ export default function CustomerLayout() {
       <div className="header customer-topbar">
         <div className="main-header customer-topbar__inner">
           <div className="header-left customer-topbar__brand">
-            <a href="/customer/chat" className="logo customer-topbar__logo">
+            <a href="/portal/invoice" className="logo customer-topbar__logo">
               <img src="/assets/img/logo.svg" alt="Logo" />
             </a>
           </div>
@@ -182,7 +182,7 @@ export default function CustomerLayout() {
                   className="chat-notify-dropdown__item"
                   onClick={() => {
                     setShowDropdown(false);
-                    window.location.href = "/customer/chat";
+                    window.location.href = "/portal/chat";
                   }}
                 >
                   <div className="chat-notify-dropdown__title">
@@ -199,7 +199,7 @@ export default function CustomerLayout() {
       ) : null}
       <div className="sidebar customer-sidebar" id="sidebar">
         <div className="sidebar-logo customer-sidebar__logo">
-          <a href="/customer/chat" className="logo logo-normal">
+          <a href="/portal/invoice" className="logo logo-normal">
             <img alt="Logo" src="/assets/img/logo-white.svg" />
           </a>
         </div>
@@ -210,15 +210,33 @@ export default function CustomerLayout() {
                 <span>CUSTOMER</span>
               </li>
               <li>
-                <NavLink to="/customer/chat" className="">
+                <NavLink to="/portal/chat" className="">
                   <i className="ti ti-message" />
                   <span>Chat</span>
                 </NavLink>
               </li>
               <li>
-                <NavLink to="/customer/status" className="">
+                <NavLink to="/portal/status" className="">
                   <i className="ti ti-checklist" />
                   <span>Status</span>
+                </NavLink>
+              </li>
+              <li>
+                <NavLink to="/portal/invoice" className="">
+                  <i className="ti ti-file-text" />
+                  <span>Invoice</span>
+                </NavLink>
+              </li>
+              <li>
+                <NavLink to="/portal/payment" className="">
+                  <i className="ti ti-credit-card" />
+                  <span>Make Payment</span>
+                </NavLink>
+              </li>
+              <li>
+                <NavLink to="/portal/payment-history" className="">
+                  <i className="ti ti-history" />
+                  <span>Payment History</span>
                 </NavLink>
               </li>
             </ul>

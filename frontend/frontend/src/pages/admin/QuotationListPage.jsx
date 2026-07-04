@@ -32,6 +32,7 @@ import {
   getQuotationPdfBlob,
 } from "../../utils/quotationUtils";
 import { getQuotationTemplate } from "../../api/quotationTemplateApi";
+import { getUserGroups } from "../../api/userGroupApi";
 import PageSizeSelector from "../../components/admin/PageSizeSelector";
 import "./QuotationListPage.css";
 
@@ -209,6 +210,7 @@ export default function QuotationListPage() {
   const [quotationTemplate, setQuotationTemplate] = useState(null);
   const [successMessage, setSuccessMessage] = useState(location.state?.successMessage || "");
   const [selectedQuotationDetails, setSelectedQuotationDetails] = useState(null);
+  const [userGroups, setUserGroups] = useState([]);
 
   // New state variables for search, sorting, and pagination
   const [searchText, setSearchText] = useState("");
@@ -287,6 +289,9 @@ export default function QuotationListPage() {
     getQuotationTemplate()
       .then((data) => { if (!ignore) setQuotationTemplate(data || {}); })
       .catch(() => { if (!ignore) setQuotationTemplate({}); });
+    getUserGroups()
+      .then((data) => { if (!ignore) setUserGroups(Array.isArray(data) ? data : []); })
+      .catch(() => { if (!ignore) setUserGroups([]); });
     return () => { ignore = true; };
   }, []);
 
@@ -430,10 +435,11 @@ export default function QuotationListPage() {
   };
 
   const openAllocationDialog = (quotation) => {
+    const defaultGroup = userGroups[0]?.name || "Production";
     const initialAllocations = {};
     if (quotation?.items) {
       quotation.items.forEach((item) => {
-        initialAllocations[item.id] = "Production";
+        initialAllocations[item.id] = defaultGroup;
       });
     }
     setAllocationDialog({
@@ -453,8 +459,8 @@ export default function QuotationListPage() {
       }
 
       const values = Object.values(allocationDialog.allocations);
-      const hasDesign = values.includes("Design");
-      const hasProduction = values.includes("Production");
+      const hasDesign = values.some(val => String(val).toLowerCase().includes("design"));
+      const hasProduction = values.some(val => String(val).toLowerCase().includes("production"));
 
       let targetStatus = "Production";
       if (hasDesign && hasProduction) {
@@ -1106,7 +1112,7 @@ ${rowsHtml}
                                     </button>
                                   </div>
                                 )}
-                                {status === QUOTATION_STATUS_ACCEPTED && (
+                                {status === QUOTATION_STATUS_ACCEPTED && ["EMPLOYEE", "TEAM_LEAD", "ADMIN", "SUPER_ADMIN"].includes(userRole) && (
                                   <div className="mt-2">
                                     <button
                                       type="button"
@@ -1497,7 +1503,7 @@ ${rowsHtml}
                               <select
                                 className="form-select"
                                 style={{ borderRadius: 8 }}
-                                value={allocationDialog.allocations[item.id] || "Production"}
+                                value={allocationDialog.allocations[item.id] || (userGroups[0]?.name || "Production")}
                                 onChange={(e) => {
                                   const val = e.target.value;
                                   setAllocationDialog(prev => ({
@@ -1509,8 +1515,11 @@ ${rowsHtml}
                                   }));
                                 }}
                               >
-                                <option value="Production">Production Team</option>
-                                <option value="Design">Design Team</option>
+                                {userGroups.map((group) => (
+                                  <option key={group.id} value={group.name}>
+                                    {group.name}
+                                  </option>
+                                ))}
                               </select>
                             </td>
                           </tr>

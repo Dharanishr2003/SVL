@@ -1272,7 +1272,7 @@ export async function buildQuotationPdf({
         doc.text("QUOTATION", right, 8.5, { align: "right" });
       }
 
-      if (resolvedTemplate.topImageBase64 && (!isPremiumTemplate || pageNumber > 1)) {
+      if (resolvedTemplate.topImageBase64) {
         const imgData = resolvedTemplate.topImageBase64;
         const comma = imgData.indexOf(",");
         if (comma !== -1) {
@@ -1453,64 +1453,45 @@ export async function buildQuotationPdf({
 
   let buyerEndY;
   if (isPremiumTemplate) {
-    // ── Full-width white banner ──
-    const bannerH = 30;
-    doc.setFillColor(255, 255, 255);
-    doc.rect(0, 0, pageWidth, bannerH, "F");
-    // Blue accent stripe at bottom of banner
-    doc.setFillColor(...premiumBlue);
-    doc.rect(0, bannerH - 1.5, pageWidth, 1.5, "F");
+    // 1. Determine titleY based on top image
+    const titleY = (resolvedTemplate.topImageBase64 ? topHeight : 20) + 5;
 
-    // Render company name instead of logo
-    const logoX = left;
-    if (resolvedTemplate.companyName) {
-      doc.setFont("helvetica", "bold").setFontSize(17).setTextColor(...premiumBlue);
-      doc.text(String(resolvedTemplate.companyName), logoX, 19);
-    }
+    // 2. Render centered "QUOTATION" title with horizontal gold flourishes
+    const centerX = pageWidth / 2;
+    doc.setDrawColor(...premiumGold);
+    doc.setFillColor(...premiumGold);
+    doc.setLineWidth(0.4);
 
-    // "QUOTATION" in large blue bold text, right-aligned inside banner
-    doc.setFont("helvetica", "bold").setFontSize(22).setTextColor(...premiumBlue);
-    doc.text("QUOTATION", right, 17, { align: "right" });
+    // Top flourish (line + center diamond/circles)
+    doc.line(centerX - 30, titleY - 6, centerX - 5, titleY - 6);
+    doc.line(centerX + 5, titleY - 6, centerX + 30, titleY - 6);
+    doc.circle(centerX, titleY - 6, 1.2, "F");
+    doc.triangle(centerX - 2, titleY - 5.5, centerX + 2, titleY - 5.5, centerX, titleY - 7.5, "F");
+    doc.circle(centerX - 3.5, titleY - 6, 0.7, "F");
+    doc.circle(centerX + 3.5, titleY - 6, 0.7, "F");
 
-    // ── Quotation meta card (right side below banner) ──
-    const metaCardW = 68;
-    const metaCardX = right - metaCardW;
-    const metaCardY = bannerH + 3;
-    const metaCardH = 38;
-    drawCard(metaCardX, metaCardY, metaCardW, metaCardH, [255, 255, 255], premiumBorder);
-    // Blue left accent strip on meta card
-    doc.setFillColor(...premiumBlue);
-    doc.rect(metaCardX, metaCardY, 2.5, metaCardH, "F");
-    // Meta card title
-    doc.setFont("helvetica", "bold").setFontSize(7).setTextColor(...premiumBlue);
-    doc.text("QUOTATION DETAILS", metaCardX + 6, metaCardY + 6);
-    doc.setDrawColor(...premiumBorder);
-    doc.setLineWidth(0.25);
-    doc.line(metaCardX + 5, metaCardY + 8, metaCardX + metaCardW - 4, metaCardY + 8);
-    const validTill = (() => {
-      const base = quotationDate || createdAt || resolvedDate;
-      const baseDate = base ? new Date(base) : new Date();
-      if (Number.isNaN(baseDate.getTime())) return "-";
-      const days = Number(resolvedTemplate.validityDays || 30);
-      if (!Number.isFinite(days) || days <= 0) return formatPdfDate(baseDate);
-      baseDate.setDate(baseDate.getDate() + days);
-      return formatPdfDate(baseDate);
-    })();
-    drawKeyValueLines([
-      ["Quotation No.", asText(quotationNumber, "DRAFT")],
-      ["Date", formatPdfDate(resolvedDate)],
-      ["Valid Till", validTill],
-      ["Reference No.", asText(selectedLead?.leadId || leadId, "-")],
-      ["Currency", "INR (Rs)"],
-      ["Mode", asText(quotationType || "Enquiry", "Enquiry")],
-    ], metaCardX + 6, metaCardY + 12, 22, metaCardW - 30, 4);
+    // Title text
+    doc.setFont("helvetica", "bold").setFontSize(16).setTextColor(...premiumText);
+    doc.text("QUOTATION", centerX, titleY, { align: "center" });
 
-    // ── Bill To / Ship To cards ──
-    const billY = bannerH + metaCardH + 8;
-    const cardGap = 4;
-    const cardW = (contentWidth - cardGap) / 2;
+    // Bottom flourish (line + center diamond/circles)
+    doc.line(centerX - 30, titleY + 4, centerX - 5, titleY + 4);
+    doc.line(centerX + 5, titleY + 4, centerX + 30, titleY + 4);
+    doc.circle(centerX, titleY + 4, 1.2, "F");
+    doc.triangle(centerX - 2, titleY + 3.5, centerX + 2, titleY + 3.5, centerX, titleY + 5.5, "F");
+    doc.circle(centerX - 3.5, titleY + 4, 0.7, "F");
+    doc.circle(centerX + 3.5, titleY + 4, 0.7, "F");
+
+    // 3. Define the three cards starting at rowY
+    const rowY = titleY + 10;
+    const cardGap = 3;
+    const cardW1 = 58; // BILL TO
+    const cardW2 = 58; // SHIP TO
+    const cardW3 = 60; // QUOTATION DETAILS
+
     const billX = left;
-    const shipX = billX + cardW + cardGap;
+    const shipX = billX + cardW1 + cardGap;
+    const metaCardX = shipX + cardW2 + cardGap;
 
     const rawGstinVal = selectedLead?.gstin || selectedLead?.gstinCode || clientGstin || "";
     const rawUdyamVal = resolvedTemplate.udyamNumber || "";
@@ -1532,7 +1513,7 @@ export async function buildQuotationPdf({
       dispatchThrough ? ["Through", dispatchThrough] : null,
     ].filter(Boolean);
 
-    const measureCardBlockHeight = (fields, maxWidth, labelWidth = 14, lineH = 3.8, fontSize = 7.2) => {
+    const measureCardBlockHeight = (fields, maxWidth, labelWidth = 14, lineH = 3.5, fontSize = 7.2) => {
       doc.setFont("helvetica", "normal").setFontSize(fontSize);
       return fields.reduce((height, [label, value]) => {
         const wrapped = doc.splitTextToSize(String(value || "-"), maxWidth - labelWidth - 3);
@@ -1540,7 +1521,7 @@ export async function buildQuotationPdf({
       }, 0);
     };
 
-    const drawCardFieldsText = (fields, x, y, maxWidth, labelWidth = 14, lineH = 3.8, fontSize = 7.2) => {
+    const drawCardFieldsText = (fields, x, y, maxWidth, labelWidth = 14, lineH = 3.5, fontSize = 7.2) => {
       let cy = y;
       fields.forEach(([label, value]) => {
         doc.setFont("helvetica", "bold").setFontSize(fontSize).setTextColor(...premiumMuted);
@@ -1555,31 +1536,62 @@ export async function buildQuotationPdf({
       });
     };
 
-    const billBodyHeight = measureCardBlockHeight(billDetails, cardW - 10, 14);
-    const shipBodyHeight = measureCardBlockHeight(shipDetails, cardW - 10, 14);
-    const cardH = Math.max(34, 14 + Math.max(billBodyHeight, shipBodyHeight));
+    const validTill = (() => {
+      const base = quotationDate || createdAt || resolvedDate;
+      const baseDate = base ? new Date(base) : new Date();
+      if (Number.isNaN(baseDate.getTime())) return "-";
+      const days = Number(resolvedTemplate.validityDays || 30);
+      if (!Number.isFinite(days) || days <= 0) return formatPdfDate(baseDate);
+      baseDate.setDate(baseDate.getDate() + days);
+      return formatPdfDate(baseDate);
+    })();
 
-    // Bill To card
-    drawCard(billX, billY, cardW, cardH, [255, 255, 255], premiumBorder);
+    const quotationDetails = [
+      ["Quotation No.", asText(quotationNumber, "DRAFT")],
+      ["Date", formatPdfDate(resolvedDate)],
+      ["Valid Till", validTill],
+      ["Reference No.", asText(selectedLead?.leadId || leadId, "-")],
+      ["Currency", "INR (Rs)"],
+      ["Mode", asText(quotationType || "Enquiry", "Enquiry")],
+    ];
+
+    const billBodyHeight = measureCardBlockHeight(billDetails, cardW1 - 10, 14, 3.5, 6.8);
+    const shipBodyHeight = measureCardBlockHeight(shipDetails, cardW2 - 10, 14, 3.5, 6.8);
+    const metaCardBodyHeight = measureCardBlockHeight(quotationDetails, cardW3 - 10, 20, 3.5, 6.8);
+
+    const cardH = Math.max(34, 13 + Math.max(billBodyHeight, shipBodyHeight, metaCardBodyHeight));
+
+    // Card 1: BILL TO
+    drawCard(billX, rowY, cardW1, cardH, [255, 255, 255], premiumBorder);
     doc.setFillColor(...premiumBlue);
-    doc.rect(billX, billY, cardW, 9, "F");
+    doc.rect(billX, rowY, cardW1, 8, "F");
     doc.setFillColor(...premiumGold);
-    doc.rect(billX, billY, 3, 9, "F");
+    doc.rect(billX, rowY, 2.5, 8, "F");
     doc.setFont("helvetica", "bold").setFontSize(7.5).setTextColor(255, 255, 255);
-    doc.text("BILL TO", billX + 6, billY + 6);
-    drawCardFieldsText(billDetails, billX + 5, billY + 15, cardW - 10, 14);
+    doc.text("BILL TO", billX + 6, rowY + 5.5);
+    drawCardFieldsText(billDetails, billX + 5, rowY + 13, cardW1 - 10, 14, 3.5, 6.8);
 
-    // Ship To card
-    drawCard(shipX, billY, cardW, cardH, [255, 255, 255], premiumBorder);
+    // Card 2: SHIP TO
+    drawCard(shipX, rowY, cardW2, cardH, [255, 255, 255], premiumBorder);
     doc.setFillColor(...premiumBlue);
-    doc.rect(shipX, billY, cardW, 9, "F");
+    doc.rect(shipX, rowY, cardW2, 8, "F");
     doc.setFillColor(...premiumGold);
-    doc.rect(shipX, billY, 3, 9, "F");
+    doc.rect(shipX, rowY, 2.5, 8, "F");
     doc.setFont("helvetica", "bold").setFontSize(7.5).setTextColor(255, 255, 255);
-    doc.text("SHIP TO", shipX + 6, billY + 6);
-    drawCardFieldsText(shipDetails, shipX + 5, billY + 15, cardW - 10, 14);
+    doc.text("SHIP TO", shipX + 6, rowY + 5.5);
+    drawCardFieldsText(shipDetails, shipX + 5, rowY + 13, cardW2 - 10, 14, 3.5, 6.8);
 
-    buyerEndY = billY + cardH + 4;
+    // Card 3: QUOTATION DETAILS
+    drawCard(metaCardX, rowY, cardW3, cardH, [255, 255, 255], premiumBorder);
+    doc.setFillColor(...premiumBlue);
+    doc.rect(metaCardX, rowY, cardW3, 8, "F");
+    doc.setFillColor(...premiumGold);
+    doc.rect(metaCardX, rowY, 2.5, 8, "F");
+    doc.setFont("helvetica", "bold").setFontSize(7.5).setTextColor(255, 255, 255);
+    doc.text("QUOTATION DETAILS", metaCardX + 6, rowY + 5.5);
+    drawKeyValueLines(quotationDetails, metaCardX + 5, rowY + 13, 20, cardW3 - 24, 3.5);
+
+    buyerEndY = rowY + cardH + 4;
   } else {
     if (!resolvedTemplate.topImageBase64 && (resolvedTemplate.companyName || resolvedTemplate.logoBase64)) {
       // Draw company header info since there is no top banner image
@@ -2180,18 +2192,38 @@ export async function buildQuotationPdf({
   let y = totalsEndY + 1;
 
   if (isPremiumTemplate) {
-    const footerPanelH = 54;
-    if (y + footerPanelH > pageHeight - footerReserve) {
-      addWatermarkedPage();
-      y = firstSectionStartY;
-    }
-    const footerStartY = y;
     const footerPanelW1 = 78;
     const footerPanelW2 = 46;
     const footerPanelW3 = 58;
     const footerX1 = left;
     const footerX2 = footerX1 + footerPanelW1;
     const footerX3 = footerX2 + footerPanelW2;
+
+    const paymentBodyLines = [
+      `Declaration: ${declarationText}`,
+      `Bank: ${asText(resolvedTemplate.bankName, "-")}`,
+      `A/c No: ${asText(resolvedTemplate.accountNumber, "-")}`,
+      `IFSC: ${asText(resolvedTemplate.ifscCode, "-")} | Branch: ${asText(resolvedTemplate.branch, "-")}`,
+    ];
+
+    const measureBodyTextHeight = (lines, maxW, lineH = 3.2, fontSize = 6.8) => {
+      doc.setFont("helvetica", "normal").setFontSize(fontSize);
+      let height = 0;
+      lines.forEach((line) => {
+        const wrapped = doc.splitTextToSize(String(line), maxW);
+        height += (wrapped.length * lineH) + 0.8;
+      });
+      return height;
+    };
+
+    const paymentContentHeight = measureBodyTextHeight(paymentBodyLines, footerPanelW1 - 8, 3.2, 6.8);
+    const footerPanelH = Math.max(54, 13 + paymentContentHeight + 4);
+
+    if (y + footerPanelH > pageHeight - footerReserve) {
+      addWatermarkedPage();
+      y = firstSectionStartY;
+    }
+    const footerStartY = y;
 
     // Draw cards
     drawCard(footerX1, footerStartY, footerPanelW1, footerPanelH);
@@ -2221,14 +2253,6 @@ export async function buildQuotationPdf({
     doc.rect(footerX3, footerStartY, 3, 8, "F");
     doc.setFont("helvetica", "bold").setFontSize(7).setTextColor(255, 255, 255);
     doc.text("AUTHORISED SIGNATORY", footerX3 + 6, footerStartY + 5.5);
-
-    // Content: Payment & Bank Details
-    const paymentBodyLines = [
-      `Declaration: ${declarationText}`,
-      `Bank: ${asText(resolvedTemplate.bankName, "-")}`,
-      `A/c No: ${asText(resolvedTemplate.accountNumber, "-")}`,
-      `IFSC: ${asText(resolvedTemplate.ifscCode, "-")} | Branch: ${asText(resolvedTemplate.branch, "-")}`,
-    ];
     drawBodyText(paymentBodyLines, footerX1 + 4, footerStartY + 13, footerPanelW1 - 8, 3.2, 6.8);
 
     // Content: QR Code

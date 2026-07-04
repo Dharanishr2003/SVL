@@ -19,3 +19,10 @@ export async function submitTestLead(payload) {
   const response = await api.post(`${BASE}/incoming-lead`, payload);
   return response.data;
 }
+
+// DELETE campaign lead
+export async function deleteCampaignLead(id) {
+  const response = await api.delete(`${BASE}/${id}`);
+  return response.data;
+}
+

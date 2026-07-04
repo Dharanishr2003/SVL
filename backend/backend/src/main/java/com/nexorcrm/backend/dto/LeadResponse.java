@@ -117,6 +117,7 @@ public class LeadResponse {
     private String duplicateOfLeadName;
 
     private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
 
     public Long getPaymentVerificationAssignedToUserId() {
         return paymentVerificationAssignedToUserId;
@@ -672,6 +673,14 @@ public class LeadResponse {
 
     public void setCreatedAt(LocalDateTime createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public LocalDateTime getUpdatedAt() {
+        return updatedAt;
+    }
+
+    public void setUpdatedAt(LocalDateTime updatedAt) {
+        this.updatedAt = updatedAt;
     }
 
     public String getPaymentNotes() { return paymentNotes; }

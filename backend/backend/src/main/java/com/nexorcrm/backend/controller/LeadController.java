@@ -176,6 +176,17 @@ public class LeadController {
         }
     }
 
+    @PatchMapping("/{id}/reopen")
+    public LeadResponse reopenRejectedLead(@PathVariable("id") Long id,
+                                            Authentication authentication) {
+        try {
+            return leadService.reopenRejectedLead(id, authentication.getName());
+        } catch (IllegalStateException ise) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, ise.getMessage());
+        }
+    }
+
     @GetMapping("/{id}/assignable-allocators")
     public List<LeadAllocatorOptionResponse> listAssignableAllocators(@PathVariable("id") Long id,
                                                                       @RequestParam(value = "groupId", required = false) Long groupId,

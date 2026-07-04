@@ -11,7 +11,7 @@
   width: 100%;
   height: 4px;
   background-color: #e9ecef;
-  margin-bottom: 1.5rem;
+  margin-bottom: 0.75rem;
   border-radius: 2px;
   overflow: hidden;
 }
@@ -28,8 +28,8 @@
   justify-content: center;
   align-items: flex-start;
   width: 100%;
-  margin-bottom: 1.75rem;
-  gap: 1.75rem;
+  margin-bottom: 0.5rem;
+  gap: 1.25rem;
   position: relative;
   flex-wrap: wrap;
 }
@@ -46,8 +46,8 @@
 }
 
 .lead-edit-wizard-circle {
-  width: 3em;
-  height: 3em;
+  width: 2.2em;
+  height: 2.2em;
   border: 2px solid #45597a;
   background-color: #fcfcfc;
   border-radius: 50%;
@@ -59,13 +59,13 @@
 }
 
 .lead-edit-wizard-circle i {
-  font-size: 1.75rem;
+  font-size: 1.2rem;
   color: #45597a;
 }
 
 .lead-edit-wizard-circle.active {
   background-color: #45597a !important;
-  box-shadow: 0 12px 28px rgba(69, 89, 122, 0.16);
+  box-shadow: 0 6px 14px rgba(69, 89, 122, 0.16);
 }
 
 .lead-edit-wizard-circle.active i {
@@ -73,8 +73,8 @@
 }
 
 .lead-edit-wizard-circle-label {
-  margin-top: 0.75rem;
-  font-size: 0.875rem;
+  margin-top: 0.4rem;
+  font-size: 0.8rem;
   font-weight: 500;
   color: #34393f;
   text-align: center;
@@ -729,14 +729,14 @@
   background: rgba(252, 252, 252, 0.95);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
-  padding: 1.25rem 2rem 0.5rem 2rem;
-  margin: -1rem -2rem 1.5rem -2rem;
+  padding: 0.6rem 2rem 0.3rem 2rem;
+  margin: -1rem -2rem 0.75rem -2rem;
   border-bottom: 1px solid #eef2f7;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.02);
 }
 
 /* Override inline scroll margin top */
 .lead-info-section {
-  scroll-margin-top: 245px !important;
+  scroll-margin-top: 180px !important;
 }
 

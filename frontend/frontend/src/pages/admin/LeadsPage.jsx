@@ -418,6 +418,8 @@ export default function LeadsPage() {
   const [campaignSearch, setCampaignSearch] = useState('');
   const [campaignSourceFilter, setCampaignSourceFilter] = useState('');
   const [campaignSelectedIds, setCampaignSelectedIds] = useState(new Set());
+  const [campaignFilterOpen, setCampaignFilterOpen] = useState(false);
+  const [campaignFilters, setCampaignFilters] = useState({ platform: '', adName: '' });
   const [campaignAssignOpen, setCampaignAssignOpen] = useState(false);
   const [campaignAssignBranchId, setCampaignAssignBranchId] = useState('');
   const [campaignAssignGroupId, setCampaignAssignGroupId] = useState('');
@@ -2965,13 +2967,13 @@ ${rowsHtml}
                 exportCsv={exportDuplicateCsv}
                 exportPdf={exportDuplicatePdf}
               />
-               <button
+               {/* <button
               className="btn btn-outline-filter d-flex align-items-center gap-2"
               style={{ height: 42, padding: "0 18px", borderRadius: 10, fontWeight: "500", fontSize: "0.9rem" }}
               onClick={loadDuplicateLeads}
             >
               <i className="ti ti-refresh" /> Refresh
-            </button>
+            </button> */}
             </div>
           </div>
 
@@ -3166,66 +3168,60 @@ ${rowsHtml}
             String(l.fullName || '').toLowerCase().includes(q) ||
             String(l.phone || '').toLowerCase().includes(q) ||
             String(l.email || '').toLowerCase().includes(q);
+          const matchPlatform = !campaignFilters.platform ||
+            String(l.platform || '').toLowerCase() === campaignFilters.platform.toLowerCase();
+          const matchAdName = !campaignFilters.adName ||
+            String(l.adName || '').toLowerCase() === campaignFilters.adName.toLowerCase();
           const matchSource = !campaignSourceFilter ||
             String(l.platform || '').toLowerCase().includes(campaignSourceFilter.toLowerCase());
-          return matchSearch && matchSource;
+          return matchSearch && matchSource && matchPlatform && matchAdName;
         });
         return (
-          <div className="duplicates-tab-container">
-            {/* Header */}
-            <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
-                
-                <div className="text-muted small mt-1">Leads from Facebook, Instagram, Google Ads &amp; other campaigns</div>
-              
+          <div className="leads-page-body">
+            <div className="leads-controls-bar d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4">
+              <div className="position-relative" style={{ width: '100%', maxWidth: 340 }}>
+                <i className="ti ti-search position-absolute" style={{ left: 12, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontSize: '1rem' }} />
+                <input
+                  type="text"
+                  className="form-control"
+                  style={{ paddingLeft: 36, borderRadius: 10, fontSize: '0.9rem', border: '1px solid #e2e8f0', height: 42 }}
+                  placeholder="Search campaign leads..."
+                  value={campaignSearch}
+                  onChange={(e) => setCampaignSearch(e.target.value)}
+                />
+              </div>
+
               <div className="d-flex align-items-center gap-2 flex-wrap">
                 <button
                   className="btn btn-outline-primary d-flex align-items-center gap-2"
-                  style={{ height: 38, padding: '0 16px', borderRadius: 8, fontWeight: '500', fontSize: '0.85rem' }}
+                  style={{ height: 42, padding: '0 18px', borderRadius: 10, fontWeight: '500', fontSize: '0.9rem' }}
                   onClick={() => setCampaignTestOpen(true)}
                 >
                   <i className="ti ti-plus" /> Test Lead Form
                 </button>
-                <select
-                  className="form-select form-select-sm"
-                  style={{ width: 170, borderRadius: 8, fontSize: '0.85rem' }}
-                  value={campaignSourceFilter}
-                  onChange={(e) => setCampaignSourceFilter(e.target.value)}
+                <button
+                  className={`btn d-flex align-items-center gap-2 ${
+                    campaignFilters.platform || campaignFilters.adName
+                      ? "btn-primary"
+                      : "btn-outline-filter"
+                  }`}
+                  style={{ height: 42, padding: "0 18px", borderRadius: 10, fontWeight: "500", fontSize: "0.9rem" }}
+                  onClick={() => setCampaignFilterOpen(true)}
                 >
-                  <option value="">All Platforms</option>
-                  <option value="fb">Facebook (fb)</option>
-                  <option value="ig">Instagram (ig)</option>
-                </select>
+                  <i className="ti ti-filter" style={{ fontSize: "1rem" }} />
+                  Filter
+                  {(campaignFilters.platform || campaignFilters.adName) && " (Active)"}
+                </button>
                 {campaignSelectedIds.size > 0 && (
                   <button
                     className="btn btn-primary btn-sm d-flex align-items-center gap-1"
-                    style={{ borderRadius: 8, fontSize: '0.85rem', padding: '6px 14px' }}
+                    style={{ borderRadius: 10, fontSize: '0.9rem', padding: '6px 14px', height: 42 }}
                     onClick={() => openCampaignAssign()}
                   >
                     <i className="ti ti-user-check" /> Assign ({campaignSelectedIds.size})
                   </button>
                 )}
-                <button
-                  className="btn btn-outline-filter d-flex align-items-center gap-2"
-                  style={{ height: 38, padding: '0 16px', borderRadius: 8, fontWeight: '500', fontSize: '0.85rem' }}
-                  onClick={loadCampaignLeads}
-                >
-                  <i className="ti ti-refresh" /> Refresh
-                </button>
-              </div>
-            </div>
-
-            {/* Search */}
-            <div className="mb-3" style={{ maxWidth: 340 }}>
-              <div className="position-relative">
-                <i className="ti ti-search position-absolute" style={{ left: 12, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontSize: '1rem' }} />
-                <input
-                  type="text"
-                  className="form-control"
-                  style={{ paddingLeft: 36, borderRadius: 10, fontSize: '0.9rem', border: '1px solid #e2e8f0' }}
-                  placeholder="Search by name, mobile, email…"
-                  value={campaignSearch}
-                  onChange={(e) => setCampaignSearch(e.target.value)}
-                />
+               
               </div>
             </div>
 
@@ -3263,10 +3259,9 @@ ${rowsHtml}
                       <th className="text-muted" style={{ fontWeight: '600', fontSize: '0.85rem' }}>Mobile</th>
                       <th className="text-muted" style={{ fontWeight: '600', fontSize: '0.85rem' }}>Email</th>
                       <th className="text-muted" style={{ fontWeight: '600', fontSize: '0.85rem' }}>Platform</th>
-                      <th className="text-muted" style={{ fontWeight: '600', fontSize: '0.85rem' }}>Campaign</th>
+                      <th className="text-muted" style={{ fontWeight: '600', fontSize: '0.85rem' }}>Ad Name</th>
                       <th className="text-muted" style={{ fontWeight: '600', fontSize: '0.85rem' }}>MOQ</th>
                       <th className="text-muted" style={{ fontWeight: '600', fontSize: '0.85rem' }}>Industry</th>
-                      <th className="text-muted" style={{ fontWeight: '600', fontSize: '0.85rem' }}>City</th>
                       <th className="text-muted" style={{ fontWeight: '600', fontSize: '0.85rem' }}>Created On</th>
                       <th className="text-muted" style={{ fontWeight: '600', fontSize: '0.85rem', width: 80 }}>Actions</th>
                     </tr>
@@ -3289,20 +3284,34 @@ ${rowsHtml}
                             />
                           </td>
                           <td className="text-muted" style={{ fontSize: '0.9rem' }}>{idx + 1}</td>
-                          <td className="fw-semibold" style={{ color: '#1e293b', fontSize: '0.9rem' }}>{lead.fullName || 'Ad Lead'}</td>
-                          <td style={{ fontSize: '0.9rem', color: '#475569' }}>{lead.phone || '—'}</td>
-                          <td style={{ fontSize: '0.9rem', color: '#475569' }}>{lead.email || '—'}</td>
-                          <td style={{ fontSize: '0.9rem' }}>
+                          <td className="fw-semibold" style={{ color: '#1e293b', fontSize: '0.9rem', whiteSpace: 'normal', overflowWrap: 'anywhere', wordBreak: 'break-word' }}>{lead.fullName || 'Ad Lead'}</td>
+                          <td style={{ fontSize: '0.9rem', color: '#475569', whiteSpace: 'nowrap' }}>
+                            <div className="d-flex align-items-center gap-2">
+                              <span>{lead.phone || '—'}</span>
+                              {lead.phone && (
+                                <a
+                                  className="btn-phone-call d-flex align-items-center justify-content-center"
+                                  href={`tel:${lead.phone}`}
+                                  style={{ width: 28, height: 28, borderRadius: "50%", border: "1px solid #e2e8f0", color: "#64748b", backgroundColor: "#fff" }}
+                                >
+                                  <PhoneGlyph size={11} />
+                                </a>
+                              )}
+                            </div>
+                          </td>
+                          <td style={{ fontSize: '0.9rem', color: '#475569', whiteSpace: 'normal', overflowWrap: 'anywhere', wordBreak: 'break-word' }}>{lead.email || '—'}</td>
+                          <td style={{ fontSize: '0.9rem', whiteSpace: 'normal' }}>
                             <span className="d-inline-flex align-items-center gap-1">
                               <i className={`ti ${srcIcon}`} style={{ color: srcColor, fontSize: '1rem' }} />
-                              <span style={{ color: '#475569' }}>{lead.platform || 'Meta'}</span>
+                              <span style={{ color: '#475569' }}>
+                                {isFb ? 'Facebook' : isIg ? 'Instagram' : (lead.platform || 'Meta')}
+                              </span>
                             </span>
                           </td>
-                          <td style={{ fontSize: '0.9rem', color: '#475569' }}>{lead.campaignName || '—'}</td>
-                          <td style={{ fontSize: '0.9rem', color: '#475569' }}>{lead.moq || '—'}</td>
-                          <td style={{ fontSize: '0.9rem', color: '#475569' }}>{lead.industry || '—'}</td>
-                          <td style={{ fontSize: '0.9rem', color: '#475569' }}>{lead.city || '—'}</td>
-                          <td className="text-muted" style={{ fontSize: '0.9rem' }}>
+                          <td style={{ fontSize: '0.9rem', color: '#475569', whiteSpace: 'normal', overflowWrap: 'anywhere', wordBreak: 'break-word' }}>{lead.adName || '—'}</td>
+                          <td style={{ fontSize: '0.9rem', color: '#475569', whiteSpace: 'normal' }}>{lead.moq || '—'}</td>
+                          <td style={{ fontSize: '0.9rem', color: '#475569', whiteSpace: 'normal', overflowWrap: 'anywhere', wordBreak: 'break-word' }}>{lead.industry || '—'}</td>
+                          <td className="text-muted" style={{ fontSize: '0.9rem', whiteSpace: 'normal' }}>
                             {lead.createdAt ? new Date(lead.createdAt).toLocaleDateString() : '—'}
                           </td>
                           <td>
@@ -3325,6 +3334,17 @@ ${rowsHtml}
                                     <i className="ti ti-user-check text-success" style={{ fontSize: '0.95rem' }} /> Assign Lead
                                   </button>
                                 </li>
+                                {role !== 'EMPLOYEE' && (
+                                  <li>
+                                    <button
+                                      className="dropdown-item py-2 d-flex align-items-center gap-2 text-danger"
+                                      style={{ fontSize: '0.85rem' }}
+                                      onClick={() => handleDeleteCampaignLead(lead)}
+                                    >
+                                      <i className="ti ti-trash" style={{ fontSize: '0.95rem' }} /> Delete Lead
+                                    </button>
+                                  </li>
+                                )}
                               </ul>
                             </div>
                           </td>
@@ -3335,46 +3355,121 @@ ${rowsHtml}
                 </table>
               </div>
             )}
+
+            {/* Sliding Filter Drawer Panel */}
+            {campaignFilterOpen && (
+              <div 
+                className="filter-drawer-overlay" 
+                onClick={() => setCampaignFilterOpen(false)} 
+              />
+            )}
+            <div className={`filter-drawer ${campaignFilterOpen ? "open" : ""}`}>
+              <div className="d-flex align-items-center justify-content-between p-3 border-bottom">
+                <h5 className="mb-0 fw-semibold text-dark" style={{ fontSize: "1.1rem" }}>
+                  Filter Campaign Leads
+                </h5>
+                <button 
+                  className="btn-close" 
+                  onClick={() => setCampaignFilterOpen(false)} 
+                  aria-label="Close"
+                />
+              </div>
+              <div className="p-4 flex-grow-1 overflow-auto">
+                {/* Platform filter */}
+                <div className="mb-4">
+                  <label className="form-label fw-semibold text-dark mb-2" style={{ fontSize: "0.88rem" }}>
+                    Platform
+                  </label>
+                  <select
+                    className="form-select"
+                    style={{ height: 42, borderRadius: 8 }}
+                    value={campaignFilters.platform}
+                    onChange={(e) =>
+                      setCampaignFilters((prev) => ({ ...prev, platform: e.target.value }))
+                    }
+                  >
+                    <option value="">All Platforms</option>
+                    <option value="fb">Facebook (fb)</option>
+                    <option value="ig">Instagram (ig)</option>
+                  </select>
+                </div>
+
+                {/* Campaign (Ad Name) filter */}
+                <div className="mb-4">
+                  <label className="form-label fw-semibold text-dark mb-2" style={{ fontSize: "0.88rem" }}>
+                    Campaign (Ad Name)
+                  </label>
+                  <select
+                    className="form-select"
+                    style={{ height: 42, borderRadius: 8 }}
+                    value={campaignFilters.adName}
+                    onChange={(e) =>
+                      setCampaignFilters((prev) => ({ ...prev, adName: e.target.value }))
+                    }
+                  >
+                    <option value="">All Campaigns</option>
+                    {[...new Set(campaignLeads.map((l) => l.adName || l.campaignName).filter(Boolean))].map((name) => (
+                      <option key={name} value={name}>
+                        {name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="p-3 border-top d-flex gap-2 bg-light">
+                <button
+                  className="btn btn-light w-50"
+                  style={{ height: 40, borderRadius: 8, fontWeight: "500" }}
+                  onClick={() => {
+                    setCampaignFilters({ platform: "", adName: "" });
+                    setCampaignFilterOpen(false);
+                  }}
+                >
+                  Reset
+                </button>
+                <button
+                  className="btn btn-primary w-50"
+                  style={{ height: 40, borderRadius: 8, fontWeight: "500" }}
+                  onClick={() => setCampaignFilterOpen(false)}
+                >
+                  Apply Filters
+                </button>
+              </div>
+            </div>
           </div>
         );
       })()}
 
       {/* ── Rejected Leads Tab ────────────────────────────────────────────────── */}
       {activeMainTab === 'rejected' && role !== 'EMPLOYEE' && (
-        <div className="duplicates-tab-container">
-          {/* Header */}
-          <div className="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
-            <div>
-              <div className="text-muted small mt-1">View and manage leads that have been rejected.</div>
+        <div className="leads-page-body">
+          <div className="leads-controls-bar d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4">
+            <div className="position-relative" style={{ width: '100%', maxWidth: 340 }}>
+              <i className="ti ti-search position-absolute" style={{ left: 12, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontSize: '1rem' }} />
+              <input
+                type="text"
+                className="form-control"
+                style={{ paddingLeft: 36, borderRadius: 10, fontSize: '0.9rem', border: '1px solid #e2e8f0', height: 42 }}
+                placeholder="Search rejected leads..."
+                value={rejectedSearch}
+                onChange={(e) => setRejectedSearch(e.target.value)}
+              />
             </div>
+
             <div className="d-flex align-items-center gap-2 flex-wrap">
               <LeadExportDropdown
                 exportExcel={exportRejectedExcel}
                 exportCsv={exportRejectedCsv}
                 exportPdf={exportRejectedPdf}
               />
-              <button
+              {/* <button
                 className="btn btn-outline-filter d-flex align-items-center gap-2"
-                style={{ height: 38, padding: '0 16px', borderRadius: 8, fontWeight: '500', fontSize: '0.85rem' }}
+                style={{ height: 42, padding: "0 18px", borderRadius: 10, fontWeight: "500", fontSize: "0.9rem" }}
                 onClick={loadRejectedLeads}
               >
                 <i className="ti ti-refresh" /> Refresh
-              </button>
-            </div>
-          </div>
-
-          {/* Search */}
-          <div className="mb-3" style={{ maxWidth: 340 }}>
-            <div className="position-relative">
-              <i className="ti ti-search position-absolute" style={{ left: 12, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', fontSize: '1rem' }} />
-              <input
-                type="text"
-                className="form-control"
-                style={{ paddingLeft: 36, borderRadius: 10, fontSize: '0.9rem', border: '1px solid #e2e8f0' }}
-                placeholder="Search by ID, name, contact, owner…"
-                value={rejectedSearch}
-                onChange={(e) => setRejectedSearch(e.target.value)}
-              />
+              </button> */}
             </div>
           </div>
 

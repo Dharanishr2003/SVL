@@ -18,6 +18,10 @@ import BootstrapInitializer from "./components/system/BootstrapInitializer";
 import { useAuth } from "./context/AuthContext";
 import { usePageAccess } from "./context/PageAccessContext";
 import { getDefaultLandingPath } from "./constants/pageAccess";
+import CustomerLayout from "./layouts/CustomerLayout";
+import CustomerInvoicePage from "./pages/customer/CustomerInvoicePage";
+import CustomerPaymentPage from "./pages/customer/CustomerPaymentPage";
+import CustomerPaymentHistoryPage from "./pages/customer/CustomerPaymentHistoryPage";
 
 const adminPageModules = import.meta.glob("./pages/admin/*Page.jsx");
 
@@ -39,6 +43,9 @@ const VendorOrdersDashboardPage = lazy(
 const VendorOrderDetailPage = lazy(
   () => import("./pages/vendor/VendorOrderDetailPage"),
 );
+const AdminSalesOrderDashboard = lazy(
+  () => import("./pages/admin/AdminSalesOrderDashboard"),
+);
 
 const explicitLazyComponents = {
   AdminDashboardPage,
@@ -47,6 +54,7 @@ const explicitLazyComponents = {
   DesignWorkPage,
   VendorOrdersDashboardPage,
   VendorOrderDetailPage,
+  AdminSalesOrderDashboard,
 };
 
 const lazyComponentCache = { ...explicitLazyComponents };
@@ -218,6 +226,14 @@ export default function App() {
               </Suspense>
             )}
           />
+        </Route>
+        <Route
+          path="/portal"
+          element={<CustomerLayout />}
+        >
+          <Route path="invoice" element={<CustomerInvoicePage />} />
+          <Route path="payment" element={<CustomerPaymentPage />} />
+          <Route path="payment-history" element={<CustomerPaymentHistoryPage />} />
         </Route>
         <Route path="/" element={<AdminLayout />}>
           <Route index element={<RoleRedirect />} />

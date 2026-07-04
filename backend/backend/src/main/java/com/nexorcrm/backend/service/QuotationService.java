@@ -21,6 +21,7 @@ import com.nexorcrm.backend.repo.LeadRepository;
 import com.nexorcrm.backend.repo.UserRepository;
 import com.nexorcrm.backend.repo.EmployeeRepository;
 import com.nexorcrm.backend.repo.EmailTemplateRepository;
+import com.nexorcrm.backend.repo.SalesOrderRepository;
 import com.nexorcrm.backend.entity.EmailTemplate;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.security.access.AccessDeniedException;
@@ -53,6 +54,8 @@ public class QuotationService {
     private final EmployeeRepository employeeRepository;
     private final EmailTemplateRepository emailTemplateRepository;
 
+    private final SalesOrderRepository salesOrderRepository;
+
     public QuotationService(
             QuotationRepository quotationRepository,
             LeadRepository leadRepository,
@@ -61,7 +64,8 @@ public class QuotationService {
             ObjectMapper objectMapper,
             EmailNotificationService emailNotificationService,
             EmployeeRepository employeeRepository,
-            EmailTemplateRepository emailTemplateRepository) {
+            EmailTemplateRepository emailTemplateRepository,
+            SalesOrderRepository salesOrderRepository) {
         this.quotationRepository = quotationRepository;
         this.leadRepository = leadRepository;
         this.userRepository = userRepository;
@@ -70,6 +74,7 @@ public class QuotationService {
         this.emailNotificationService = emailNotificationService;
         this.employeeRepository = employeeRepository;
         this.emailTemplateRepository = emailTemplateRepository;
+        this.salesOrderRepository = salesOrderRepository;
     }
 
     public QuotationResponse createQuotation(QuotationRequest request) {
@@ -885,6 +890,33 @@ public class QuotationService {
                 leadRepository.save(lead);
             });
         }
+
+        // Auto-generate SalesOrder & Items copy
+        com.nexorcrm.backend.entity.SalesOrder so = new com.nexorcrm.backend.entity.SalesOrder();
+        so.setLeadId(q.getLeadId());
+        so.setQuotationId(q.getId());
+        so.setSoNumber("SO-" + System.currentTimeMillis());
+        so.setTotalAmount(q.getGrandTotal());
+        so.setPaidAmount(BigDecimal.ZERO);
+        so.setStatus("AWAITING_ADVANCE");
+
+        List<com.nexorcrm.backend.entity.SalesOrderItem> soItems = new ArrayList<>();
+        if (q.getItems() != null) {
+            for (QuotationItem qItem : q.getItems()) {
+                com.nexorcrm.backend.entity.SalesOrderItem soItem = new com.nexorcrm.backend.entity.SalesOrderItem();
+                soItem.setSalesOrder(so);
+                soItem.setProductName(qItem.getProductName());
+                soItem.setQuantity(qItem.getQuantity());
+                soItem.setUnitPrice(qItem.getUnitPrice());
+                soItem.setLineTotal(qItem.getLineTotal());
+                soItem.setSpecsSummary(qItem.getSpecsSummary());
+                soItem.setSpecsJson(qItem.getSpecsJson());
+                soItem.setRequirementId(qItem.getRequirementId());
+                soItems.add(soItem);
+            }
+        }
+        so.setItems(soItems);
+        salesOrderRepository.save(so);
 
         return toResponse(quotationRepository.save(q));
     }

@@ -380,6 +380,25 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
     }
   };
 
+  const getScrollContainer = () => {
+    const anchor = document.getElementById("general");
+    let node = anchor?.parentElement || null;
+
+    while (node) {
+      const style = window.getComputedStyle(node);
+      const overflowY = style.overflowY;
+      if (
+        (overflowY === "auto" || overflowY === "scroll" || overflowY === "overlay") &&
+        node.scrollHeight > node.clientHeight
+      ) {
+        return node;
+      }
+      node = node.parentElement;
+    }
+
+    return window;
+  };
+
   const flowScopeByGroupId = useMemo(() => {
     const map = new Map();
     (leadGroupOptions || []).forEach((group) => {
@@ -390,6 +409,63 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
     });
     return map;
   }, [leadGroupOptions]);
+
+  useEffect(() => {
+    if (loading) return;
+    const sectionIds = [
+      "general",
+      "not_attempted",
+      "attempted",
+      "interested",
+      "requirement",
+      "rejected",
+    ];
+
+    const getCurrentActiveSection = () => {
+      const elements = sectionIds
+        .map((secId) => document.getElementById(secId))
+        .filter(Boolean);
+
+      if (!elements.length) return "general";
+
+      let currentActive = elements[0].id;
+      const triggerPoint = 240;
+      const scrollTop = window.scrollY || document.documentElement.scrollTop || 0;
+      const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+      const docHeight = Math.max(
+        document.body?.scrollHeight || 0,
+        document.documentElement?.scrollHeight || 0,
+      );
+      const isNearBottom = scrollTop + viewportHeight >= docHeight - 24;
+
+      for (const el of elements) {
+        const rect = el.getBoundingClientRect();
+        if (rect.top <= triggerPoint) {
+          currentActive = el.id;
+        }
+      }
+
+      if (isNearBottom) {
+        currentActive = elements[elements.length - 1].id;
+      }
+
+      return currentActive;
+    };
+
+    const handleScroll = () => {
+      const nextActive = getCurrentActiveSection();
+      setActiveTab((prev) => (prev === nextActive ? prev : nextActive));
+    };
+
+    const scrollContainer = getScrollContainer();
+    scrollContainer.addEventListener("scroll", handleScroll, { passive: true });
+    window.addEventListener("resize", handleScroll, { passive: true });
+    handleScroll();
+    return () => {
+      scrollContainer.removeEventListener("scroll", handleScroll);
+      window.removeEventListener("resize", handleScroll);
+    };
+  }, [loading]);
 
   useEffect(() => {
     let isMounted = true;
@@ -2225,15 +2301,6 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
               <i className="ti ti-phone text-muted"></i>
               <strong>{leadMobile || lead?.mobile || lead?.phone || "-"}</strong>
             </span>
-            {companyName && (
-              <>
-                <div className="vr d-none d-md-block" style={{ height: "24px", alignSelf: "center" }}></div>
-                <span className="text-secondary d-flex align-items-center gap-2 bg-light px-3 py-2 rounded-3 border">
-                  <i className="ti ti-building text-muted"></i>
-                  <strong>{companyName}</strong>
-                </span>
-              </>
-            )}
           </div>
           <div className="d-flex flex-wrap gap-2 align-items-center w-100 w-md-auto justify-content-start justify-content-md-end">
             <span
@@ -2736,7 +2803,7 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
                                   <input className="form-control" value={notAttemptedCallStatus || "-"} readOnly />
                                 )}
                               </div>
-                              <div className="col-md-12">
+                              <div className="col-md-3">
                                 <label className="form-label">Manual Details</label>
                                 {isNotAttempted ? (
                                   <textarea
@@ -2789,7 +2856,7 @@ export default function LeadEditPage({ leadIdOverride } = {}) {
                                   />
                                 )}
                               </div>
-                              <div className="col-md-12">
+                              <div className="col-md-3">
                                 <label className="form-label">Manual Details</label>
                                 {isAttempted ? (
                                   <textarea

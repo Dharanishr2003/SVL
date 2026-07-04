@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { attachAdminNavigationHandlers } from "../../utils/adminNavigation";
 import { useAuth } from "../../context/AuthContext";
 import { getLeadChatNotifications } from "../../api/leadsApi";
@@ -12,7 +13,9 @@ export default function Topbar({
   const containerRef = useRef(null);
   const navigate = useNavigate();
   const { logout, user } = useAuth();
+  const queryClient = useQueryClient();
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
 
@@ -91,6 +94,21 @@ export default function Topbar({
       await logout();
     } finally {
       navigate("/login", { replace: true });
+    }
+  };
+
+  const handleRefresh = async () => {
+    if (isRefreshing) return;
+    setIsRefreshing(true);
+    try {
+      await queryClient.refetchQueries({ active: true });
+      window.dispatchEvent(new CustomEvent("refresh-data"));
+    } catch (e) {
+      console.debug("Failed to refetch queries:", e);
+    } finally {
+      setTimeout(() => {
+        setIsRefreshing(false);
+      }, 800);
     }
   };
 
@@ -459,6 +477,15 @@ export default function Topbar({
               data-topbar-attendance-slot="desktop"
             ></div>
             <div className="d-none d-lg-flex align-items-center header-actions">
+              <button
+                type="button"
+                className="btn btn-menubar me-1"
+                title="Refresh Data"
+                onClick={handleRefresh}
+                disabled={isRefreshing}
+              >
+                <i className={`ti ti-refresh ${isRefreshing ? "spin-animation" : ""}`}></i>
+              </button>
               <a
                 href="#"
                 className="btn btn-menubar me-1"

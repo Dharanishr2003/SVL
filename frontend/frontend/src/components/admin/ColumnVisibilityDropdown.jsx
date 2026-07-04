@@ -106,9 +106,7 @@ export default function ColumnVisibilityDropdown({ columns, visible, onChange })
               justifyContent: "space-between",
             }}
           >
-            <span style={{ fontWeight: 600, fontSize: "0.82rem", color: "#0f172a", letterSpacing: "0.02em" }}>
-              SHOW / HIDE COLUMNS
-            </span>
+            
             <button
               type="button"
               style={{

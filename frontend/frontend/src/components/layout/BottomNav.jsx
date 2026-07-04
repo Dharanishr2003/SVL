@@ -117,12 +117,12 @@ export default function BottomNav() {
   if (isCustomer) {
     navItems = [
       {
-        to: "/customer/chat",
+        to: "/portal/chat",
         label: "Chat",
         icon: "ti ti-message",
       },
       {
-        to: "/customer/status",
+        to: "/portal/status",
         label: "Status",
         icon: "ti ti-checklist",
       },

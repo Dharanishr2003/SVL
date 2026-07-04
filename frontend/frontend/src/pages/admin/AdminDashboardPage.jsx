@@ -50,8 +50,24 @@ export default function AdminDashboardPage() {
     user?.username ||
     data.welcome?.name ||
     "Admin";
-  const employees = Array.isArray(data.employees) ? data.employees : [];
-  const birthdayGroups = Array.isArray(data.birthdays) ? data.birthdays.slice(0, 4) : [];
+  const MAX_EMPLOYEES = 5;
+  const MAX_BIRTHDAY_ITEMS = 4;
+  const allEmployees = Array.isArray(data.employees) ? data.employees : [];
+  const employees = allEmployees.slice(0, MAX_EMPLOYEES);
+  const hasMoreEmployees = allEmployees.length > MAX_EMPLOYEES;
+
+  // Flatten birthday groups and cap at MAX_BIRTHDAY_ITEMS total
+  const allBirthdayGroups = Array.isArray(data.birthdays) ? data.birthdays : [];
+  let _birthdayItemCount = 0;
+  const birthdayGroups = allBirthdayGroups.reduce((acc, group) => {
+    if (_birthdayItemCount >= MAX_BIRTHDAY_ITEMS) return acc;
+    const items = (group.items || []).slice(0, MAX_BIRTHDAY_ITEMS - _birthdayItemCount);
+    _birthdayItemCount += items.length;
+    if (items.length > 0) acc.push({ ...group, items });
+    return acc;
+  }, []);
+  const totalBirthdayItems = allBirthdayGroups.reduce((sum, g) => sum + (g.items || []).length, 0);
+  const hasMoreBirthdays = totalBirthdayItems > MAX_BIRTHDAY_ITEMS;
   const attendanceOverview = data.attendanceOverview || null;
   const attendanceChartKey = [
     attendanceOverview?.totalCount ?? "",
@@ -555,7 +571,7 @@ export default function AdminDashboardPage() {
                 {lateList.length > 0 && (
                   <>
                     <h6 className="mb-2">Late</h6>
-                    {lateList.slice(0, 3).map((emp, idx) => (
+                    {lateList.slice(0, 2).map((emp, idx) => (
                       <div key={idx} className="d-flex align-items-center justify-content-between mb-3 p-2 border border-dashed br-5">
                         <div className="d-flex align-items-center">
                           <span className="avatar flex-shrink-0">
@@ -783,7 +799,9 @@ export default function AdminDashboardPage() {
       <div className="card flex-fill">
         <div className="card-header pb-2 d-flex align-items-center justify-content-between flex-wrap">
           <h5 className="mb-2">Employees</h5>
-          <Link to="/employees" className="btn btn-light btn-md mb-2">View All</Link>
+          <Link to="/employees" className="btn btn-light btn-md mb-2">
+            View All{hasMoreEmployees ? ` (${allEmployees.length})` : ""}
+          </Link>
         </div>
         <div className="card-body p-0">
           <div className="table-responsive">
@@ -841,7 +859,9 @@ export default function AdminDashboardPage() {
       <div className="card flex-fill">
         <div className="card-header pb-2 d-flex align-items-center justify-content-between flex-wrap">
           <h5 className="mb-2">Birthdays</h5>
-          <Link to="/employees" className="btn btn-light btn-md mb-2">View All</Link>
+          <Link to="/employees" className="btn btn-light btn-md mb-2">
+            View All{hasMoreBirthdays ? ` (${totalBirthdayItems})` : ""}
+          </Link>
         </div>
         <div className="card-body pb-1">
           {birthdayGroups.length > 0 ? (

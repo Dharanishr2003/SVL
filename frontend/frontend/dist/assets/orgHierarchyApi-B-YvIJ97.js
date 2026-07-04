@@ -1,1 +1,0 @@
-import{z as a}from"./index-fK54kxSn.js";async function s(){const t=await a.get("/api/org/institutions");return Array.isArray(t?.data)?t.data:[]}async function e(t){return t&&(await a.get(`/api/org/user/${t}`))?.data||null}export{s as a,e as g};

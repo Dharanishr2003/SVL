@@ -573,6 +573,10 @@ export const adminPhpRoutes = [
     component: "PaymentsPage",
   },
   {
+    path: "sales-orders",
+    component: "AdminSalesOrderDashboard",
+  },
+  {
     path: "categories",
     component: "CategoriesPage",
   },

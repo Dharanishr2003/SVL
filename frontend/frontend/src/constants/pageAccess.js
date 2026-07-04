@@ -393,6 +393,9 @@ export function canAccessPathWithPageKeys(path, pageKeys, role) {
 
 export function getDefaultLandingPath(role, pageKeys) {
   const normalizedRole = String(role || "").trim().toUpperCase();
+  if (normalizedRole === "CUSTOMER") {
+    return "/portal/invoice";
+  }
 
   const seen = new Set();
   for (const rule of ROUTE_ACCESS_RULES) {

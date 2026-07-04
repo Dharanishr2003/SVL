@@ -151,5 +151,11 @@ public class CampaignLeadService {
         campaignLeadRepository.save(campaignLead);
 
         return leadResponse;
+     }
+
+    public void deleteCampaignLead(Long id) {
+        CampaignLead campaignLead = campaignLeadRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Campaign lead not found"));
+        campaignLeadRepository.delete(campaignLead);
     }
 }

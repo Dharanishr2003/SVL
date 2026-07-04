@@ -40,12 +40,18 @@ export default function LeadListView({
   onDeleteLead,
   role,
   visibleColumns = {},
+  onRowClick,
 }) {
   const isEmployee = role === "EMPLOYEE";
   const ownerColumnLabel = isEmployee ? "Assigned By" : "Owner";
 
   // Helper: is a column visible? Defaults to true if key not specified.
-  const isVis = (key) => visibleColumns[key] !== false;
+  const isVis = (key) => {
+    if (key === "assignedBy") {
+      return visibleColumns[key] === true;
+    }
+    return visibleColumns[key] !== false;
+  };
 
   // Count how many columns are actually visible (checkbox + # are always shown)
   const colCount =
@@ -55,6 +61,7 @@ export default function LeadListView({
     (isVis("source") ? 1 : 0) +
     (isVis("status") ? 1 : 0) +
     (isVis("owner") ? 1 : 0) +
+    (isVis("assignedBy") && (role === "ADMIN" || role === "SUPER_ADMIN") ? 1 : 0) +
     (isVis("createdOn") ? 1 : 0) +
     1; // actions always shown
 
@@ -105,6 +112,11 @@ export default function LeadListView({
                 {ownerColumnLabel}
               </th>
             )}
+            {isVis("assignedBy") && (role === "ADMIN" || role === "SUPER_ADMIN") && (
+              <th className="col-assigned-by text-muted" style={{ fontWeight: "600", fontSize: "0.85rem" }}>
+                Assigned By
+              </th>
+            )}
             {isVis("createdOn") && (
               <th
                 className="col-date text-muted"
@@ -133,8 +145,8 @@ export default function LeadListView({
               const statusKey = String(row.status || "").trim().toLowerCase();
               const isDealRow = statusKey === "deal";
               return (
-                <tr key={row.id}>
-                  <td className="col-select">
+                <tr key={row.id} onClick={() => onRowClick?.(row)} style={{ cursor: "pointer" }}>
+                  <td className="col-select" onClick={(e) => e.stopPropagation()}>
                     {isDealRow ? null : (
                       <input
                         type="checkbox"
@@ -157,6 +169,7 @@ export default function LeadListView({
                             className="btn-phone-call d-flex align-items-center justify-content-center"
                             href={`tel:${row.mobile}`}
                             style={{ width: 28, height: 28, borderRadius: "50%", border: "1px solid #e2e8f0", color: "#64748b", backgroundColor: "#fff" }}
+                            onClick={(e) => e.stopPropagation()}
                           >
                             <PhoneGlyph size={11} />
                           </a>
@@ -192,6 +205,11 @@ export default function LeadListView({
                   {isVis("owner") && (
                     <td className="col-owner" style={{ fontSize: "0.9rem", color: "#475569" }}>
                       {isEmployee ? row.allocator || "-" : row.owner || "-"}
+                    </td>
+                  )}
+                  {isVis("assignedBy") && (role === "ADMIN" || role === "SUPER_ADMIN") && (
+                    <td className="col-assigned-by" style={{ fontSize: "0.9rem", color: "#475569" }}>
+                      {row.allocator || "-"}
                     </td>
                   )}
                   {isVis("createdOn") && (
